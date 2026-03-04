@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1B6EF3" />
+  <meta name="description" content="CorretoApp — Gestão inteligente para corretores de imóveis" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="CorretoApp" />
+  <title>CorretoApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; }
+    body { font-family: 'Outfit', sans-serif; background: #060D1A; -webkit-font-smoothing: antialiased; }
+    ::-webkit-scrollbar { width: 0; height: 0; }
+    input, button, textarea, select { font-family: 'Outfit', sans-serif; }
+    @keyframes slideUp  { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+    @keyframes scaleIn  { from { transform: scale(0.96); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+    .screen-anim { animation: scaleIn 0.22s ease; }
+    textarea { resize: none; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, createContext, useContext } = React;
+
+// ─── THEME ────────────────────────────────────────────────────────
+const G = {
+  navy:'#0D1B2E', navy2:'#122040', navy3:'#1A2E4A',
+  blue:'#1B6EF3', blueL:'#3B82F6', blueDark:'#0D4ED8', blueGlow:'rgba(27,110,243,0.18)',
+  gold:'#F0A500', goldL:'#FBBF24', goldDark:'#D97706',
+  teal:'#0DAFA0', rose:'#F43F5E', roseL:'#FB7185',
+  green:'#10B981', greenL:'#34D399', greenBg:'rgba(16,185,129,0.12)',
+  amber:'#F59E0B',
+  slate50:'#F8FAFC', slate100:'#F1F5F9', slate200:'#E2E8F0',
+  slate400:'#94A3B8', slate500:'#64748B', slate600:'#475569',
+  slate700:'#334155', slate800:'#1E293B', slate900:'#0F172A',
+  white:'#FFFFFF', glassBg:'rgba(255,255,255,0.04)', glassBorder:'rgba(255,255,255,0.09)',
+};
+
+// ─── UTILS ────────────────────────────────────────────────────────
+const fmt = (v=0) => Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0});
+const parseBRL = (s='') => { if(typeof s==='number') return s; return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0; };
+const formatDate = (iso) => { if(!iso) return '—'; try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso; } };
+const calcRisk = ({price,financing,subsidy,fgts,discountPct=0,riskThreshold=30}) => {
+  const p=parseBRL(price), disc=p*(parseBRL(discountPct)/100), adj=Math.max(p-disc,0);
+  const fin=parseBRL(financing)+parseBRL(subsidy)+parseBRL(fgts), poup=Math.max(adj-fin,0);
+  const limit=(riskThreshold/100)*adj, isHigh=poup>limit, riskPct=adj>0?Math.round((poup/adj)*100):0;
+  return {adjustedPrice:adj,discount:disc,totalFin:fin,poupanca:poup,isHigh,riskPct,limit};
+};
+const calcMonthly = ({poupanca,sinal,parcelas}) => { const s=parseBRL(sinal),n=parseInt(parcelas)||1; return Math.max((poupanca-s)/n,0); };
+
+function useLocalStorage(key,initial){
+  const [value,setValue]=useState(()=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):initial;}catch{return initial;}});
+  useEffect(()=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{}},[key,value]);
+  return [value,setValue];
+}
+
+// ─── SEED DATA ────────────────────────────────────────────────────
+const SEED_REPORTS=[
+  {id:1,emp:'Palazzo Residências',client:'Rafael Silveira',email:'rafael@email.com',phone:'(11) 99812-4401',unit:'Torre A — Ap 1402',imob:'Elite Imóveis SP',price:980000,financing:680000,subsidy:45000,fgts:35000,sinal:50000,parcelas:180,risk:false,date:'2025-01-14',city:'São Paulo'},
+  {id:2,emp:'Reserva das Flores',client:'Mariana Costa',email:'mariana@email.com',phone:'(21) 98765-3300',unit:'Bloco B — Lote 08',imob:'Costa & Faria Imóveis',price:380000,financing:210000,subsidy:30000,fgts:20000,sinal:20000,parcelas:240,risk:true,date:'2025-01-08',city:'Rio de Janeiro'},
+  {id:3,emp:'Grand Recanto',client:'Thiago Mendonça',email:'thiago@email.com',phone:'(31) 99001-2200',unit:'Bl. C — Ap 302',imob:'MG Premium Imóveis',price:620000,financing:420000,subsidy:28000,fgts:40000,sinal:35000,parcelas:200,risk:false,date:'2025-01-03',city:'Belo Horizonte'},
+  {id:4,emp:'Villagio Novo',client:'Carla Drummond',email:'carla@email.com',phone:'(85) 98234-6600',unit:'Ap 701 — Torre 2',imob:'Norte Imóveis',price:290000,financing:150000,subsidy:25000,fgts:15000,sinal:15000,parcelas:120,risk:true,date:'2024-12-28',city:'Fortaleza'},
+];
+const SEED_SALES=[
+  {id:1,emp:'Palazzo Residências',client:'Rafael Silveira',price:980000,pct:3,status:'paga',date:'14/01/2025'},
+  {id:2,emp:'Reserva das Flores',client:'Mariana Costa',price:380000,pct:2.5,status:'aprovada',date:'08/01/2025'},
+  {id:3,emp:'Grand Recanto',client:'Thiago Mendonça',price:620000,pct:3,status:'paga',date:'03/01/2025'},
+  {id:4,emp:'Villagio Novo',client:'Carla Drummond',price:290000,pct:2,status:'pendente',date:'28/12/2024'},
+];
+const SEED_REMINDERS=[
+  {id:1,title:'Visita — Palazzo Residências',desc:'Apresentação do decorado para Rafael',priority:'alta',done:false,date:'22 Jan'},
+  {id:2,title:'Proposta CAIXA — Reserva',desc:'Enviar documentação para aprovação',priority:'alta',done:false,date:'23 Jan'},
+  {id:3,title:'Reunião equipe',desc:'Planejamento trimestral Nova Vision',priority:'media',done:false,date:'25 Jan'},
+  {id:4,title:'Acompanhar escritura',desc:'Grand Recanto — Thiago Mendonça',priority:'baixa',done:true,date:'18 Jan'},
+];
+const SEED_SETTINGS={name:'João Corretor',imob:'Elite Imóveis SP',riskThreshold:30,notifications:true,darkMode:false};
+
+// ─── APP CONTEXT ──────────────────────────────────────────────────
+const AppCtx = createContext(null);
+function AppProvider({children}){
+  const [reports,setReports]=useLocalStorage('ca:reports',SEED_REPORTS);
+  const [sales,setSales]=useLocalStorage('ca:sales',SEED_SALES);
+  const [reminders,setReminders]=useLocalStorage('ca:reminders',SEED_REMINDERS);
+  const [settings,setSettings]=useLocalStorage('ca:settings',SEED_SETTINGS);
+  const addReport=(r)=>setReports(p=>[{...r,id:Date.now()},...p]);
+  const delReport=(id)=>setReports(p=>p.filter(r=>r.id!==id));
+  const addSale=(s)=>setSales(p=>[{...s,id:Date.now()},...p]);
+  const updateSaleStatus=(id,status)=>setSales(p=>p.map(s=>s.id===id?{...s,status}:s));
+  const delSale=(id)=>setSales(p=>p.filter(s=>s.id!==id));
+  const addReminder=(r)=>setReminders(p=>[{...r,id:Date.now(),done:false},...p]);
+  const toggleReminder=(id)=>setReminders(p=>p.map(r=>r.id===id?{...r,done:!r.done}:r));
+  const delReminder=(id)=>setReminders(p=>p.filter(r=>r.id!==id));
+  const updateSettings=(patch)=>setSettings(p=>({...p,...patch}));
+  const totalComm=sales.reduce((a,s)=>a+s.price*s.pct/100,0);
+  const paidComm=sales.filter(s=>s.status==='paga').reduce((a,s)=>a+s.price*s.pct/100,0);
+  const pendComm=sales.filter(s=>s.status!=='paga'&&s.status!=='cancelada').reduce((a,s)=>a+s.price*s.pct/100,0);
+  return <AppCtx.Provider value={{reports,addReport,delReport,sales,addSale,updateSaleStatus,delSale,reminders,addReminder,toggleReminder,delReminder,settings,updateSettings,totalComm,paidComm,pendComm}}>{children}</AppCtx.Provider>;
+}
+const useApp=()=>useContext(AppCtx);
+
+// ─── MICRO UI ─────────────────────────────────────────────────────
+const Tag=({label,bg,text='#fff',size=10})=><span style={{background:bg,color:text,fontSize:size,fontWeight:700,padding:'3px 9px',borderRadius:99,whiteSpace:'nowrap',letterSpacing:0.3}}>{label}</span>;
+const Divider=({my=10})=><div style={{height:1,background:G.slate100,margin:`${my}px 0`}}/>;
+const Avatar=({name='?',size=36,color=G.blue})=>{
+  const initials=name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return <div style={{width:size,height:size,borderRadius:size/2,background:`${color}22`,border:`1.5px solid ${color}44`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><span style={{fontSize:size*0.35,fontWeight:800,color}}>{initials}</span></div>;
+};
+const Card=({children,style={}})=><div style={{background:G.white,borderRadius:16,border:`1px solid ${G.slate100}`,boxShadow:'0 2px 10px rgba(0,0,0,0.05)',...style}}>{children}</div>;
+const SectionLabel=({children})=><div style={{fontSize:10,fontWeight:800,color:G.blue,textTransform:'uppercase',letterSpacing:1,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${G.slate100}`}}>{children}</div>;
+const DataRow=({label,value,highlight,accent})=><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:highlight?'7px 10px':'5px 0',background:highlight?`${G.blue}12`:'transparent',borderRadius:highlight?8:0,marginBottom:2}}><span style={{fontSize:12,color:G.slate500,flex:1}}>{label}</span><span style={{fontSize:12,fontWeight:highlight?800:700,color:accent||(highlight?G.blueL:G.slate800)}}>{value}</span></div>;
+const Empty=({icon,title,sub})=><div style={{textAlign:'center',padding:'60px 20px'}}><div style={{fontSize:52,marginBottom:14}}>{icon}</div><div style={{fontSize:15,fontWeight:700,color:G.slate500,marginBottom:6}}>{title}</div>{sub&&<div style={{fontSize:12,color:G.slate400}}>{sub}</div>}</div>;
+const RoundBtn=({icon,onClick,color=G.blue})=><button onClick={onClick} style={{width:36,height:36,borderRadius:18,background:color,border:'none',color:'#fff',fontSize:20,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 4px 12px ${color}44`,flexShrink:0}}>{icon}</button>;
+
+const Ring=({pct=0,size=56,stroke=5,color=G.blue})=>{
+  const r=(size-stroke*2)/2,circ=2*Math.PI*r,dash=(Math.min(pct,100)/100)*circ;
+  return <div style={{position:'relative',width:size,height:size,flexShrink:0}}><svg width={size} height={size} style={{transform:'rotate(-90deg)'}}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={G.slate100} strokeWidth={stroke}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"/></svg><div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:11,fontWeight:800,color:G.slate800}}>{pct}%</span></div></div>;
+};
+
+const MiniBar=({data=[]})=>{
+  const max=Math.max(...data.map(d=>d.v),1);
+  return <div style={{display:'flex',alignItems:'flex-end',gap:4,height:50}}>{data.map((d,i)=><div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}><div style={{width:'100%',height:(d.v/max)*36,borderRadius:'3px 3px 0 0',background:d.active?G.blue:G.slate200}}/><span style={{fontSize:8,color:d.active?G.blue:G.slate400,fontWeight:600}}>{d.l}</span></div>)}</div>;
+};
+
+function InputField({label,value,onChange,prefix,suffix,placeholder='',type='text',hint,required,multiline}){
+  const [focused,setFocused]=useState(false);
+  const border=`1.5px solid ${focused?G.blue:G.slate200}`;
+  return <div style={{marginBottom:12}}>
+    <div style={{fontSize:10,fontWeight:700,color:focused?G.blue:G.slate500,textTransform:'uppercase',letterSpacing:0.7,marginBottom:5}}>{label}{required&&<span style={{color:G.rose}}> *</span>}</div>
+    <div style={{display:'flex',alignItems:multiline?'flex-start':'center',border,borderRadius:10,background:focused?`${G.blue}04`:G.white,transition:'border-color 0.18s',overflow:'hidden'}}>
+      {prefix&&<span style={{padding:'0 6px 0 12px',fontSize:13,color:G.slate400}}>{prefix}</span>}
+      {multiline
+        ?<textarea value={value} placeholder={placeholder} onChange={e=>onChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} style={{flex:1,border:'none',outline:'none',padding:'10px 12px',fontSize:13,color:G.slate800,background:'transparent',fontFamily:'Outfit,sans-serif',minHeight:72}}/>
+        :<input type={type} value={value} placeholder={placeholder} onChange={e=>onChange?.(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} style={{flex:1,border:'none',outline:'none',padding:'11px 12px',fontSize:13,color:G.slate800,background:'transparent',fontFamily:'Outfit,sans-serif'}}/>
+      }
+      {suffix&&<span style={{padding:'0 12px 0 4px',fontSize:12,color:G.slate400}}>{suffix}</span>}
+    </div>
+    {hint&&<div style={{fontSize:10,color:G.green,marginTop:4}}>{hint}</div>}
+  </div>;
+}
+
+function Btn({label,onClick,variant='primary',disabled,style:s={},fullWidth=true}){
+  const [pressed,setPressed]=useState(false);
+  const cfg={primary:{bg:G.blue,text:'#fff',border:'none',shadow:`0 4px 14px ${G.blueGlow}`},secondary:{bg:'transparent',text:G.blue,border:`1.5px solid ${G.blue}`,shadow:'none'},ghost:{bg:G.slate100,text:G.slate700,border:'none',shadow:'none'},danger:{bg:G.rose,text:'#fff',border:'none',shadow:'none'},gold:{bg:G.gold,text:'#fff',border:'none',shadow:'none'}}[variant]||{};
+  return <button onClick={onClick} disabled={disabled} onMouseDown={()=>setPressed(true)} onMouseUp={()=>setPressed(false)} onMouseLeave={()=>setPressed(false)} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'12px 18px',borderRadius:11,border:cfg.border,background:cfg.bg,color:cfg.text,fontSize:13,fontWeight:700,cursor:disabled?'not-allowed':'pointer',width:fullWidth?'100%':'auto',boxShadow:cfg.shadow,fontFamily:'Outfit,sans-serif',opacity:disabled?0.45:pressed?0.85:1,transform:pressed?'scale(0.98)':'scale(1)',transition:'all 0.12s',...s}}>{label}</button>;
+}
+
+const StepBar=({step,total=4})=><div style={{display:'flex',gap:5,padding:'10px 16px 0'}}>{Array.from({length:total}).map((_,i)=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<step?G.blue:G.slate200,transition:'background 0.3s'}}/>)}</div>;
+
+function Sheet({open,onClose,title,children}){
+  if(!open) return null;
+  return <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.55)',display:'flex',flexDirection:'column',justifyContent:'flex-end',zIndex:200}} onClick={e=>e.target===e.currentTarget&&onClose?.()}>
+    <div style={{background:G.white,borderRadius:'22px 22px 0 0',maxHeight:'85%',display:'flex',flexDirection:'column',animation:'slideUp 0.25s ease'}}>
+      <div style={{padding:'16px 20px 12px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:`1px solid ${G.slate100}`,flexShrink:0}}>
+        <span style={{fontSize:16,fontWeight:800,color:G.slate900}}>{title}</span>
+        <button onClick={onClose} style={{background:G.slate100,border:'none',width:30,height:30,borderRadius:15,fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+      </div>
+      <div style={{overflowY:'auto',padding:'16px 20px 28px'}}>{children}</div>
+    </div>
+  </div>;
+}
+
+function Confirm({open,title,message,onConfirm,onCancel}){
+  if(!open) return null;
+  return <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:24}}>
+    <div style={{background:G.white,borderRadius:20,padding:24,width:'100%',maxWidth:320}}>
+      <div style={{fontSize:16,fontWeight:800,color:G.slate900,marginBottom:8}}>{title}</div>
+      {message&&<div style={{fontSize:13,color:G.slate500,marginBottom:20}}>{message}</div>}
+      <div style={{display:'flex',gap:10}}><Btn label="Cancelar" variant="ghost" onClick={onCancel}/><Btn label="Confirmar" variant="danger" onClick={onConfirm}/></div>
+    </div>
+  </div>;
+}
+
+// ─── PHONE SHELL ──────────────────────────────────────────────────
+const NAV_ITEMS=[{key:'home',icon:'🏠',label:'Início'},{key:'reports',icon:'📋',label:'Propostas'},{key:'commissions',icon:'💰',label:'Comissões'},{key:'reminders',icon:'⏰',label:'Agenda'},{key:'settings',icon:'⚙️',label:'Config'}];
+
+function PhoneShell({screen,onNav,children}){
+  const isDark=screen==='home';
+  const showNav=['home','reports','commissions','reminders','settings'].includes(screen);
+  const time=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  return <div style={{minHeight:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'radial-gradient(ellipse at 20% 50%,#0a1628 0%,#060D1A 60%)',padding:'24px 16px'}}>
+    <div style={{width:'100%',maxWidth:390,height:'100dvh',maxHeight:820,background:G.slate50,borderRadius:50,overflow:'hidden',display:'flex',flexDirection:'column',position:'relative',boxShadow:'0 60px 120px rgba(0,0,0,0.7),0 0 0 10px #111827,0 0 0 12px #1E293B,0 0 60px rgba(27,110,243,0.12)'}}>
+      <div style={{position:'absolute',top:0,left:'50%',transform:'translateX(-50%)',width:124,height:32,background:'#0a0e18',borderRadius:'0 0 22px 22px',zIndex:99,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+        <div style={{width:9,height:9,borderRadius:5,background:'#111',border:'1px solid #333'}}/>
+        <div style={{width:42,height:5,borderRadius:3,background:'#111'}}/>
+      </div>
+      <div style={{height:46,background:isDark?'#0D1B2E':G.white,display:'flex',alignItems:'flex-end',justifyContent:'space-between',padding:'0 22px 7px',flexShrink:0,zIndex:10,borderBottom:isDark?'none':`1px solid ${G.slate100}`}}>
+        <span style={{fontSize:11,fontWeight:700,color:isDark?'rgba(255,255,255,0.6)':G.slate500}}>{time}</span>
+        <div style={{display:'flex',gap:5,alignItems:'center'}}>
+          {[1,2,3,4].map(i=><div key={i} style={{width:3,height:3+i*2,borderRadius:1.5,background:isDark?'rgba(255,255,255,0.6)':G.slate400}}/>)}
+          <div style={{width:18,height:9,border:`1.5px solid ${isDark?'rgba(255,255,255,0.6)':G.slate400}`,borderRadius:3,marginLeft:4,position:'relative'}}>
+            <div style={{position:'absolute',left:1.5,top:1.5,right:4,bottom:1.5,background:isDark?'rgba(255,255,255,0.6)':G.slate400,borderRadius:1}}/>
+          </div>
+        </div>
+      </div>
+      <div className="screen-anim" key={screen} style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+        {children}
+      </div>
+      {showNav&&<div style={{height:68,background:G.white,borderTop:`1px solid ${G.slate100}`,display:'flex',alignItems:'center',justifyContent:'space-around',padding:'0 8px 6px',flexShrink:0,boxShadow:'0 -4px 20px rgba(0,0,0,0.06)'}}>
+        {NAV_ITEMS.map(({key,icon,label})=>{
+          const active=screen===key;
+          return <button key={key} onClick={()=>onNav(key)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'8px 12px',borderRadius:12,border:'none',background:active?`${G.blue}12`:'transparent',transition:'background 0.15s',minWidth:58}}>
+            <span style={{fontSize:18,filter:active?'none':'grayscale(0.4) opacity(0.55)'}}>{icon}</span>
+            <span style={{fontSize:9,fontWeight:700,color:active?G.blue:G.slate400,letterSpacing:0.3}}>{label}</span>
+            {active&&<div style={{width:4,height:4,borderRadius:2,background:G.blue,marginTop:-2}}/>}
+          </button>;
+        })}
+      </div>}
+    </div>
+  </div>;
+}
+
+// ─── HOME ─────────────────────────────────────────────────────────
+function HomeScreen({onNav,onViewReport}){
+  const {reports,totalComm,pendComm,settings}=useApp();
+  return <div style={{flex:1,overflowY:'auto',background:G.slate50}}>
+    <div style={{background:`linear-gradient(145deg,${G.navy} 0%,${G.navy3} 100%)`,padding:'12px 18px 24px',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',width:220,height:220,borderRadius:'50%',background:`${G.blue}10`,top:-60,right:-50,pointerEvents:'none'}}/>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
+        <div>
+          <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',letterSpacing:1,textTransform:'uppercase',marginBottom:3}}>Gestão Imobiliária</div>
+          <div style={{fontSize:24,fontWeight:900,color:G.white,letterSpacing:-0.8}}>Correto<span style={{color:G.blueL}}>App</span></div>
+        </div>
+        <Avatar name={settings.name||'Corretor'} size={38} color={G.gold}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        {[{label:'Propostas',value:reports.length,icon:'📋'},{label:'Total Comiss.',value:fmt(totalComm),icon:'💰'},{label:'A Receber',value:fmt(pendComm),icon:'⏳'}].map(({label,value,icon})=>(
+          <div key={label} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:10}}>
+            <div style={{fontSize:13,marginBottom:4}}>{icon}</div>
+            <div style={{fontSize:12,fontWeight:800,color:G.white,lineHeight:1}}>{value}</div>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.45)',marginTop:3}}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{padding:'14px 16px 24px',display:'flex',flexDirection:'column',gap:14}}>
+      <button onClick={()=>onNav('newReport')} style={{background:`linear-gradient(120deg,${G.blue} 0%,${G.blueDark} 100%)`,borderRadius:16,padding:'16px 18px',border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:14,boxShadow:`0 8px 24px ${G.blueGlow}`,position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',right:-20,top:-20,width:100,height:100,borderRadius:'50%',background:'rgba(255,255,255,0.06)'}}/>
+        <div style={{width:44,height:44,borderRadius:22,background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>🏠</div>
+        <div style={{flex:1,textAlign:'left'}}>
+          <div style={{fontSize:15,fontWeight:800,color:G.white}}>Nova Proposta</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.6)',marginTop:2}}>Calcule financiamento em 4 passos</div>
+        </div>
+        <span style={{fontSize:20,color:'rgba(255,255,255,0.5)'}}>→</span>
+      </button>
+      <div>
+        <div style={{fontSize:11,fontWeight:800,color:G.slate600,letterSpacing:0.5,textTransform:'uppercase',marginBottom:10}}>Acesso Rápido</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+          {[{label:'Relatórios',icon:'📋',bg:'#F3E8FF',key:'reports'},{label:'Comissões',icon:'💰',bg:'#D1FAE5',key:'commissions'},{label:'Lembretes',icon:'⏰',bg:'#FEF3C7',key:'reminders'},{label:'Agenda',icon:'🗓️',bg:'#FCE7F3',key:'reminders'},{label:'Material',icon:'📁',bg:'#CCFBF1',key:'reminders'},{label:'Config.',icon:'⚙️',bg:G.slate100,key:'settings'}].map(({label,icon,bg,key})=>(
+            <button key={label} onClick={()=>onNav(key)} style={{background:G.white,border:`1px solid ${G.slate100}`,borderRadius:14,padding:'14px 8px',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:7,boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+              <div style={{width:42,height:42,borderRadius:21,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:19}}>{icon}</div>
+              <span style={{fontSize:10,fontWeight:700,color:G.slate700,textAlign:'center'}}>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {reports.length>0&&<div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <span style={{fontSize:11,fontWeight:800,color:G.slate600,letterSpacing:0.5,textTransform:'uppercase'}}>Propostas Recentes</span>
+          <button onClick={()=>onNav('reports')} style={{background:'none',border:'none',fontSize:11,color:G.blue,fontWeight:700}}>Ver todas →</button>
+        </div>
+        {reports.slice(0,3).map(r=>{
+          const poup=Math.max(r.price-r.financing-r.subsidy-r.fgts,0);
+          const monthly=r.parcelas>0?Math.max((poup-r.sinal)/r.parcelas,0):0;
+          return <button key={r.id} onClick={()=>onViewReport(r)} style={{background:G.white,border:`1px solid ${G.slate100}`,borderRadius:14,padding:12,cursor:'pointer',display:'flex',alignItems:'center',gap:12,width:'100%',textAlign:'left',boxShadow:'0 2px 8px rgba(0,0,0,0.04)',marginBottom:8}}>
+            <div style={{width:8,height:8,borderRadius:4,background:r.risk?G.amber:G.green,flexShrink:0}}/>
+            <Avatar name={r.client} size={36} color={r.risk?G.amber:G.blue}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:700,color:G.slate800,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.emp}</div>
+              <div style={{fontSize:11,color:G.slate500}}>{r.client}</div>
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:800,color:G.slate800}}>{fmt(r.price)}</div>
+              <div style={{fontSize:10,color:G.blue,fontWeight:600}}>{fmt(monthly)}/mês</div>
+            </div>
+          </button>;
+        })}
+      </div>}
+      <Card style={{padding:14}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+          <span style={{fontSize:12,fontWeight:800,color:G.slate700}}>Comissões — Histórico</span>
+          <Tag label={fmt(totalComm)} bg={G.blue} size={10}/>
+        </div>
+        <MiniBar data={[{l:'Set',v:18000},{l:'Out',v:25000},{l:'Nov',v:21000},{l:'Dez',v:30000},{l:'Jan',v:totalComm,active:true}]}/>
+      </Card>
+    </div>
+  </div>;
+}
+
+// ─── REPORTS ──────────────────────────────────────────────────────
+function ReportsScreen({onNav,onViewReport}){
+  const {reports,delReport}=useApp();
+  const [search,setSearch]=useState('');
+  const [confirmId,setConfirmId]=useState(null);
+  const filtered=reports.filter(r=>!search||r.emp.toLowerCase().includes(search.toLowerCase())||r.client.toLowerCase().includes(search.toLowerCase()));
+  return <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div style={{background:G.white,padding:'12px 16px 10px',borderBottom:`1px solid ${G.slate100}`,flexShrink:0}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div><div style={{fontSize:18,fontWeight:900,color:G.slate900}}>Propostas</div><div style={{fontSize:11,color:G.slate500}}>{filtered.length} registros</div></div>
+        <RoundBtn icon="＋" onClick={()=>onNav('newReport')}/>
+      </div>
+      <div style={{display:'flex',alignItems:'center',background:G.slate50,borderRadius:10,padding:'8px 12px',gap:8,border:`1.5px solid ${G.slate200}`}}>
+        <span style={{fontSize:14}}>🔍</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar empreendimento ou cliente..." style={{flex:1,border:'none',background:'transparent',fontSize:12,color:G.slate700,outline:'none',fontFamily:'Outfit,sans-serif'}}/>
+        {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:G.slate400,fontSize:14}}>✕</button>}
+      </div>
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'10px 16px 20px'}}>
+      {filtered.length===0?<Empty icon="📋" title="Nenhuma proposta" sub="Crie sua primeira proposta tocando em ＋"/>:filtered.map(r=>{
+        const poup=Math.max(r.price-r.financing-r.subsidy-r.fgts,0);
+        const monthly=r.parcelas>0?Math.max((poup-r.sinal)/r.parcelas,0):0;
+        return <div key={r.id} style={{background:G.white,border:`1px solid ${G.slate100}`,borderRadius:16,padding:14,marginBottom:10,boxShadow:'0 2px 10px rgba(0,0,0,0.05)',position:'relative'}}>
+          <button onClick={()=>onViewReport(r)} style={{display:'flex',gap:12,alignItems:'flex-start',width:'100%',background:'none',border:'none',textAlign:'left',cursor:'pointer'}}>
+            <Avatar name={r.client} size={44} color={r.risk?G.amber:G.blue}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                <div style={{fontSize:14,fontWeight:800,color:G.slate900,flex:1,paddingRight:8,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{r.emp}</div>
+                <Tag label={r.risk?'⚠ Risco':'✓ OK'} bg={r.risk?G.amber:G.green} size={9}/>
+              </div>
+              <div style={{fontSize:12,color:G.slate500,marginBottom:8}}>{r.client} • {r.city||'—'}</div>
+              <div style={{display:'flex',gap:6}}>
+                <div style={{background:G.slate50,borderRadius:7,padding:'4px 8px'}}><span style={{fontSize:10,color:G.slate500}}>Valor: </span><span style={{fontSize:10,fontWeight:800,color:G.slate800}}>{fmt(r.price)}</span></div>
+                <div style={{background:`${G.blue}10`,borderRadius:7,padding:'4px 8px'}}><span style={{fontSize:10,color:G.blue,fontWeight:700}}>{fmt(monthly)}/mês</span></div>
+              </div>
+              <div style={{fontSize:10,color:G.slate400,marginTop:6}}>📅 {formatDate(r.date)} • {r.unit||'—'}</div>
+            </div>
+          </button>
+          <button onClick={()=>setConfirmId(r.id)} style={{position:'absolute',top:12,right:12,background:'none',border:'none',fontSize:13,color:G.slate300,cursor:'pointer'}}>✕</button>
+        </div>;
+      })}
+    </div>
+    <Confirm open={!!confirmId} title="Excluir proposta?" message="Essa ação não pode ser desfeita." onConfirm={()=>{delReport(confirmId);setConfirmId(null);}} onCancel={()=>setConfirmId(null)}/>
+  </div>;
+}
+
+function ReportDetailScreen({report:r,onBack}){
+  const {delReport}=useApp();
+  const [confirmDel,setConfirmDel]=useState(false);
+  if(!r) return null;
+  const poup=Math.max(r.price-r.financing-r.subsidy-r.fgts,0);
+  const monthly=r.parcelas>0?Math.max((poup-r.sinal)/r.parcelas,0):0;
+  const riskPct=r.price>0?Math.round((poup/r.price)*100):0;
+  const totalFin=r.financing+r.subsidy+r.fgts;
+  return <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div style={{background:`linear-gradient(145deg,${G.navy} 0%,${G.navy3} 100%)`,padding:'10px 16px 18px',flexShrink:0}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+        <button onClick={onBack} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:10,padding:'6px 12px',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'Outfit,sans-serif',fontWeight:600}}>← Voltar</button>
+        <div style={{flex:1}}/>
+        <button onClick={()=>setConfirmDel(true)} style={{background:'rgba(244,63,94,0.15)',border:'1px solid rgba(244,63,94,0.3)',borderRadius:8,padding:'6px 10px',color:G.roseL,fontSize:11,cursor:'pointer',fontFamily:'Outfit,sans-serif',fontWeight:700}}>🗑 Excluir</button>
+      </div>
+      <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+        <Avatar name={r.client} size={52} color={r.risk?G.amber:G.blueL}/>
+        <div>
+          <div style={{fontSize:16,fontWeight:900,color:G.white,lineHeight:1.2}}>{r.emp}</div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.55)',marginTop:4}}>{r.client} • {r.city||'—'}</div>
+          <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+            <Tag label={r.risk?'⚠ Risco Alto':'✓ Risco Baixo'} bg={r.risk?G.amber:G.green} size={9}/>
+            {r.unit&&<Tag label={r.unit} bg="rgba(255,255,255,0.1)" size={9}/>}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'14px 16px 24px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+        {[{label:'Valor do Imóvel',value:fmt(r.price),icon:'🏠'},{label:'Parcela Mensal',value:fmt(monthly),icon:'📅'},{label:'Financiamento',value:fmt(totalFin),icon:'🏦'},{label:'Poupança',value:fmt(poup),icon:'💼'}].map(({label,value,icon})=>(
+          <div key={label} style={{background:G.white,borderRadius:12,padding:12,border:`1px solid ${G.slate100}`}}>
+            <div style={{fontSize:16,marginBottom:4}}>{icon}</div>
+            <div style={{fontSize:13,fontWeight:800,color:G.slate800}}>{value}</div>
+            <div style={{fontSize:10,color:G.slate500,marginTop:2}}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:G.white,borderRadius:14,padding:14,border:`1.5px solid ${r.risk?G.amber+'55':G.green+'55'}`,marginBottom:10}}>
+        <SectionLabel>Análise de Risco</SectionLabel>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <Ring pct={riskPct} color={r.risk?G.amber:G.green} size={60}/>
+          <div style={{flex:1}}>
+            <DataRow label="Poupança necessária" value={fmt(poup)} highlight/>
+            <DataRow label="Financiamento" value={fmt(r.financing)}/>
+            <DataRow label="Subsídio" value={fmt(r.subsidy)}/>
+            <DataRow label="FGTS" value={fmt(r.fgts)}/>
+          </div>
+        </div>
+      </div>
+      <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+        <SectionLabel>Parcelamento</SectionLabel>
+        <DataRow label="Sinal" value={fmt(r.sinal)}/>
+        <DataRow label={`${r.parcelas}× parcelas mensais`} value={fmt(monthly)} highlight accent={G.blue}/>
+      </div>
+      <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:14}}>
+        <SectionLabel>Contato</SectionLabel>
+        {r.email&&<DataRow label="Email" value={r.email}/>}
+        {r.phone&&<DataRow label="Telefone" value={r.phone}/>}
+        {r.imob&&<DataRow label="Imobiliária" value={r.imob}/>}
+        <DataRow label="Data da proposta" value={formatDate(r.date)}/>
+      </div>
+    </div>
+    <Confirm open={confirmDel} title="Excluir proposta?" message="Essa ação não pode ser desfeita." onConfirm={()=>{delReport(r.id);onBack();}} onCancel={()=>setConfirmDel(false)}/>
+  </div>;
+}
+
+// ─── NEW REPORT ───────────────────────────────────────────────────
+const EMPTY_FORM={emp:'',client:'',email:'',phone:'',blocoQuadra:'',unidade:'',imob:'',price:'',discountPct:'',financing:'',subsidy:'',fgts:'',riskThreshold:'30',sinal:'',parcelas:'240'};
+function NewReportScreen({onBack,onSaved}){
+  const {addReport,settings}=useApp();
+  const [step,setStep]=useState(1);
+  const [form,setForm]=useState({...EMPTY_FORM,imob:settings.imob||''});
+  const set=(k)=>(v)=>setForm(f=>({...f,[k]:v}));
+  const risk=useMemo(()=>calcRisk({price:form.price,financing:form.financing,subsidy:form.subsidy,fgts:form.fgts,discountPct:form.discountPct,riskThreshold:parseFloat(form.riskThreshold)||30}),[form.price,form.financing,form.subsidy,form.fgts,form.discountPct,form.riskThreshold]);
+  const monthly=useMemo(()=>calcMonthly({poupanca:risk.poupanca,sinal:form.sinal,parcelas:form.parcelas}),[risk.poupanca,form.sinal,form.parcelas]);
+  const stepTitles=['Dados do Cliente','Financiamento','Parcelamento','Resumo Final'];
+  const handleSave=()=>{
+    addReport({emp:form.emp||'Novo Empreendimento',client:form.client||'Cliente',email:form.email,phone:form.phone,unit:[form.blocoQuadra,form.unidade].filter(Boolean).join(' — '),imob:form.imob,city:'—',price:risk.adjustedPrice||parseBRL(form.price),financing:parseBRL(form.financing),subsidy:parseBRL(form.subsidy),fgts:parseBRL(form.fgts),sinal:parseBRL(form.sinal),parcelas:parseInt(form.parcelas)||240,risk:risk.isHigh,date:new Date().toISOString().slice(0,10)});
+    onSaved?.();
+  };
+  return <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div style={{background:G.white,borderBottom:`1px solid ${G.slate100}`,padding:'10px 16px 0',flexShrink:0}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+        <button onClick={()=>step===1?onBack():setStep(s=>s-1)} style={{width:32,height:32,borderRadius:16,background:G.slate100,border:'none',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:G.slate700}}>←</button>
+        <div style={{flex:1}}><div style={{fontSize:15,fontWeight:900,color:G.slate900}}>Nova Proposta</div><div style={{fontSize:11,color:G.slate500}}>Passo {step} de 4 — {stepTitles[step-1]}</div></div>
+      </div>
+      <StepBar step={step}/>
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'14px 16px 24px'}}>
+      {step===1&&<div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+          <SectionLabel>Empreendimento</SectionLabel>
+          <InputField label="Nome do Empreendimento" value={form.emp} onChange={set('emp')} placeholder="Ex: Palazzo Residências" required/>
+          <InputField label="Bloco / Quadra" value={form.blocoQuadra} onChange={set('blocoQuadra')} placeholder="Ex: Torre A"/>
+          <InputField label="Unidade / Lote" value={form.unidade} onChange={set('unidade')} placeholder="Ex: Ap 1402"/>
+        </div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+          <SectionLabel>Cliente</SectionLabel>
+          <InputField label="Nome Completo" value={form.client} onChange={set('client')} placeholder="Nome do cliente" required/>
+          <InputField label="Email" value={form.email} onChange={set('email')} placeholder="cliente@email.com" type="email"/>
+          <InputField label="WhatsApp" value={form.phone} onChange={set('phone')} placeholder="(00) 00000-0000" type="tel"/>
+        </div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:14}}>
+          <SectionLabel>Negócio</SectionLabel>
+          <InputField label="Imobiliária" value={form.imob} onChange={set('imob')}/>
+          <InputField label="Valor da Unidade" value={form.price} onChange={set('price')} prefix="R$" placeholder="450000" required/>
+          <InputField label="Desconto (%)" value={form.discountPct} onChange={set('discountPct')} suffix="%" placeholder="0" hint={form.discountPct&&parseBRL(form.price)?`Desc: ${fmt(risk.discount)} → Ajustado: ${fmt(risk.adjustedPrice)}`:''}/>
+        </div>
+        <Btn label="Próximo — Financiamento →" onClick={()=>setStep(2)} disabled={!form.price}/>
+      </div>}
+      {step===2&&<div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+          <SectionLabel>Fontes de Financiamento</SectionLabel>
+          <InputField label="Financiamento Aprovado" value={form.financing} onChange={set('financing')} prefix="R$" placeholder="0"/>
+          <InputField label="Subsídio" value={form.subsidy} onChange={set('subsidy')} prefix="R$" placeholder="0"/>
+          <InputField label="FGTS" value={form.fgts} onChange={set('fgts')} prefix="R$" placeholder="0"/>
+        </div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+          <SectionLabel>Parâmetro de Risco</SectionLabel>
+          <InputField label="Limiar de Risco (%)" value={form.riskThreshold} onChange={set('riskThreshold')} suffix="%"/>
+        </div>
+        <div style={{background:risk.isHigh?`${G.amber}10`:`${G.green}10`,borderRadius:14,padding:14,border:`1.5px solid ${risk.isHigh?G.amber+'44':G.green+'44'}`,marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+            <Ring pct={risk.riskPct} color={risk.isHigh?G.amber:G.green} size={54}/>
+            <div>
+              <div style={{fontSize:15,fontWeight:900,color:risk.isHigh?G.goldDark:G.green}}>{risk.isHigh?'⚠ Risco Alto':'✓ Risco Baixo'}</div>
+              <div style={{fontSize:11,color:G.slate500,marginTop:2}}>Poupança representa {risk.riskPct}% do valor</div>
+            </div>
+          </div>
+          <DataRow label="Valor ajustado" value={fmt(risk.adjustedPrice)}/>
+          <DataRow label="Total financiado" value={fmt(risk.totalFin)}/>
+          <DataRow label="Poupança necessária" value={fmt(risk.poupanca)} highlight/>
+        </div>
+        <Btn label="Próximo — Parcelamento →" onClick={()=>setStep(3)}/>
+      </div>}
+      {step===3&&<div>
+        <div style={{background:`${G.blue}0D`,borderRadius:12,padding:'10px 14px',textAlign:'center',marginBottom:12,border:`1px solid ${G.blue}22`}}>
+          <div style={{fontSize:10,fontWeight:700,color:G.blue,textTransform:'uppercase',letterSpacing:0.5}}>Poupança a parcelar</div>
+          <div style={{fontSize:26,fontWeight:900,color:G.navy}}>{fmt(risk.poupanca)}</div>
+        </div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+          <SectionLabel>Sinal</SectionLabel>
+          <InputField label="Valor do Sinal" value={form.sinal} onChange={set('sinal')} prefix="R$" placeholder="0"/>
+        </div>
+        <div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:12}}>
+          <SectionLabel>Parcelas Mensais</SectionLabel>
+          <InputField label="Quantidade de Parcelas" value={form.parcelas} onChange={set('parcelas')} placeholder="240" type="number"/>
+        </div>
+        <div style={{background:G.white,borderRadius:16,padding:18,border:`1.5px solid ${G.blue}44`,boxShadow:`0 4px 20px ${G.blueGlow}`,textAlign:'center',marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:G.slate500,textTransform:'uppercase',letterSpacing:0.5}}>Parcela Mensal Calculada</div>
+          <div style={{fontSize:32,fontWeight:900,color:G.blue,margin:'8px 0',letterSpacing:-1}}>{fmt(monthly)}</div>
+          <div style={{fontSize:11,color:G.slate400}}>× {form.parcelas} meses • Sinal: {fmt(parseBRL(form.sinal))}</div>
+          <Divider my={12}/>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            {[{label:'Total poupança',value:fmt(parseBRL(form.sinal)+monthly*(parseInt(form.parcelas)||0))},{label:'Financiamento',value:fmt(risk.totalFin)},{label:'Valor total',value:fmt(risk.adjustedPrice)}].map(({label,value})=>(
+              <div key={label} style={{textAlign:'center'}}>
+                <div style={{fontSize:11,fontWeight:800,color:G.slate700}}>{value}</div>
+                <div style={{fontSize:9,color:G.slate400,marginTop:2}}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <Btn label="Próximo — Resumo →" onClick={()=>setStep(4)}/>
+      </div>}
+      {step===4&&<div>
+        <div style={{background:`linear-gradient(135deg,${G.navy} 0%,${G.navy3} 100%)`,borderRadius:16,padding:18,textAlign:'center',marginBottom:12}}>
+          <div style={{fontSize:28,marginBottom:8}}>🏠</div>
+          <div style={{fontSize:16,fontWeight:900,color:G.white}}>{form.emp||'Novo Empreendimento'}</div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.55)',marginTop:4,marginBottom:10}}>{form.client||'Cliente'}</div>
+          <div style={{display:'flex',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{background:risk.isHigh?G.amber:G.green,color:'#fff',fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:99}}>{risk.isHigh?'⚠ Risco Alto':'✓ Risco Baixo'}</span>
+            {form.imob&&<span style={{background:'rgba(255,255,255,0.1)',color:'#fff',fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:99}}>{form.imob}</span>}
+          </div>
+        </div>
+        {[{title:'Precificação',rows:[{label:'Valor bruto',value:fmt(parseBRL(form.price))},{label:'Valor ajustado',value:fmt(risk.adjustedPrice),hl:true}]},{title:'Financiamento',rows:[{label:'Financiamento',value:fmt(parseBRL(form.financing))},{label:'Subsídio',value:fmt(parseBRL(form.subsidy))},{label:'FGTS',value:fmt(parseBRL(form.fgts))},{label:'Total financiado',value:fmt(risk.totalFin),hl:true},{label:'Poupança necessária',value:fmt(risk.poupanca)}]},{title:'Parcelamento',rows:[{label:'Sinal (×1)',value:fmt(parseBRL(form.sinal))},{label:`Mensal (×${form.parcelas})`,value:fmt(monthly),hl:true,accent:G.blue}]}].map(({title,rows})=>(
+          <div key={title} style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:10}}>
+            <SectionLabel>{title}</SectionLabel>
+            {rows.map(row=><DataRow key={row.label} label={row.label} value={row.value} highlight={row.hl} accent={row.accent}/>)}
+          </div>
+        ))}
+        <div style={{display:'flex',gap:10,marginTop:4}}>
+          <Btn label="← Editar" variant="ghost" onClick={()=>setStep(3)} style={{flex:1}}/>
+          <Btn label="✅ Salvar" onClick={handleSave} style={{flex:2}}/>
+        </div>
+      </div>}
+    </div>
+  </div>;
+}
+
+// ─── COMMISSIONS ──────────────────────────────────────────────────
+const STATUS_CFG={paga:{label:'Paga',bg:G.green},aprovada:{label:'Aprovada',bg:G.blue},pendente:{label:'Pendente',bg:G.amber},cancelada:{label:'Cancelada',bg:G.rose}};
+function CommissionsScreen(){
+  const {sales,addSale,updateSaleStatus,delSale,totalComm,paidComm,pendComm}=useApp();
+  const [filter,setFilter]=useState('todas');
+  const [sheet,setSheet]=useState(false);
+  const [form,setForm]=useState({emp:'',client:'',price:'',pct:'3',date:''});
+  const [confirmId,setConfirmId]=useState(null);
+  const set=(k)=>(v)=>setForm(f=>({...f,[k]:v}));
+  const filtered=filter==='todas'?sales:sales.filter(s=>s.status===filter);
+  const handleAdd=()=>{
+    if(!form.emp||!form.price) return;
+    addSale({emp:form.emp,client:form.client,price:parseBRL(form.price),pct:parseFloat(form.pct)||0,status:'pendente',date:form.date||new Date().toLocaleDateString('pt-BR')});
+    setForm({emp:'',client:'',price:'',pct:'3',date:''});setSheet(false);
+  };
+  const cycleStatus=(s)=>{const order=['pendente','aprovada','paga','cancelada'];updateSaleStatus(s.id,order[(order.indexOf(s.status)+1)%order.length]);};
+  return <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+    <div style={{background:`linear-gradient(145deg,${G.navy} 0%,${G.navy3} 100%)`,padding:'12px 16px 18px',flexShrink:0}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{fontSize:18,fontWeight:900,color:G.white}}>Comissões</div>
+        <RoundBtn icon="＋" onClick={()=>setSheet(true)}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+        {[{label:'Total',value:fmt(totalComm),icon:'💰'},{label:'Recebido',value:fmt(paidComm),icon:'✅'},{label:'A receber',value:fmt(pendComm),icon:'⏳'}].map(({label,value,icon})=>(
+          <div key={label} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:10}}>
+            <div style={{fontSize:13,marginBottom:4}}>{icon}</div>
+            <div style={{fontSize:11,fontWeight:800,color:G.white}}>{value}</div>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.45)',marginTop:2}}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{background:G.white,padding:'8px 14px',display:'flex',gap:6,overflowX:'auto',flexShrink:0,borderBottom:`1px solid ${G.slate100}`}}>
+      {['todas','paga','aprovada','pendente','cancelada'].map(f=>(
+        <button key={f} onClick={()=>setFilter(f)} style={{padding:'5px 12px',borderRadius:99,border:`1.5px solid ${filter===f?G.blue:G.slate200}`,background:filter===f?G.blue:'transparent',color:filter===f?'#fff':G.slate500,fontSize:10,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',fontFamily:'Outfit,sans-serif'}}>
+          {f==='todas'?'Todas':STATUS_CFG[f]?.label}
+        </button>
+      ))}
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'12px 16px 24px'}}>
+      {sales.length>0&&<div style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:G.slate700,marginBottom:10}}>Distribuição por Status</div>
+        {['paga','aprovada','pendente'].map(s=>{
+          const total=sales.filter(x=>x.status===s).reduce((a,x)=>a+x.price*x.pct/100,0);
+          const pct=totalComm>0?Math.round((total/totalComm)*100):0;
+          return <div key={s} style={{marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:11,color:G.slate600}}>{STATUS_CFG[s].label}</span>
+              <span style={{fontSize:11,fontWeight:700,color:G.slate800}}>{fmt(total)} ({pct}%)</span>
+            </div>
+            <div style={{height:6,background:G.slate100,borderRadius:3,overflow:'hidden'}}>
+              <div style={{width:`${pct}%`,height:'100%',background:STATUS_CFG[s].bg,borderRadius:3}}/>
+            </div>
+          </div>;
+        })}
+      </div>}
+      {filtered.length===0?<Empty icon="💰" title="Nenhuma comissão" sub="Registre sua primeira venda tocando em ＋"/>:filtered.map(s=>(
+        <div key={s.id} style={{background:G.white,borderRadius:14,padding:14,border:`1px solid ${G.slate100}`,marginBottom:8,boxShadow:'0 2px 8px rgba(0,0,0,0.04)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:800,color:G.slate900}}>{s.emp}</div><div style={{fontSize:11,color:G.slate500,marginTop:2}}>{s.client||'—'} • {s.date}</div></div>
+            <button onClick={()=>cycleStatus(s)} style={{background:'none',border:'none',cursor:'pointer',padding:0}}><Tag label={STATUS_CFG[s.status]?.label||s.status} bg={STATUS_CFG[s.status]?.bg||G.slate400} size={10}/></button>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',background:G.slate50,borderRadius:10,padding:'10px 12px'}}>
+            <div><div style={{fontSize:10,color:G.slate400,marginBottom:2}}>Valor do imóvel</div><div style={{fontSize:13,fontWeight:700,color:G.slate800}}>{fmt(s.price)}</div></div>
+            <div style={{textAlign:'center'}}><div style={{fontSize:10,color:G.slate400,marginBottom:2}}>Taxa</div><div style={{fontSize:13,fontWeight:700,color:G.slate700}}>{s.pct}%</div></div>
+            <div style={{textAlign:'right'}}><div style={{fontSize:10,color:G.slate400,marginBottom:2}}>Comissão</div><div style={{fontSize:14,fontWeight:900,color:G.green}}>{fmt(s.price*s.pct/100)}</div></div>
+          </div>
+          <button onClick={()=>setConfirmId(s.id)} style={{marginTop:8,background:'none',border:'none',fontSize:11,color:G.rose,cursor:'pointer',fontFamily:'Outfit,sans-serif',fontWeight:600}}>🗑 Excluir</button>
+        </div>
+      ))}
+    </div>
+    <Sheet open={sheet} onClose={()=>setSheet(false)} title="Nova Venda">
+      <InputField label="Empreendimento" value={form.emp} onChange={set('emp')} required/>
+      <InputField label="Cliente" value={form.client} onChange={set('client')}/>
+      <InputField label="Valor do Imóvel" value={form.price} onChange={set('price')} prefix="R$" required/>
+      <InputField label="Comissão (%)" value={form.pct} onChange={set('pct')} suffix="%" hint={form.price&&form.pct?`Comissão estimada: ${fmt(parseBRL(form.price)*parseFloat(form.pct)/100)}`:''}/>
+      <InputField label="Data" value={form.date} onChange={set('date')} placeholder={new Date().toLocaleDateString('pt-BR')}/>
+      <Btn label="Salvar Venda" onClick={handleAdd} disabled={!form.emp||!form.price}/>
+    </Sheet>
+    <Confirm open={!!confirmId} title="Excluir venda?" message="Essa ação não pode ser desfeita." onConfirm={()=>{delSale(confirmId);setConfirmId(null);}} onCancel={()=>setConfirmId(null)}/>
+  </div>;
+}
+
+// ─── REMINDERS ────────────────────────────────────────────────────
+const PRIO={alta:{label:'Alta',color:G.rose},media:{label:'Média',color:G.amber},baixa:{label:'Baixa',color:G.teal}};
+function RemindersScreen(){
+  const {reminders,addReminder,toggleReminder,delReminder}=useApp();
+  const [sheet,setSheet]=useState(false);
+  const [form,setForm]=useState({title:'',desc:'',date:'',priority:'media'});
+  const [confirmId,setConfirmId]=useState(null);
+  const set=(k)=>(v)=>setForm(f=>({...f,[k]:v}));
+  const handleAdd=()=>{if(!form.title.trim())return;addReminder({...form});setForm({title:'',desc:'',date:'',priority:'media'});setSheet(false);};
+  const pending=reminders.filter(r=>!r.done),completed=reminders.filter(r=>r.done);
+  const RCard=({r})=><div style={{background:G.white,borderRadius:14,padding:14,border:`1.5px solid ${r.done?G.slate100:PRIO[r.priority]?.color+'33'||G.slate200}`,marginBottom:8,display:'flex',gap:12,alignItems:'flex-start',opacity:r.done?0.55:1,boxShadow:r.done?'none':'0 2px 10px rgba(0,0,0,0.05)'}}>
+    <button onClick={()=>toggleReminder(r.id)} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,padding:0,flexShrink:0,marginTop:1,lineHeight:1}}>{r.done?'✅':'⭕'}</button>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+        <div style={{fontSize:13,fontWeight:700,color:G.slate900,textDecoration:r.done?'line-through':'none',flex:1}}>{r.title}</div>
+        <Tag label={PRIO[r.priority]?.label||r.priority} bg={PRIO[r.priority]?.color||G.slate400} size={9}/>
+      </div>
+      {r.desc&&<div style={{fontSize:11,color:G.slate500,marginTop:4}}>{r.desc}</div>}
+      {r.date&&<div style={{fontSize:10,color:G.slate400,marginTop:5}}>📅 {r.date}</div>}
+    </div>
+    <button onClick={()=>setConfirmId(r.id)} style={{background:'none',border:'none',fontSize:14,color:G.slate300,cursor:'pointer',flexShrink:0}}>✕</button>
+  </div>;
+  return <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+    <div style={{background:G.white,padding:'12px 16px 10px',borderBottom:`1px solid ${G.slate100}`,flexShrink:0}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div><div style={{fontSize:18,fontWeight:900,color:G.slate900}}>Agenda</div><div style={{fontSize:11,color:G.slate500}}>{pending.length} pendente{pending.length!==1?'s':''}</div></div>
+        <RoundBtn icon="＋" onClick={()=>setSheet(true)}/>
+      </div>
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'12px 16px 24px'}}>
+      {reminders.length===0&&<Empty icon="⏰" title="Nenhum lembrete" sub="Crie seu primeiro lembrete tocando em ＋"/>}
+      {pending.length>0&&<><div style={{fontSize:10,fontWeight:800,color:G.slate500,textTransform:'uppercase',letterSpacing:0.5,marginBottom:8}}>Pendentes</div>{pending.map(r=><RCard key={r.id} r={r}/>)}</>}
+      {completed.length>0&&<><div style={{fontSize:10,fontWeight:800,color:G.slate400,textTransform:'uppercase',letterSpacing:0.5,margin:'14px 0 8px'}}>Concluídos</div>{completed.map(r=><RCard key={r.id} r={r}/>)}</>}
+    </div>
+    <Sheet open={sheet} onClose={()=>setSheet(false)} title="Novo Lembrete">
+      <InputField label="Título" value={form.title} onChange={set('title')} placeholder="Ex: Ligar para cliente" required/>
+      <InputField label="Descrição" value={form.desc} onChange={set('desc')} placeholder="Detalhes..." multiline/>
+      <InputField label="Data" value={form.date} onChange={set('date')} placeholder="Ex: 25 Jan"/>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:700,color:G.slate500,textTransform:'uppercase',letterSpacing:0.7,marginBottom:8}}>Prioridade</div>
+        <div style={{display:'flex',gap:8}}>
+          {['alta','media','baixa'].map(p=><button key={p} onClick={()=>set('priority')(p)} style={{flex:1,padding:'9px',borderRadius:10,border:`2px solid ${form.priority===p?PRIO[p].color:G.slate200}`,background:form.priority===p?PRIO[p].color+'15':'transparent',color:form.priority===p?PRIO[p].color:G.slate500,fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>{PRIO[p].label}</button>)}
+        </div>
+      </div>
+      <Btn label="Salvar Lembrete" onClick={handleAdd} disabled={!form.title.trim()}/>
+    </Sheet>
+    <Confirm open={!!confirmId} title="Excluir lembrete?" onConfirm={()=>{delReminder(confirmId);setConfirmId(null);}} onCancel={()=>setConfirmId(null)}/>
+  </div>;
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────
+function SettingsScreen(){
+  const {settings,updateSettings,reports,sales,totalComm}=useApp();
+  const [name,setName]=useState(settings.name||'');
+  const [imob,setImob]=useState(settings.imob||'');
+  const [risk,setRisk]=useState(String(settings.riskThreshold||30));
+  const [saved,setSaved]=useState(false);
+  const handleSave=()=>{updateSettings({name,imob,riskThreshold:parseFloat(risk)||30});setSaved(true);setTimeout(()=>setSaved(false),2000);};
+  const Toggle=({label,value,onChange})=><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${G.slate50}`}}>
+    <span style={{fontSize:13,color:G.slate700,fontWeight:500}}>{label}</span>
+    <button onClick={()=>onChange(!value)} style={{width:42,height:24,borderRadius:12,background:value?G.blue:G.slate200,position:'relative',border:'none',cursor:'pointer',transition:'background 0.2s',flexShrink:0}}>
+      <div style={{width:20,height:20,borderRadius:10,background:'#fff',position:'absolute',top:2,left:value?20:2,transition:'left 0.2s',boxShadow:'0 1px 4px rgba(0,0,0,0.15)'}}/>
+    </button>
+  </div>;
+  return <div style={{flex:1,overflowY:'auto',background:G.slate50}}>
+    <div style={{background:`linear-gradient(145deg,${G.navy} 0%,${G.navy3} 100%)`,padding:'16px 20px 24px',position:'relative',overflow:'hidden'}}>
+      <div style={{position:'absolute',width:160,height:160,borderRadius:'50%',background:`${G.blue}10`,top:-40,right:-40}}/>
+      <div style={{display:'flex',gap:14,alignItems:'center'}}>
+        <Avatar name={settings.name||'Corretor'} size={58} color={G.gold}/>
+        <div>
+          <div style={{fontSize:17,fontWeight:900,color:G.white}}>{settings.name||'Corretor'}</div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,0.5)',marginTop:3}}>{settings.imob||'Imobiliária'}</div>
+          <div style={{marginTop:8}}><Tag label="✦ Plano Pro" bg={G.gold} size={10}/></div>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        {[{label:'Propostas',value:reports.length},{label:'Vendas',value:sales.length}].map(({label,value})=>(
+          <div key={label} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 14px'}}>
+            <div style={{fontSize:14,fontWeight:800,color:G.white}}>{value}</div>
+            <div style={{fontSize:9,color:'rgba(255,255,255,0.45)',marginTop:2}}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div style={{padding:'14px 16px 32px',display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{background:G.white,borderRadius:16,padding:16,border:`1px solid ${G.slate100}`}}>
+        <SectionLabel>Perfil</SectionLabel>
+        <InputField label="Seu Nome" value={name} onChange={setName} placeholder="Ex: João Corretor"/>
+        <InputField label="Imobiliária Padrão" value={imob} onChange={setImob} hint="Preenchido automaticamente em novas propostas"/>
+        <InputField label="Limiar de Risco Padrão (%)" value={risk} onChange={setRisk} suffix="%"/>
+        <Btn label={saved?'✓ Salvo!':'Salvar Alterações'} onClick={handleSave} variant={saved?'gold':'primary'}/>
+      </div>
+      <div style={{background:G.white,borderRadius:16,padding:16,border:`1px solid ${G.slate100}`}}>
+        <SectionLabel>Preferências</SectionLabel>
+        <Toggle label="🔔 Notificações push" value={settings.notifications} onChange={v=>updateSettings({notifications:v})}/>
+        <Toggle label="🌙 Modo escuro" value={settings.darkMode} onChange={v=>updateSettings({darkMode:v})}/>
+      </div>
+      <div style={{background:`linear-gradient(135deg,${G.navy} 0%,${G.navy3} 100%)`,borderRadius:16,padding:16}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+          <div><div style={{fontSize:14,fontWeight:800,color:G.white}}>Plano Professional</div><div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginTop:3}}>Acesso completo a todos os recursos</div></div>
+          <Tag label="Ativo" bg={G.green} size={10}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+          {['📋 Propostas ilimitadas','💰 Comissões','📁 Material de venda'].map(f=>(
+            <div key={f} style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:8,padding:'8px 6px',textAlign:'center'}}>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.6)',lineHeight:1.4}}>{f}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{textAlign:'center',fontSize:11,color:G.slate400}}>CorretoApp v2.0.0 • Feito para corretores 🏠</div>
+    </div>
+  </div>;
+}
+
+// ─── ROUTER ───────────────────────────────────────────────────────
+function Router(){
+  const [screen,setScreen]=useState('home');
+  const [selectedReport,setSelectedReport]=useState(null);
+  const go=(s)=>{setSelectedReport(null);setScreen(s);};
+  const handleNav=(s)=>{if(s==='newReport'){setScreen('newReport');return;}go(s);};
+  const handleViewReport=(r)=>{setSelectedReport(r);setScreen('reportDetail');};
+  return <PhoneShell screen={screen} onNav={handleNav}>
+    {screen==='home'&&<HomeScreen onNav={handleNav} onViewReport={handleViewReport}/>}
+    {screen==='reports'&&<ReportsScreen onNav={handleNav} onViewReport={handleViewReport}/>}
+    {screen==='reportDetail'&&<ReportDetailScreen report={selectedReport} onBack={()=>go('reports')}/>}
+    {screen==='newReport'&&<NewReportScreen onBack={()=>go('home')} onSaved={()=>go('reports')}/>}
+    {screen==='commissions'&&<CommissionsScreen/>}
+    {screen==='reminders'&&<RemindersScreen/>}
+    {screen==='settings'&&<SettingsScreen/>}
+  </PhoneShell>;
+}
+
+function App(){
+  return <AppProvider><Router/></AppProvider>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
