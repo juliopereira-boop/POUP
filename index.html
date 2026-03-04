@@ -7,8 +7,8 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="CorretoApp"/>
-  <title>CorretoApp</title>
+  <meta name="apple-mobile-web-app-title" content="POUP"/>
+  <title>POUP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -71,6 +71,7 @@ const G={
 /* ─── UTILS ──────────────────────────────────────────────── */
 const fmt=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0});
 const parseBRL=s=>{if(typeof s==='number')return s;return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0;};
+const calcVencAnual=(venc,ano)=>{if(!venc)return'';try{const p=venc.trim().split('/');if(p.length===2&&!isNaN(p[1])){return p[0]+'/'+( parseInt(p[1])+ano);}}catch{}return'Ano '+ano;};
 const fmtDate=iso=>{if(!iso)return'—';try{return new Date(iso).toLocaleDateString('pt-BR');}catch{return iso;}};
 const calcRisk=({price,financing,subsidy,fgts,discountPct=0,riskThreshold=30})=>{
   const p=parseBRL(price),disc=p*(parseBRL(discountPct)/100),adj=Math.max(p-disc,0);
@@ -105,7 +106,7 @@ const SRM=[
   {id:3,title:'Reunião equipe',desc:'Planejamento trimestral',priority:'media',done:false,date:'25 Jan'},
   {id:4,title:'Escritura — Grand Recanto',desc:'Thiago Mendonça',priority:'baixa',done:true,date:'18 Jan'},
 ];
-const SSET={name:'João Corretor',imob:'Elite Imóveis SP',riskThreshold:30,notifications:true};
+const SSET={name:'João Corretor',imob:'Elite Imóveis SP',riskThreshold:30,notifications:true,commissionPct:3};
 
 /* ─── CONTEXT ────────────────────────────────────────────── */
 const Ctx=createContext(null);
@@ -287,7 +288,7 @@ function Sidebar({screen,onNav,settings,col,setCol}){
   return<aside className="sidebar" style={{display:'none',width:col?64:220,background:G.navy,flexDirection:'column',flexShrink:0,transition:'width .25s',overflow:'hidden',height:'100vh',position:'sticky',top:0,zIndex:100}}>
     <div style={{padding:col?'18px 0':'18px 20px',display:'flex',alignItems:'center',gap:12,borderBottom:'1px solid rgba(255,255,255,0.06)',justifyContent:col?'center':'flex-start',height:64,flexShrink:0}}>
       <div style={{width:36,height:36,borderRadius:10,background:G.blue,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>🏠</div>
-      {!col&&<div><div style={{fontSize:16,fontWeight:900,color:'#fff',letterSpacing:-0.3}}>Correto<span style={{color:G.blueL}}>App</span></div><div style={{fontSize:9,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:1}}>Gestão Imobiliária</div></div>}
+      {!col&&<div><div style={{fontSize:16,fontWeight:900,color:'#fff',letterSpacing:-0.3}}>POUP</div><div style={{fontSize:9,color:'rgba(255,255,255,0.35)',textTransform:'uppercase',letterSpacing:1}}>Gestão Imobiliária</div></div>}
     </div>
     <nav style={{flex:1,padding:'10px 0'}}>
       {NAV.map(({key,icon,label})=>{
@@ -339,7 +340,7 @@ function HomeScreen({onNav,onViewReport}){
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
         <div>
           <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',letterSpacing:1,textTransform:'uppercase',marginBottom:3}}>Gestão Imobiliária</div>
-          <div style={{fontSize:26,fontWeight:900,color:G.white,letterSpacing:-0.8}}>Correto<span style={{color:G.blueL}}>App</span></div>
+          <div style={{fontSize:26,fontWeight:900,color:G.white,letterSpacing:-0.8}}>POUP</div>
         </div>
         <Avatar name={settings.name||'C'} size={42} color={G.gold}/>
       </div>
@@ -491,8 +492,10 @@ function ReportsScreen({onNav,onViewReport}){
 
 /* ─── REPORT DETAIL ───────────────────────────────────────── */
 function ReportDetailScreen({report:r,onBack}){
-  const{delReport}=useApp();
+  const{delReport,addSale,settings}=useApp();
   const[confirmDel,setConfirmDel]=useState(false);
+  const[confirmVenda,setConfirmVenda]=useState(false);
+  const[vendaOk,setVendaOk]=useState(false);
   if(!r)return null;
   const poup=Math.max(r.price-r.financing-r.subsidy-r.fgts,0);
   const monthly=r.parcelas>0?Math.max((poup-r.sinal)/r.parcelas,0):0;
@@ -500,7 +503,12 @@ function ReportDetailScreen({report:r,onBack}){
   const totalFin=r.financing+r.subsidy+r.fgts;
   return<div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
     <PageHeader title={r.emp} sub={r.client} onBack={onBack} right={
-      <button onClick={()=>setConfirmDel(true)} style={{background:`${G.rose}15`,border:`1px solid ${G.rose}44`,borderRadius:8,padding:'6px 12px',color:G.rose,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>🗑 Excluir</button>
+      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+        <button onClick={()=>{const poup=Math.max(r.price-r.financing-r.subsidy-r.fgts,0);const monthly=r.parcelas>0?Math.max((poup-r.sinal)/r.parcelas,0):0;const comm=r.price*(settings.commissionPct||3)/100;const fin=r.financing+r.subsidy+r.fgts;let html='<html><head><meta charset="UTF-8"><title>Proposta POUP</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#1E293B;max-width:680px;margin:0 auto}h1{font-size:20px;margin-bottom:4px}h2{font-size:13px;color:#64748B;margin-bottom:20px}.badge{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;color:#fff;background:'+(r.risk?'#F59E0B':'#10B981')+'}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.kpi{background:#F8FAFC;border-radius:8px;padding:12px;border:1px solid #E2E8F0}.kpi .lbl{font-size:10px;color:#64748B;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}.kpi .val{font-size:17px;font-weight:900}h3{font-size:10px;font-weight:800;color:#1B6EF3;text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;border-bottom:1px solid #E2E8F0;padding-bottom:5px}.row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F1F5F9;font-size:12px}.hl{background:#EFF6FF;padding:7px 10px;border-radius:6px;font-weight:800;color:#1B6EF3;border:none;margin-bottom:2px}.gold{background:#FFFBEB;padding:7px 10px;border-radius:6px;font-weight:800;color:#D97706;border:none}footer{margin-top:24px;font-size:10px;color:#94A3B8;text-align:center;border-top:1px solid #E2E8F0;padding-top:12px}</style></head><body>';html+='<h1>'+r.emp+'</h1><h2>'+r.client+(r.city?' — '+r.city:'')+(r.unit?' • '+r.unit:'')+'</h2><span class="badge">'+(r.risk?'⚠ Risco Alto':'✓ Risco Baixo')+'</span>';html+='<div class="grid"><div class="kpi"><div class="lbl">Valor do Imóvel</div><div class="val">'+fmt(r.price)+'</div></div><div class="kpi"><div class="lbl">Parcela Mensal</div><div class="val">'+fmt(monthly)+'</div></div><div class="kpi"><div class="lbl">Total Financiado</div><div class="val">'+fmt(fin)+'</div></div><div class="kpi"><div class="lbl">Poupança</div><div class="val">'+fmt(poup)+'</div></div></div>';html+='<h3>Financiamento</h3><div class="row"><span>Financiamento</span><span>'+fmt(r.financing)+'</span></div><div class="row"><span>Subsídio</span><span>'+fmt(r.subsidy)+'</span></div><div class="row"><span>FGTS</span><span>'+fmt(r.fgts)+'</span></div><div class="row hl"><span>Total Financiado</span><span>'+fmt(fin)+'</span></div><div class="row hl"><span>Poupança</span><span>'+fmt(poup)+'</span></div>';html+='<h3>Parcelamento</h3><div class="row"><span>Sinal</span><span>'+fmt(r.sinal)+'</span></div>'+(r.vencimento?'<div class="row"><span>Vencimento 1ª Parcela</span><span>'+r.vencimento+'</span></div>':'')+'<div class="row hl"><span>'+r.parcelas+'× Mensal</span><span>'+fmt(monthly)+'/mês</span></div>';if(r.intermediarias&&r.intermediarias.length>0){r.intermediarias.forEach(x=>{html+='<div class="row"><span>Intermediária Ano '+x.ano+(x.venc?' — '+x.venc:'')+'</span><span>'+fmt(parseBRL(x.valor))+'</span></div>';});}html+='<h3>Comissão do Corretor</h3><div class="row gold"><span>Comissão ('+(settings.commissionPct||3)+'% sobre '+fmt(r.price)+')</span><span>'+fmt(comm)+'</span></div>';if(r.email||r.phone||r.imob){html+='<h3>Dados do Cliente</h3>';if(r.email)html+='<div class="row"><span>Email</span><span>'+r.email+'</span></div>';if(r.phone)html+='<div class="row"><span>Telefone</span><span>'+r.phone+'</span></div>';if(r.imob)html+='<div class="row"><span>Imobiliária</span><span>'+r.imob+'</span></div>';}html+='<footer>POUP — Gerado em '+new Date().toLocaleDateString('pt-BR')+'</footer></body></html>';const w=window.open('','_blank','width=750,height=900');w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}} style={{background:'rgba(27,110,243,0.1)',border:'1px solid rgba(27,110,243,0.3)',borderRadius:8,padding:'6px 12px',color:G.blue,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>📤 PDF</button>
+        {!r.sold&&!vendaOk&&<button onClick={()=>setConfirmVenda(true)} style={{background:'rgba(16,185,129,0.1)',border:'1px solid rgba(16,185,129,0.3)',borderRadius:8,padding:'6px 12px',color:G.green,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>✅ Venda</button>}
+        {vendaOk&&<span style={{fontSize:12,fontWeight:700,color:G.green}}>✓ Vendido!</span>}
+        <button onClick={()=>setConfirmDel(true)} style={{background:'rgba(244,63,94,0.1)',border:'1px solid rgba(244,63,94,0.3)',borderRadius:8,padding:'6px 12px',color:G.rose,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>🗑</button>
+      </div>
     }/>
     <div className="page detail-grid" style={{flex:1,overflowY:'auto',padding:'16px',paddingBottom:100,WebkitOverflowScrolling:'touch',display:'block'}}>
       {/* Hero card */}
@@ -550,7 +558,9 @@ function ReportDetailScreen({report:r,onBack}){
         <SLabel>Parcelamento</SLabel>
         <DR label="Sinal" value={fmt(r.sinal)}/>
         <DR label="Saldo a parcelar" value={fmt(Math.max(poup-r.sinal,0))}/>
-        <DR label={`${r.parcelas}× parcelas`} value={fmt(monthly)} hl accent={G.blue} last/>
+        {r.vencimento&&<DR label="Vencimento 1ª Parcela" value={r.vencimento}/>}
+        <DR label={r.parcelas+'× parcelas mensais'} value={fmt(monthly)} hl accent={G.blue} last={!r.intermediarias||r.intermediarias.length===0}/>
+        {r.intermediarias&&r.intermediarias.map((intr,i)=><DR key={intr.id} label={'Interm. Ano '+intr.ano+(intr.venc?' — '+intr.venc:'')} value={fmt(parseBRL(intr.valor))} last={i===r.intermediarias.length-1}/>)}
       </Card>
       {/* Contato */}
       <Card style={{padding:'18px',marginBottom:14}}>
@@ -562,11 +572,12 @@ function ReportDetailScreen({report:r,onBack}){
       </Card>
     </div>
     <Confirm open={confirmDel} title="Excluir proposta?" message="Essa ação não pode ser desfeita." onConfirm={()=>{delReport(r.id);onBack();}} onCancel={()=>setConfirmDel(false)}/>
+    <Confirm open={confirmVenda} title="Registrar Venda?" message={"Comissão de "+fmt(r.price*(settings.commissionPct||3)/100)+" será lançada como aprovada."} onConfirm={()=>{addSale({emp:r.emp,client:r.client,price:r.price,pct:settings.commissionPct||3,status:'aprovada',date:new Date().toLocaleDateString('pt-BR')});setVendaOk(true);setConfirmVenda(false);}} onCancel={()=>setConfirmVenda(false)}/>
   </div>;
 }
 
 /* ─── NEW REPORT WIZARD ──────────────────────────────────── */
-const EF={emp:'',client:'',email:'',phone:'',blocoQuadra:'',unidade:'',city:'',imob:'',price:'',discountPct:'',financing:'',subsidy:'',fgts:'',riskThreshold:'30',sinal:'',parcelas:'240'};
+const EF={emp:'',client:'',email:'',phone:'',blocoQuadra:'',unidade:'',city:'',imob:'',price:'',discountPct:'',financing:'',subsidy:'',fgts:'',riskThreshold:'30',sinal:'',parcelas:'240',vencimento:'',intermediarias:[]};
 function NewReportScreen({onBack,onSaved}){
   const{addReport,settings}=useApp();
   const[step,setStep]=useState(1);
@@ -574,7 +585,7 @@ function NewReportScreen({onBack,onSaved}){
   const set=k=>v=>setForm(f=>({...f,[k]:v}));
   const risk=useMemo(()=>calcRisk({price:form.price,financing:form.financing,subsidy:form.subsidy,fgts:form.fgts,discountPct:form.discountPct,riskThreshold:parseFloat(form.riskThreshold)||30}),[form.price,form.financing,form.subsidy,form.fgts,form.discountPct,form.riskThreshold]);
   const monthly=useMemo(()=>calcMonthly({poupanca:risk.poupanca,sinal:form.sinal,parcelas:form.parcelas}),[risk.poupanca,form.sinal,form.parcelas]);
-  const handleSave=()=>{addReport({emp:form.emp||'Novo Empreendimento',client:form.client||'Cliente',email:form.email,phone:form.phone,unit:[form.blocoQuadra,form.unidade].filter(Boolean).join(' — '),imob:form.imob,city:form.city||'—',price:risk.adjustedPrice||parseBRL(form.price),financing:parseBRL(form.financing),subsidy:parseBRL(form.subsidy),fgts:parseBRL(form.fgts),sinal:parseBRL(form.sinal),parcelas:parseInt(form.parcelas)||240,risk:risk.isHigh,date:new Date().toISOString().slice(0,10)});onSaved?.();};
+  const handleSave=()=>{addReport({emp:form.emp||'Novo Empreendimento',client:form.client||'Cliente',email:form.email,phone:form.phone,unit:[form.blocoQuadra,form.unidade].filter(Boolean).join(' — '),imob:form.imob,city:form.city||'—',price:risk.adjustedPrice||parseBRL(form.price),financing:parseBRL(form.financing),subsidy:parseBRL(form.subsidy),fgts:parseBRL(form.fgts),sinal:parseBRL(form.sinal),parcelas:parseInt(form.parcelas)||240,vencimento:form.vencimento,intermediarias:form.intermediarias,risk:risk.isHigh,date:new Date().toISOString().slice(0,10)});onSaved?.();};
   const LABELS=['Dados','Financiamento','Parcelas','Resumo'];
   return<div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
     <PageHeader title="Nova Proposta" sub={`Passo ${step} de 4 — ${LABELS[step-1]}`} onBack={step===1?onBack:()=>setStep(s=>s-1)}/>
@@ -646,6 +657,20 @@ function NewReportScreen({onBack,onSaved}){
         <Card style={{padding:18,marginBottom:12}}>
           <Field label="Valor do Sinal (entrada)" value={form.sinal} onChange={set('sinal')} prefix="R$" placeholder="0"/>
           <Field label="Quantidade de Parcelas" value={form.parcelas} onChange={set('parcelas')} placeholder="240" type="number"/>
+          <Field label="Vencimento 1ª Parcela Mensal" value={form.vencimento} onChange={set('vencimento')} placeholder="Ex: Jan/2026"/>
+          <div style={{marginTop:4,marginBottom:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:G.slate500,textTransform:'uppercase',letterSpacing:0.6}}>Intermediárias Anuais</span>
+              <button onClick={()=>{const ano=form.intermediarias.length+1;const venc=calcVencAnual(form.vencimento,ano);set('intermediarias')([...form.intermediarias,{id:Date.now(),ano,venc,valor:''}]);}} style={{background:G.blue,border:'none',borderRadius:8,padding:'6px 14px',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'Outfit,sans-serif'}}>＋ Adicionar</button>
+            </div>
+            {form.intermediarias.map((intr)=>
+              <div key={intr.id} style={{display:'flex',gap:8,alignItems:'flex-end',marginBottom:8}}>
+                <div style={{flex:1}}><Field label={'Ano '+intr.ano+(intr.venc?' — '+intr.venc:'')} value={intr.valor} onChange={v=>set('intermediarias')(form.intermediarias.map(x=>x.id===intr.id?{...x,valor:v}:x))} prefix="R$" placeholder="0"/></div>
+                <button onClick={()=>set('intermediarias')(form.intermediarias.filter(x=>x.id!==intr.id))} style={{background:G.rose+'20',border:'none',borderRadius:8,width:36,height:44,color:G.rose,fontSize:18,cursor:'pointer',marginBottom:14,flexShrink:0}}>✕</button>
+              </div>
+            )}
+            {form.intermediarias.length===0&&<div style={{fontSize:12,color:G.slate400,textAlign:'center',padding:'10px 0',background:G.slate50,borderRadius:8}}>Nenhuma intermediária — toque em + para adicionar</div>}
+          </div>
         </Card>
         {/* Live monthly result */}
         <Card style={{padding:20,marginBottom:16,border:`2px solid ${G.blue}33`,textAlign:'center'}}>
@@ -685,7 +710,7 @@ function NewReportScreen({onBack,onSaved}){
           </div>
         </div>
         <div className="summary-grid" style={{display:'block'}}>
-          {[{title:'Precificação',rows:[{l:'Valor bruto',v:fmt(parseBRL(form.price))},{l:'Desconto',v:`− ${fmt(risk.discount)}`},{l:'Valor ajustado',v:fmt(risk.adjustedPrice),hl:true}]},{title:'Financiamento',rows:[{l:'Financiamento',v:fmt(parseBRL(form.financing))},{l:'Subsídio',v:fmt(parseBRL(form.subsidy))},{l:'FGTS',v:fmt(parseBRL(form.fgts))},{l:'Total financiado',v:fmt(risk.totalFin),hl:true},{l:'Poupança',v:fmt(risk.poupanca)}]},{title:'Parcelamento',rows:[{l:'Sinal',v:fmt(parseBRL(form.sinal))},{l:`${form.parcelas}× mensal`,v:fmt(monthly),hl:true,accent:G.blue}]}].map(({title,rows})=>
+          {[{title:'Precificação',rows:[{l:'Valor bruto',v:fmt(parseBRL(form.price))},{l:'Desconto',v:`− ${fmt(risk.discount)}`},{l:'Valor ajustado',v:fmt(risk.adjustedPrice),hl:true}]},{title:'Financiamento',rows:[{l:'Financiamento',v:fmt(parseBRL(form.financing))},{l:'Subsídio',v:fmt(parseBRL(form.subsidy))},{l:'FGTS',v:fmt(parseBRL(form.fgts))},{l:'Total financiado',v:fmt(risk.totalFin),hl:true},{l:'Poupança',v:fmt(risk.poupanca)}]},{title:'Parcelamento',rows:[{l:'Sinal',v:fmt(parseBRL(form.sinal))},{l:form.parcelas+'× mensal'+(form.vencimento?' ('+form.vencimento+')':''),v:fmt(monthly),hl:true,accent:G.blue},...form.intermediarias.map(x=>({l:'Interm. Ano '+x.ano+(x.venc?' — '+x.venc:''),v:fmt(parseBRL(x.valor))})),{l:'Sua Comissão ('+settings.commissionPct+'%)',v:fmt(risk.adjustedPrice*(settings.commissionPct||3)/100),hl:true,accent:G.gold}]}].map(({title,rows})=>
             <Card key={title} style={{padding:18,marginBottom:12}}>
               <SLabel>{title}</SLabel>
               {rows.map((row,i)=><DR key={row.l} label={row.l} value={row.v} hl={row.hl} accent={row.accent} last={i===rows.length-1}/>)}
@@ -848,8 +873,9 @@ function SettingsScreen(){
   const[name,setName]=useState(settings.name||'');
   const[imob,setImob]=useState(settings.imob||'');
   const[risk,setRisk]=useState(String(settings.riskThreshold||30));
+  const[commPct,setCommPct]=useState(String(settings.commissionPct||3));
   const[saved,setSaved]=useState(false);
-  const save=()=>{updateSettings({name,imob,riskThreshold:parseFloat(risk)||30});setSaved(true);setTimeout(()=>setSaved(false),2500);};
+  const save=()=>{updateSettings({name,imob,riskThreshold:parseFloat(risk)||30,commissionPct:parseFloat(commPct)||3});setSaved(true);setTimeout(()=>setSaved(false),2500);};
   return<div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
     <PageHeader title="Configurações"/>
     <div className="page" style={{flex:1,overflowY:'auto',padding:'16px',paddingBottom:100,WebkitOverflowScrolling:'touch'}}>
@@ -872,6 +898,7 @@ function SettingsScreen(){
           <Field label="Seu Nome" value={name} onChange={setName} placeholder="João Corretor"/>
           <Field label="Imobiliária Padrão" value={imob} onChange={setImob} hint="Preenchido automaticamente em novas propostas"/>
           <Field label="Limiar de Risco (%)" value={risk} onChange={setRisk} suffix="%"/>
+          <Field label="Comissão Padrão (%)" value={commPct} onChange={setCommPct} suffix="%" hint="Base para cálculo automático nas propostas"/>
           <Btn label={saved?'✓ Salvo!':'Salvar Alterações'} onClick={save} variant={saved?'gold':'primary'} fullWidth/>
         </Card>
         <Card style={{padding:'18px',marginBottom:12}}>
@@ -897,7 +924,7 @@ function SettingsScreen(){
           </div>
         </Card>
       </div>
-      <div style={{textAlign:'center',fontSize:11,color:G.slate400,paddingTop:4}}>CorretoApp v2.0.0 • Feito para corretores 🏠</div>
+      <div style={{textAlign:'center',fontSize:11,color:G.slate400,paddingTop:4}}>POUP v2.0.0 • Feito para corretores 🏠</div>
     </div>
   </div>;
 }
