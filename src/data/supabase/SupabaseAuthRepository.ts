@@ -2,7 +2,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
-import { env } from '@/lib/env';
+import { getAppUrl } from '@/lib/appUrl';
 import type { AuthChangePayload, AuthRepository } from '../repositories';
 import { type AuthUser, type Result, err, ok } from '../types';
 import type { User } from '@supabase/supabase-js';
@@ -51,7 +51,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       password,
       options: {
         data: fullName ? { full_name: fullName } : undefined,
-        emailRedirectTo: `${env.appUrl}/login`,
+        emailRedirectTo: `${getAppUrl()}/login`,
       },
     });
     if (error) return err(friendlyError(error.message));
@@ -59,7 +59,7 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async signInWithGoogle(): Promise<Result<void>> {
-    const redirectTo = `${env.appUrl}`;
+    const redirectTo = `${getAppUrl()}`;
 
     if (Platform.OS === 'web') {
       // Web: redirect completo do navegador.
@@ -98,7 +98,7 @@ export class SupabaseAuthRepository implements AuthRepository {
 
   async sendPasswordReset(email: string): Promise<Result<void>> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${env.appUrl}/login`,
+      redirectTo: `${getAppUrl()}/login`,
     });
     if (error) return err(friendlyError(error.message));
     return ok(undefined);

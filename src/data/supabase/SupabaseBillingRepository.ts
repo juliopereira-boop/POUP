@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { env } from '@/lib/env';
+import { getAppUrl } from '@/lib/appUrl';
 import type { BillingRepository } from '../repositories';
 import {
   type PlanTier,
@@ -66,8 +66,8 @@ export class SupabaseBillingRepository implements BillingRepository {
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {
       body: {
         priceId,
-        successUrl: `${env.appUrl}/?checkout=success`,
-        cancelUrl: `${env.appUrl}/paywall?checkout=cancel`,
+        successUrl: `${getAppUrl()}/?checkout=success`,
+        cancelUrl: `${getAppUrl()}/paywall?checkout=cancel`,
       },
     });
     if (error) return err(error.message);
@@ -78,7 +78,7 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   async createBillingPortalSession(): Promise<Result<{ url: string }>> {
     const { data, error } = await supabase.functions.invoke('create-billing-portal-session', {
-      body: { returnUrl: `${env.appUrl}/configuracoes` },
+      body: { returnUrl: `${getAppUrl()}/configuracoes` },
     });
     if (error) return err(error.message);
     const url = (data as { url?: string })?.url;
