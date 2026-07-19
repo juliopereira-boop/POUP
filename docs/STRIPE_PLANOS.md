@@ -5,8 +5,8 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 
 | Plano  | Armazenamento | Sugestão de preço |
 | ------ | ------------- | ----------------- |
-| Start  | 5 GB          | R$ 29,90/mês       |
-| Pro    | 25 GB         | R$ 59,90/mês       |
+| Start  | 5 GB          | R$ 59,90/mês       |
+| Pro    | 25 GB         | R$ 99,90/mês       |
 
 > Os limites vivem em `src/features/plans.ts` (app) e em
 > `supabase/functions/stripe-webhook/index.ts` (`PLAN_LIMITS`). Se mudar um,
@@ -22,7 +22,7 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 3. **Description** (opcional): `Plano inicial — 5 GB de armazenamento`
 4. Em **Pricing**:
    - **Pricing model:** Recurring (recorrente)
-   - **Amount:** `29,90` — **Currency:** BRL
+   - **Amount:** `59,90` — **Currency:** BRL
    - **Billing period:** Monthly (mensal)
 5. **Save product**
 6. Na página do produto, em **Pricing**, clique no preço criado e **copie o
@@ -32,7 +32,7 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 
 Repita o passo 1 com:
 - **Name:** `POUP Pro`
-- **Amount:** `59,90` BRL, Monthly
+- **Amount:** `99,90` BRL, Monthly
 - Copie o `Price ID` → esse é o seu `STRIPE_PRICE_PRO`.
 
 > ⚠️ Copie o **Price ID** (`price_...`), NÃO o Product ID (`prod_...`).

@@ -42,7 +42,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   start: {
     tier: 'start',
     name: 'Start',
-    priceLabel: 'R$ 29,90/mês',
+    priceLabel: 'R$ 59,90/mês',
     storageLimitBytes: 5 * GB,
     storageLabel: '5 GB',
     stripePriceId: env.stripePriceStart,
@@ -57,7 +57,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   pro: {
     tier: 'pro',
     name: 'Pro',
-    priceLabel: 'R$ 59,90/mês',
+    priceLabel: 'R$ 99,90/mês',
     storageLimitBytes: 25 * GB,
     storageLabel: '25 GB',
     stripePriceId: env.stripePricePro,
