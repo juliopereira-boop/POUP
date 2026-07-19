@@ -5,7 +5,7 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 
 | Plano  | Armazenamento | Sugestão de preço |
 | ------ | ------------- | ----------------- |
-| Start  | 1 GB          | R$ 29,90/mês       |
+| Start  | 5 GB          | R$ 29,90/mês       |
 | Pro    | 25 GB         | R$ 59,90/mês       |
 
 > Os limites vivem em `src/features/plans.ts` (app) e em
@@ -19,7 +19,7 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 
 1. Stripe Dashboard → **Product catalog** (ou **Products**) → **+ Add product**
 2. **Name:** `POUP Start`
-3. **Description** (opcional): `Plano inicial — 1 GB de armazenamento`
+3. **Description** (opcional): `Plano inicial — 5 GB de armazenamento`
 4. Em **Pricing**:
    - **Pricing model:** Recurring (recorrente)
    - **Amount:** `29,90` — **Currency:** BRL

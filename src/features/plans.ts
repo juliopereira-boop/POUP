@@ -33,8 +33,8 @@ export interface PlanConfig {
 }
 
 /**
- * Limites recomendados:
- * - Start 1 GB  → custo de storage ~US$0,02/usuário/mês; força upsell.
+ * Limites:
+ * - Start 5 GB  → custo de storage ~US$0,10/usuário/mês.
  * - Pro  25 GB  → power users; ~US$0,52/usuário/mês.
  * (Storage no Supabase Pro: 100 GB inclusos, depois ~US$0,021/GB.)
  */
@@ -43,14 +43,14 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     tier: 'start',
     name: 'Start',
     priceLabel: 'R$ 29,90/mês',
-    storageLimitBytes: 1 * GB,
-    storageLabel: '1 GB',
+    storageLimitBytes: 5 * GB,
+    storageLabel: '5 GB',
     stripePriceId: env.stripePriceStart,
     benefits: [
       'Simulador de poupança',
       'Controle de comissões e vendas',
       'Material de venda',
-      '1 GB de armazenamento',
+      '5 GB de armazenamento',
       'Acesso no celular e no computador',
     ],
   },

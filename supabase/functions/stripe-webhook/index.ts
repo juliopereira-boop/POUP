@@ -33,7 +33,7 @@ const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
 const GB = 1024 * 1024 * 1024;
 // ⚠️ Mantenha em sincronia com src/features/plans.ts (storageLimitBytes).
 const PLAN_LIMITS: Record<string, number> = {
-  start: 1 * GB,
+  start: 5 * GB,
   pro: 25 * GB,
 };
 
