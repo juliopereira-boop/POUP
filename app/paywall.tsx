@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -13,13 +13,22 @@ import { colors, radius, spacing, typography } from '@/theme';
 
 export default function PaywallScreen() {
   const { user, signOut } = useAuth();
-  const { isActive } = useSubscription();
+  const { isActive, refresh } = useSubscription();
+  const { pending } = useLocalSearchParams<{ pending?: string }>();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
+  const [checkingAgain, setCheckingAgain] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Já é assinante? Não faz sentido ver o paywall.
+  // (Se checkAgain() confirmar o pagamento, isActive vira true e cai aqui.)
   if (user && isActive) return <Redirect href="/(app)" />;
   if (!user) return <Redirect href="/(auth)/login" />;
+
+  async function checkAgain() {
+    setCheckingAgain(true);
+    await refresh();
+    setCheckingAgain(false);
+  }
 
   async function subscribe(plan: PlanConfig) {
     setError(null);
@@ -47,6 +56,22 @@ export default function PaywallScreen() {
         <Logo size={40} />
         <Text style={styles.subtitle}>Escolha seu plano</Text>
       </View>
+
+      {pending === '1' ? (
+        <View style={styles.pendingBanner}>
+          <Text style={styles.pendingText}>
+            Recebemos seu pagamento e estamos confirmando com o Stripe. Isso pode levar alguns
+            instantes.
+          </Text>
+          <Button
+            label="Verificar novamente"
+            variant="secondary"
+            onPress={checkAgain}
+            loading={checkingAgain}
+            style={styles.pendingButton}
+          />
+        </View>
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -163,5 +188,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     overflow: 'hidden',
   },
+  pendingBanner: {
+    width: '100%',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  pendingText: {
+    ...typography.body,
+    color: colors.primaryDark,
+    marginBottom: spacing.md,
+  },
+  pendingButton: { alignSelf: 'stretch' },
   signout: { marginTop: spacing.md },
 });
