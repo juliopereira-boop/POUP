@@ -106,27 +106,21 @@ O projeto POUP é gerenciado manualmente. Passos:
 
 ## 💳 Configuração do Stripe (planos Start e Pro)
 
-**Guia completo e passo a passo: [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).**
+**Guia completo e passo a passo (100% pelo navegador, sem terminal):
+[`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).**
 Resumo:
 
 1. Crie **dois Produtos** no Stripe, cada um com preço **recorrente mensal**:
    `POUP Start` e `POUP Pro`. Copie os `price_...` para
    `EXPO_PUBLIC_STRIPE_PRICE_START` e `EXPO_PUBLIC_STRIPE_PRICE_PRO`.
 2. Copie a **publishable key** (`pk_...`) para `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
-3. **Deploy das Edge Functions** e segredos (via Supabase CLI):
-
-   ```bash
-   supabase functions deploy create-checkout-session
-   supabase functions deploy create-billing-portal-session
-   supabase functions deploy stripe-webhook --no-verify-jwt
-
-   supabase secrets set STRIPE_SECRET_KEY=sk_...
-   supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
-   supabase secrets set STRIPE_PRICE_START=price_...
-   supabase secrets set STRIPE_PRICE_PRO=price_...
-   ```
-
-4. No **Stripe Dashboard → Developers → Webhooks**, aponte um endpoint para
+3. Publique as 3 Edge Functions colando o código de cada uma no editor do
+   Supabase Dashboard (**Edge Functions → Deploy a new function**) — cada
+   função é um arquivo único, não precisa de CLI.
+4. Configure os segredos em **Edge Functions → Secrets**:
+   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`,
+   `STRIPE_PRICE_PRO`.
+5. No **Stripe Dashboard → Developers → Webhooks**, aponte um endpoint para
    `https://<seu-projeto>.supabase.co/functions/v1/stripe-webhook` e assine os
    eventos `checkout.session.completed` e `customer.subscription.*`. Copie o
    **signing secret** (`whsec_...`) para o segredo acima.

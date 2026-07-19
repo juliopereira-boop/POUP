@@ -3,7 +3,15 @@
 
 import Stripe from 'https://esm.sh/stripe@17.3.1?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// Cabeçalhos CORS. Duplicado em cada função (em vez de um arquivo
+// compartilhado) para que cada função seja um único arquivo autocontido —
+// assim dá pra colar e publicar direto pelo Dashboard do Supabase, sem CLI.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2024-11-20.acacia',
