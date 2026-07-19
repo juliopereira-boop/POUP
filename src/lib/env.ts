@@ -34,7 +34,9 @@ export const env = {
     PLACEHOLDER_KEY,
   ),
   stripePublishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '',
-  stripePriceId: process.env.EXPO_PUBLIC_STRIPE_PRICE_ID ?? '',
+  // Price IDs por plano (Stripe). Cada plano é um preço mensal recorrente.
+  stripePriceStart: process.env.EXPO_PUBLIC_STRIPE_PRICE_START ?? '',
+  stripePricePro: process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO ?? '',
   appUrl: process.env.EXPO_PUBLIC_APP_URL ?? 'http://localhost:8081',
 } as const;
 

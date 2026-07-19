@@ -33,11 +33,25 @@ export type SubscriptionStatus =
   | 'incomplete'
   | 'none';
 
+/** Planos de contratação. Diferencial principal: limite de armazenamento. */
+export type PlanTier = 'start' | 'pro';
+
 export interface Subscription {
   status: SubscriptionStatus;
+  /** Nível do plano contratado (start/pro). */
+  tier: PlanTier | null;
+  /** Price ID do Stripe (referência técnica). */
   plan: string | null;
+  /** Limite de armazenamento gravado no banco (bytes). */
+  storageLimitBytes: number;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+}
+
+/** Uso de armazenamento do usuário (para exibir "X de Y GB"). */
+export interface StorageUsage {
+  usedBytes: number;
+  limitBytes: number;
 }
 
 /** Assinatura considerada válida para liberar o acesso ao app. */

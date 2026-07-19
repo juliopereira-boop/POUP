@@ -25,6 +25,23 @@ const admin = createClient(
 
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 
+// Mapeamento price -> plano. Os price IDs vêm dos mesmos segredos usados no
+// client; defina no Supabase: supabase secrets set STRIPE_PRICE_START=price_...
+const PRICE_START = Deno.env.get('STRIPE_PRICE_START') ?? '';
+const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
+
+const GB = 1024 * 1024 * 1024;
+// ⚠️ Mantenha em sincronia com src/features/plans.ts (storageLimitBytes).
+const PLAN_LIMITS: Record<string, number> = {
+  start: 1 * GB,
+  pro: 25 * GB,
+};
+
+function tierForPrice(priceId: string | null | undefined): 'start' | 'pro' {
+  if (priceId && priceId === PRICE_PRO) return 'pro';
+  return 'start'; // padrão seguro
+}
+
 Deno.serve(async (req) => {
   const signature = req.headers.get('stripe-signature');
   const body = await req.text();
@@ -80,11 +97,19 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
     ? new Date(sub.current_period_end * 1000).toISOString()
     : null;
 
+  const priceId = sub.items.data[0]?.price?.id ?? null;
+  const tier = tierForPrice(priceId);
+  // Se a assinatura não está ativa, zera o limite (bloqueia novos uploads).
+  const active = sub.status === 'active' || sub.status === 'trialing';
+  const storageLimit = active ? PLAN_LIMITS[tier] : 0;
+
   const { error } = await admin.from('subscriptions').upsert(
     {
       user_id: userId,
       status: sub.status,
-      plan: sub.items.data[0]?.price?.id ?? null,
+      plan: priceId,
+      plan_tier: tier,
+      storage_limit_bytes: storageLimit,
       stripe_customer_id: sub.customer as string,
       stripe_subscription_id: sub.id,
       current_period_end: periodEnd,

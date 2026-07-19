@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
+import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { colors, radius, spacing, typography } from '@/theme';
@@ -19,8 +20,20 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function ConfiguracoesScreen() {
   const { user, signOut } = useAuth();
-  const { subscription } = useSubscription();
+  const { subscription, plan } = useSubscription();
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [usedBytes, setUsedBytes] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    db.billing.getStorageUsedBytes(user.id).then((bytes) => {
+      if (mounted) setUsedBytes(bytes);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   async function openBillingPortal() {
     setLoadingPortal(true);
@@ -33,6 +46,8 @@ export default function ConfiguracoesScreen() {
   }
 
   const statusLabel = STATUS_LABEL[subscription?.status ?? 'none'] ?? 'Sem assinatura';
+  const limitBytes = subscription?.storageLimitBytes ?? plan?.storageLimitBytes ?? 0;
+  const usagePct = limitBytes > 0 && usedBytes != null ? Math.min(1, usedBytes / limitBytes) : 0;
 
   return (
     <Screen>
@@ -45,6 +60,8 @@ export default function ConfiguracoesScreen() {
 
       <Text style={styles.sectionLabel}>Assinatura</Text>
       <View style={styles.card}>
+        <Row label="Plano" value={plan?.name ?? '—'} />
+        <Divider />
         <Row label="Status" value={statusLabel} />
         {subscription?.currentPeriodEnd ? (
           <>
@@ -63,6 +80,28 @@ export default function ConfiguracoesScreen() {
             loading={loadingPortal}
           />
         </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>Armazenamento</Text>
+      <View style={styles.card}>
+        <View style={styles.storageRow}>
+          <Text style={styles.rowLabel}>Uso</Text>
+          <Text style={styles.rowValue}>
+            {usedBytes == null ? '—' : formatBytes(usedBytes)}
+            {limitBytes > 0 ? ` de ${formatBytes(limitBytes)}` : ''}
+          </Text>
+        </View>
+        {limitBytes > 0 ? (
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${Math.round(usagePct * 100)}%` },
+                usagePct >= 0.9 && { backgroundColor: colors.danger },
+              ]}
+            />
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.signOut}>
@@ -114,5 +153,25 @@ const styles = StyleSheet.create({
   rowValue: { ...typography.body, color: colors.ink, flexShrink: 1, textAlign: 'right' },
   divider: { height: 1, backgroundColor: colors.border },
   cardAction: { paddingVertical: spacing.lg },
+  storageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    gap: spacing.lg,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt,
+    marginBottom: spacing.lg,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
   signOut: { marginTop: spacing.xxl },
 });

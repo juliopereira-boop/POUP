@@ -49,6 +49,9 @@ export interface BillingRepository {
   /** Assinatura atual do usuário. */
   getSubscription(userId: string): Promise<Subscription | null>;
 
+  /** Total de bytes que o usuário ocupa no armazenamento (uploads). */
+  getStorageUsedBytes(userId: string): Promise<number>;
+
   /**
    * Cria uma sessão de checkout e retorna a URL para redirecionar o usuário.
    * No futuro (App Store/Play Store) trocamos por billing das lojas sem

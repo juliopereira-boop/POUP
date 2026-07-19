@@ -42,10 +42,13 @@ src/
   providers/              # AuthProvider, SubscriptionProvider
   data/                   # 🔑 Camada de dados (interfaces + impl. Supabase)
   features/registry.ts    # Fonte única do menu/rotas
+  features/plans.ts       # Planos Start/Pro (limites de armazenamento)
   lib/                    # Cliente Supabase, env, storage
 supabase/
-  migrations/0001_init.sql       # Schema (profiles, subscriptions, RLS)
-  functions/                     # Edge Functions do Stripe
+  migrations/0001_init.sql               # Schema (profiles, subscriptions, RLS)
+  migrations/0002_plans_and_storage.sql  # Planos + Storage com quota
+  functions/                             # Edge Functions do Stripe
+docs/STRIPE_PLANOS.md     # Guia para criar os 2 planos no Stripe
 ```
 
 ---
@@ -70,7 +73,8 @@ Preencha o `.env` (veja como obter cada valor nas seções abaixo):
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=...
-EXPO_PUBLIC_STRIPE_PRICE_ID=...
+EXPO_PUBLIC_STRIPE_PRICE_START=...
+EXPO_PUBLIC_STRIPE_PRICE_PRO=...
 EXPO_PUBLIC_APP_URL=http://localhost:8081
 ```
 
@@ -89,7 +93,9 @@ npm run android  # emulador Android
 O projeto POUP é gerenciado manualmente. Passos:
 
 1. **Rodar o schema**: Dashboard → **SQL Editor** → cole o conteúdo de
-   `supabase/migrations/0001_init.sql` → **Run**.
+   `supabase/migrations/0001_init.sql` → **Run**. Depois rode também
+   `supabase/migrations/0002_plans_and_storage.sql` (planos + bucket de
+   uploads + quota de armazenamento).
 2. **Credenciais do client**: Dashboard → **Project Settings → API**:
    - `Project URL` → `EXPO_PUBLIC_SUPABASE_URL`
    - `anon public` → `EXPO_PUBLIC_SUPABASE_ANON_KEY`
@@ -98,10 +104,14 @@ O projeto POUP é gerenciado manualmente. Passos:
 
 ---
 
-## 💳 Configuração do Stripe (assinatura mensal)
+## 💳 Configuração do Stripe (planos Start e Pro)
 
-1. Crie um **Produto** com preço **recorrente mensal** → copie o `price_...`
-   para `EXPO_PUBLIC_STRIPE_PRICE_ID`.
+**Guia completo e passo a passo: [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).**
+Resumo:
+
+1. Crie **dois Produtos** no Stripe, cada um com preço **recorrente mensal**:
+   `POUP Start` e `POUP Pro`. Copie os `price_...` para
+   `EXPO_PUBLIC_STRIPE_PRICE_START` e `EXPO_PUBLIC_STRIPE_PRICE_PRO`.
 2. Copie a **publishable key** (`pk_...`) para `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
 3. **Deploy das Edge Functions** e segredos (via Supabase CLI):
 
@@ -112,6 +122,8 @@ O projeto POUP é gerenciado manualmente. Passos:
 
    supabase secrets set STRIPE_SECRET_KEY=sk_...
    supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
+   supabase secrets set STRIPE_PRICE_START=price_...
+   supabase secrets set STRIPE_PRICE_PRO=price_...
    ```
 
 4. No **Stripe Dashboard → Developers → Webhooks**, aponte um endpoint para

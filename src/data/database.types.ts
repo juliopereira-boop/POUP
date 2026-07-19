@@ -44,6 +44,8 @@ export interface Database {
           user_id: string;
           status: string;
           plan: string | null;
+          plan_tier: string | null;
+          storage_limit_bytes: number;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
           current_period_end: string | null;
@@ -56,6 +58,8 @@ export interface Database {
           user_id: string;
           status?: string;
           plan?: string | null;
+          plan_tier?: string | null;
+          storage_limit_bytes?: number;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           current_period_end?: string | null;
@@ -66,6 +70,8 @@ export interface Database {
         Update: {
           status?: string;
           plan?: string | null;
+          plan_tier?: string | null;
+          storage_limit_bytes?: number;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           current_period_end?: string | null;
@@ -76,7 +82,12 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      user_storage_used: {
+        Args: { uid: string };
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

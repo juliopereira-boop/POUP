@@ -1,7 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { env } from '@/lib/env';
 import type { BillingRepository } from '../repositories';
-import { type Result, type Subscription, type SubscriptionStatus, err, ok } from '../types';
+import {
+  type PlanTier,
+  type Result,
+  type Subscription,
+  type SubscriptionStatus,
+  err,
+  ok,
+} from '../types';
 import type { Database } from '../database.types';
 
 type SubscriptionRow = Database['public']['Tables']['subscriptions']['Row'];
@@ -18,10 +25,16 @@ function mapStatus(raw: string): SubscriptionStatus {
   return (known as string[]).includes(raw) ? (raw as SubscriptionStatus) : 'none';
 }
 
+function mapTier(raw: string | null): PlanTier | null {
+  return raw === 'start' || raw === 'pro' ? raw : null;
+}
+
 function mapSubscription(row: SubscriptionRow): Subscription {
   return {
     status: mapStatus(row.status),
+    tier: mapTier(row.plan_tier),
     plan: row.plan,
+    storageLimitBytes: Number(row.storage_limit_bytes ?? 0),
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
   };
@@ -36,6 +49,13 @@ export class SupabaseBillingRepository implements BillingRepository {
       .maybeSingle();
     if (error || !data) return null;
     return mapSubscription(data);
+  }
+
+  /** Bytes usados no Storage pelo usuário (via função SQL user_storage_used). */
+  async getStorageUsedBytes(userId: string): Promise<number> {
+    const { data, error } = await supabase.rpc('user_storage_used', { uid: userId });
+    if (error || data == null) return 0;
+    return Number(data);
   }
 
   /**
