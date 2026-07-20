@@ -4,6 +4,7 @@ import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -33,10 +34,11 @@ export default function SimuladorFinanciamento() {
       coupon = (unitValue * pct) / 100;
     }
 
-    const financingTotal = financing + subsidy + fgts + coupon;
+    const financingSum = financing + subsidy + fgts;
+    const financingTotal = financingSum + coupon;
     const poupanca = unitValue - financingTotal;
     const poupancaPct = unitValue > 0 ? (poupanca / unitValue) * 100 : 0;
-    return { unitValue, financing, poupanca, poupancaPct };
+    return { unitValue, financingSum, poupanca, poupancaPct };
   }, [
     sim.unitValue,
     sim.financingApproved,
@@ -66,6 +68,12 @@ export default function SimuladorFinanciamento() {
   function setCouponType(type: 'R$' | '%') {
     sim.setField('couponType', type);
     sim.setField('couponValue', '');
+  }
+
+  function clearCoupon() {
+    sim.setField('couponType', null);
+    sim.setField('couponValue', '');
+    setCouponOpen(false);
   }
 
   function advance() {
@@ -112,11 +120,17 @@ export default function SimuladorFinanciamento() {
         </Pressable>
         <Text style={styles.couponLabel}>Cupom</Text>
         {sim.couponType ? (
-          <Text style={styles.couponValueTag}>
-            {sim.couponType === 'R$'
-              ? formatCurrencyBRL(sim.couponValue) || 'R$ 0,00'
-              : `${sim.couponValue || '0'}%`}
-          </Text>
+          <View style={styles.couponTagWrap}>
+            <SwipeToDelete onDelete={clearCoupon}>
+              <View style={styles.couponTagInner}>
+                <Text style={styles.couponValueTag}>
+                  {sim.couponType === 'R$'
+                    ? formatCurrencyBRL(sim.couponValue) || 'R$ 0,00'
+                    : `${sim.couponValue || '0'}%`}
+                </Text>
+              </View>
+            </SwipeToDelete>
+          </View>
         ) : null}
       </View>
 
@@ -189,8 +203,8 @@ export default function SimuladorFinanciamento() {
             <Text style={styles.summaryValue}>{brl(calc.poupanca)}</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Financiamento aprovado</Text>
-            <Text style={styles.summaryValue}>{brl(calc.financing)}</Text>
+            <Text style={styles.summaryLabel}>Valor de financiamento</Text>
+            <Text style={styles.summaryValue}>{brl(calc.financingSum)}</Text>
           </View>
         </View>
       </View>
@@ -245,6 +259,14 @@ const makeStyles = (colors: AppColors) =>
     },
     couponPlus: { color: colors.success, fontSize: 24, lineHeight: 26, fontWeight: '700' },
     couponLabel: { ...typography.body, color: colors.ink, fontWeight: '600' },
+    couponTagWrap: { flex: 1 },
+    couponTagInner: {
+      backgroundColor: colors.successSoft,
+      borderRadius: radius.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      alignSelf: 'flex-start',
+    },
     couponValueTag: { ...typography.label, color: colors.success },
     couponBox: {
       borderWidth: 1,
