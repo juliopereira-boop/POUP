@@ -6,7 +6,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
-import { WheelPicker } from '@/components/WheelPicker';
+import { NumberPickerField } from '@/components/NumberPickerField';
 import { db, type Company, type Development } from '@/data';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
 import { useAuth } from '@/providers/AuthProvider';
@@ -85,8 +85,8 @@ export default function SimuladorEmpreendimento() {
       />
 
       <View style={styles.row}>
-        <View style={styles.wheelCol}>
-          <WheelPicker
+        <View style={styles.col}>
+          <NumberPickerField
             label="Bloco / Quadra"
             min={0}
             max={100}
@@ -94,7 +94,7 @@ export default function SimuladorEmpreendimento() {
             onChange={(n) => sim.setField('block', n)}
           />
         </View>
-        <View style={styles.unitCol}>
+        <View style={styles.col}>
           <Input
             label="Unidade"
             value={sim.unit}
@@ -115,8 +115,7 @@ const makeStyles = (colors: AppColors) =>
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
     title: { ...typography.title, color: colors.ink, marginBottom: spacing.xl },
     row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
-    wheelCol: { flex: 1 },
-    unitCol: { flex: 1, justifyContent: 'flex-start' },
+    col: { flex: 1 },
     cta: { marginTop: spacing.md },
     error: {
       ...typography.caption,
