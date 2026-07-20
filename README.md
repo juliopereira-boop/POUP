@@ -177,6 +177,24 @@ apenas adicionamos uma implementação de `BillingRepository` para as lojas.
 
 ---
 
+## 🧾 Simulador de poupança (fluxo do corretor)
+
+Wizard de 5 etapas em `app/(app)/simulador/`:
+
+1. **Empreendimento** — empresa, empreendimento, bloco/quadra (roleta nativa),
+   unidade e valor da unidade.
+2. **Corretor** — dados do perfil (leitura), correspondente, gerente e gerente
+   imob.
+3. **Cliente** — 1º e 2º proponentes (com renda bruta e scan de documento).
+4. **Financiamento** — financiamento/subsídio/FGTS, cupom, Taxa CEF e o status
+   de risco calculado em tempo real.
+5. **Fluxo de pagamento** — ato + parcelas mensais (valor animado), semestrais
+   e anuais, com vencimentos automáticos e limites das regras de negócio.
+   Botão **Gerar proposta** → PDF (via `expo-print`) no modelo "Proposta de
+   Compra e Venda". A lógica de datas/valores fica em
+   `src/features/simulador/calc.ts` e o template em
+   `src/features/simulador/proposal.ts`.
+
 ## 🧭 Roadmap das funcionalidades
 
 O menu já lista as 6 áreas. Serão desenvolvidas uma a uma:

@@ -52,7 +52,7 @@ export default function SimuladorCliente() {
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 3 de 4</Text>
+      <Text style={styles.step}>Etapa 3 de 5</Text>
       <Text style={styles.title}>Dados do cliente</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

@@ -53,6 +53,11 @@ export interface SimuladorState {
   unitValue: string;
   /** Risco da poupança (%) da empresa selecionada (do cadastro). */
   companyRisk: number | null;
+  /** Regras de negócio da empresa (limites). */
+  companyMaxInstallments: number | null;
+  companyMaxSemiannual: number | null;
+  companyMaxAnnual: number | null;
+  companyCoincide: boolean;
   /** Correspondente selecionado (da empresa). */
   correspondentId: string | null;
   correspondentName: string | null;
@@ -88,6 +93,22 @@ export interface SimuladorState {
   cefInstallmentsCount: string;
   /** Valor da parcela CEF (mascarado em R$). */
   cefParcela: string;
+
+  // --- Fluxo de pagamento (página 5) ---
+  /** Ato do cliente (mascarado em R$). */
+  ato: string;
+  /** Vencimento do ato (ISO). */
+  atoDueDate: string | null;
+  /** Quantidade de parcelas mensais. */
+  mensaisCount: string;
+  /** Semestrais. */
+  semestralEnabled: boolean;
+  semestralCount: string;
+  semestralValue: string;
+  /** Anuais. */
+  anualEnabled: boolean;
+  anualCount: string;
+  anualValue: string;
 }
 
 interface SimuladorContextValue extends SimuladorState {
@@ -104,6 +125,10 @@ const INITIAL: SimuladorState = {
   unit: '',
   unitValue: '',
   companyRisk: null,
+  companyMaxInstallments: null,
+  companyMaxSemiannual: null,
+  companyMaxAnnual: null,
+  companyCoincide: true,
   correspondentId: null,
   correspondentName: null,
   proponent1: emptyProponent(),
@@ -120,6 +145,15 @@ const INITIAL: SimuladorState = {
   cefInstallment: false,
   cefInstallmentsCount: '',
   cefParcela: '',
+  ato: '',
+  atoDueDate: null,
+  mensaisCount: '',
+  semestralEnabled: false,
+  semestralCount: '',
+  semestralValue: '',
+  anualEnabled: false,
+  anualCount: '',
+  anualValue: '',
 };
 
 const DRAFT_KEY = 'poup.simulador.draft';

@@ -22,6 +22,7 @@ export default function SimuladorLayout() {
         <Stack.Screen name="corretor" options={{ title: 'Simulador · Corretor' }} />
         <Stack.Screen name="cliente" options={{ title: 'Simulador · Cliente' }} />
         <Stack.Screen name="financiamento" options={{ title: 'Simulador · Financiamento' }} />
+        <Stack.Screen name="fluxo" options={{ title: 'Simulador · Fluxo de pagamento' }} />
       </Stack>
     </SimuladorProvider>
   );

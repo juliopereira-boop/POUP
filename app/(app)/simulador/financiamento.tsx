@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -17,6 +18,7 @@ function brl(n: number): string {
 
 export default function SimuladorFinanciamento() {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const sim = useSimulador();
   const [warningOpen, setWarningOpen] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
@@ -78,12 +80,12 @@ export default function SimuladorFinanciamento() {
   }
 
   function advance() {
-    if (Platform.OS === 'web') window.alert('Valores salvos! Próxima etapa em breve.');
+    router.push('/(app)/simulador/fluxo');
   }
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 4 de 4</Text>
+      <Text style={styles.step}>Etapa 4 de 5</Text>
       <Text style={styles.title}>Valores de Financiamento</Text>
 
       <Input

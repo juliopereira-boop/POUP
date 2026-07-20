@@ -56,7 +56,7 @@ export default function SimuladorCorretor() {
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 2 de 4</Text>
+      <Text style={styles.step}>Etapa 2 de 5</Text>
       <Text style={styles.title}>Dados do corretor</Text>
       <Text style={styles.hint}>
         Nome, imobiliária, telefone e CNPJ vêm do seu perfil (toque em Editar para alterar).
