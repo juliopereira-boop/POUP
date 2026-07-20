@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, shadow, spacing, typography } from '@/theme';
+import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
+import { useThemedStyles } from '@/providers/ThemeProvider';
 
 interface MenuCardProps {
   title: string;
@@ -15,6 +16,7 @@ interface MenuCardProps {
  * Usa emoji como ícone provisório (fácil de trocar por ícones 3D/PNG depois).
  */
 export function MenuCard({ title, emoji, onPress, comingSoon = false }: MenuCardProps) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -37,48 +39,49 @@ export function MenuCard({ title, emoji, onPress, comingSoon = false }: MenuCard
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 150,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  iconWrap: {
-    marginBottom: spacing.md,
-  },
-  emoji: {
-    fontSize: 44,
-  },
-  title: {
-    ...typography.heading,
-    color: colors.ink,
-    textAlign: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: spacing.sm,
-    right: spacing.sm,
-    backgroundColor: colors.warningSoft,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  badgeText: {
-    ...typography.caption,
-    fontSize: 11,
-    color: colors.warning,
-    fontWeight: '600',
-  },
-});
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
+    card: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 150,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...shadow.card,
+    },
+    pressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.98 }],
+    },
+    iconWrap: {
+      marginBottom: spacing.md,
+    },
+    emoji: {
+      fontSize: 44,
+    },
+    title: {
+      ...typography.heading,
+      color: colors.ink,
+      textAlign: 'center',
+    },
+    badge: {
+      position: 'absolute',
+      top: spacing.sm,
+      right: spacing.sm,
+      backgroundColor: colors.warningSoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    badgeText: {
+      ...typography.caption,
+      fontSize: 11,
+      color: colors.warning,
+      fontWeight: '600',
+    },
+  });

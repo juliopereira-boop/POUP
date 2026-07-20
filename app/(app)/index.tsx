@@ -6,9 +6,11 @@ import { MenuCard } from '@/components/MenuCard';
 import { Screen } from '@/components/Screen';
 import { FEATURES } from '@/features/registry';
 import { useAuth } from '@/providers/AuthProvider';
-import { colors, spacing, typography } from '@/theme';
+import { spacing, typography, type AppColors } from '@/theme';
+import { useThemedStyles } from '@/providers/ThemeProvider';
 
 export default function MenuScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -52,7 +54,8 @@ export default function MenuScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

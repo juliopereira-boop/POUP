@@ -5,7 +5,14 @@
  * uma tecnologia específica. Trocar Supabase por outro banco = escrever novas
  * classes que implementam estas interfaces e apontar o factory (./index.ts).
  */
-import type { AuthUser, Result, Subscription, UserProfile } from './types';
+import type {
+  AuthUser,
+  Company,
+  Development,
+  Result,
+  Subscription,
+  UserProfile,
+} from './types';
 
 export interface AuthChangePayload {
   user: AuthUser | null;
@@ -61,4 +68,18 @@ export interface BillingRepository {
 
   /** Abre o portal de gerenciamento da assinatura (cancelar, trocar cartão). */
   createBillingPortalSession(): Promise<Result<{ url: string }>>;
+}
+
+export interface CompanyRepository {
+  list(userId: string): Promise<Company[]>;
+  create(userId: string, data: { name: string; risk: number | null }): Promise<Result<Company>>;
+  update(id: string, data: { name: string; risk: number | null }): Promise<Result<Company>>;
+  remove(id: string): Promise<Result<void>>;
+}
+
+export interface DevelopmentRepository {
+  list(userId: string): Promise<Development[]>;
+  create(userId: string, data: { companyId: string; name: string }): Promise<Result<Development>>;
+  update(id: string, data: { companyId: string; name: string }): Promise<Result<Development>>;
+  remove(id: string): Promise<Result<void>>;
 }

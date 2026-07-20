@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { radius, spacing, typography, type AppColors } from '@/theme';
+import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
 /** Ícone "G" do Google em SVG (multi-cor oficial). */
 function GoogleIcon({ size = 20 }: { size?: number }) {
@@ -33,6 +34,8 @@ interface GoogleButtonProps {
 }
 
 export function GoogleButton({ onPress, loading = false }: GoogleButtonProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -53,18 +56,19 @@ export function GoogleButton({ onPress, loading = false }: GoogleButtonProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    minHeight: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  label: { ...typography.label, fontSize: 16, color: colors.ink },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.6 },
-});
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
+    button: {
+      minHeight: 52,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    label: { ...typography.label, fontSize: 16, color: colors.ink },
+    pressed: { opacity: 0.85 },
+    disabled: { opacity: 0.6 },
+  });

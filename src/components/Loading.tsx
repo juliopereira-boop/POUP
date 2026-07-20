@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, typography } from '@/theme';
+import { spacing, typography, type AppColors } from '@/theme';
+import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { Logo } from './Logo';
 
 interface LoadingScreenProps {
@@ -10,6 +11,8 @@ interface LoadingScreenProps {
 
 /** Tela de carregamento em tela cheia (splash de sessão/assinatura). */
 export function LoadingScreen({ message }: LoadingScreenProps = {}) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.container}>
       <Logo size={40} />
@@ -19,19 +22,20 @@ export function LoadingScreen({ message }: LoadingScreenProps = {}) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    gap: 24,
-    paddingHorizontal: spacing.xl,
-  },
-  spinner: { marginTop: 8 },
-  message: {
-    ...typography.body,
-    color: colors.inkMuted,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.background,
+      gap: 24,
+      paddingHorizontal: spacing.xl,
+    },
+    spinner: { marginTop: 8 },
+    message: {
+      ...typography.body,
+      color: colors.inkMuted,
+      textAlign: 'center',
+    },
+  });

@@ -9,9 +9,11 @@ import { db } from '@/data';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
-import { colors, radius, spacing, typography } from '@/theme';
+import { radius, spacing, typography, type AppColors } from '@/theme';
+import { useThemedStyles } from '@/providers/ThemeProvider';
 
 export default function PaywallScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { user, signOut } = useAuth();
   const { isActive, refresh } = useSubscription();
   const { pending } = useLocalSearchParams<{ pending?: string }>();
@@ -110,6 +112,7 @@ function PlanCard({
   disabled: boolean;
   onSubscribe: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.card, plan.highlighted && styles.cardHighlighted]}>
       {plan.highlighted ? (
@@ -141,7 +144,8 @@ function PlanCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
   header: { alignItems: 'center', marginBottom: spacing.xl },
   subtitle: { ...typography.body, color: colors.inkMuted, marginTop: spacing.md },
   plans: { width: '100%', gap: spacing.lg },

@@ -7,7 +7,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { radius, spacing, typography, type AppColors } from '@/theme';
+import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -21,6 +22,15 @@ interface ButtonProps {
   style?: ViewStyle;
 }
 
+function variantColors(colors: AppColors): Record<Variant, { bg: string; fg: string; border: string }> {
+  return {
+    primary: { bg: colors.primary, fg: colors.white, border: colors.primary },
+    secondary: { bg: colors.surface, fg: colors.ink, border: colors.borderStrong },
+    ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
+    danger: { bg: colors.dangerSoft, fg: colors.danger, border: colors.dangerSoft },
+  };
+}
+
 export function Button({
   label,
   onPress,
@@ -30,8 +40,10 @@ export function Button({
   icon,
   style,
 }: ButtonProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const isDisabled = disabled || loading;
-  const v = VARIANTS[variant];
+  const v = variantColors(colors)[variant];
 
   return (
     <Pressable
@@ -59,29 +71,23 @@ export function Button({
   );
 }
 
-const VARIANTS: Record<Variant, { bg: string; fg: string; border: string }> = {
-  primary: { bg: colors.primary, fg: colors.white, border: colors.primary },
-  secondary: { bg: colors.surface, fg: colors.ink, border: colors.borderStrong },
-  ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
-  danger: { bg: colors.dangerSoft, fg: colors.danger, border: colors.dangerSoft },
-};
-
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  icon: { marginRight: spacing.sm },
-  label: { ...typography.label, fontSize: 16 },
-  pressed: { opacity: 0.85 },
-  disabled: { opacity: 0.5 },
-});
+const makeStyles = (_colors: AppColors) =>
+  StyleSheet.create({
+    base: {
+      minHeight: 52,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+    },
+    inner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    icon: { marginRight: spacing.sm },
+    label: { ...typography.label, fontSize: 16 },
+    pressed: { opacity: 0.85 },
+    disabled: { opacity: 0.5 },
+  });

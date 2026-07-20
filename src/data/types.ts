@@ -60,6 +60,31 @@ export function isSubscriptionActive(sub: Subscription | null): boolean {
   return sub.status === 'active' || sub.status === 'trialing';
 }
 
+/**
+ * Empresa / construtora cadastrada pelo corretor.
+ * `risk` (Risco) é o risco da poupança daquela construtora — usado como
+ * parâmetro de cálculo no Simulador de poupança (detalhamento em breve).
+ */
+export interface Company {
+  id: string;
+  name: string;
+  /** Risco da poupança da construtora (parâmetro de cálculo). */
+  risk: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Empreendimento, sempre associado a uma empresa. */
+export interface Development {
+  id: string;
+  companyId: string;
+  name: string;
+  /** Nome da empresa (preenchido em consultas com join), quando disponível. */
+  companyName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export function ok<T>(data: T): Result<T> {

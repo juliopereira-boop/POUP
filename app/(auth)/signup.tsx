@@ -8,9 +8,11 @@ import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { GoogleButton } from '@/components/GoogleButton';
 import { useAuth } from '@/providers/AuthProvider';
-import { colors, spacing, typography } from '@/theme';
+import { spacing, typography, type AppColors } from '@/theme';
+import { useThemedStyles } from '@/providers/ThemeProvider';
 
 export default function SignUpScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { signUp, signInWithGoogle } = useAuth();
 
@@ -117,7 +119,8 @@ export default function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
   header: { alignItems: 'center', marginBottom: spacing.xl },
   title: { ...typography.title, color: colors.ink, marginBottom: spacing.xs },
   subtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.xl },

@@ -1,9 +1,11 @@
 import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, typography } from '@/theme';
+import { spacing, typography, type AppColors } from '@/theme';
+import { useThemedStyles } from '@/providers/ThemeProvider';
 
 export default function NotFound() {
+  const styles = useThemedStyles(makeStyles);
   return (
     <>
       <Stack.Screen options={{ title: 'Página não encontrada' }} />
@@ -18,7 +20,8 @@ export default function NotFound() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',

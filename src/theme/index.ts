@@ -1,5 +1,8 @@
 import { colors } from './colors';
 
+export { colors, lightColors, darkColors } from './colors';
+export type { AppColors, ColorScheme } from './colors';
+
 /** Espaçamentos em escala de 4pt. */
 export const spacing = {
   xs: 4,
@@ -58,5 +61,4 @@ export const layout = {
 } as const;
 
 export const theme = { colors, spacing, radius, typography, shadow, layout } as const;
-export { colors };
 export type Theme = typeof theme;

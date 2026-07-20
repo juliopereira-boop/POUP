@@ -3,13 +3,14 @@ import { Redirect, Stack } from 'expo-router';
 import { LoadingScreen } from '@/components/Loading';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
-import { colors } from '@/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 
 /**
  * Guarda do app: exige login + assinatura ativa.
  * Toda a área "logada" fica sob este grupo.
  */
 export default function AppLayout() {
+  const { colors } = useTheme();
   const { user, initializing } = useAuth();
   const { isActive, loading } = useSubscription();
 
@@ -32,6 +33,12 @@ export default function AppLayout() {
       <Stack.Screen name="simulador" options={{ title: 'Simulador de poupança' }} />
       <Stack.Screen name="relatorios" options={{ title: 'Relatórios' }} />
       <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
+      <Stack.Screen name="cadastros/index" options={{ title: 'Cadastros' }} />
+      <Stack.Screen name="cadastros/empresas" options={{ title: 'Cadastro de Empresas' }} />
+      <Stack.Screen
+        name="cadastros/empreendimentos"
+        options={{ title: 'Cadastro de Empreendimentos' }}
+      />
       <Stack.Screen name="material-venda" options={{ title: 'Material de Venda' }} />
       <Stack.Screen name="comissao" options={{ title: 'Controle de Comissão' }} />
       <Stack.Screen name="vendas" options={{ title: 'Vendas Realizadas' }} />

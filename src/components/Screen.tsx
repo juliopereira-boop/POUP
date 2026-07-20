@@ -2,7 +2,8 @@ import { type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, layout, spacing } from '@/theme';
+import { layout, spacing } from '@/theme';
+import { useTheme } from '@/providers/ThemeProvider';
 
 interface ScreenProps {
   children: ReactNode;
@@ -17,17 +18,13 @@ interface ScreenProps {
 /**
  * Container base de todas as telas.
  * - Respeita safe areas (notch/barras) no nativo.
- * - Limita a largura em telas grandes (PC/tablet) e centraliza — mobile-first
- *   que também fica confortável no desktop.
+ * - Limita a largura em telas grandes (PC/tablet) e centraliza.
+ * - Fundo segue o tema ativo (claro/escuro).
  */
-export function Screen({
-  children,
-  scroll = true,
-  center = false,
-  contentStyle,
-  backgroundColor = colors.background,
-}: ScreenProps) {
+export function Screen({ children, scroll = true, center = false, contentStyle, backgroundColor }: ScreenProps) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const bg = backgroundColor ?? colors.background;
 
   const inner = (
     <View
@@ -43,12 +40,12 @@ export function Screen({
   );
 
   if (!scroll) {
-    return <View style={[styles.flex, { backgroundColor }]}>{inner}</View>;
+    return <View style={[styles.flex, { backgroundColor: bg }]}>{inner}</View>;
   }
 
   return (
     <ScrollView
-      style={[styles.flex, { backgroundColor }]}
+      style={[styles.flex, { backgroundColor: bg }]}
       contentContainerStyle={[styles.scrollContent, center && styles.centerScroll]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
