@@ -19,6 +19,8 @@ export interface UserProfile {
   fullName: string | null;
   /** Imobiliária onde o corretor atua. */
   agency: string | null;
+  /** Gerente da imobiliária do corretor. */
+  agencyManager: string | null;
   /** CNPJ (da imobiliária/corretor). */
   cnpj: string | null;
   phone: string | null;
@@ -78,10 +80,26 @@ export function isSubscriptionActive(sub: Subscription | null): boolean {
 export interface Company {
   id: string;
   name: string;
-  /** Risco da poupança da construtora (parâmetro de cálculo). */
+  /** Risco da poupança da construtora, em % (parâmetro de cálculo). */
   risk: number | null;
+  // Regras de negócio:
+  /** Qtd máxima de parcelas mensais. */
+  maxInstallments: number | null;
+  /** Qtd máxima de parcelas semestrais. */
+  maxSemiannual: number | null;
+  /** Qtd máxima de parcelas anuais. */
+  maxAnnual: number | null;
+  /** Se semestrais/anuais podem coincidir com as mensais. */
+  coincideInstallments: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Correspondente bancário vinculado a uma empresa. */
+export interface Correspondent {
+  id: string;
+  companyId: string;
+  name: string;
 }
 
 /** Empreendimento, sempre associado a uma empresa. */
@@ -91,8 +109,29 @@ export interface Development {
   name: string;
   /** Nome da empresa (preenchido em consultas com join), quando disponível. */
   companyName?: string | null;
+  // Regras de negócio:
+  /** Data de entrega (ISO yyyy-mm-dd). */
+  deliveryDate: string | null;
+  /** Gerente responsável (facultativo). */
+  managerName: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CompanyInput {
+  name: string;
+  risk: number | null;
+  maxInstallments: number | null;
+  maxSemiannual: number | null;
+  maxAnnual: number | null;
+  coincideInstallments: boolean;
+}
+
+export interface DevelopmentInput {
+  companyId: string;
+  name: string;
+  deliveryDate: string | null;
+  managerName: string | null;
 }
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };

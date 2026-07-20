@@ -17,6 +17,8 @@ export interface Proponent {
   cpf: string;
   email: string;
   contact: string;
+  /** Renda bruta (mascarada em R$). */
+  rendaBruta: string;
 }
 
 /** Tipo de associação do 2º proponente com o 1º. */
@@ -30,7 +32,7 @@ export const ASSOCIATION_OPTIONS: { value: AssociationType; label: string }[] = 
 ];
 
 export function emptyProponent(): Proponent {
-  return { name: '', cpf: '', email: '', contact: '' };
+  return { name: '', cpf: '', email: '', contact: '', rendaBruta: '' };
 }
 
 /**
@@ -51,6 +53,9 @@ export interface SimuladorState {
   unitValue: string;
   /** Risco da poupança (%) da empresa selecionada (do cadastro). */
   companyRisk: number | null;
+  /** Correspondente selecionado (da empresa). */
+  correspondentId: string | null;
+  correspondentName: string | null;
   /** 1º proponente. */
   proponent1: Proponent;
   /** Se há um 2º proponente. */
@@ -73,6 +78,16 @@ export interface SimuladorState {
   couponValue: string;
   /** Se o usuário já viu o aviso de validação do cupom. */
   couponWarningSeen: boolean;
+
+  // --- Taxa CEF ---
+  /** Cliente paga a taxa CEF? (sim = verde). */
+  cefClientPays: boolean;
+  /** Parcelar a taxa CEF? */
+  cefInstallment: boolean;
+  /** Quantidade de parcelas da taxa CEF. */
+  cefInstallmentsCount: string;
+  /** Valor da parcela CEF (mascarado em R$). */
+  cefParcela: string;
 }
 
 interface SimuladorContextValue extends SimuladorState {
@@ -89,6 +104,8 @@ const INITIAL: SimuladorState = {
   unit: '',
   unitValue: '',
   companyRisk: null,
+  correspondentId: null,
+  correspondentName: null,
   proponent1: emptyProponent(),
   hasSecondProponent: false,
   association: null,
@@ -99,6 +116,10 @@ const INITIAL: SimuladorState = {
   couponType: null,
   couponValue: '',
   couponWarningSeen: false,
+  cefClientPays: true,
+  cefInstallment: false,
+  cefInstallmentsCount: '',
+  cefParcela: '',
 };
 
 const DRAFT_KEY = 'poup.simulador.draft';

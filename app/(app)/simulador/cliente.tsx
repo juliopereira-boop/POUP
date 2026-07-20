@@ -12,7 +12,7 @@ import {
   useSimulador,
   type Proponent,
 } from '@/features/simulador/SimuladorProvider';
-import { formatCPF, formatPhone } from '@/lib/masks';
+import { formatCPF, formatCurrencyBRL, formatPhone } from '@/lib/masks';
 import type { ScannedDocument } from '@/lib/documentScan';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -24,7 +24,9 @@ export default function SimuladorCliente() {
   const [error, setError] = useState<string | null>(null);
 
   function validProponent(p: Proponent): boolean {
-    return Boolean(p.name.trim() && p.cpf.trim() && p.email.trim() && p.contact.trim());
+    return Boolean(
+      p.name.trim() && p.cpf.trim() && p.email.trim() && p.contact.trim() && p.rendaBruta.trim(),
+    );
   }
 
   function applyScan(result: ScannedDocument, setProponent: (patch: Partial<Proponent>) => void) {
@@ -57,37 +59,11 @@ export default function SimuladorCliente() {
 
       {/* 1º proponente */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>1º Proponente</Text>
-        <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent1)} />
-        <Input
-          label="Nome"
-          value={sim.proponent1.name}
-          onChangeText={(t) => sim.setProponent1({ name: t })}
-          placeholder="Nome completo"
-          autoCapitalize="words"
-        />
-        <Input
-          label="CPF"
-          value={sim.proponent1.cpf}
-          onChangeText={(t) => sim.setProponent1({ cpf: formatCPF(t) })}
-          placeholder="000.000.000-00"
-          keyboardType="numbers-and-punctuation"
-        />
-        <Input
-          label="E-mail"
-          value={sim.proponent1.email}
-          onChangeText={(t) => sim.setProponent1({ email: t })}
-          placeholder="email@exemplo.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <Input
-          label="Contato"
-          value={sim.proponent1.contact}
-          onChangeText={(t) => sim.setProponent1({ contact: formatPhone(t) })}
-          placeholder="(00) 00000-0000"
-          keyboardType="phone-pad"
-        />
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>1º Proponente</Text>
+          <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent1)} />
+        </View>
+        <ProponentFields value={sim.proponent1} onChange={sim.setProponent1} />
       </View>
 
       {/* 2º proponente (opcional) */}
@@ -95,11 +71,14 @@ export default function SimuladorCliente() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>2º Proponente</Text>
-            <Button
-              label="Remover"
-              variant="ghost"
-              onPress={() => sim.setField('hasSecondProponent', false)}
-            />
+            <View style={styles.headerActions}>
+              <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent2)} />
+              <Button
+                label="Remover"
+                variant="ghost"
+                onPress={() => sim.setField('hasSecondProponent', false)}
+              />
+            </View>
           </View>
 
           <Select
@@ -110,37 +89,7 @@ export default function SimuladorCliente() {
             onChange={(v) => sim.setField('association', v as typeof sim.association)}
           />
 
-          <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent2)} />
-
-          <Input
-            label="Nome"
-            value={sim.proponent2.name}
-            onChangeText={(t) => sim.setProponent2({ name: t })}
-            placeholder="Nome completo"
-            autoCapitalize="words"
-          />
-          <Input
-            label="CPF"
-            value={sim.proponent2.cpf}
-            onChangeText={(t) => sim.setProponent2({ cpf: formatCPF(t) })}
-            placeholder="000.000.000-00"
-            keyboardType="numbers-and-punctuation"
-          />
-          <Input
-            label="E-mail"
-            value={sim.proponent2.email}
-            onChangeText={(t) => sim.setProponent2({ email: t })}
-            placeholder="email@exemplo.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <Input
-            label="Contato"
-            value={sim.proponent2.contact}
-            onChangeText={(t) => sim.setProponent2({ contact: formatPhone(t) })}
-            placeholder="(00) 00000-0000"
-            keyboardType="phone-pad"
-          />
+          <ProponentFields value={sim.proponent2} onChange={sim.setProponent2} />
         </View>
       ) : (
         <Button
@@ -153,6 +102,55 @@ export default function SimuladorCliente() {
 
       <Button label="Avançar" onPress={advance} />
     </Screen>
+  );
+}
+
+function ProponentFields({
+  value,
+  onChange,
+}: {
+  value: Proponent;
+  onChange: (patch: Partial<Proponent>) => void;
+}) {
+  return (
+    <>
+      <Input
+        label="Nome"
+        value={value.name}
+        onChangeText={(t) => onChange({ name: t })}
+        placeholder="Nome completo"
+        autoCapitalize="words"
+      />
+      <Input
+        label="CPF"
+        value={value.cpf}
+        onChangeText={(t) => onChange({ cpf: formatCPF(t) })}
+        placeholder="000.000.000-00"
+        keyboardType="numbers-and-punctuation"
+      />
+      <Input
+        label="Renda bruta"
+        value={value.rendaBruta}
+        onChangeText={(t) => onChange({ rendaBruta: formatCurrencyBRL(t) })}
+        placeholder="R$ 0,00"
+        keyboardType="numeric"
+      />
+      <Input
+        label="E-mail"
+        value={value.email}
+        onChangeText={(t) => onChange({ email: t })}
+        placeholder="email@exemplo.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+      <Input
+        label="Contato"
+        value={value.contact}
+        onChangeText={(t) => onChange({ contact: formatPhone(t) })}
+        placeholder="(00) 00000-0000"
+        keyboardType="phone-pad"
+      />
+    </>
   );
 }
 
@@ -172,8 +170,10 @@ const makeStyles = (colors: AppColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      marginBottom: spacing.md,
     },
-    cardTitle: { ...typography.heading, color: colors.ink, marginBottom: spacing.md },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    cardTitle: { ...typography.heading, color: colors.ink },
     addBtn: { marginBottom: spacing.lg },
     error: {
       ...typography.caption,

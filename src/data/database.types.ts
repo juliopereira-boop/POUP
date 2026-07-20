@@ -15,6 +15,7 @@ export interface Database {
           id: string;
           full_name: string | null;
           agency: string | null;
+          agency_manager: string | null;
           cnpj: string | null;
           phone: string | null;
           avatar_url: string | null;
@@ -26,6 +27,7 @@ export interface Database {
           id: string;
           full_name?: string | null;
           agency?: string | null;
+          agency_manager?: string | null;
           cnpj?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
@@ -36,6 +38,7 @@ export interface Database {
         Update: {
           full_name?: string | null;
           agency?: string | null;
+          agency_manager?: string | null;
           cnpj?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
@@ -92,6 +95,10 @@ export interface Database {
           user_id: string;
           name: string;
           risk: number | null;
+          max_installments: number | null;
+          max_semiannual: number | null;
+          max_annual: number | null;
+          coincide_installments: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -100,14 +107,40 @@ export interface Database {
           user_id: string;
           name: string;
           risk?: number | null;
+          max_installments?: number | null;
+          max_semiannual?: number | null;
+          max_annual?: number | null;
+          coincide_installments?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           name?: string;
           risk?: number | null;
+          max_installments?: number | null;
+          max_semiannual?: number | null;
+          max_annual?: number | null;
+          coincide_installments?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      correspondents: {
+        Row: {
+          id: string;
+          user_id: string;
+          company_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          company_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: { name?: string };
         Relationships: [];
       };
       developments: {
@@ -116,6 +149,8 @@ export interface Database {
           user_id: string;
           company_id: string;
           name: string;
+          delivery_date: string | null;
+          manager_name: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -124,12 +159,16 @@ export interface Database {
           user_id: string;
           company_id: string;
           name: string;
+          delivery_date?: string | null;
+          manager_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           company_id?: string;
           name?: string;
+          delivery_date?: string | null;
+          manager_name?: string | null;
           updated_at?: string;
         };
         Relationships: [];

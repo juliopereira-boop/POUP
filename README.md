@@ -96,8 +96,10 @@ O projeto POUP é gerenciado manualmente. Passos:
    `supabase/migrations/0001_init.sql` → **Run**. Depois rode também
    `supabase/migrations/0002_plans_and_storage.sql` (planos + bucket de
    uploads + quota de armazenamento),
-   `supabase/migrations/0003_cadastros.sql` (empresas e empreendimentos) e
-   `supabase/migrations/0004_profile_fields.sql` (imobiliária e CNPJ no perfil).
+   `supabase/migrations/0003_cadastros.sql` (empresas e empreendimentos),
+   `supabase/migrations/0004_profile_fields.sql` (imobiliária e CNPJ no perfil)
+   e `supabase/migrations/0005_regras_negocio.sql` (regras de negócio de
+   empresa/empreendimento, correspondentes e gerente imob).
 2. **Credenciais do client**: Dashboard → **Project Settings → API**:
    - `Project URL` → `EXPO_PUBLIC_SUPABASE_URL`
    - `anon public` → `EXPO_PUBLIC_SUPABASE_ANON_KEY`

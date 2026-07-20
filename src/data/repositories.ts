@@ -8,7 +8,10 @@
 import type {
   AuthUser,
   Company,
+  CompanyInput,
+  Correspondent,
   Development,
+  DevelopmentInput,
   Result,
   Subscription,
   UserProfile,
@@ -72,14 +75,19 @@ export interface BillingRepository {
 
 export interface CompanyRepository {
   list(userId: string): Promise<Company[]>;
-  create(userId: string, data: { name: string; risk: number | null }): Promise<Result<Company>>;
-  update(id: string, data: { name: string; risk: number | null }): Promise<Result<Company>>;
+  create(userId: string, data: CompanyInput): Promise<Result<Company>>;
+  update(id: string, data: CompanyInput): Promise<Result<Company>>;
   remove(id: string): Promise<Result<void>>;
+
+  // Correspondentes (1:N com a empresa)
+  listCorrespondents(companyId: string): Promise<Correspondent[]>;
+  addCorrespondent(userId: string, companyId: string, name: string): Promise<Result<Correspondent>>;
+  removeCorrespondent(id: string): Promise<Result<void>>;
 }
 
 export interface DevelopmentRepository {
   list(userId: string): Promise<Development[]>;
-  create(userId: string, data: { companyId: string; name: string }): Promise<Result<Development>>;
-  update(id: string, data: { companyId: string; name: string }): Promise<Result<Development>>;
+  create(userId: string, data: DevelopmentInput): Promise<Result<Development>>;
+  update(id: string, data: DevelopmentInput): Promise<Result<Development>>;
   remove(id: string): Promise<Result<void>>;
 }

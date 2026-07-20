@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text } from 
 import * as ImagePicker from 'expo-image-picker';
 
 import { scanDocument, type ScannedDocument } from '@/lib/documentScan';
-import { radius, spacing, typography, type AppColors } from '@/theme';
+import { radius, type AppColors } from '@/theme';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
 interface ScanDocumentButtonProps {
@@ -11,9 +11,8 @@ interface ScanDocumentButtonProps {
 }
 
 /**
- * Botão "Escanear documento" — tira foto da CNH/RG do cliente (ou escolhe da
- * galeria) e usa o Claude para ler nome e CPF automaticamente. O resultado
- * deve sempre ser conferido pelo corretor: os campos continuam editáveis.
+ * Botão discreto (ícone de scanner) — tira foto da CNH/RG do cliente e usa o
+ * Claude para ler nome e CPF. O resultado sempre cai em campos editáveis.
  */
 export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
   const { colors } = useTheme();
@@ -25,54 +24,40 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
     else Alert.alert('POUP', message);
   }
 
-  async function pickImage(): Promise<ImagePicker.ImagePickerAsset | null> {
+  async function handlePress() {
     const cam = await ImagePicker.requestCameraPermissionsAsync();
     const options: ImagePicker.ImagePickerOptions = {
       base64: true,
       quality: 0.7,
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
     };
-
     const result = cam.granted
       ? await ImagePicker.launchCameraAsync(options)
       : await ImagePicker.launchImageLibraryAsync(options);
-
-    if (result.canceled || !result.assets?.[0]) return null;
-    return result.assets[0];
-  }
-
-  async function handlePress() {
-    const asset = await pickImage();
-    if (!asset?.base64) return;
+    if (result.canceled || !result.assets?.[0]?.base64) return;
 
     setLoading(true);
-    const result = await scanDocument(asset.base64, asset.mimeType ?? 'image/jpeg');
+    const scan = await scanDocument(result.assets[0].base64, result.assets[0].mimeType ?? 'image/jpeg');
     setLoading(false);
 
-    if (!result.ok) {
-      notify(result.error);
-      return;
+    if (!scan.ok) return notify(scan.error);
+    if (scan.data.confidence === 'baixa') {
+      notify('Não consegui ler com certeza. Confira os dados preenchidos.');
     }
-    if (result.data.confidence === 'baixa') {
-      notify('Não consegui ler o documento com certeza. Confira os dados preenchidos.');
-    }
-    onScanned(result.data);
+    onScanned(scan.data);
   }
 
   return (
     <Pressable
       onPress={handlePress}
       disabled={loading}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed, loading && styles.disabled]}
-      accessibilityRole="button"
+      accessibilityLabel="Escanear documento (CNH/RG)"
+      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
     >
       {loading ? (
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.primary} />
       ) : (
-        <>
-          <Text style={styles.icon}>📷</Text>
-          <Text style={styles.label}>Escanear documento</Text>
-        </>
+        <Text style={styles.icon}>🪪</Text>
       )}
     </Pressable>
   );
@@ -81,18 +66,15 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     button: {
-      flexDirection: 'row',
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.sm,
-      borderWidth: 1,
-      borderColor: colors.primary,
-      borderRadius: radius.md,
-      paddingVertical: spacing.md,
-      marginBottom: spacing.lg,
     },
-    icon: { fontSize: 16 },
-    label: { ...typography.label, color: colors.primary },
-    pressed: { opacity: 0.7 },
-    disabled: { opacity: 0.6 },
+    pressed: { opacity: 0.6 },
+    icon: { fontSize: 20 },
   });

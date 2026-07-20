@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
+import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
@@ -23,6 +24,8 @@ export default function EmpreendimentosScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
+  const [managerName, setManagerName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +49,8 @@ export default function EmpreendimentosScreen() {
     setEditingId(null);
     setCompanyId(null);
     setName('');
+    setDeliveryDate(null);
+    setManagerName('');
     setError(null);
   }
 
@@ -53,6 +58,8 @@ export default function EmpreendimentosScreen() {
     setEditingId(dev.id);
     setCompanyId(dev.companyId);
     setName(dev.name);
+    setDeliveryDate(dev.deliveryDate);
+    setManagerName(dev.managerName ?? '');
     setError(null);
   }
 
@@ -68,7 +75,12 @@ export default function EmpreendimentosScreen() {
       return;
     }
     setSaving(true);
-    const payload = { companyId, name: name.trim() };
+    const payload = {
+      companyId,
+      name: name.trim(),
+      deliveryDate,
+      managerName: managerName.trim() || null,
+    };
     const result = editingId
       ? await db.developments.update(editingId, payload)
       : await db.developments.create(user.id, payload);
@@ -136,6 +148,22 @@ export default function EmpreendimentosScreen() {
           onChangeText={setName}
           placeholder="Ex.: Residencial..."
         />
+
+        <Text style={styles.sectionTitle}>Regras de negócio</Text>
+        <DateField
+          label="Data de entrega"
+          value={deliveryDate}
+          onChange={setDeliveryDate}
+          placeholder="Selecione a data"
+        />
+        <Input
+          label="Gerente responsável (opcional)"
+          value={managerName}
+          onChangeText={setManagerName}
+          placeholder="Nome do gerente"
+          autoCapitalize="words"
+        />
+
         <View style={styles.formActions}>
           {editingId ? (
             <Button label="Cancelar" variant="ghost" onPress={resetForm} style={styles.flex1} />
@@ -196,6 +224,14 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.xl,
     },
     formTitle: { ...typography.heading, color: colors.ink, marginBottom: spacing.lg },
+    sectionTitle: {
+      ...typography.label,
+      color: colors.inkMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginTop: spacing.md,
+      marginBottom: spacing.md,
+    },
     formActions: { flexDirection: 'row', gap: spacing.md },
     flex1: { flex: 1 },
     sectionLabel: {

@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
+import { ToggleField } from '@/components/ToggleField';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -159,18 +160,63 @@ export default function SimuladorFinanciamento() {
               keyboardType="numeric"
             />
           ) : sim.couponType === '%' ? (
-            <Input
-              label="Percentual sobre o valor da unidade"
-              value={sim.couponValue}
-              onChangeText={(t) => sim.setField('couponValue', t.replace(/[^0-9.,]/g, ''))}
-              placeholder="Ex.: 5"
-              keyboardType="numeric"
-            />
+            <>
+              <Input
+                label="Percentual sobre o valor da unidade"
+                value={sim.couponValue}
+                onChangeText={(t) => sim.setField('couponValue', t.replace(/[^0-9.,]/g, ''))}
+                placeholder="Ex.: 5"
+                keyboardType="numeric"
+              />
+              <Text style={styles.couponComputed}>
+                {(() => {
+                  const pct = parseFloat(sim.couponValue.replace(',', '.')) || 0;
+                  const val = (currencyToNumber(sim.unitValue) * pct) / 100;
+                  return `= ${brl(val)}  (${pct || 0}% do valor da unidade)`;
+                })()}
+              </Text>
+            </>
           ) : (
             <Text style={styles.couponHint}>Escolha o tipo de desconto acima.</Text>
           )}
         </View>
       ) : null}
+
+      {/* Taxa CEF */}
+      <View style={styles.cefCard}>
+        <ToggleField
+          label="Taxa CEF cliente paga"
+          value={sim.cefClientPays}
+          onChange={(v) => sim.setField('cefClientPays', v)}
+        />
+        {sim.cefClientPays ? (
+          <>
+            <ToggleField
+              label="Parcelar?"
+              value={sim.cefInstallment}
+              onChange={(v) => sim.setField('cefInstallment', v)}
+            />
+            {sim.cefInstallment ? (
+              <Input
+                label="Quantidade de parcelas"
+                value={sim.cefInstallmentsCount}
+                onChangeText={(t) =>
+                  sim.setField('cefInstallmentsCount', t.replace(/[^0-9]/g, ''))
+                }
+                placeholder="Ex.: 12"
+                keyboardType="numeric"
+              />
+            ) : null}
+            <Input
+              label="Parcela CEF"
+              value={sim.cefParcela}
+              onChangeText={(t) => sim.setField('cefParcela', formatCurrencyBRL(t))}
+              placeholder="R$ 0,00"
+              keyboardType="numeric"
+            />
+          </>
+        ) : null}
+      </View>
 
       {/* Status do risco (atualiza em tempo real) */}
       <View
@@ -289,6 +335,16 @@ const makeStyles = (colors: AppColors) =>
     segmentText: { ...typography.label, color: colors.inkMuted },
     segmentTextActive: { color: colors.primary },
     couponHint: { ...typography.caption, color: colors.inkSubtle },
+    couponComputed: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.sm },
+    cefCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      marginBottom: spacing.lg,
+      backgroundColor: colors.surface,
+    },
 
     statusCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginTop: spacing.sm },
     statusNeutral: { backgroundColor: colors.surfaceAlt, borderColor: colors.border },

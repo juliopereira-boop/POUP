@@ -19,6 +19,7 @@ export default function PerfilScreen() {
 
   const [fullName, setFullName] = useState('');
   const [agency, setAgency] = useState('');
+  const [agencyManager, setAgencyManager] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [phone, setPhone] = useState('');
   const [creci, setCreci] = useState('');
@@ -29,6 +30,7 @@ export default function PerfilScreen() {
     if (!profile) return;
     setFullName(profile.fullName ?? '');
     setAgency(profile.agency ?? '');
+    setAgencyManager(profile.agencyManager ?? '');
     setCnpj(formatCNPJ(profile.cnpj ?? ''));
     setPhone(formatPhone(profile.phone ?? ''));
     setCreci(profile.creci ?? '');
@@ -44,6 +46,7 @@ export default function PerfilScreen() {
     const result = await updateProfile({
       fullName: fullName.trim(),
       agency: agency.trim(),
+      agencyManager: agencyManager.trim() || null,
       cnpj: cnpj.trim(),
       phone: phone.trim(),
       creci: creci.trim() || null,
@@ -64,6 +67,7 @@ export default function PerfilScreen() {
 
       <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
       <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
+      <Input label="Gerente imob" value={agencyManager} onChangeText={setAgencyManager} placeholder="Nome do gerente da imobiliária" autoCapitalize="words" />
       <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
       <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
       <Input label="CRECI (opcional)" value={creci} onChangeText={setCreci} placeholder="Seu registro CRECI" />
