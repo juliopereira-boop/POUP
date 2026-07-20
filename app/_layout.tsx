@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider } from '@/providers/AuthProvider';
 import { SubscriptionProvider } from '@/providers/SubscriptionProvider';
+import { ProfileProvider } from '@/providers/ProfileProvider';
 import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
 
 /**
@@ -18,9 +19,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <SubscriptionProvider>
-              <ThemedNavigator />
-            </SubscriptionProvider>
+            <ProfileProvider>
+              <SubscriptionProvider>
+                <ThemedNavigator />
+              </SubscriptionProvider>
+            </ProfileProvider>
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

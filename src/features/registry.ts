@@ -23,7 +23,7 @@ export const FEATURES: Feature[] = [
     emoji: '🏡',
     route: '/(app)/simulador',
     description: 'Simule rendimentos e projeções de poupança para seus clientes.',
-    ready: false,
+    ready: true,
   },
   {
     key: 'relatorios',

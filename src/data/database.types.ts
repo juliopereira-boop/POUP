@@ -14,6 +14,8 @@ export interface Database {
         Row: {
           id: string;
           full_name: string | null;
+          agency: string | null;
+          cnpj: string | null;
           phone: string | null;
           avatar_url: string | null;
           creci: string | null;
@@ -23,6 +25,8 @@ export interface Database {
         Insert: {
           id: string;
           full_name?: string | null;
+          agency?: string | null;
+          cnpj?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;
@@ -31,6 +35,8 @@ export interface Database {
         };
         Update: {
           full_name?: string | null;
+          agency?: string | null;
+          cnpj?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;

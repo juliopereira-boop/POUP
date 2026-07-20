@@ -17,12 +17,22 @@ export interface AuthUser {
 export interface UserProfile {
   id: string;
   fullName: string | null;
+  /** Imobiliária onde o corretor atua. */
+  agency: string | null;
+  /** CNPJ (da imobiliária/corretor). */
+  cnpj: string | null;
   phone: string | null;
   avatarUrl: string | null;
   /** Registro CRECI do corretor. */
   creci: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Campos obrigatórios do cadastro do corretor (para o onboarding). */
+export function isProfileComplete(p: UserProfile | null): boolean {
+  if (!p) return false;
+  return Boolean(p.fullName?.trim() && p.agency?.trim() && p.cnpj?.trim() && p.phone?.trim());
 }
 
 export type SubscriptionStatus =

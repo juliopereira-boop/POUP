@@ -9,6 +9,8 @@ function mapProfile(row: ProfileRow): UserProfile {
   return {
     id: row.id,
     fullName: row.full_name,
+    agency: row.agency,
+    cnpj: row.cnpj,
     phone: row.phone,
     avatarUrl: row.avatar_url,
     creci: row.creci,
@@ -37,6 +39,8 @@ export class SupabaseProfileRepository implements ProfileRepository {
       .upsert({
         id: userId,
         full_name: patch.fullName,
+        agency: patch.agency,
+        cnpj: patch.cnpj,
         phone: patch.phone,
         avatar_url: patch.avatarUrl,
         creci: patch.creci,

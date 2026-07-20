@@ -62,7 +62,7 @@ export default function EmpresasScreen() {
       return;
     }
     if (risk.trim() && parseRisk(risk) === null) {
-      setError('Risco inválido. Use apenas números (ex.: 0.5).');
+      setError('Risco inválido. Use apenas números (ex.: 32).');
       return;
     }
     setSaving(true);
@@ -105,10 +105,10 @@ export default function EmpresasScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Input label="Nome da empresa" value={name} onChangeText={setName} placeholder="Construtora..." />
         <Input
-          label="Risco (parâmetro do Simulador)"
+          label="Risco (%) — parâmetro do Simulador"
           value={risk}
           onChangeText={setRisk}
-          placeholder="Ex.: 0.5"
+          placeholder="Ex.: 32"
           keyboardType="numeric"
         />
         <View style={styles.formActions}>
@@ -134,7 +134,7 @@ export default function EmpresasScreen() {
           <View key={c.id} style={styles.item}>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{c.name}</Text>
-              <Text style={styles.itemMeta}>Risco: {c.risk != null ? c.risk : '—'}</Text>
+              <Text style={styles.itemMeta}>Risco: {c.risk != null ? `${c.risk}%` : '—'}</Text>
             </View>
             <View style={styles.itemActions}>
               <Pressable onPress={() => startEdit(c)} hitSlop={8}>

@@ -7,6 +7,7 @@ import { Screen } from '@/components/Screen';
 import { db } from '@/data';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
+import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors, type ColorScheme } from '@/theme';
@@ -25,6 +26,7 @@ export default function ConfiguracoesScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { user, signOut } = useAuth();
+  const { profile } = useProfile();
   const { subscription, plan } = useSubscription();
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
@@ -58,9 +60,13 @@ export default function ConfiguracoesScreen() {
     <Screen>
       <Text style={styles.sectionLabel}>Conta</Text>
       <View style={styles.card}>
-        <Row label="Nome" value={user?.displayName ?? '—'} />
+        <Row label="Nome" value={profile?.fullName ?? user?.displayName ?? '—'} />
+        <Divider />
+        <Row label="Imobiliária" value={profile?.agency ?? '—'} />
         <Divider />
         <Row label="Email" value={user?.email ?? '—'} />
+        <Divider />
+        <NavRow label="Editar perfil" onPress={() => router.push('/(app)/perfil')} />
       </View>
 
       <Text style={styles.sectionLabel}>Aparência</Text>
