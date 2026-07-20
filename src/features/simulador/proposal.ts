@@ -110,7 +110,14 @@ export function generateProposalHtml(ctx: ProposalContext): string {
 
   return `<!doctype html><html><head><meta charset="utf-8"/>
   <style>
-    * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
+    @page { size: A4; margin: 10mm; }
+    * {
+      box-sizing: border-box;
+      font-family: Arial, Helvetica, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { margin: 0; padding: 16px; color: #1a1a1a; font-size: 11px; }
     .sheet { border: 2px solid #333; }
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 10px 14px; }
@@ -195,11 +202,73 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   </div></body></html>`;
 }
 
+/**
+ * Renderiza o HTML da proposta num iframe isolado e imprime SOMENTE ele.
+ * (No web, o expo-print apenas chama window.print(), que imprimiria o app
+ * inteiro — daí o "print da tela". Aqui geramos o documento de verdade; o
+ * usuário escolhe "Salvar como PDF" no diálogo e obtém o PDF no modelo.)
+ */
+function printHtmlWeb(html: string): void {
+  const dom = globalThis as unknown as {
+    document?: {
+      createElement: (t: string) => HTMLIFrameElementLike;
+      body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+    };
+  };
+  const doc = dom.document;
+  if (!doc) return;
+
+  const iframe = doc.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  doc.body.appendChild(iframe);
+
+  const win = iframe.contentWindow;
+  const idoc = win?.document;
+  if (!win || !idoc) return;
+
+  idoc.open();
+  idoc.write(html);
+  idoc.close();
+
+  let printed = false;
+  const run = () => {
+    if (printed) return;
+    printed = true;
+    win.focus();
+    win.print();
+    setTimeout(() => {
+      try {
+        doc.body.removeChild(iframe);
+      } catch {
+        // ignore
+      }
+    }, 1500);
+  };
+  // Dá um tempo para o layout/renderização antes de imprimir.
+  iframe.onload = () => setTimeout(run, 300);
+  setTimeout(run, 700); // fallback caso onload não dispare
+}
+
+interface HTMLIFrameElementLike {
+  style: Record<string, string>;
+  onload: (() => void) | null;
+  contentWindow: {
+    focus: () => void;
+    print: () => void;
+    document: { open: () => void; write: (s: string) => void; close: () => void };
+  } | null;
+}
+
 /** Gera e compartilha/imprime o PDF da proposta. */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   const html = generateProposalHtml(ctx);
   if (Platform.OS === 'web') {
-    await Print.printAsync({ html });
+    printHtmlWeb(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html });
