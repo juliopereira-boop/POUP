@@ -132,6 +132,30 @@ Resumo:
 
 ---
 
+## 🪪 Scanner de documento (CNH/RG) com Claude
+
+O botão "Escanear documento" (no cadastro do cliente, no Simulador) usa a
+**Anthropic API** (Claude, com visão) para ler nome e CPF de CNH/RG e
+preencher os campos automaticamente. Aceita CNH modelo antigo, CNH modelo
+novo (Mercosul), RG modelo antigo e a nova Carteira de Identidade Nacional
+(CIN). Os dados extraídos ficam sempre **editáveis** — o corretor deve
+conferir antes de salvar.
+
+1. Publique a Edge Function colando o código de
+   `supabase/functions/scan-document/index.ts` no **Supabase Dashboard →
+   Edge Functions → Deploy a new function** (nome exato: `scan-document`).
+   Mantenha a verificação de JWT **ativada** (só usuários logados podem
+   chamar).
+2. Configure o segredo em **Edge Functions → Secrets**:
+   `ANTHROPIC_API_KEY` (sua chave da Anthropic, começa com `sk-ant-...`).
+
+Custo: cada leitura é uma chamada ao modelo Claude Haiku — poucos centavos
+por imagem. Não há configuração adicional no app/Vercel; o app nativo
+(iOS/Android) vai pedir permissão de câmera na primeira vez que o botão for
+usado.
+
+---
+
 ## ▲ Deploy na Vercel
 
 O projeto já vem com `vercel.json`. Na Vercel:

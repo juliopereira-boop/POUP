@@ -40,6 +40,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O POUP usa a câmera para escanear documentos (CNH/RG) e preencher os dados do cliente automaticamente."
+        }
       ]
     ],
     "experiments": {

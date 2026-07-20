@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { ScanDocumentButton } from '@/components/ScanDocumentButton';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import {
@@ -12,6 +13,7 @@ import {
   type Proponent,
 } from '@/features/simulador/SimuladorProvider';
 import { formatCPF, formatPhone } from '@/lib/masks';
+import type { ScannedDocument } from '@/lib/documentScan';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -23,6 +25,13 @@ export default function SimuladorCliente() {
 
   function validProponent(p: Proponent): boolean {
     return Boolean(p.name.trim() && p.cpf.trim() && p.email.trim() && p.contact.trim());
+  }
+
+  function applyScan(result: ScannedDocument, setProponent: (patch: Partial<Proponent>) => void) {
+    setProponent({
+      name: result.fullName || '',
+      cpf: result.cpf ? formatCPF(result.cpf) : '',
+    });
   }
 
   function advance() {
@@ -49,6 +58,7 @@ export default function SimuladorCliente() {
       {/* 1º proponente */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>1º Proponente</Text>
+        <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent1)} />
         <Input
           label="Nome"
           value={sim.proponent1.name}
@@ -99,6 +109,8 @@ export default function SimuladorCliente() {
             options={ASSOCIATION_OPTIONS}
             onChange={(v) => sim.setField('association', v as typeof sim.association)}
           />
+
+          <ScanDocumentButton onScanned={(r) => applyScan(r, sim.setProponent2)} />
 
           <Input
             label="Nome"
