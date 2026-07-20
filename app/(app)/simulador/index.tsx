@@ -8,6 +8,7 @@ import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { NumberPickerField } from '@/components/NumberPickerField';
 import { db, type Company, type Development } from '@/data';
+import { formatCurrencyBRL } from '@/lib/masks';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -56,12 +57,13 @@ export default function SimuladorEmpreendimento() {
     if (!sim.companyId) return setError('Selecione a empresa.');
     if (!sim.developmentId) return setError('Selecione o empreendimento.');
     if (!sim.unit.trim()) return setError('Informe a unidade.');
+    if (!sim.unitValue.trim()) return setError('Informe o valor da unidade.');
     router.push('/(app)/simulador/corretor');
   }
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 1 de 2</Text>
+      <Text style={styles.step}>Etapa 1 de 3</Text>
       <Text style={styles.title}>Escolha do empreendimento</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -104,6 +106,14 @@ export default function SimuladorEmpreendimento() {
           />
         </View>
       </View>
+
+      <Input
+        label="Valor da unidade"
+        value={sim.unitValue}
+        onChangeText={(t) => sim.setField('unitValue', formatCurrencyBRL(t))}
+        placeholder="R$ 0,00"
+        keyboardType="numeric"
+      />
 
       <Button label="Avançar" onPress={advance} style={styles.cta} />
     </Screen>

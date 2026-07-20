@@ -3,6 +3,7 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
 import { Input } from './Input';
+import { formatCNPJ, formatPhone } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -55,8 +56,8 @@ export function OnboardingModal() {
 
             <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
             <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
-            <Input label="CNPJ" value={cnpj} onChangeText={setCnpj} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
-            <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
+            <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
+            <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
 
             <Button label="Salvar e continuar" onPress={save} loading={saving} style={styles.cta} />
           </ScrollView>

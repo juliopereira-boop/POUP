@@ -20,6 +20,7 @@ export default function SimuladorLayout() {
       >
         <Stack.Screen name="index" options={{ title: 'Simulador · Empreendimento' }} />
         <Stack.Screen name="corretor" options={{ title: 'Simulador · Corretor' }} />
+        <Stack.Screen name="cliente" options={{ title: 'Simulador · Cliente' }} />
       </Stack>
     </SimuladorProvider>
   );

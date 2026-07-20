@@ -1,8 +1,9 @@
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
+import { formatCNPJ, formatPhone } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -13,15 +14,12 @@ export default function SimuladorCorretor() {
   const { profile } = useProfile();
 
   function advance() {
-    if (Platform.OS === 'web') {
-      // As próximas etapas serão construídas em seguida.
-      window.alert('Próxima etapa em breve! Os dados foram guardados.');
-    }
+    router.push('/(app)/simulador/cliente');
   }
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 2 de 2</Text>
+      <Text style={styles.step}>Etapa 2 de 3</Text>
       <Text style={styles.title}>Dados do corretor</Text>
       <Text style={styles.hint}>
         Estes dados vêm do seu perfil. Para alterá-los, toque em Editar.
@@ -32,9 +30,9 @@ export default function SimuladorCorretor() {
         <Divider />
         <Field label="Imobiliária" value={profile?.agency} />
         <Divider />
-        <Field label="Telefone" value={profile?.phone} />
+        <Field label="Telefone" value={profile?.phone ? formatPhone(profile.phone) : null} />
         <Divider />
-        <Field label="CNPJ" value={profile?.cnpj} />
+        <Field label="CNPJ" value={profile?.cnpj ? formatCNPJ(profile.cnpj) : null} />
       </View>
 
       <Button

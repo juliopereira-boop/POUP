@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { formatCNPJ, formatPhone } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -28,8 +29,8 @@ export default function PerfilScreen() {
     if (!profile) return;
     setFullName(profile.fullName ?? '');
     setAgency(profile.agency ?? '');
-    setCnpj(profile.cnpj ?? '');
-    setPhone(profile.phone ?? '');
+    setCnpj(formatCNPJ(profile.cnpj ?? ''));
+    setPhone(formatPhone(profile.phone ?? ''));
     setCreci(profile.creci ?? '');
   }, [profile]);
 
@@ -63,8 +64,8 @@ export default function PerfilScreen() {
 
       <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
       <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
-      <Input label="CNPJ" value={cnpj} onChangeText={setCnpj} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
-      <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
+      <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
+      <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
       <Input label="CRECI (opcional)" value={creci} onChangeText={setCreci} placeholder="Seu registro CRECI" />
 
       <Button label="Salvar" onPress={save} loading={saving} style={styles.cta} />
