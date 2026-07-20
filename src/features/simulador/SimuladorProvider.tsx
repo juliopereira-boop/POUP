@@ -1,4 +1,15 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+
+import { LoadingScreen } from '@/components/Loading';
+import { sessionStorage } from '@/lib/storage';
 
 /** Um proponente (comprador) da simulação. */
 export interface Proponent {
@@ -24,7 +35,10 @@ export function emptyProponent(): Proponent {
 
 /**
  * Estado do fluxo do Simulador de poupança, compartilhado entre as páginas
- * do wizard (empreendimento → corretor → cliente → ...). Vive no _layout.
+ * do wizard (empreendimento → corretor → cliente → financiamento). Vive no
+ * _layout e é PERSISTIDO em disco a cada mudança — se o navegador/app for
+ * recarregado (troca de app, app em segundo plano descartado pelo sistema
+ * etc.), o progresso é restaurado automaticamente em vez de se perder.
  */
 export interface SimuladorState {
   companyId: string | null;
@@ -87,10 +101,48 @@ const INITIAL: SimuladorState = {
   couponWarningSeen: false,
 };
 
+const DRAFT_KEY = 'poup.simulador.draft';
+const SAVE_DEBOUNCE_MS = 300;
+
 const SimuladorContext = createContext<SimuladorContextValue | undefined>(undefined);
 
 export function SimuladorProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SimuladorState>(INITIAL);
+  const [hydrated, setHydrated] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Restaura o rascunho salvo (se houver) ao montar o wizard.
+  useEffect(() => {
+    let mounted = true;
+    sessionStorage.getItem(DRAFT_KEY).then((raw) => {
+      if (!mounted) return;
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw) as Partial<SimuladorState>;
+          setState({ ...INITIAL, ...saved });
+        } catch {
+          // Rascunho corrompido: ignora e começa do zero.
+        }
+      }
+      setHydrated(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Salva a cada mudança (com um pequeno debounce), só depois de hidratado —
+  // evita sobrescrever um rascunho salvo com o estado inicial em branco.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void sessionStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+    }, SAVE_DEBOUNCE_MS);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [state, hydrated]);
 
   const value = useMemo<SimuladorContextValue>(
     () => ({
@@ -100,10 +152,15 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, proponent1: { ...prev.proponent1, ...patch } })),
       setProponent2: (patch) =>
         setState((prev) => ({ ...prev, proponent2: { ...prev.proponent2, ...patch } })),
-      reset: () => setState(INITIAL),
+      reset: () => {
+        setState(INITIAL);
+        void sessionStorage.removeItem(DRAFT_KEY);
+      },
     }),
     [state],
   );
+
+  if (!hydrated) return <LoadingScreen />;
 
   return <SimuladorContext.Provider value={value}>{children}</SimuladorContext.Provider>;
 }

@@ -14,6 +14,12 @@ interface SubscriptionContextValue {
   /** Config do plano atual (nome, limite, benefícios). */
   plan: PlanConfig | null;
   loading: boolean;
+  /**
+   * true SOMENTE até a 1ª busca terminar (nunca mais volta a true depois).
+   * Use isto (não `loading`) para decidir se mostra um loading de tela cheia
+   * — assim, atualizações em segundo plano não desmontam a árvore de telas.
+   */
+  initialLoad: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -23,11 +29,13 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!user) {
       setSubscription(null);
       setLoading(false);
+      setInitialLoad(false);
       return;
     }
     setLoading(true);
@@ -36,6 +44,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       setSubscription(sub);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   }, [user]);
 
@@ -53,6 +62,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         tier,
         plan: getPlan(tier),
         loading,
+        initialLoad,
         refresh,
       }}
     >

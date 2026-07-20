@@ -14,9 +14,14 @@ import { useTheme } from '@/providers/ThemeProvider';
 export default function AppLayout() {
   const { colors } = useTheme();
   const { user, initializing } = useAuth();
-  const { isActive, loading } = useSubscription();
+  const { isActive, initialLoad } = useSubscription();
 
-  if (initializing || loading) return <LoadingScreen />;
+  // IMPORTANTE: usar `initialLoad` (não `loading`) aqui. `loading` volta a
+  // true toda vez que a assinatura é reconferida em segundo plano (ex.: após
+  // o app voltar do segundo plano). Se usássemos `loading`, cada uma dessas
+  // reconferências desmontaria o <Stack> inteiro — incluindo o estado do
+  // Simulador — jogando o usuário de volta pro menu e apagando o progresso.
+  if (initializing || initialLoad) return <LoadingScreen />;
   if (!user) return <Redirect href="/(auth)/login" />;
   if (!isActive) return <Redirect href="/paywall" />;
 
