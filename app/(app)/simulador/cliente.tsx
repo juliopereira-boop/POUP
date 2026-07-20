@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -16,6 +17,7 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 
 export default function SimuladorCliente() {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const sim = useSimulador();
   const [error, setError] = useState<string | null>(null);
 
@@ -34,13 +36,12 @@ export default function SimuladorCliente() {
         return setError('Preencha todos os dados do 2º proponente.');
       }
     }
-    // Próximas etapas do simulador entram em seguida.
-    if (Platform.OS === 'web') window.alert('Dados do cliente salvos! Próxima etapa em breve.');
+    router.push('/(app)/simulador/financiamento');
   }
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 3 de 3</Text>
+      <Text style={styles.step}>Etapa 3 de 4</Text>
       <Text style={styles.title}>Dados do cliente</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

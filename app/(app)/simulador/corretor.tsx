@@ -19,7 +19,7 @@ export default function SimuladorCorretor() {
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 2 de 3</Text>
+      <Text style={styles.step}>Etapa 2 de 4</Text>
       <Text style={styles.title}>Dados do corretor</Text>
       <Text style={styles.hint}>
         Estes dados vêm do seu perfil. Para alterá-los, toque em Editar.

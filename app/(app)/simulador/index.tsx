@@ -50,6 +50,8 @@ export default function SimuladorEmpreendimento() {
   function onSelectCompany(companyId: string) {
     sim.setField('companyId', companyId);
     sim.setField('developmentId', null); // troca de empresa reseta o empreendimento
+    const company = companies.find((c) => c.id === companyId);
+    sim.setField('companyRisk', company?.risk ?? null);
   }
 
   function advance() {
@@ -63,7 +65,7 @@ export default function SimuladorEmpreendimento() {
 
   return (
     <Screen>
-      <Text style={styles.step}>Etapa 1 de 3</Text>
+      <Text style={styles.step}>Etapa 1 de 4</Text>
       <Text style={styles.title}>Escolha do empreendimento</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

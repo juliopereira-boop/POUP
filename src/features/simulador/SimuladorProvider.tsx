@@ -35,6 +35,8 @@ export interface SimuladorState {
   unit: string;
   /** Valor da unidade (mascarado em R$). */
   unitValue: string;
+  /** Risco da poupança (%) da empresa selecionada (do cadastro). */
+  companyRisk: number | null;
   /** 1º proponente. */
   proponent1: Proponent;
   /** Se há um 2º proponente. */
@@ -43,6 +45,20 @@ export interface SimuladorState {
   association: AssociationType | null;
   /** 2º proponente. */
   proponent2: Proponent;
+
+  // --- Valores de financiamento ---
+  /** Financiamento aprovado (mascarado em R$). */
+  financingApproved: string;
+  /** Subsídio aprovado (mascarado em R$). */
+  subsidy: string;
+  /** FGTS (mascarado em R$). */
+  fgts: string;
+  /** Cupom: tipo de desconto ('R$' fixo ou '%' sobre o valor da unidade). */
+  couponType: 'R$' | '%' | null;
+  /** Valor do cupom (mascarado conforme o tipo). */
+  couponValue: string;
+  /** Se o usuário já viu o aviso de validação do cupom. */
+  couponWarningSeen: boolean;
 }
 
 interface SimuladorContextValue extends SimuladorState {
@@ -58,10 +74,17 @@ const INITIAL: SimuladorState = {
   block: 0,
   unit: '',
   unitValue: '',
+  companyRisk: null,
   proponent1: emptyProponent(),
   hasSecondProponent: false,
   association: null,
   proponent2: emptyProponent(),
+  financingApproved: '',
+  subsidy: '',
+  fgts: '',
+  couponType: null,
+  couponValue: '',
+  couponWarningSeen: false,
 };
 
 const SimuladorContext = createContext<SimuladorContextValue | undefined>(undefined);
