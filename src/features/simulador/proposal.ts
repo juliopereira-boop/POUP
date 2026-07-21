@@ -468,6 +468,7 @@ interface PrintGlobal {
   document?: {
     createElement: (t: string) => PrintIframeEl;
     body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+    title: string;
   };
   requestAnimationFrame?: (cb: () => void) => void;
   setTimeout: (cb: () => void, ms: number) => void;
@@ -505,6 +506,11 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const doc = g.document;
   if (!doc) return Promise.resolve();
   const html = generateProposalHtml(ctx);
+  // Alguns navegadores (Safari incluso) usam o <title> do documento de NÍVEL
+  // SUPERIOR — não o do iframe — como nome sugerido no "Salvar como PDF".
+  // Por isso trocamos o título da página toda durante a impressão.
+  const originalTitle = doc.title;
+  doc.title = proposalFileName(ctx);
 
   return new Promise<void>((resolve) => {
     const iframe = doc.createElement('iframe');
@@ -523,6 +529,7 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
     const cleanup = () => {
       if (done) return;
       done = true;
+      doc.title = originalTitle;
       g.setTimeout(() => {
         try {
           doc.body.removeChild(iframe);
