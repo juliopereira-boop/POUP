@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useGlobalSearchParams } from 'expo-router';
 
 import { LoadingScreen } from '@/components/Loading';
 import { sessionStorage } from '@/lib/storage';
@@ -116,6 +117,14 @@ interface SimuladorContextValue extends SimuladorState {
   setProponent1: (patch: Partial<Proponent>) => void;
   setProponent2: (patch: Partial<Proponent>) => void;
   reset: () => void;
+  /**
+   * Se preenchido, este wizard está EDITANDO uma simulação já salva em
+   * Relatórios (o id dela). Nesse modo, o rascunho é guardado numa chave
+   * separada, então NÃO interfere na simulação nova iniciada pelo menu.
+   */
+  editId: string | null;
+  /** Estado "puro" (sem métodos) — usado para persistir a simulação. */
+  snapshot: SimuladorState;
 }
 
 const INITIAL: SimuladorState = {
@@ -157,19 +166,35 @@ const INITIAL: SimuladorState = {
 };
 
 const DRAFT_KEY = 'poup.simulador.draft';
+/**
+ * Chave SEPARADA para o rascunho de edição (quando o wizard foi aberto a
+ * partir de um card em Relatórios). Assim, editar uma simulação salva NUNCA
+ * mexe no rascunho da simulação nova iniciada pelo menu.
+ */
+export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';
 const SAVE_DEBOUNCE_MS = 300;
 
 const SimuladorContext = createContext<SimuladorContextValue | undefined>(undefined);
 
 export function SimuladorProvider({ children }: { children: ReactNode }) {
+  // `editId` vem da rota (?editId=...). Latcheamos o primeiro valor não-vazio
+  // num ref — assim, ao navegar entre as etapas (onde o param some da URL), o
+  // modo de edição não se perde e a chave de rascunho continua a mesma.
+  const params = useGlobalSearchParams<{ editId?: string }>();
+  const editIdRef = useRef<string | null>(null);
+  if (params.editId && !editIdRef.current) editIdRef.current = params.editId;
+  const editId = editIdRef.current;
+
   const [state, setState] = useState<SimuladorState>(INITIAL);
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Restaura o rascunho salvo (se houver) ao montar o wizard.
+  // Restaura o rascunho salvo (se houver) ao montar o wizard. A chave depende
+  // do modo (edição x novo), lida do ref (já latcheado no 1º render).
   useEffect(() => {
+    const key = editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY;
     let mounted = true;
-    sessionStorage.getItem(DRAFT_KEY).then((raw) => {
+    sessionStorage.getItem(key).then((raw) => {
       if (!mounted) return;
       if (raw) {
         try {
@@ -190,9 +215,10 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
   // evita sobrescrever um rascunho salvo com o estado inicial em branco.
   useEffect(() => {
     if (!hydrated) return;
+    const key = editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void sessionStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+      void sessionStorage.setItem(key, JSON.stringify(state));
     }, SAVE_DEBOUNCE_MS);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -202,6 +228,8 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SimuladorContextValue>(
     () => ({
       ...state,
+      editId,
+      snapshot: state,
       setField: (key, val) => setState((prev) => ({ ...prev, [key]: val })),
       setProponent1: (patch) =>
         setState((prev) => ({ ...prev, proponent1: { ...prev.proponent1, ...patch } })),
@@ -209,10 +237,10 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
         setState((prev) => ({ ...prev, proponent2: { ...prev.proponent2, ...patch } })),
       reset: () => {
         setState(INITIAL);
-        void sessionStorage.removeItem(DRAFT_KEY);
+        void sessionStorage.removeItem(editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY);
       },
     }),
-    [state],
+    [state, editId],
   );
 
   if (!hydrated) return <LoadingScreen />;

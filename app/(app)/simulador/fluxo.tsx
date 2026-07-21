@@ -7,11 +7,11 @@ import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { SlotNumber } from '@/components/SlotNumber';
-import { db } from '@/data';
+import { db, type SimulationInput } from '@/data';
 import { buildFlow, computePoupanca, formatDateBR } from '@/features/simulador/calc';
 import { generateProposal } from '@/features/simulador/proposal';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
-import { formatCurrencyBRL } from '@/lib/masks';
+import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -66,10 +66,12 @@ export default function SimuladorFluxo() {
 
   async function gerarProposta() {
     setError(null);
+    if (!user) return;
     if (!sim.atoDueDate) return setError('Informe o vencimento do ato.');
     if (flow.mensaisCount <= 0) return setError('Informe a quantidade de parcelas mensais.');
     setGenerating(true);
     try {
+      const todayISO = new Date().toISOString().slice(0, 10);
       await generateProposal({
         sim,
         profile,
@@ -77,13 +79,41 @@ export default function SimuladorFluxo() {
         developmentName,
         deliveryDate,
         gerente,
-        todayISO: new Date().toISOString().slice(0, 10),
+        todayISO,
       });
-      // Proposta concluída (impressão/compartilhamento finalizado): limpa a
-      // simulação inteira e volta ao menu, para não deixar dados de um
-      // cliente "vazando" pra próxima simulação.
+
+      // A simulação concluída "migra" para Relatórios. Guardamos só os DADOS
+      // (o PDF nunca é salvo — é sempre regerado sob demanda a partir daqui).
+      const unitValue = currencyToNumber(sim.unitValue);
+      const riskPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
+      const input: SimulationInput = {
+        clientName: sim.proponent1.name.trim() || null,
+        companyId: sim.companyId,
+        companyName,
+        developmentId: sim.developmentId,
+        developmentName,
+        monthlyValue: flow.monthlyValue,
+        riskPct,
+        withinRisk: sim.companyRisk != null ? riskPct <= sim.companyRisk : null,
+        unitValue,
+        deliveryDate,
+        managerName: gerente,
+        proposalDate: todayISO,
+        state: sim.snapshot,
+      };
+      const result = sim.editId
+        ? await db.simulations.update(sim.editId, input)
+        : await db.simulations.create(user.id, input);
+      if (!result.ok) {
+        setError(`Proposta gerada, mas falha ao salvar em Relatórios: ${result.error}`);
+        return;
+      }
+
+      // Limpa a simulação inteira (memória + rascunho) para não deixar dados de
+      // um cliente "vazando" pra próxima simulação, e vai para Relatórios, onde
+      // a simulação recém-concluída aparece como card.
       sim.reset();
-      router.replace('/(app)');
+      router.replace('/(app)/relatorios');
     } catch (e) {
       setError((e as Error).message);
     } finally {

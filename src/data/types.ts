@@ -5,6 +5,7 @@
  * repositório (Supabase hoje, outro banco amanhã) é responsável por mapear
  * suas linhas para estes modelos.
  */
+import type { SimuladorState } from '@/features/simulador/SimuladorProvider';
 
 export interface AuthUser {
   id: string;
@@ -133,6 +134,47 @@ export interface DevelopmentInput {
   deliveryDate: string | null;
   managerName: string | null;
 }
+
+/**
+ * Uma simulação CONCLUÍDA, exibida na aba de Relatórios.
+ *
+ * Guarda o resumo (para listagem/filtros), um snapshot dos dados resolvidos
+ * dos cadastros (para o PDF permanecer fiel) e o `state` completo do simulador
+ * (para reabrir/editar e REGERAR o PDF sob demanda — o PDF nunca é armazenado).
+ */
+export interface Simulation {
+  id: string;
+  /** Nome do 1º proponente (para a listagem e o filtro por cliente). */
+  clientName: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  developmentId: string | null;
+  developmentName: string | null;
+  /** Valor da parcela mensal calculado (destaque do card). */
+  monthlyValue: number | null;
+  /** % da poupança sobre o valor da unidade. */
+  riskPct: number | null;
+  /** Se ficou dentro do risco da empresa. */
+  withinRisk: boolean | null;
+  unitValue: number | null;
+  /** Snapshots para regerar o PDF fielmente. */
+  deliveryDate: string | null;
+  managerName: string | null;
+  /** Data usada como "hoje" na geração original. */
+  proposalDate: string | null;
+  /** Estado completo do simulador (para reabrir/editar/regerar). */
+  state: SimuladorState;
+  /** Ciclo de vida: 'simulacao' | 'venda_realizada' (uso futuro). */
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Dados para criar/atualizar uma simulação (sem os campos gerados pelo banco). */
+export type SimulationInput = Omit<
+  Simulation,
+  'id' | 'status' | 'createdAt' | 'updatedAt'
+>;
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 

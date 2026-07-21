@@ -173,6 +173,66 @@ export interface Database {
         };
         Relationships: [];
       };
+      simulations: {
+        Row: {
+          id: string;
+          user_id: string;
+          client_name: string | null;
+          company_id: string | null;
+          company_name: string | null;
+          development_id: string | null;
+          development_name: string | null;
+          monthly_value: number | null;
+          risk_pct: number | null;
+          within_risk: boolean | null;
+          unit_value: number | null;
+          delivery_date: string | null;
+          manager_name: string | null;
+          proposal_date: string | null;
+          state: Json;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          client_name?: string | null;
+          company_id?: string | null;
+          company_name?: string | null;
+          development_id?: string | null;
+          development_name?: string | null;
+          monthly_value?: number | null;
+          risk_pct?: number | null;
+          within_risk?: boolean | null;
+          unit_value?: number | null;
+          delivery_date?: string | null;
+          manager_name?: string | null;
+          proposal_date?: string | null;
+          state: Json;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          client_name?: string | null;
+          company_id?: string | null;
+          company_name?: string | null;
+          development_id?: string | null;
+          development_name?: string | null;
+          monthly_value?: number | null;
+          risk_pct?: number | null;
+          within_risk?: boolean | null;
+          unit_value?: number | null;
+          delivery_date?: string | null;
+          manager_name?: string | null;
+          proposal_date?: string | null;
+          state?: Json;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

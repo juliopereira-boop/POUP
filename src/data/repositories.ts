@@ -13,6 +13,8 @@ import type {
   Development,
   DevelopmentInput,
   Result,
+  Simulation,
+  SimulationInput,
   Subscription,
   UserProfile,
 } from './types';
@@ -89,5 +91,14 @@ export interface DevelopmentRepository {
   list(userId: string): Promise<Development[]>;
   create(userId: string, data: DevelopmentInput): Promise<Result<Development>>;
   update(id: string, data: DevelopmentInput): Promise<Result<Development>>;
+  remove(id: string): Promise<Result<void>>;
+}
+
+export interface SimulationRepository {
+  /** Simulações do usuário, mais recentes primeiro. */
+  list(userId: string): Promise<Simulation[]>;
+  get(id: string): Promise<Simulation | null>;
+  create(userId: string, data: SimulationInput): Promise<Result<Simulation>>;
+  update(id: string, data: SimulationInput): Promise<Result<Simulation>>;
   remove(id: string): Promise<Result<void>>;
 }

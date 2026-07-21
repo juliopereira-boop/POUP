@@ -30,8 +30,8 @@ export const FEATURES: Feature[] = [
     title: 'Relatórios',
     emoji: '📊',
     route: '/(app)/relatorios',
-    description: 'Acompanhe indicadores e gere relatórios das suas vendas.',
-    ready: false,
+    description: 'Veja suas simulações concluídas, filtre e gere a proposta em PDF.',
+    ready: true,
   },
   {
     key: 'configuracoes',

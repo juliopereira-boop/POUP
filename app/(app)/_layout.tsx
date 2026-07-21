@@ -39,7 +39,8 @@ export default function AppLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="simulador" options={{ headerShown: false }} />
-        <Stack.Screen name="relatorios" options={{ title: 'Relatórios' }} />
+        <Stack.Screen name="relatorios/index" options={{ title: 'Relatórios' }} />
+        <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} />
         <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
         <Stack.Screen name="perfil" options={{ title: 'Meu Perfil' }} />
         <Stack.Screen name="cadastros/index" options={{ title: 'Cadastros' }} />
