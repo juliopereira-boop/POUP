@@ -445,10 +445,16 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
 }
 
+interface PrintIframeDoc {
+  open?: () => void;
+  write?: (html: string) => void;
+  close?: () => void;
+}
 interface PrintIframeWin {
   focus?: () => void;
   print?: () => void;
   onafterprint?: (() => void) | null;
+  requestAnimationFrame?: (cb: () => void) => void;
 }
 interface PrintIframeEl {
   style: Record<string, string>;
@@ -456,12 +462,15 @@ interface PrintIframeEl {
   srcdoc: string;
   onload: (() => void) | null;
   contentWindow: PrintIframeWin | null;
+  contentDocument: PrintIframeDoc | null;
 }
 interface PrintGlobal {
   document?: {
     createElement: (t: string) => PrintIframeEl;
     body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
   };
+  requestAnimationFrame?: (cb: () => void) => void;
+  setTimeout: (cb: () => void, ms: number) => void;
 }
 
 /**
@@ -475,10 +484,21 @@ interface PrintGlobal {
  * se mostrou frágil e voltava a imprimir a TELA inteira. O iframe é um
  * documento ISOLADO contendo só a proposta, então nunca "vaza" o app pro PDF.
  *
- * Detalhes: tamanho real de folha A4 (nunca 0x0, que imprime em branco),
- * invisível fora da tela, removido após a impressão. O <title> (nome do
- * arquivo Cliente-Empreendimento) e o auto-ajuste de escala para 1 página já
- * vêm embutidos em generateProposalHtml.
+ * Detalhes CRÍTICOS para NÃO imprimir em branco:
+ *  - O iframe precisa ficar PINTADO. `opacity:0`, `visibility:hidden` e
+ *    `display:none` fazem o motor de impressão do Chromium tratar o iframe
+ *    como não-renderizado e serializar uma página VAZIA. Por isso ele fica
+ *    apenas FORA DA TELA (`left:-10000px`), com tamanho real de folha A4
+ *    (nunca 0x0, que também imprime em branco).
+ *  - `srcdoc` navega de forma assíncrona; imprimimos só no evento `load`.
+ *    Como fallback (caso o `load` não dispare em algum motor), também
+ *    escrevemos o HTML via `document.open/write/close`.
+ *  - Ainda no `load`, esperamos um `requestAnimationFrame` + ~500ms para o
+ *    layout, o SVG e o auto-ajuste de escala assentarem antes de imprimir.
+ *  - O iframe só é removido no `afterprint` (ou por timeout longo), nunca
+ *    antes do job de impressão ser serializado.
+ * O <title> (nome do arquivo Cliente-Empreendimento) e o auto-ajuste de
+ * escala para 1 página já vêm embutidos em generateProposalHtml.
  */
 function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
@@ -489,51 +509,79 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   return new Promise<void>((resolve) => {
     const iframe = doc.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
+    // PINTADO, porém fora da tela — sem opacity/visibility/display que
+    // fariam o motor de impressão pular a renderização (página em branco).
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
+    iframe.style.left = '-10000px';
+    iframe.style.top = '0';
     iframe.style.width = '210mm';
     iframe.style.height = '297mm';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
     iframe.style.border = '0';
-    iframe.srcdoc = html;
-    doc.body.appendChild(iframe);
 
     let done = false;
+    let printed = false;
     const cleanup = () => {
       if (done) return;
       done = true;
-      setTimeout(() => {
+      g.setTimeout(() => {
         try {
           doc.body.removeChild(iframe);
         } catch {
           // ignore
         }
-      }, 500);
+      }, 1000);
       resolve();
     };
 
-    iframe.onload = () => {
+    const doPrint = () => {
+      if (printed) return;
+      printed = true;
       const win = iframe.contentWindow;
       if (!win || !win.print) {
         cleanup();
         return;
       }
       win.onafterprint = cleanup;
-      // Espera o layout/SVG e o auto-ajuste de escala assentarem antes de imprimir.
-      setTimeout(() => {
+      const raf = win.requestAnimationFrame ?? g.requestAnimationFrame;
+      const afterPaint = () => {
+        // Espera layout/SVG e o auto-ajuste de escala assentarem.
+        g.setTimeout(() => {
+          try {
+            win.focus?.();
+          } catch {
+            // ignore
+          }
+          win.print?.();
+          // Fallback: nem todo navegador dispara afterprint de forma confiável.
+          g.setTimeout(cleanup, 60000);
+        }, 500);
+      };
+      if (raf) raf(afterPaint);
+      else afterPaint();
+    };
+
+    iframe.onload = doPrint;
+    iframe.srcdoc = html;
+    doc.body.appendChild(iframe);
+
+    // Fallback de robustez: se o evento `load` do srcdoc não disparar,
+    // escrevemos o HTML diretamente no documento do iframe e imprimimos.
+    g.setTimeout(() => {
+      if (printed) return;
+      const cdoc = iframe.contentDocument;
+      if (cdoc?.open && cdoc.write && cdoc.close) {
         try {
-          win.focus?.();
+          cdoc.open();
+          cdoc.write(html);
+          cdoc.close();
         } catch {
           // ignore
         }
-        win.print?.();
-        // Fallback: nem todo navegador dispara afterprint de forma confiável.
-        setTimeout(cleanup, 60000);
-      }, 450);
-    };
-    setTimeout(cleanup, 60000);
+      }
+      doPrint();
+    }, 1500);
+
+    g.setTimeout(cleanup, 60000);
   });
 }
 
