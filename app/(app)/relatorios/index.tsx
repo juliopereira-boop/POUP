@@ -31,7 +31,8 @@ export default function RelatoriosScreen() {
   const [sims, setSims] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtros
+  // Filtros — recolhidos por padrão; "Filtrar" abre/fecha o painel.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [clientQuery, setClientQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [developmentFilter, setDevelopmentFilter] = useState('');
@@ -89,9 +90,14 @@ export default function RelatoriosScreen() {
     [sims, clientQuery, companyFilter, developmentFilter, fromDate, toDate],
   );
 
-  const hasFilters = Boolean(
-    clientQuery || companyFilter || developmentFilter || fromDate || toDate,
-  );
+  const activeFilterCount = [
+    clientQuery,
+    companyFilter,
+    developmentFilter,
+    fromDate,
+    toDate,
+  ].filter(Boolean).length;
+  const hasFilters = activeFilterCount > 0;
 
   function clearFilters() {
     setClientQuery('');
@@ -119,54 +125,83 @@ export default function RelatoriosScreen() {
         </View>
       ) : (
         <>
-          {/* Filtros */}
-          <View style={styles.filterCard}>
-            <Input
-              label="Cliente"
-              value={clientQuery}
-              onChangeText={setClientQuery}
-              placeholder="Buscar por nome do cliente"
-              autoCapitalize="words"
-            />
-            <Select
-              label="Empresa"
-              placeholder="Todas as empresas"
-              value={companyFilter}
-              options={companyOptions}
-              onChange={(v) => {
-                setCompanyFilter(v);
-                setDevelopmentFilter(''); // troca de empresa reseta o empreendimento
-              }}
-            />
-            <Select
-              label="Empreendimento"
-              placeholder="Todos os empreendimentos"
-              value={developmentFilter}
-              options={developmentOptions}
-              onChange={setDevelopmentFilter}
-            />
-            <View style={[styles.row, styles.dateRow]}>
-              <View style={styles.col}>
-                <DateField label="De" value={fromDate} onChange={setFromDate} placeholder="Início" />
-              </View>
-              <View style={styles.col}>
-                <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
-              </View>
-            </View>
-            {hasFilters ? (
-              <Button
-                label="Limpar filtros"
-                variant="ghost"
-                onPress={clearFilters}
-                style={styles.clearBtn}
-              />
-            ) : null}
+          {/* Barra de filtros: recolhida por padrão, um único botão abre o painel. */}
+          <View style={styles.filterBar}>
+            <Pressable
+              onPress={() => setFiltersOpen((v) => !v)}
+              style={({ pressed }) => [
+                styles.filterToggle,
+                hasFilters && styles.filterToggleActive,
+                pressed && styles.filterTogglePressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: filtersOpen }}
+            >
+              <Text style={[styles.filterToggleText, hasFilters && styles.filterToggleTextActive]}>
+                {filtersOpen ? 'Ocultar filtros ▲' : 'Filtrar ▾'}
+              </Text>
+              {hasFilters ? (
+                <View style={styles.filterCount}>
+                  <Text style={styles.filterCountText}>{activeFilterCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+
+            <Text style={styles.count}>
+              {filtered.length === 1 ? '1 simulação' : `${filtered.length} simulações`}
+              {hasFilters && sims.length !== filtered.length ? ` de ${sims.length}` : ''}
+            </Text>
           </View>
 
-          <Text style={styles.count}>
-            {filtered.length === 1 ? '1 simulação' : `${filtered.length} simulações`}
-            {hasFilters && sims.length !== filtered.length ? ` de ${sims.length}` : ''}
-          </Text>
+          {filtersOpen ? (
+            <View style={styles.filterCard}>
+              <Input
+                label="Cliente"
+                value={clientQuery}
+                onChangeText={setClientQuery}
+                placeholder="Buscar por nome do cliente"
+                autoCapitalize="words"
+              />
+              <Select
+                label="Empresa"
+                placeholder="Todas as empresas"
+                value={companyFilter}
+                options={companyOptions}
+                onChange={(v) => {
+                  setCompanyFilter(v);
+                  setDevelopmentFilter(''); // troca de empresa reseta o empreendimento
+                }}
+              />
+              <Select
+                label="Empreendimento"
+                placeholder="Todos os empreendimentos"
+                value={developmentFilter}
+                options={developmentOptions}
+                onChange={setDevelopmentFilter}
+              />
+              <View style={[styles.row, styles.dateRow]}>
+                <View style={styles.col}>
+                  <DateField
+                    label="De"
+                    value={fromDate}
+                    onChange={setFromDate}
+                    placeholder="Início"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
+                </View>
+              </View>
+              {hasFilters ? (
+                <Button
+                  label="Limpar filtros"
+                  variant="ghost"
+                  onPress={clearFilters}
+                  style={styles.clearBtn}
+                />
+              ) : null}
+            </View>
+          ) : null}
 
           {filtered.length === 0 ? (
             <View style={styles.empty}>
@@ -250,6 +285,37 @@ const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     title: { ...typography.title, color: colors.ink },
     subtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.lg },
+    filterBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
+    filterToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    filterToggleActive: { borderColor: colors.primary },
+    filterTogglePressed: { opacity: 0.7 },
+    filterToggleText: { ...typography.label, color: colors.ink },
+    filterToggleTextActive: { color: colors.primary },
+    filterCount: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xs,
+    },
+    filterCountText: { ...typography.caption, color: colors.white, fontWeight: '700', fontSize: 11 },
     filterCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
@@ -264,13 +330,7 @@ const makeStyles = (colors: AppColors) =>
     dateRow: { marginBottom: -spacing.lg },
     clearBtn: { marginTop: spacing.lg },
     col: { flex: 1 },
-    count: {
-      ...typography.label,
-      color: colors.inkMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginBottom: spacing.md,
-    },
+    count: { ...typography.caption, color: colors.inkMuted },
     muted: { ...typography.body, color: colors.inkSubtle },
     empty: {
       alignItems: 'center',

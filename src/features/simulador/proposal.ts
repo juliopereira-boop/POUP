@@ -300,11 +300,17 @@ function printHtmlWeb(html: string): Promise<void> {
 
   return new Promise<void>((resolve) => {
     const iframe = doc.createElement('iframe');
+    // IMPORTANTE: o iframe precisa de um tamanho REAL (não 0x0). Com
+    // width/height 0, o Chrome/Firefox tratam a caixa do iframe como a área
+    // de impressão e o PDF sai em branco (a página existe, mas a "janela" de
+    // impressão tem 0x0). Por isso posicionamos fora da tela (offset negativo
+    // enorme) em vez de zerar o tamanho — assim fica invisível ao usuário mas
+    // com uma área de impressão real, do tamanho de uma folha A4.
     iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.top = '0';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
     iframe.style.border = '0';
     doc.body.appendChild(iframe);
 

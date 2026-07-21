@@ -122,10 +122,10 @@ export default function SimuladorFluxo() {
       }
 
       // Limpa a simulação inteira (memória + rascunho) para não deixar dados de
-      // um cliente "vazando" pra próxima simulação, e vai para Relatórios, onde
-      // a simulação recém-concluída aparece como card.
+      // um cliente "vazando" pra próxima simulação, e volta ao menu (a
+      // simulação concluída já está salva e aparece em Relatórios).
       sim.reset();
-      router.replace('/(app)/relatorios');
+      router.replace('/(app)');
     } catch (e) {
       setError((e as Error).message);
     } finally {
