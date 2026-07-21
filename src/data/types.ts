@@ -176,6 +176,20 @@ export type SimulationInput = Omit<
   'id' | 'status' | 'createdAt' | 'updatedAt'
 >;
 
+/**
+ * Um item dentro do Material de Vendas (armazenado no Storage, não no banco).
+ * Pode ser uma pasta (isFolder) ou um arquivo.
+ */
+export interface StorageEntry {
+  name: string;
+  /** Caminho completo dentro do bucket (usado para abrir/excluir). */
+  path: string;
+  isFolder: boolean;
+  size: number | null;
+  updatedAt: string | null;
+  mimeType: string | null;
+}
+
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export function ok<T>(data: T): Result<T> {

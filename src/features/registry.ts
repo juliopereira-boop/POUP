@@ -46,8 +46,8 @@ export const FEATURES: Feature[] = [
     title: 'Material de Venda',
     emoji: '💼',
     route: '/(app)/material-venda',
-    description: 'Materiais, apresentações e conteúdos para apoiar suas vendas.',
-    ready: false,
+    description: 'Organize materiais por empresa e empreendimento, em pastas.',
+    ready: true,
   },
   {
     key: 'comissao',

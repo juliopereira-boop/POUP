@@ -15,6 +15,7 @@ import type {
   Result,
   Simulation,
   SimulationInput,
+  StorageEntry,
   Subscription,
   UserProfile,
 } from './types';
@@ -101,4 +102,25 @@ export interface SimulationRepository {
   create(userId: string, data: SimulationInput): Promise<Result<Simulation>>;
   update(id: string, data: SimulationInput): Promise<Result<Simulation>>;
   remove(id: string): Promise<Result<void>>;
+}
+
+/**
+ * Material de Vendas — pastas/arquivos no Storage (não no banco), sob o
+ * caminho `<userId>/<relPath>` do bucket privado. `relPath` é relativo à raiz
+ * do usuário (ex.: "material/<companyId>/<developmentId>/Pasta").
+ */
+export interface MaterialRepository {
+  list(userId: string, relPath: string): Promise<StorageEntry[]>;
+  createFolder(userId: string, relPath: string, name: string): Promise<Result<void>>;
+  upload(
+    userId: string,
+    relPath: string,
+    fileName: string,
+    data: Blob,
+    contentType: string,
+  ): Promise<Result<void>>;
+  /** Remove um arquivo ou (recursivamente) uma pasta pelo caminho completo. */
+  remove(path: string, isFolder: boolean): Promise<Result<void>>;
+  /** URL assinada temporária para abrir/baixar um arquivo do bucket privado. */
+  signedUrl(path: string, expiresIn?: number): Promise<string | null>;
 }
