@@ -184,7 +184,26 @@ function flowRow(label: string, qtd: string, valor: string, total: string, venc:
   </tr>`;
 }
 
-export function generateProposalHtml(ctx: ProposalContext): string {
+/**
+ * Nome de arquivo sugerido para o PDF: "Cliente-Empreendimento", sem
+ * caracteres inválidos em nomes de arquivo.
+ */
+function proposalFileName(ctx: ProposalContext): string {
+  const client = ctx.sim.proponent1.name.trim() || 'Cliente';
+  const dev = ctx.developmentName?.trim() || 'Proposta';
+  return `${client}-${dev}`
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+interface ProposalParts {
+  style: string;
+  bodyHtml: string;
+  fileName: string;
+}
+
+function buildProposalParts(ctx: ProposalContext): ProposalParts {
   const { sim, profile } = ctx;
   const flow = buildFlow(sim);
   const unitValue = currencyToNumber(sim.unitValue);
@@ -266,8 +285,7 @@ export function generateProposalHtml(ctx: ProposalContext): string {
        </table>`
     : '';
 
-  return `<!doctype html><html><head><meta charset="utf-8"/>
-  <style>
+  const style = `
     @page { size: A4; margin: 10mm; }
     * {
       box-sizing: border-box;
@@ -304,8 +322,9 @@ export function generateProposalHtml(ctx: ProposalContext): string {
     .journeyWrap { text-align: center; margin-top: 4px; }
     .journeySvg { height: 140px; width: auto; }
     .obs { border: 1px solid #bbb; padding: 6px; margin-top: 4px; font-size: 9.5px; }
-  </style></head>
-  <body><div class="sheet">
+  `;
+
+  const bodyHtml = `<div class="sheet">
     <div class="top">
       ${wordMarkHtml(26, '#1a1a1a')}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
@@ -398,123 +417,155 @@ export function generateProposalHtml(ctx: ProposalContext): string {
     <div class="journeyWrap">${journeyMapSvg()}</div>
 
     <div class="obs muted">Proposta gerada pelo POUP em ${formatDateBR(ctx.todayISO)}. Cupom, quando aplicado, sujeito à validação da construtora.</div>
-  </div></body></html>`;
-}
+  </div>`;
 
-interface PrintDoc {
-  open: () => void;
-  write: (s: string) => void;
-  close: () => void;
-}
-interface PrintWin {
-  document: PrintDoc | null;
-  focus?: () => void;
-  print?: () => void;
-  onafterprint?: (() => void) | null;
-}
-interface PrintIframe {
-  style: Record<string, string>;
-  onload: (() => void) | null;
-  srcdoc: string;
-  contentWindow: PrintWin | null;
-}
-interface PrintGlobal {
-  open?: (url: string, target?: string) => PrintWin | null;
-  document?: {
-    createElement: (t: string) => PrintIframe;
-    body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
-  };
+  return { style, bodyHtml, fileName: proposalFileName(ctx) };
 }
 
 /**
- * Script injetado no documento da proposta: quando ele carrega, dispara a
- * impressão automaticamente e, ao terminar, fecha a aba.
+ * Script embutido no documento completo (usado no nativo via expo-print):
+ * ao carregar, se o conteúdo for mais alto que uma página A4, reduz a escala
+ * do `.sheet` até caber — garante uma única página mesmo com pequenas
+ * diferenças de métricas de fonte entre motores de renderização.
  */
-const AUTO_PRINT_SCRIPT = `<script>
-  window.addEventListener('load', function () {
-    setTimeout(function () { try { window.focus(); } catch (e) {} window.print(); }, 250);
-  });
-  window.addEventListener('afterprint', function () {
-    setTimeout(function () { try { window.close(); } catch (e) {} }, 100);
-  });
-</script>`;
-
-function withAutoPrint(html: string): string {
-  return html.includes('</body>')
-    ? html.replace('</body>', `${AUTO_PRINT_SCRIPT}</body>`)
-    : html + AUTO_PRINT_SCRIPT;
-}
-
-/**
- * Imprime a proposta no web.
- *
- * Método principal: abre o documento numa NOVA ABA (um contexto de nível
- * superior real) e imprime a partir dela. Isso é o que funciona de forma
- * confiável em todos os navegadores — imprimir a partir de um <iframe> oculto
- * é frágil e resultava em PDF EM BRANCO (a área de impressão do iframe podia
- * ser tratada como vazia). A nova aba tem viewport real, então o conteúdo é
- * renderizado e impresso corretamente.
- *
- * Fallback: se o pop-up for bloqueado, cai para um iframe dimensionado.
- */
-function printHtmlWeb(html: string): Promise<void> {
-  const g = globalThis as unknown as PrintGlobal;
-
-  // --- Principal: nova aba com auto-impressão ---
-  if (typeof g.open === 'function') {
-    const win = g.open('', '_blank');
-    if (win && win.document) {
-      win.document.open();
-      win.document.write(withAutoPrint(html));
-      win.document.close();
-      return Promise.resolve();
+const AUTO_FIT_SCRIPT = `<script>
+(function () {
+  function fit() {
+    var sheet = document.querySelector('.sheet');
+    if (!sheet) return;
+    var availablePx = (297 - 20) * 96 / 25.4;
+    var height = sheet.getBoundingClientRect().height;
+    if (height > availablePx) {
+      var scale = availablePx / height;
+      sheet.style.transformOrigin = 'top left';
+      sheet.style.transform = 'scale(' + scale + ')';
+      sheet.style.width = (100 / scale) + '%';
     }
   }
+  if (document.readyState === 'complete') fit();
+  else window.addEventListener('load', fit);
+})();
+</script>`;
 
-  // --- Fallback: iframe dimensionado, impresso no onload (pop-up bloqueado) ---
+/** Documento HTML completo e independente — usado no nativo (expo-print). */
+export function generateProposalHtml(ctx: ProposalContext): string {
+  const { style, bodyHtml, fileName } = buildProposalParts(ctx);
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(fileName)}</title>
+  <style>${style}</style></head>
+  <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
+}
+
+interface PrintStyleEl {
+  textContent: string;
+}
+interface PrintContainerEl {
+  id: string;
+  innerHTML: string;
+  querySelector: (s: string) => PrintSheetEl | null;
+}
+interface PrintSheetEl {
+  style: Record<string, string>;
+  getBoundingClientRect: () => { height: number };
+}
+interface PrintGlobal {
+  document?: {
+    createElement: (t: string) => PrintContainerEl & PrintStyleEl;
+    title: string;
+    head: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+    body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+  };
+  addEventListener?: (type: string, cb: () => void) => void;
+  removeEventListener?: (type: string, cb: () => void) => void;
+  focus?: () => void;
+  print?: () => void;
+}
+
+/** Escala `.sheet` para caber numa única página A4, se necessário. */
+function fitSheetToOnePage(sheet: PrintSheetEl): void {
+  const availablePx = ((297 - 20) * 96) / 25.4;
+  const height = sheet.getBoundingClientRect().height;
+  if (height > availablePx) {
+    const scale = availablePx / height;
+    sheet.style.transformOrigin = 'top left';
+    sheet.style.transform = `scale(${scale})`;
+    sheet.style.width = `${100 / scale}%`;
+  }
+}
+
+/**
+ * Imprime a proposta no web SEM abrir nova aba/janela — imprime o próprio
+ * documento atual, escondendo todo o resto do app durante a impressão via
+ * `@media print` (a técnica padrão e mais confiável entre navegadores para
+ * imprimir só uma parte da página; nada de nova aba, nada de iframe oculto —
+ * os dois causaram PDF em branco ou UX ruim em testes anteriores).
+ *
+ * Antes de imprimir, mede a altura real renderizada e aplica uma escala de
+ * ajuste se necessário (`fitSheetToOnePage`), garantindo uma única página
+ * mesmo com pequenas diferenças de fonte entre navegadores (o problema que
+ * fazia o Safari jogar o diagrama final para uma 2ª página).
+ */
+function printHtmlWeb(parts: ProposalParts): Promise<void> {
+  const g = globalThis as unknown as PrintGlobal;
   const doc = g.document;
   if (!doc) return Promise.resolve();
+
   return new Promise<void>((resolve) => {
-    const iframe = doc.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.top = '0';
-    iframe.style.left = '-10000px';
-    iframe.style.width = '210mm';
-    iframe.style.height = '297mm';
-    iframe.style.border = '0';
-    iframe.srcdoc = html;
-    doc.body.appendChild(iframe);
+    const container = doc.createElement('div');
+    container.id = 'poup-print-root';
+    container.innerHTML = parts.bodyHtml;
+
+    const styleTag = doc.createElement('style');
+    styleTag.textContent = `
+      ${parts.style}
+      #poup-print-root { position: fixed; top: 0; left: -99999px; visibility: hidden; }
+      @media print {
+        body > *:not(#poup-print-root) { display: none !important; }
+        #poup-print-root { position: static !important; left: auto !important; visibility: visible !important; }
+      }
+    `;
+
+    doc.body.appendChild(container);
+    doc.head.appendChild(styleTag);
+    const originalTitle = doc.title;
+    doc.title = parts.fileName;
 
     let done = false;
-    const finish = () => {
+    const cleanup = () => {
       if (done) return;
       done = true;
+      doc.title = originalTitle;
+      g.removeEventListener?.('afterprint', cleanup);
       setTimeout(() => {
         try {
-          doc.body.removeChild(iframe);
+          doc.head.removeChild(styleTag);
         } catch {
           // ignore
         }
-      }, 500);
+        try {
+          doc.body.removeChild(container);
+        } catch {
+          // ignore
+        }
+      }, 300);
       resolve();
     };
 
-    iframe.onload = () => {
-      const win = iframe.contentWindow;
-      if (win?.print) {
-        try {
-          win.focus?.();
-        } catch {
-          // ignore
-        }
-        win.onafterprint = finish;
-        win.print();
-        setTimeout(finish, 60000);
-      } else {
-        finish();
+    g.addEventListener?.('afterprint', cleanup);
+
+    // Pequeno atraso para o layout assentar antes de medir e imprimir.
+    setTimeout(() => {
+      const sheet = container.querySelector('.sheet');
+      if (sheet) fitSheetToOnePage(sheet);
+      try {
+        g.focus?.();
+      } catch {
+        // ignore
       }
-    };
-    setTimeout(finish, 60000);
+      g.print?.();
+      // Fallback: alguns navegadores não disparam 'afterprint' de forma
+      // confiável. Garante que o app não fique esperando pra sempre.
+      setTimeout(cleanup, 60000);
+    }, 80);
   });
 }
 
@@ -525,13 +576,16 @@ function printHtmlWeb(html: string): Promise<void> {
  * limpar a simulação e voltar ao menu.
  */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
-  const html = generateProposalHtml(ctx);
   if (Platform.OS === 'web') {
-    await printHtmlWeb(html);
+    await printHtmlWeb(buildProposalParts(ctx));
     return;
   }
+  const html = generateProposalHtml(ctx);
   const { uri } = await Print.printToFileAsync({ html });
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Proposta POUP' });
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: proposalFileName(ctx),
+    });
   }
 }
