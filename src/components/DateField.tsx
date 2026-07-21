@@ -44,6 +44,10 @@ export function DateField({ label, value, onChange, placeholder, readOnly }: Dat
       style: {
         height: 52,
         width: '100%',
+        // minWidth:0 permite o input encolher dentro de um flex container
+        // (inputs de data têm largura intrínseca e, sem isso, estouram a caixa).
+        minWidth: 0,
+        maxWidth: '100%',
         border: `1px solid ${colors.border}`,
         borderRadius: radius.md,
         padding: `0 ${spacing.lg}px`,

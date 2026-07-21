@@ -282,51 +282,92 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   </div></body></html>`;
 }
 
+interface PrintDoc {
+  open: () => void;
+  write: (s: string) => void;
+  close: () => void;
+}
+interface PrintWin {
+  document: PrintDoc | null;
+  focus?: () => void;
+  print?: () => void;
+  onafterprint?: (() => void) | null;
+}
+interface PrintIframe {
+  style: Record<string, string>;
+  onload: (() => void) | null;
+  srcdoc: string;
+  contentWindow: PrintWin | null;
+}
+interface PrintGlobal {
+  open?: (url: string, target?: string) => PrintWin | null;
+  document?: {
+    createElement: (t: string) => PrintIframe;
+    body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+  };
+}
+
 /**
- * Renderiza o HTML da proposta num iframe isolado e imprime SOMENTE ele.
- * (No web, o expo-print apenas chama window.print(), que imprimiria o app
- * inteiro — daí o "print da tela". Aqui geramos o documento de verdade; o
- * usuário escolhe "Salvar como PDF" no diálogo e obtém o PDF no modelo.)
+ * Script injetado no documento da proposta: quando ele carrega, dispara a
+ * impressão automaticamente e, ao terminar, fecha a aba.
+ */
+const AUTO_PRINT_SCRIPT = `<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () { try { window.focus(); } catch (e) {} window.print(); }, 250);
+  });
+  window.addEventListener('afterprint', function () {
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 100);
+  });
+</script>`;
+
+function withAutoPrint(html: string): string {
+  return html.includes('</body>')
+    ? html.replace('</body>', `${AUTO_PRINT_SCRIPT}</body>`)
+    : html + AUTO_PRINT_SCRIPT;
+}
+
+/**
+ * Imprime a proposta no web.
+ *
+ * Método principal: abre o documento numa NOVA ABA (um contexto de nível
+ * superior real) e imprime a partir dela. Isso é o que funciona de forma
+ * confiável em todos os navegadores — imprimir a partir de um <iframe> oculto
+ * é frágil e resultava em PDF EM BRANCO (a área de impressão do iframe podia
+ * ser tratada como vazia). A nova aba tem viewport real, então o conteúdo é
+ * renderizado e impresso corretamente.
+ *
+ * Fallback: se o pop-up for bloqueado, cai para um iframe dimensionado.
  */
 function printHtmlWeb(html: string): Promise<void> {
-  const dom = globalThis as unknown as {
-    document?: {
-      createElement: (t: string) => HTMLIFrameElementLike;
-      body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
-    };
-  };
-  const doc = dom.document;
-  if (!doc) return Promise.resolve();
+  const g = globalThis as unknown as PrintGlobal;
 
+  // --- Principal: nova aba com auto-impressão ---
+  if (typeof g.open === 'function') {
+    const win = g.open('', '_blank');
+    if (win && win.document) {
+      win.document.open();
+      win.document.write(withAutoPrint(html));
+      win.document.close();
+      return Promise.resolve();
+    }
+  }
+
+  // --- Fallback: iframe dimensionado, impresso no onload (pop-up bloqueado) ---
+  const doc = g.document;
+  if (!doc) return Promise.resolve();
   return new Promise<void>((resolve) => {
     const iframe = doc.createElement('iframe');
-    // IMPORTANTE: o iframe precisa de um tamanho REAL (não 0x0). Com
-    // width/height 0, o Chrome/Firefox tratam a caixa do iframe como a área
-    // de impressão e o PDF sai em branco (a página existe, mas a "janela" de
-    // impressão tem 0x0). Por isso posicionamos fora da tela (offset negativo
-    // enorme) em vez de zerar o tamanho — assim fica invisível ao usuário mas
-    // com uma área de impressão real, do tamanho de uma folha A4.
     iframe.style.position = 'fixed';
     iframe.style.top = '0';
     iframe.style.left = '-10000px';
     iframe.style.width = '210mm';
     iframe.style.height = '297mm';
     iframe.style.border = '0';
+    iframe.srcdoc = html;
     doc.body.appendChild(iframe);
 
-    const win = iframe.contentWindow;
-    const idoc = win?.document;
-    if (!win || !idoc) {
-      resolve();
-      return;
-    }
-
-    idoc.open();
-    idoc.write(html);
-    idoc.close();
-
     let done = false;
-    const cleanup = () => {
+    const finish = () => {
       if (done) return;
       done = true;
       setTimeout(() => {
@@ -335,39 +376,27 @@ function printHtmlWeb(html: string): Promise<void> {
         } catch {
           // ignore
         }
-      }, 300);
+      }, 500);
       resolve();
     };
 
-    // afterprint dispara quando o diálogo de impressão FECHA (imprimiu,
-    // salvou como PDF ou cancelou) — é o sinal real de "concluído".
-    win.onafterprint = cleanup;
-
-    let printed = false;
-    const run = () => {
-      if (printed) return;
-      printed = true;
-      win.focus();
-      win.print();
-      // Fallback: alguns navegadores não disparam onafterprint de forma
-      // confiável em iframes. Garante que o app não fique esperando pra sempre.
-      setTimeout(cleanup, 60000);
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (win?.print) {
+        try {
+          win.focus?.();
+        } catch {
+          // ignore
+        }
+        win.onafterprint = finish;
+        win.print();
+        setTimeout(finish, 60000);
+      } else {
+        finish();
+      }
     };
-    // Dá um tempo para o layout/renderização antes de imprimir.
-    iframe.onload = () => setTimeout(run, 300);
-    setTimeout(run, 700); // fallback caso onload não dispare
+    setTimeout(finish, 60000);
   });
-}
-
-interface HTMLIFrameElementLike {
-  style: Record<string, string>;
-  onload: (() => void) | null;
-  contentWindow: {
-    focus: () => void;
-    print: () => void;
-    onafterprint: (() => void) | null;
-    document: { open: () => void; write: (s: string) => void; close: () => void };
-  } | null;
 }
 
 /**

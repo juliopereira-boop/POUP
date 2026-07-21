@@ -179,19 +179,9 @@ export default function RelatoriosScreen() {
                 options={developmentOptions}
                 onChange={setDevelopmentFilter}
               />
-              <View style={[styles.row, styles.dateRow]}>
-                <View style={styles.col}>
-                  <DateField
-                    label="De"
-                    value={fromDate}
-                    onChange={setFromDate}
-                    placeholder="Início"
-                  />
-                </View>
-                <View style={styles.col}>
-                  <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
-                </View>
-              </View>
+              <Text style={styles.fieldGroupLabel}>Período da simulação</Text>
+              <DateField label="De" value={fromDate} onChange={setFromDate} placeholder="Início" />
+              <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
               {hasFilters ? (
                 <Button
                   label="Limpar filtros"
@@ -324,12 +314,12 @@ const makeStyles = (colors: AppColors) =>
       padding: spacing.lg,
       marginBottom: spacing.lg,
     },
-    row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
-    // Cancela a margem inferior embutida dos DateFields para não dobrar o
-    // espaçamento antes do botão / borda do card de filtros.
-    dateRow: { marginBottom: -spacing.lg },
-    clearBtn: { marginTop: spacing.lg },
-    col: { flex: 1 },
+    fieldGroupLabel: {
+      ...typography.label,
+      color: colors.inkMuted,
+      marginBottom: spacing.sm,
+    },
+    clearBtn: { marginTop: spacing.sm },
     count: { ...typography.caption, color: colors.inkMuted },
     muted: { ...typography.body, color: colors.inkSubtle },
     empty: {
