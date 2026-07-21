@@ -455,129 +455,57 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
 }
 
-interface PrintStyleEl {
-  textContent: string;
-}
-interface PrintContainerEl {
-  id: string;
-  innerHTML: string;
-  querySelector: (s: string) => PrintSheetEl | null;
-}
-interface PrintSheetEl {
-  style: Record<string, string>;
-  getBoundingClientRect: () => { height: number };
+/**
+ * Script injetado só na aba da proposta: ao carregar, dispara a impressão
+ * automaticamente; ao concluir, fecha a aba sozinha.
+ */
+const AUTO_PRINT_SCRIPT = `<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      try { window.focus(); } catch (e) {}
+      window.print();
+    }, 300);
+  });
+  window.addEventListener('afterprint', function () {
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 100);
+  });
+</script>`;
+
+interface PrintWin {
+  document: { open: () => void; write: (s: string) => void; close: () => void } | null;
 }
 interface PrintGlobal {
-  document?: {
-    createElement: (t: string) => PrintContainerEl & PrintStyleEl;
-    title: string;
-    head: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
-    body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
-  };
-  addEventListener?: (type: string, cb: () => void) => void;
-  removeEventListener?: (type: string, cb: () => void) => void;
-  focus?: () => void;
-  print?: () => void;
-}
-
-/** Escala `.sheet` para caber numa única página A4, se necessário. */
-function fitSheetToOnePage(sheet: PrintSheetEl): void {
-  const availablePx = ((297 - 20) * 96) / 25.4;
-  const height = sheet.getBoundingClientRect().height;
-  if (height > availablePx) {
-    const scale = availablePx / height;
-    sheet.style.transformOrigin = 'top left';
-    sheet.style.transform = `scale(${scale})`;
-    sheet.style.width = `${100 / scale}%`;
-  }
+  open?: (url: string, target?: string) => PrintWin | null;
 }
 
 /**
- * Imprime a proposta no web SEM abrir nova aba/janela — imprime o próprio
- * documento atual, escondendo todo o resto do app durante a impressão via
- * `@media print` (a técnica padrão e mais confiável entre navegadores para
- * imprimir só uma parte da página; nada de nova aba, nada de iframe oculto —
- * os dois causaram PDF em branco ou UX ruim em testes anteriores).
- *
- * Antes de imprimir, mede a altura real renderizada e aplica uma escala de
- * ajuste se necessário (`fitSheetToOnePage`), garantindo uma única página
- * mesmo com pequenas diferenças de fonte entre navegadores (o problema que
- * fazia o Safari jogar o diagrama final para uma 2ª página).
+ * Imprime a proposta no web abrindo o documento numa NOVA ABA e imprimindo a
+ * partir dela — a única abordagem que se mostrou 100% confiável em testes
+ * reais (Safari incluso): imprimir a partir do MESMO documento do app,
+ * escondendo o resto via CSS, se mostrou frágil e voltou a imprimir a TELA
+ * inteira em vez da proposta. Como a aba é um documento isolado, contendo
+ * SÓ a proposta, não existe risco de "vazar" o resto do app para o PDF.
+ * A aba abre, imprime e fecha sozinha (AUTO_PRINT_SCRIPT) — o usuário só
+ * confirma o diálogo de impressão/salvar como PDF.
  */
-function printHtmlWeb(parts: ProposalParts): Promise<void> {
+function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
-  const doc = g.document;
-  if (!doc) return Promise.resolve();
-
-  return new Promise<void>((resolve) => {
-    const container = doc.createElement('div');
-    container.id = 'poup-print-root';
-    container.innerHTML = parts.bodyHtml;
-
-    const styleTag = doc.createElement('style');
-    styleTag.textContent = `
-      ${parts.style}
-      #poup-print-root { position: fixed; top: 0; left: -99999px; visibility: hidden; }
-      @media print {
-        body > *:not(#poup-print-root) { display: none !important; }
-        #poup-print-root { position: static !important; left: auto !important; visibility: visible !important; }
-      }
-    `;
-
-    doc.body.appendChild(container);
-    doc.head.appendChild(styleTag);
-    const originalTitle = doc.title;
-    doc.title = parts.fileName;
-
-    let done = false;
-    const cleanup = () => {
-      if (done) return;
-      done = true;
-      doc.title = originalTitle;
-      g.removeEventListener?.('afterprint', cleanup);
-      setTimeout(() => {
-        try {
-          doc.head.removeChild(styleTag);
-        } catch {
-          // ignore
-        }
-        try {
-          doc.body.removeChild(container);
-        } catch {
-          // ignore
-        }
-      }, 300);
-      resolve();
-    };
-
-    g.addEventListener?.('afterprint', cleanup);
-
-    // Pequeno atraso para o layout assentar antes de medir e imprimir.
-    setTimeout(() => {
-      const sheet = container.querySelector('.sheet');
-      if (sheet) fitSheetToOnePage(sheet);
-      try {
-        g.focus?.();
-      } catch {
-        // ignore
-      }
-      g.print?.();
-      // Fallback: alguns navegadores não disparam 'afterprint' de forma
-      // confiável. Garante que o app não fique esperando pra sempre.
-      setTimeout(cleanup, 60000);
-    }, 80);
-  });
+  if (typeof g.open !== 'function') return Promise.resolve();
+  const win = g.open('', '_blank');
+  if (!win || !win.document) return Promise.resolve();
+  const html = generateProposalHtml(ctx).replace('</body>', `${AUTO_PRINT_SCRIPT}</body>`);
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  return Promise.resolve();
 }
 
 /**
  * Gera e compartilha/imprime o PDF da proposta.
- * A Promise só resolve depois que o usuário conclui a impressão/
- * compartilhamento (fecha o diálogo) — use isso para saber quando é seguro
- * limpar a simulação e voltar ao menu.
  */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   if (Platform.OS === 'web') {
-    await printHtmlWeb(buildProposalParts(ctx));
+    await printHtmlWeb(ctx);
     return;
   }
   const html = generateProposalHtml(ctx);
