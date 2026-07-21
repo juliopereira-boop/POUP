@@ -51,6 +51,14 @@ function markHtml(height: number, color: string): string {
   return `<div style="width:${width}px;height:${height}px;box-sizing:border-box;border-style:solid;border-color:${color};border-top-width:0;border-left-width:${stroke}px;border-right-width:${stroke}px;border-bottom-width:${stroke}px;border-bottom-left-radius:${r}px;border-bottom-right-radius:${r}px;"></div>`;
 }
 
+/** Segunda variante da marca (símbolo + nome), usada no cabeçalho do PDF. */
+function wordMarkHtml(height: number, color: string): string {
+  return `<div style="display:flex;align-items:center;gap:8px;">
+    ${markHtml(height, color)}
+    <span style="font-size:${height * 0.72}px;font-weight:800;letter-spacing:1px;color:${color};">POUP</span>
+  </div>`;
+}
+
 /** Linha da tabela de negociação. */
 function flowRow(label: string, qtd: string, valor: string, total: string, venc: string): string {
   return `<tr>
@@ -183,7 +191,7 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   </style></head>
   <body><div class="sheet">
     <div class="top">
-      ${markHtml(30, '#1a1a1a')}
+      ${wordMarkHtml(26, '#1a1a1a')}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
     </div>
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
