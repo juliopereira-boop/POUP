@@ -38,25 +38,14 @@ function pctOf(n: number, total: number): string {
   return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
 }
 
-// Mesma proporção usada na marca oficial do POUP (src/components/Mark.tsx),
-// desenhada aqui em HTML/CSS puro (o PDF não roda componentes React).
-const MARK_WIDTH_RATIO = 3.44;
-const MARK_STROKE_RATIO = 0.1375;
-const MARK_RADIUS_RATIO = 0.42;
-
-function markHtml(height: number, color: string): string {
-  const width = height * MARK_WIDTH_RATIO;
-  const stroke = Math.max(1, height * MARK_STROKE_RATIO);
-  const r = height * MARK_RADIUS_RATIO;
-  return `<div style="width:${width}px;height:${height}px;box-sizing:border-box;border-style:solid;border-color:${color};border-top-width:0;border-left-width:${stroke}px;border-right-width:${stroke}px;border-bottom-width:${stroke}px;border-bottom-left-radius:${r}px;border-bottom-right-radius:${r}px;"></div>`;
-}
-
-/** Segunda variante da marca (símbolo + nome), usada no cabeçalho do PDF. */
-function wordMarkHtml(height: number, color: string): string {
-  return `<div style="display:flex;align-items:center;gap:8px;">
-    ${markHtml(height, color)}
-    <span style="font-size:${height * 0.72}px;font-weight:800;letter-spacing:1px;color:${color};">POUP</span>
-  </div>`;
+/**
+ * Logo do PDF: SOMENTE o nome "POUP" (sem o símbolo), em fonte FINA.
+ * A tipografia oficial é a "Banana" (Canva); por ser uma fonte proprietária
+ * que não vem embutida no navegador, usamos uma pilha de fontes finas/
+ * geométricas semelhantes como fallback. O aspecto fino vem de font-weight:300.
+ */
+function brandHtml(): string {
+  return `<div class="brand">POUP</div>`;
 }
 
 // --- Diagrama "Jornada do cliente" (mapa estilo metrô) exibido no final da
@@ -298,6 +287,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     .sheet { border: 2px solid #333; }
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 7px 14px; }
     .top .date { font-weight: 700; }
+    .top .brand { font-family: 'Banana', 'Century Gothic', 'Questrial', 'Trebuchet MS', Arial, sans-serif; font-weight: 300; font-size: 30px; letter-spacing: 3px; color: #1a1a1a; }
     .resumoWrap { display: flex; gap: 10px; align-items: flex-start; }
     .resumo.main { flex: 2; }
     .resumo.side { flex: 1; font-size: 9.5px; }
@@ -326,7 +316,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
 
   const bodyHtml = `<div class="sheet">
     <div class="top">
-      ${wordMarkHtml(26, '#1a1a1a')}
+      ${brandHtml()}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
     </div>
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
@@ -455,117 +445,95 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
 }
 
-interface PrintStyleEl {
-  textContent: string;
+interface PrintIframeWin {
+  focus?: () => void;
+  print?: () => void;
+  onafterprint?: (() => void) | null;
 }
-interface PrintContainerEl {
-  id: string;
-  innerHTML: string;
-  querySelector: (s: string) => PrintSheetEl | null;
-}
-interface PrintSheetEl {
+interface PrintIframeEl {
   style: Record<string, string>;
-  getBoundingClientRect: () => { height: number };
+  setAttribute: (k: string, v: string) => void;
+  srcdoc: string;
+  onload: (() => void) | null;
+  contentWindow: PrintIframeWin | null;
 }
 interface PrintGlobal {
   document?: {
-    createElement: (t: string) => PrintContainerEl & PrintStyleEl;
-    title: string;
-    head: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+    createElement: (t: string) => PrintIframeEl;
     body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
   };
-  addEventListener?: (type: string, cb: () => void) => void;
-  removeEventListener?: (type: string, cb: () => void) => void;
-  focus?: () => void;
-  print?: () => void;
-}
-
-/** Escala `.sheet` para caber numa única página A4, se necessário. */
-function fitSheetToOnePage(sheet: PrintSheetEl): void {
-  const availablePx = ((297 - 20) * 96) / 25.4;
-  const height = sheet.getBoundingClientRect().height;
-  if (height > availablePx) {
-    const scale = availablePx / height;
-    sheet.style.transformOrigin = 'top left';
-    sheet.style.transform = `scale(${scale})`;
-    sheet.style.width = `${100 / scale}%`;
-  }
 }
 
 /**
- * Imprime a proposta no web SEM abrir nova aba/janela — imprime o próprio
- * documento atual, escondendo todo o resto do app durante a impressão via
- * `@media print` (a técnica padrão e mais confiável entre navegadores para
- * imprimir só uma parte da página; nada de nova aba, nada de iframe oculto —
- * os dois causaram PDF em branco ou UX ruim em testes anteriores).
+ * Imprime a proposta no web usando um IFRAME OCULTO.
  *
- * Antes de imprimir, mede a altura real renderizada e aplica uma escala de
- * ajuste se necessário (`fitSheetToOnePage`), garantindo uma única página
- * mesmo com pequenas diferenças de fonte entre navegadores (o problema que
- * fazia o Safari jogar o diagrama final para uma 2ª página).
+ * Por que iframe (e não nova aba): quando o app é aberto como atalho na tela
+ * inicial do celular (modo standalone/PWA), NÃO existe "nova aba" — abrir uma
+ * cai numa tela quebrada/inexistente. O iframe evita isso por completo.
+ *
+ * Por que iframe (e não imprimir o próprio documento): esconder o app via CSS
+ * se mostrou frágil e voltava a imprimir a TELA inteira. O iframe é um
+ * documento ISOLADO contendo só a proposta, então nunca "vaza" o app pro PDF.
+ *
+ * Detalhes: tamanho real de folha A4 (nunca 0x0, que imprime em branco),
+ * invisível fora da tela, removido após a impressão. O <title> (nome do
+ * arquivo Cliente-Empreendimento) e o auto-ajuste de escala para 1 página já
+ * vêm embutidos em generateProposalHtml.
  */
-function printHtmlWeb(parts: ProposalParts): Promise<void> {
+function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
   const doc = g.document;
   if (!doc) return Promise.resolve();
+  const html = generateProposalHtml(ctx);
 
   return new Promise<void>((resolve) => {
-    const container = doc.createElement('div');
-    container.id = 'poup-print-root';
-    container.innerHTML = parts.bodyHtml;
-
-    const styleTag = doc.createElement('style');
-    styleTag.textContent = `
-      ${parts.style}
-      #poup-print-root { position: fixed; top: 0; left: -99999px; visibility: hidden; }
-      @media print {
-        body > *:not(#poup-print-root) { display: none !important; }
-        #poup-print-root { position: static !important; left: auto !important; visibility: visible !important; }
-      }
-    `;
-
-    doc.body.appendChild(container);
-    doc.head.appendChild(styleTag);
-    const originalTitle = doc.title;
-    doc.title = parts.fileName;
+    const iframe = doc.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.border = '0';
+    iframe.srcdoc = html;
+    doc.body.appendChild(iframe);
 
     let done = false;
     const cleanup = () => {
       if (done) return;
       done = true;
-      doc.title = originalTitle;
-      g.removeEventListener?.('afterprint', cleanup);
       setTimeout(() => {
         try {
-          doc.head.removeChild(styleTag);
+          doc.body.removeChild(iframe);
         } catch {
           // ignore
         }
-        try {
-          doc.body.removeChild(container);
-        } catch {
-          // ignore
-        }
-      }, 300);
+      }, 500);
       resolve();
     };
 
-    g.addEventListener?.('afterprint', cleanup);
-
-    // Pequeno atraso para o layout assentar antes de medir e imprimir.
-    setTimeout(() => {
-      const sheet = container.querySelector('.sheet');
-      if (sheet) fitSheetToOnePage(sheet);
-      try {
-        g.focus?.();
-      } catch {
-        // ignore
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win || !win.print) {
+        cleanup();
+        return;
       }
-      g.print?.();
-      // Fallback: alguns navegadores não disparam 'afterprint' de forma
-      // confiável. Garante que o app não fique esperando pra sempre.
-      setTimeout(cleanup, 60000);
-    }, 80);
+      win.onafterprint = cleanup;
+      // Espera o layout/SVG e o auto-ajuste de escala assentarem antes de imprimir.
+      setTimeout(() => {
+        try {
+          win.focus?.();
+        } catch {
+          // ignore
+        }
+        win.print?.();
+        // Fallback: nem todo navegador dispara afterprint de forma confiável.
+        setTimeout(cleanup, 60000);
+      }, 450);
+    };
+    setTimeout(cleanup, 60000);
   });
 }
 
@@ -577,7 +545,7 @@ function printHtmlWeb(parts: ProposalParts): Promise<void> {
  */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   if (Platform.OS === 'web') {
-    await printHtmlWeb(buildProposalParts(ctx));
+    await printHtmlWeb(ctx);
     return;
   }
   const html = generateProposalHtml(ctx);
