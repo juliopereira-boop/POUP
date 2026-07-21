@@ -102,6 +102,12 @@ export interface SimuladorState {
   atoDueDate: string | null;
   /** Quantidade de parcelas mensais. */
   mensaisCount: string;
+  /**
+   * Dia do mês do vencimento das mensais (editável). O mês/ano continua
+   * travado (1 mês após o ato); só o dia é livre. Semestrais/anuais usam o
+   * mesmo dia. Vazio = usa o dia do vencimento do ato (comportamento padrão).
+   */
+  mensalDueDay: string;
   /** Semestrais. */
   semestralEnabled: boolean;
   semestralCount: string;
@@ -157,6 +163,7 @@ const INITIAL: SimuladorState = {
   ato: '',
   atoDueDate: null,
   mensaisCount: '',
+  mensalDueDay: '',
   semestralEnabled: false,
   semestralCount: '',
   semestralValue: '',

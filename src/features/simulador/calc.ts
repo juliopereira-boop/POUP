@@ -41,6 +41,14 @@ export function addMonths(iso: string, n: number): string {
   return `${ty}-${String(tm + 1).padStart(2, '0')}-${String(td).padStart(2, '0')}`;
 }
 
+/** Troca o DIA de uma data ISO (mantém mês/ano), com clamp ao último dia do mês. */
+export function withDay(iso: string, day: number): string {
+  const [y, m] = iso.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const d = Math.min(Math.max(1, day), lastDay);
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 export function formatDateBR(iso: string | null): string {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
@@ -104,8 +112,10 @@ export interface FlowResult {
 /**
  * Monta o fluxo de pagamento a partir do estado.
  * - Mensal: valor = (poupança − ato − semestrais − anuais) / qtd mensal.
- * - Vencimentos: mensal 1º = ato + 1 mês; semestral 1º = mensal + 6; anual 1º
- *   = mensal + 12. Se `coincidir` estiver desligado, intercaladas pulam +1 mês.
+ * - Vencimentos: mensal 1º = ato + 1 mês (mês/ano travados; dia editável via
+ *   `sim.mensalDueDay`); semestral 1º = mensal + 6; anual 1º = mensal + 12
+ *   (semestrais/anuais herdam o mesmo dia do mensal). Se `coincidir` estiver
+ *   desligado, intercaladas pulam +1 mês.
  */
 export function buildFlow(sim: SimuladorState): FlowResult {
   const poupanca = computePoupanca(sim);
@@ -123,7 +133,16 @@ export function buildFlow(sim: SimuladorState): FlowResult {
   const remaining = poupanca - ato - semestralTotal - anualTotal;
   const monthlyValue = mensaisCount > 0 ? remaining / mensaisCount : 0;
 
-  const mensalFirstDue = sim.atoDueDate ? addMonths(sim.atoDueDate, 1) : null;
+  // Mês/ano do 1º vencimento mensal ficam travados em "1 mês após o ato";
+  // só o DIA é editável (sim.mensalDueDay). Semestrais/anuais herdam esse
+  // mesmo dia automaticamente, pois usam mensalFirstDue como âncora abaixo.
+  const mensalAnchor = sim.atoDueDate ? addMonths(sim.atoDueDate, 1) : null;
+  const customDay = parseInt(sim.mensalDueDay || '', 10);
+  const mensalFirstDue = mensalAnchor
+    ? customDay > 0
+      ? withDay(mensalAnchor, customDay)
+      : mensalAnchor
+    : null;
   const offset = sim.companyCoincide ? 0 : 1;
 
   const semestralDueDates: string[] = [];

@@ -179,7 +179,16 @@ export default function SimuladorFluxo() {
           />
         </View>
         <View style={styles.col}>
-          <ReadOnlyField label="1º vencimento" value={formatDateBR(flow.mensalFirstDue)} />
+          <Input
+            label="Dia do vencimento"
+            value={sim.mensalDueDay}
+            onChangeText={(t) => sim.setField('mensalDueDay', t.replace(/[^0-9]/g, '').slice(0, 2))}
+            placeholder="Dia"
+            keyboardType="numeric"
+          />
+          <Text style={styles.lockedHint}>
+            {formatDateBR(flow.mensalFirstDue)} · mês/ano fixo (1 mês após o ato)
+          </Text>
         </View>
       </View>
 
@@ -370,4 +379,10 @@ const makeStyles = (colors: AppColors) =>
       paddingHorizontal: spacing.lg,
     },
     roValue: { ...typography.body, color: colors.inkMuted, fontWeight: '600' },
+    lockedHint: {
+      ...typography.caption,
+      color: colors.inkSubtle,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
+    },
   });
