@@ -38,25 +38,14 @@ function pctOf(n: number, total: number): string {
   return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
 }
 
-// Mesma proporção usada na marca oficial do POUP (src/components/Mark.tsx),
-// desenhada aqui em HTML/CSS puro (o PDF não roda componentes React).
-const MARK_WIDTH_RATIO = 3.44;
-const MARK_STROKE_RATIO = 0.1375;
-const MARK_RADIUS_RATIO = 0.42;
-
-function markHtml(height: number, color: string): string {
-  const width = height * MARK_WIDTH_RATIO;
-  const stroke = Math.max(1, height * MARK_STROKE_RATIO);
-  const r = height * MARK_RADIUS_RATIO;
-  return `<div style="width:${width}px;height:${height}px;box-sizing:border-box;border-style:solid;border-color:${color};border-top-width:0;border-left-width:${stroke}px;border-right-width:${stroke}px;border-bottom-width:${stroke}px;border-bottom-left-radius:${r}px;border-bottom-right-radius:${r}px;"></div>`;
-}
-
-/** Segunda variante da marca (símbolo + nome), usada no cabeçalho do PDF. */
-function wordMarkHtml(height: number, color: string): string {
-  return `<div style="display:flex;align-items:center;gap:8px;">
-    ${markHtml(height, color)}
-    <span style="font-size:${height * 0.72}px;font-weight:800;letter-spacing:1px;color:${color};">POUP</span>
-  </div>`;
+/**
+ * Logo do PDF: SOMENTE o nome "POUP" (sem o símbolo), em fonte FINA.
+ * A tipografia oficial é a "Banana" (Canva); por ser uma fonte proprietária
+ * que não vem embutida no navegador, usamos uma pilha de fontes finas/
+ * geométricas semelhantes como fallback. O aspecto fino vem de font-weight:300.
+ */
+function brandHtml(): string {
+  return `<div class="brand">POUP</div>`;
 }
 
 // --- Diagrama "Jornada do cliente" (mapa estilo metrô) exibido no final da
@@ -298,6 +287,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     .sheet { border: 2px solid #333; }
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 7px 14px; }
     .top .date { font-weight: 700; }
+    .top .brand { font-family: 'Banana', 'Century Gothic', 'Questrial', 'Trebuchet MS', Arial, sans-serif; font-weight: 300; font-size: 30px; letter-spacing: 3px; color: #1a1a1a; }
     .resumoWrap { display: flex; gap: 10px; align-items: flex-start; }
     .resumo.main { flex: 2; }
     .resumo.side { flex: 1; font-size: 9.5px; }
@@ -326,7 +316,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
 
   const bodyHtml = `<div class="sheet">
     <div class="top">
-      ${wordMarkHtml(26, '#1a1a1a')}
+      ${brandHtml()}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
     </div>
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
@@ -455,53 +445,103 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
 }
 
-/**
- * Script injetado só na aba da proposta: ao carregar, dispara a impressão
- * automaticamente; ao concluir, fecha a aba sozinha.
- */
-const AUTO_PRINT_SCRIPT = `<script>
-  window.addEventListener('load', function () {
-    setTimeout(function () {
-      try { window.focus(); } catch (e) {}
-      window.print();
-    }, 300);
-  });
-  window.addEventListener('afterprint', function () {
-    setTimeout(function () { try { window.close(); } catch (e) {} }, 100);
-  });
-</script>`;
-
-interface PrintWin {
-  document: { open: () => void; write: (s: string) => void; close: () => void } | null;
+interface PrintIframeWin {
+  focus?: () => void;
+  print?: () => void;
+  onafterprint?: (() => void) | null;
+}
+interface PrintIframeEl {
+  style: Record<string, string>;
+  setAttribute: (k: string, v: string) => void;
+  srcdoc: string;
+  onload: (() => void) | null;
+  contentWindow: PrintIframeWin | null;
 }
 interface PrintGlobal {
-  open?: (url: string, target?: string) => PrintWin | null;
+  document?: {
+    createElement: (t: string) => PrintIframeEl;
+    body: { appendChild: (n: unknown) => void; removeChild: (n: unknown) => void };
+  };
 }
 
 /**
- * Imprime a proposta no web abrindo o documento numa NOVA ABA e imprimindo a
- * partir dela — a única abordagem que se mostrou 100% confiável em testes
- * reais (Safari incluso): imprimir a partir do MESMO documento do app,
- * escondendo o resto via CSS, se mostrou frágil e voltou a imprimir a TELA
- * inteira em vez da proposta. Como a aba é um documento isolado, contendo
- * SÓ a proposta, não existe risco de "vazar" o resto do app para o PDF.
- * A aba abre, imprime e fecha sozinha (AUTO_PRINT_SCRIPT) — o usuário só
- * confirma o diálogo de impressão/salvar como PDF.
+ * Imprime a proposta no web usando um IFRAME OCULTO.
+ *
+ * Por que iframe (e não nova aba): quando o app é aberto como atalho na tela
+ * inicial do celular (modo standalone/PWA), NÃO existe "nova aba" — abrir uma
+ * cai numa tela quebrada/inexistente. O iframe evita isso por completo.
+ *
+ * Por que iframe (e não imprimir o próprio documento): esconder o app via CSS
+ * se mostrou frágil e voltava a imprimir a TELA inteira. O iframe é um
+ * documento ISOLADO contendo só a proposta, então nunca "vaza" o app pro PDF.
+ *
+ * Detalhes: tamanho real de folha A4 (nunca 0x0, que imprime em branco),
+ * invisível fora da tela, removido após a impressão. O <title> (nome do
+ * arquivo Cliente-Empreendimento) e o auto-ajuste de escala para 1 página já
+ * vêm embutidos em generateProposalHtml.
  */
 function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
-  if (typeof g.open !== 'function') return Promise.resolve();
-  const win = g.open('', '_blank');
-  if (!win || !win.document) return Promise.resolve();
-  const html = generateProposalHtml(ctx).replace('</body>', `${AUTO_PRINT_SCRIPT}</body>`);
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-  return Promise.resolve();
+  const doc = g.document;
+  if (!doc) return Promise.resolve();
+  const html = generateProposalHtml(ctx);
+
+  return new Promise<void>((resolve) => {
+    const iframe = doc.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.border = '0';
+    iframe.srcdoc = html;
+    doc.body.appendChild(iframe);
+
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      setTimeout(() => {
+        try {
+          doc.body.removeChild(iframe);
+        } catch {
+          // ignore
+        }
+      }, 500);
+      resolve();
+    };
+
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win || !win.print) {
+        cleanup();
+        return;
+      }
+      win.onafterprint = cleanup;
+      // Espera o layout/SVG e o auto-ajuste de escala assentarem antes de imprimir.
+      setTimeout(() => {
+        try {
+          win.focus?.();
+        } catch {
+          // ignore
+        }
+        win.print?.();
+        // Fallback: nem todo navegador dispara afterprint de forma confiável.
+        setTimeout(cleanup, 60000);
+      }, 450);
+    };
+    setTimeout(cleanup, 60000);
+  });
 }
 
 /**
  * Gera e compartilha/imprime o PDF da proposta.
+ * A Promise só resolve depois que o usuário conclui a impressão/
+ * compartilhamento (fecha o diálogo) — use isso para saber quando é seguro
+ * limpar a simulação e voltar ao menu.
  */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   if (Platform.OS === 'web') {
