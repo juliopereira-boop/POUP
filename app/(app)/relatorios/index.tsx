@@ -106,61 +106,10 @@ export default function RelatoriosScreen() {
       <Text style={styles.title}>Relatórios</Text>
       <Text style={styles.subtitle}>Simulações concluídas.</Text>
 
-      {/* Filtros */}
-      <View style={styles.filterCard}>
-        <Input
-          label="Cliente"
-          value={clientQuery}
-          onChangeText={setClientQuery}
-          placeholder="Buscar por nome do cliente"
-          autoCapitalize="words"
-        />
-        <Select
-          label="Empresa"
-          placeholder="Todas as empresas"
-          value={companyFilter}
-          options={companyOptions}
-          onChange={(v) => {
-            setCompanyFilter(v);
-            setDevelopmentFilter(''); // troca de empresa reseta o empreendimento
-          }}
-        />
-        <Select
-          label="Empreendimento"
-          placeholder="Todos os empreendimentos"
-          value={developmentFilter}
-          options={developmentOptions}
-          onChange={setDevelopmentFilter}
-        />
-        <View style={styles.row}>
-          <View style={styles.col}>
-            <DateField label="De" value={fromDate} onChange={setFromDate} placeholder="Início" />
-          </View>
-          <View style={styles.col}>
-            <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
-          </View>
-        </View>
-        {hasFilters ? (
-          <Button label="Limpar filtros" variant="ghost" onPress={clearFilters} />
-        ) : null}
-      </View>
-
-      {/* Contador */}
-      {!loading ? (
-        <Text style={styles.count}>
-          {filtered.length === 0
-            ? 'Nenhuma simulação'
-            : filtered.length === 1
-              ? '1 simulação'
-              : `${filtered.length} simulações`}
-          {hasFilters && sims.length !== filtered.length ? ` de ${sims.length}` : ''}
-        </Text>
-      ) : null}
-
-      {/* Lista */}
       {loading ? (
         <Text style={styles.muted}>Carregando...</Text>
       ) : sims.length === 0 ? (
+        // Sem nenhuma simulação: mostra só o estado vazio (filtros seriam inúteis).
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>📊</Text>
           <Text style={styles.emptyTitle}>Nenhuma simulação ainda</Text>
@@ -168,12 +117,77 @@ export default function RelatoriosScreen() {
             Conclua uma simulação no Simulador de poupança e ela aparecerá aqui.
           </Text>
         </View>
-      ) : filtered.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Nenhuma simulação corresponde aos filtros.</Text>
-        </View>
       ) : (
-        filtered.map((s) => <SimulationCard key={s.id} sim={s} onPress={() => router.push({ pathname: '/(app)/relatorios/[id]', params: { id: s.id } })} />)
+        <>
+          {/* Filtros */}
+          <View style={styles.filterCard}>
+            <Input
+              label="Cliente"
+              value={clientQuery}
+              onChangeText={setClientQuery}
+              placeholder="Buscar por nome do cliente"
+              autoCapitalize="words"
+            />
+            <Select
+              label="Empresa"
+              placeholder="Todas as empresas"
+              value={companyFilter}
+              options={companyOptions}
+              onChange={(v) => {
+                setCompanyFilter(v);
+                setDevelopmentFilter(''); // troca de empresa reseta o empreendimento
+              }}
+            />
+            <Select
+              label="Empreendimento"
+              placeholder="Todos os empreendimentos"
+              value={developmentFilter}
+              options={developmentOptions}
+              onChange={setDevelopmentFilter}
+            />
+            <View style={[styles.row, styles.dateRow]}>
+              <View style={styles.col}>
+                <DateField label="De" value={fromDate} onChange={setFromDate} placeholder="Início" />
+              </View>
+              <View style={styles.col}>
+                <DateField label="Até" value={toDate} onChange={setToDate} placeholder="Fim" />
+              </View>
+            </View>
+            {hasFilters ? (
+              <Button
+                label="Limpar filtros"
+                variant="ghost"
+                onPress={clearFilters}
+                style={styles.clearBtn}
+              />
+            ) : null}
+          </View>
+
+          <Text style={styles.count}>
+            {filtered.length === 1 ? '1 simulação' : `${filtered.length} simulações`}
+            {hasFilters && sims.length !== filtered.length ? ` de ${sims.length}` : ''}
+          </Text>
+
+          {filtered.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Nenhum resultado</Text>
+              <Text style={styles.emptyText}>
+                Nenhuma simulação corresponde aos filtros.
+              </Text>
+              <Button label="Limpar filtros" variant="secondary" onPress={clearFilters} />
+            </View>
+          ) : (
+            filtered.map((s) => (
+              <SimulationCard
+                key={s.id}
+                sim={s}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/relatorios/[id]', params: { id: s.id } })
+                }
+              />
+            ))
+          )}
+        </>
       )}
     </Screen>
   );
@@ -187,6 +201,9 @@ function SimulationCard({ sim, onPress }: { sim: Simulation; onPress: () => void
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       accessibilityRole="button"
+      accessibilityLabel={`${sim.clientName?.trim() || 'Cliente não informado'}, ${
+        sim.developmentName?.trim() || 'empreendimento não informado'
+      }, parcela mensal ${brl(sim.monthlyValue)}, risco ${pct(sim.riskPct)}`}
     >
       <View style={styles.cardTop}>
         <Text style={styles.cardClient} numberOfLines={1}>
@@ -242,6 +259,10 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
     },
     row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
+    // Cancela a margem inferior embutida dos DateFields para não dobrar o
+    // espaçamento antes do botão / borda do card de filtros.
+    dateRow: { marginBottom: -spacing.lg },
+    clearBtn: { marginTop: spacing.lg },
     col: { flex: 1 },
     count: {
       ...typography.label,
@@ -289,7 +310,7 @@ const makeStyles = (colors: AppColors) =>
     badge: {
       borderRadius: radius.pill,
       paddingHorizontal: spacing.md,
-      paddingVertical: 4,
+      paddingVertical: spacing.xs,
     },
     badgeNeutral: { backgroundColor: colors.surfaceAlt },
     badgeOk: { backgroundColor: colors.successSoft },

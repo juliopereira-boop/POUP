@@ -3,8 +3,8 @@
  * Aplicadas ao digitar (onChangeText) e também na exibição.
  */
 
-function onlyDigits(v: string): string {
-  return v.replace(/\D/g, '');
+function onlyDigits(v: string | null | undefined): string {
+  return (v ?? '').replace(/\D/g, '');
 }
 
 /** Telefone: (98) 98888-8888 (celular) ou (98) 8888-8888 (fixo). */

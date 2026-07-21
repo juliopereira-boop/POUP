@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/data/database.types';
-import type { SimuladorState } from '@/features/simulador/SimuladorProvider';
+import {
+  INITIAL_SIMULADOR_STATE,
+  type SimuladorState,
+} from '@/features/simulador/SimuladorProvider';
 import type { SimulationRepository } from '../repositories';
 import { type Result, type Simulation, type SimulationInput, err, ok } from '../types';
 
@@ -42,7 +45,9 @@ function mapSimulation(row: SimulationRow): Simulation {
     deliveryDate: row.delivery_date,
     managerName: row.manager_name,
     proposalDate: row.proposal_date,
-    state: row.state,
+    // Backfill contra o estado inicial: se um campo novo for adicionado ao
+    // SimuladorState, simulações antigas (sem esse campo) não quebram.
+    state: { ...INITIAL_SIMULADOR_STATE, ...row.state },
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

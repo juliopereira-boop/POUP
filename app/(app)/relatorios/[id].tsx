@@ -13,7 +13,11 @@ import {
   monthsBetween,
 } from '@/features/simulador/calc';
 import { generateProposal } from '@/features/simulador/proposal';
-import { ASSOCIATION_OPTIONS, EDIT_DRAFT_KEY } from '@/features/simulador/SimuladorProvider';
+import {
+  ASSOCIATION_OPTIONS,
+  EDIT_DRAFT_KEY,
+  setPendingEditId,
+} from '@/features/simulador/SimuladorProvider';
 import { currencyToNumber } from '@/lib/masks';
 import { sessionStorage } from '@/lib/storage';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -59,14 +63,19 @@ export default function SimulationDetailScreen() {
 
   async function onEdit() {
     if (!sim) return;
+    setNotice(null);
     // Abre o simulador em MODO EDIÇÃO: o estado vai para uma chave de rascunho
-    // separada, então não afeta a simulação nova iniciada pelo menu.
+    // separada, então não afeta a simulação nova iniciada pelo menu. O
+    // setPendingEditId é um handoff SÍNCRONO (imune a corrida do query param);
+    // o param na URL fica como fallback para reload/deeplink.
+    setPendingEditId(sim.id);
     await sessionStorage.setItem(EDIT_DRAFT_KEY, JSON.stringify(sim.state));
     router.push({ pathname: '/(app)/simulador', params: { editId: sim.id } });
   }
 
   async function onGeneratePdf() {
     if (!sim) return;
+    setNotice(null);
     setGenerating(true);
     try {
       await generateProposal({
@@ -167,7 +176,7 @@ export default function SimulationDetailScreen() {
             </Text>
           </View>
         </View>
-        <Text style={styles.heroDev}>
+        <Text style={styles.heroDev} numberOfLines={2}>
           {sim.developmentName?.trim() || '—'}
           {sim.companyName ? `  ·  ${sim.companyName}` : ''}
         </Text>
@@ -187,7 +196,7 @@ export default function SimulationDetailScreen() {
           style={styles.actionBtn}
         />
       </View>
-      <Button label="Venda realizada" variant="secondary" onPress={onSaleDone} />
+      <Button label="Venda realizada (em breve)" variant="secondary" onPress={onSaleDone} />
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
       {/* Cliente */}
@@ -276,7 +285,7 @@ export default function SimulationDetailScreen() {
       </View>
 
       <View style={styles.deleteWrap}>
-        <Button label="Excluir simulação" variant="ghost" onPress={onDelete} />
+        <Button label="Excluir simulação" variant="danger" onPress={onDelete} />
       </View>
     </Screen>
   );
@@ -360,7 +369,7 @@ const makeStyles = (colors: AppColors) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       gap: spacing.lg,
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.lg,
     },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
     rowLabel: { ...typography.body, color: colors.inkMuted, flexShrink: 0 },
@@ -374,7 +383,7 @@ const makeStyles = (colors: AppColors) =>
     badge: {
       borderRadius: radius.pill,
       paddingHorizontal: spacing.md,
-      paddingVertical: 4,
+      paddingVertical: spacing.xs,
     },
     badgeNeutral: { backgroundColor: colors.surfaceAlt },
     badgeOk: { backgroundColor: colors.successSoft },

@@ -7,7 +7,7 @@ import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { SlotNumber } from '@/components/SlotNumber';
-import { db, type SimulationInput } from '@/data';
+import { db, type Simulation, type SimulationInput } from '@/data';
 import { buildFlow, computePoupanca, formatDateBR } from '@/features/simulador/calc';
 import { generateProposal } from '@/features/simulador/proposal';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
@@ -32,21 +32,28 @@ export default function SimuladorFluxo() {
   const [developmentName, setDevelopmentName] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
   const [gerente, setGerente] = useState<string | null>(null);
+  const [stored, setStored] = useState<Simulation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [comps, devs] = await Promise.all([
+    const [comps, devs, existing] = await Promise.all([
       db.companies.list(user.id),
       db.developments.list(user.id),
+      // Em modo edição, carrega a simulação salva para preservar o snapshot.
+      sim.editId ? db.simulations.get(sim.editId) : Promise.resolve(null),
     ]);
-    setCompanyName(comps.find((c) => c.id === sim.companyId)?.name ?? null);
+    setStored(existing);
+    const comp = comps.find((c) => c.id === sim.companyId);
     const dev = devs.find((d) => d.id === sim.developmentId);
-    setDevelopmentName(dev?.name ?? null);
-    setDeliveryDate(dev?.deliveryDate ?? null);
-    setGerente(dev?.managerName ?? null);
-  }, [user, sim.companyId, sim.developmentId]);
+    // Em edição, se o cadastro foi alterado/excluído, mantém o valor salvo
+    // (é por isso que guardamos o snapshot — o PDF continua fiel).
+    setCompanyName(comp?.name ?? existing?.companyName ?? null);
+    setDevelopmentName(dev?.name ?? existing?.developmentName ?? null);
+    setDeliveryDate(dev?.deliveryDate ?? existing?.deliveryDate ?? null);
+    setGerente(dev?.managerName ?? existing?.managerName ?? null);
+  }, [user, sim.companyId, sim.developmentId, sim.editId]);
 
   useEffect(() => {
     void load();
@@ -71,7 +78,12 @@ export default function SimuladorFluxo() {
     if (flow.mensaisCount <= 0) return setError('Informe a quantidade de parcelas mensais.');
     setGenerating(true);
     try {
-      const todayISO = new Date().toISOString().slice(0, 10);
+      // Em edição, preserva a data original da proposta (o PDF e os "meses
+      // para entrega" ficam consistentes com a geração original).
+      const genDate =
+        sim.editId && stored?.proposalDate
+          ? stored.proposalDate
+          : new Date().toISOString().slice(0, 10);
       await generateProposal({
         sim,
         profile,
@@ -79,7 +91,7 @@ export default function SimuladorFluxo() {
         developmentName,
         deliveryDate,
         gerente,
-        todayISO,
+        todayISO: genDate,
       });
 
       // A simulação concluída "migra" para Relatórios. Guardamos só os DADOS
@@ -94,11 +106,11 @@ export default function SimuladorFluxo() {
         developmentName,
         monthlyValue: flow.monthlyValue,
         riskPct,
-        withinRisk: sim.companyRisk != null ? riskPct <= sim.companyRisk : null,
+        withinRisk: sim.companyRisk != null && unitValue > 0 ? riskPct <= sim.companyRisk : null,
         unitValue,
         deliveryDate,
         managerName: gerente,
-        proposalDate: todayISO,
+        proposalDate: genDate,
         state: sim.snapshot,
       };
       const result = sim.editId

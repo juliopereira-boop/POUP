@@ -165,6 +165,9 @@ const INITIAL: SimuladorState = {
   anualValue: '',
 };
 
+/** Estado inicial exportado — usado ao ler simulações salvas (backfill). */
+export const INITIAL_SIMULADOR_STATE: SimuladorState = INITIAL;
+
 const DRAFT_KEY = 'poup.simulador.draft';
 /**
  * Chave SEPARADA para o rascunho de edição (quando o wizard foi aberto a
@@ -174,27 +177,45 @@ const DRAFT_KEY = 'poup.simulador.draft';
 export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';
 const SAVE_DEBOUNCE_MS = 300;
 
+/**
+ * Alvo de edição pendente, definido de forma SÍNCRONA pela tela de detalhe de
+ * Relatórios imediatamente antes de navegar para o simulador. Isso torna o
+ * modo de edição imune a corrida do query param na 1ª renderização (o param
+ * só é usado como fallback em reload/deeplink no web).
+ */
+let pendingEditId: string | null = null;
+export function setPendingEditId(id: string | null): void {
+  pendingEditId = id;
+}
+
 const SimuladorContext = createContext<SimuladorContextValue | undefined>(undefined);
 
 export function SimuladorProvider({ children }: { children: ReactNode }) {
-  // `editId` vem da rota (?editId=...). Latcheamos o primeiro valor não-vazio
-  // num ref — assim, ao navegar entre as etapas (onde o param some da URL), o
-  // modo de edição não se perde e a chave de rascunho continua a mesma.
   const params = useGlobalSearchParams<{ editId?: string }>();
-  const editIdRef = useRef<string | null>(null);
-  if (params.editId && !editIdRef.current) editIdRef.current = params.editId;
-  const editId = editIdRef.current;
+  // Resolve o modo (edição x novo) UMA vez, no mount, de forma determinística:
+  // usa o handoff síncrono (pendingEditId) e cai no param da URL só no reload.
+  // Como é `useState` inicial, não muda ao navegar entre as etapas nem quando
+  // um outro provider re-renderiza por mudança de params globais.
+  // Leitura PURA no inicializador (sem efeitos colaterais — seguro sob
+  // StrictMode). O consumo do handoff é feito no efeito de mount abaixo.
+  const [editId] = useState<string | null>(() => pendingEditId ?? params.editId ?? null);
+  const draftKey = editId ? EDIT_DRAFT_KEY : DRAFT_KEY;
 
   const [state, setState] = useState<SimuladorState>(INITIAL);
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Restaura o rascunho salvo (se houver) ao montar o wizard. A chave depende
-  // do modo (edição x novo), lida do ref (já latcheado no 1º render).
+  // Consome o handoff síncrono após o mount, para não vazar para o próximo
+  // provider (ex.: uma simulação nova aberta pelo menu depois).
   useEffect(() => {
-    const key = editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY;
+    pendingEditId = null;
+  }, []);
+
+  // Restaura o rascunho salvo (se houver) ao montar o wizard, usando a chave
+  // já resolvida (estável — editId nunca muda).
+  useEffect(() => {
     let mounted = true;
-    sessionStorage.getItem(key).then((raw) => {
+    sessionStorage.getItem(draftKey).then((raw) => {
       if (!mounted) return;
       if (raw) {
         try {
@@ -209,21 +230,20 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [draftKey]);
 
   // Salva a cada mudança (com um pequeno debounce), só depois de hidratado —
   // evita sobrescrever um rascunho salvo com o estado inicial em branco.
   useEffect(() => {
     if (!hydrated) return;
-    const key = editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void sessionStorage.setItem(key, JSON.stringify(state));
+      void sessionStorage.setItem(draftKey, JSON.stringify(state));
     }, SAVE_DEBOUNCE_MS);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [state, hydrated]);
+  }, [state, hydrated, draftKey]);
 
   const value = useMemo<SimuladorContextValue>(
     () => ({
@@ -236,11 +256,12 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
       setProponent2: (patch) =>
         setState((prev) => ({ ...prev, proponent2: { ...prev.proponent2, ...patch } })),
       reset: () => {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
         setState(INITIAL);
-        void sessionStorage.removeItem(editIdRef.current ? EDIT_DRAFT_KEY : DRAFT_KEY);
+        void sessionStorage.removeItem(draftKey);
       },
     }),
-    [state, editId],
+    [state, editId, draftKey],
   );
 
   if (!hydrated) return <LoadingScreen />;
