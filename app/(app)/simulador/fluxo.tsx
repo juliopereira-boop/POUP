@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { DateField } from '@/components/DateField';
@@ -22,6 +23,7 @@ function brl(n: number): string {
 
 export default function SimuladorFluxo() {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const { user } = useAuth();
   const { profile } = useProfile();
   const sim = useSimulador();
@@ -77,6 +79,11 @@ export default function SimuladorFluxo() {
         gerente,
         todayISO: new Date().toISOString().slice(0, 10),
       });
+      // Proposta concluída (impressão/compartilhamento finalizado): limpa a
+      // simulação inteira e volta ao menu, para não deixar dados de um
+      // cliente "vazando" pra próxima simulação.
+      sim.reset();
+      router.replace('/(app)');
     } catch (e) {
       setError((e as Error).message);
     } finally {

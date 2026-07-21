@@ -208,7 +208,7 @@ export function generateProposalHtml(ctx: ProposalContext): string {
  * inteiro — daí o "print da tela". Aqui geramos o documento de verdade; o
  * usuário escolhe "Salvar como PDF" no diálogo e obtém o PDF no modelo.)
  */
-function printHtmlWeb(html: string): void {
+function printHtmlWeb(html: string): Promise<void> {
   const dom = globalThis as unknown as {
     document?: {
       createElement: (t: string) => HTMLIFrameElementLike;
@@ -216,42 +216,61 @@ function printHtmlWeb(html: string): void {
     };
   };
   const doc = dom.document;
-  if (!doc) return;
+  if (!doc) return Promise.resolve();
 
-  const iframe = doc.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  doc.body.appendChild(iframe);
+  return new Promise<void>((resolve) => {
+    const iframe = doc.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    doc.body.appendChild(iframe);
 
-  const win = iframe.contentWindow;
-  const idoc = win?.document;
-  if (!win || !idoc) return;
+    const win = iframe.contentWindow;
+    const idoc = win?.document;
+    if (!win || !idoc) {
+      resolve();
+      return;
+    }
 
-  idoc.open();
-  idoc.write(html);
-  idoc.close();
+    idoc.open();
+    idoc.write(html);
+    idoc.close();
 
-  let printed = false;
-  const run = () => {
-    if (printed) return;
-    printed = true;
-    win.focus();
-    win.print();
-    setTimeout(() => {
-      try {
-        doc.body.removeChild(iframe);
-      } catch {
-        // ignore
-      }
-    }, 1500);
-  };
-  // Dá um tempo para o layout/renderização antes de imprimir.
-  iframe.onload = () => setTimeout(run, 300);
-  setTimeout(run, 700); // fallback caso onload não dispare
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      setTimeout(() => {
+        try {
+          doc.body.removeChild(iframe);
+        } catch {
+          // ignore
+        }
+      }, 300);
+      resolve();
+    };
+
+    // afterprint dispara quando o diálogo de impressão FECHA (imprimiu,
+    // salvou como PDF ou cancelou) — é o sinal real de "concluído".
+    win.onafterprint = cleanup;
+
+    let printed = false;
+    const run = () => {
+      if (printed) return;
+      printed = true;
+      win.focus();
+      win.print();
+      // Fallback: alguns navegadores não disparam onafterprint de forma
+      // confiável em iframes. Garante que o app não fique esperando pra sempre.
+      setTimeout(cleanup, 60000);
+    };
+    // Dá um tempo para o layout/renderização antes de imprimir.
+    iframe.onload = () => setTimeout(run, 300);
+    setTimeout(run, 700); // fallback caso onload não dispare
+  });
 }
 
 interface HTMLIFrameElementLike {
@@ -260,15 +279,21 @@ interface HTMLIFrameElementLike {
   contentWindow: {
     focus: () => void;
     print: () => void;
+    onafterprint: (() => void) | null;
     document: { open: () => void; write: (s: string) => void; close: () => void };
   } | null;
 }
 
-/** Gera e compartilha/imprime o PDF da proposta. */
+/**
+ * Gera e compartilha/imprime o PDF da proposta.
+ * A Promise só resolve depois que o usuário conclui a impressão/
+ * compartilhamento (fecha o diálogo) — use isso para saber quando é seguro
+ * limpar a simulação e voltar ao menu.
+ */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   const html = generateProposalHtml(ctx);
   if (Platform.OS === 'web') {
-    printHtmlWeb(html);
+    await printHtmlWeb(html);
     return;
   }
   const { uri } = await Print.printToFileAsync({ html });
