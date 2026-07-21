@@ -209,15 +209,17 @@ export default function SimuladorFinanciamento() {
                 keyboardType="numeric"
               />
             ) : null}
-            <Input
-              label="Parcela CEF"
-              value={sim.cefParcela}
-              onChangeText={(t) => sim.setField('cefParcela', formatCurrencyBRL(t))}
-              placeholder="R$ 0,00"
-              keyboardType="numeric"
-            />
           </>
         ) : null}
+        {/* Independente de quem paga a taxa CEF — é um valor de referência
+            usado na negociação (ex.: proposta em PDF). */}
+        <Input
+          label="Parcela CEF"
+          value={sim.cefParcela}
+          onChangeText={(t) => sim.setField('cefParcela', formatCurrencyBRL(t))}
+          placeholder="R$ 0,00"
+          keyboardType="numeric"
+        />
       </View>
 
       {/* Status do risco (atualiza em tempo real) */}
