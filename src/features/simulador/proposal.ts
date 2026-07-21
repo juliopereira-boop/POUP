@@ -4,7 +4,13 @@ import { Platform } from 'react-native';
 
 import type { UserProfile } from '@/data';
 import { currencyToNumber, formatCNPJ, formatPhone } from '@/lib/masks';
-import { buildFlow, computeFinancingSum, formatDateBR } from './calc';
+import {
+  buildFlow,
+  computeFinancingSum,
+  formatDateBR,
+  formatMonthYearBR,
+  monthsBetween,
+} from './calc';
 import type { SimuladorState } from './SimuladorProvider';
 
 export interface ProposalContext {
@@ -27,6 +33,22 @@ function brl(n: number): string {
 }
 function esc(s: string | null | undefined): string {
   return (s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string);
+}
+function pctOf(n: number, total: number): string {
+  return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
+}
+
+// Mesma proporção usada na marca oficial do POUP (src/components/Mark.tsx),
+// desenhada aqui em HTML/CSS puro (o PDF não roda componentes React).
+const MARK_WIDTH_RATIO = 3.44;
+const MARK_STROKE_RATIO = 0.1375;
+const MARK_RADIUS_RATIO = 0.42;
+
+function markHtml(height: number, color: string): string {
+  const width = height * MARK_WIDTH_RATIO;
+  const stroke = Math.max(1, height * MARK_STROKE_RATIO);
+  const r = height * MARK_RADIUS_RATIO;
+  return `<div style="width:${width}px;height:${height}px;box-sizing:border-box;border-style:solid;border-color:${color};border-top-width:0;border-left-width:${stroke}px;border-right-width:${stroke}px;border-bottom-width:${stroke}px;border-bottom-left-radius:${r}px;border-bottom-right-radius:${r}px;"></div>`;
 }
 
 /** Linha da tabela de negociação. */
@@ -55,13 +77,27 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   const rendaPct = rendaBruta > 0 ? (flow.monthlyValue / rendaBruta) * 100 : 0;
 
   const parcelasPoupanca = flow.mensaisCount + flow.semestralCount + flow.anualCount;
-  const totalPago = flow.ato + financingSum + flow.monthlyValue * flow.mensaisCount + flow.semestralTotal + flow.anualTotal;
   const contrato = unitValue;
-  const saldo = contrato - totalPago;
+  // Total a ser pago pelo cliente: tudo, menos subsídio e FGTS (que não saem
+  // do bolso do cliente).
+  const totalPago = contrato - sub - fgts;
+  // Checagem de distribuição: ato + mensais + intercaladas + financiamentos
+  // deve fechar com o valor do contrato.
+  const totalDistribuido =
+    flow.ato + financingSum + flow.monthlyValue * flow.mensaisCount + flow.semestralTotal + flow.anualTotal;
+  const saldo = contrato - totalDistribuido;
 
   const risco = sim.companyRisk;
   const riscoPoupancaPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
   const withinRisk = risco != null && riscoPoupancaPct <= risco;
+
+  const mesesParaEntrega = monthsBetween(ctx.todayISO, ctx.deliveryDate);
+  const mesesEntregaLabel =
+    mesesParaEntrega == null
+      ? '—'
+      : mesesParaEntrega <= 0
+        ? 'Entregue'
+        : `${mesesParaEntrega} ${mesesParaEntrega === 1 ? 'mês' : 'meses'}`;
 
   const rows: string[] = [];
   rows.push(flowRow('SINAL', '1', brl(flow.ato), brl(flow.ato), formatDateBR(sim.atoDueDate)));
@@ -121,8 +157,11 @@ export function generateProposalHtml(ctx: ProposalContext): string {
     body { margin: 0; padding: 16px; color: #1a1a1a; font-size: 11px; }
     .sheet { border: 2px solid #333; }
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 10px 14px; }
-    .top .title { font-size: 20px; font-weight: 800; }
     .top .date { font-weight: 700; }
+    .resumoWrap { display: flex; gap: 10px; align-items: flex-start; }
+    .resumo.main { flex: 2; }
+    .resumo.side { flex: 1; font-size: 9.5px; }
+    .resumo.side td { padding: 3px 6px; }
     .band { background: ${ORANGE}; color: #fff; font-weight: 700; text-align: center; padding: 4px; letter-spacing: .5px; }
     table { width: 100%; border-collapse: collapse; }
     .kv td { border: 1px solid #bbb; padding: 5px 8px; }
@@ -144,7 +183,7 @@ export function generateProposalHtml(ctx: ProposalContext): string {
   </style></head>
   <body><div class="sheet">
     <div class="top">
-      <div class="title">${esc(ctx.developmentName ?? 'PROPOSTA')}</div>
+      ${markHtml(30, '#1a1a1a')}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
     </div>
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
@@ -185,18 +224,51 @@ export function generateProposalHtml(ctx: ProposalContext): string {
     ${Math.abs(saldo) < 1 ? '<div class="accept">PARCELAMENTO ACEITÁVEL!</div>' : ''}
 
     <div class="band">QUADRO RESUMO</div>
-    <table class="resumo">
-      <tr>
-        <td class="k" style="background:#f2f2f2;font-weight:700">RISCO / POUPANÇA</td>
-        <td>${brl(flow.poupanca)}</td>
-        <td class="${withinRisk ? 'green' : 'red'}" style="font-weight:700">${riscoPoupancaPct.toFixed(2)}%${risco != null ? ` (máx. ${risco}%)` : ''}</td>
-      </tr>
-      <tr><td style="font-weight:700">Correspondente</td><td colspan="2">${esc(sim.correspondentName)}</td></tr>
-      <tr><td style="font-weight:700">Taxa CEF</td><td colspan="2">${sim.cefClientPays ? 'CLIENTE PAGA' : 'NÃO PAGA'}</td></tr>
-      <tr><td style="font-weight:700">Gerente</td><td colspan="2">${esc(ctx.gerente)}</td></tr>
-      <tr><td style="font-weight:700">Gerente Imob.</td><td colspan="2">${esc(profile?.agencyManager)}</td></tr>
-      <tr><td style="font-weight:700">Data de entrega</td><td colspan="2">${formatDateBR(ctx.deliveryDate)}</td></tr>
-    </table>
+    <div class="resumoWrap">
+      <table class="resumo main">
+        <tr>
+          <td class="k" style="background:#f2f2f2;font-weight:700">SINAL</td>
+          <td class="r">${brl(flow.ato)}</td>
+          <td class="r" style="font-weight:700">${pctOf(flow.ato, contrato)}</td>
+        </tr>
+        <tr>
+          <td class="k" style="background:#f2f2f2;font-weight:700">FINANCIAMENTO (FINANCIAMENTO + SUBSÍDIO + FGTS)</td>
+          <td class="r">${brl(financingSum)}</td>
+          <td class="r" style="font-weight:700">${pctOf(financingSum, contrato)}</td>
+        </tr>
+        <tr class="${withinRisk ? 'green' : 'red'}">
+          <td class="k" style="font-weight:700">POUPANÇA${risco != null ? ` (risco máx. ${risco}%)` : ''}</td>
+          <td class="r">${brl(flow.poupanca)}</td>
+          <td class="r" style="font-weight:700">${riscoPoupancaPct.toFixed(2)}%</td>
+        </tr>
+        ${
+          flow.semestralCount > 0
+            ? `<tr>
+                <td class="k" style="background:#f2f2f2;font-weight:700">COMPROMETIMENTO SEMESTRAL</td>
+                <td class="r">${brl(flow.semestralTotal)}</td>
+                <td class="r" style="font-weight:700">${pctOf(flow.semestralTotal, contrato)}</td>
+              </tr>`
+            : ''
+        }
+        ${
+          flow.anualCount > 0
+            ? `<tr>
+                <td class="k" style="background:#f2f2f2;font-weight:700">COMPROMETIMENTO ANUAL</td>
+                <td class="r">${brl(flow.anualTotal)}</td>
+                <td class="r" style="font-weight:700">${pctOf(flow.anualTotal, contrato)}</td>
+              </tr>`
+            : ''
+        }
+      </table>
+      <table class="resumo side">
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Gerente</td><td>${esc(ctx.gerente)}</td></tr>
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Gerente Imob.</td><td>${esc(profile?.agencyManager)}</td></tr>
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Correspondente</td><td>${esc(sim.correspondentName)}</td></tr>
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Taxa CEF</td><td>${sim.cefClientPays ? 'CLIENTE PAGA' : 'NÃO PAGA'}</td></tr>
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Entrega</td><td>${formatMonthYearBR(ctx.deliveryDate)}</td></tr>
+        <tr><td class="k" style="background:#f2f2f2;font-weight:700">Meses p/ entrega</td><td>${mesesEntregaLabel}</td></tr>
+      </table>
+    </div>
 
     <div class="obs muted">Proposta gerada pelo POUP em ${formatDateBR(ctx.todayISO)}. Cupom, quando aplicado, sujeito à validação da construtora.</div>
   </div></body></html>`;

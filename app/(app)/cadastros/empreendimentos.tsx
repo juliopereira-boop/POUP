@@ -3,8 +3,8 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
-import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
+import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { db, type Company, type Development } from '@/data';
@@ -150,11 +150,11 @@ export default function EmpreendimentosScreen() {
         />
 
         <Text style={styles.sectionTitle}>Regras de negócio</Text>
-        <DateField
-          label="Data de entrega"
+        <MonthYearField
+          label="Data de entrega (mês/ano)"
           value={deliveryDate}
           onChange={setDeliveryDate}
-          placeholder="Selecione a data"
+          placeholder="Selecione mês/ano"
         />
         <Input
           label="Gerente responsável (opcional)"

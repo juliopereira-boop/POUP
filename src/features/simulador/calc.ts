@@ -47,6 +47,37 @@ export function formatDateBR(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+const MONTH_ABBR = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
+
+/** Formata uma data ISO mostrando somente mês/ano (ex.: "Mar/2027"). */
+export function formatMonthYearBR(iso: string | null): string {
+  if (!iso) return '—';
+  const [y, m] = iso.split('-');
+  const idx = parseInt(m, 10) - 1;
+  return `${MONTH_ABBR[idx] ?? m}/${y}`;
+}
+
+/** Diferença em meses inteiros entre duas datas ISO (to − from). */
+export function monthsBetween(fromISO: string, toISO: string | null): number | null {
+  if (!toISO) return null;
+  const [fy, fm] = fromISO.split('-').map(Number);
+  const [ty, tm] = toISO.split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
+
 export interface FlowResult {
   poupanca: number;
   ato: number;
