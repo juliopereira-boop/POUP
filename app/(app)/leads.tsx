@@ -316,10 +316,12 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   const [uf, setUf] = useState<string | null>(null);
   const [cidade, setCidade] = useState('');
   const [cnae, setCnae] = useState<string>('todos');
+  const [cidadeOptions, setCidadeOptions] = useState<{ value: string; label: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ProspectedLead[] | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
+  const [nextPage, setNextPage] = useState(1);
 
   const storeKey = userId ? `prospect:${userId}` : null;
 
@@ -337,12 +339,14 @@ function ProspectarCard({ userId }: { userId: string | null }) {
           cnae?: string;
           results?: ProspectedLead[];
           saved?: Record<string, boolean>;
+          nextPage?: number;
         };
         if (s.uf) setUf(s.uf);
         if (s.cidade) setCidade(s.cidade);
         if (s.cnae) setCnae(s.cnae);
         if (Array.isArray(s.results)) setResults(s.results);
         if (s.saved) setSaved(s.saved);
+        if (s.nextPage) setNextPage(s.nextPage);
       } catch {
         /* ignora cache inválido */
       }
@@ -352,12 +356,35 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     };
   }, [storeKey]);
 
+  // Carrega os municípios do estado escolhido (API pública do IBGE), para a
+  // cidade ser selecionável (evita erro de digitação).
+  useEffect(() => {
+    if (!uf) {
+      setCidadeOptions([]);
+      return;
+    }
+    let active = true;
+    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`)
+      .then((r) => r.json())
+      .then((list: { nome: string }[]) => {
+        if (!active || !Array.isArray(list)) return;
+        setCidadeOptions(list.map((m) => ({ value: m.nome, label: m.nome })));
+      })
+      .catch(() => {
+        if (active) setCidadeOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [uf]);
+
   function persist(next: {
     results: ProspectedLead[] | null;
     saved: Record<string, boolean>;
     ufV: string | null;
     cidadeV: string;
     cnaeV: string;
+    pageV: number;
   }) {
     if (!storeKey) return;
     void sessionStorage.setItem(
@@ -368,27 +395,49 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         cnae: next.cnaeV,
         results: next.results,
         saved: next.saved,
+        nextPage: next.pageV,
       }),
     );
+  }
+
+  // Trocar qualquer filtro reinicia a paginação (nova busca começa do zero).
+  function onChangeUf(v: string) {
+    setUf(v);
+    setCidade('');
+    setNextPage(1);
+  }
+  function onChangeCidade(v: string) {
+    setCidade(v);
+    setNextPage(1);
+  }
+  function onChangeCnae(v: string) {
+    setCnae(v);
+    setNextPage(1);
   }
 
   async function onProspectar() {
     setError(null);
     if (!uf) return setError('Escolha o estado.');
-    if (!cidade.trim()) return setError('Informe a cidade.');
+    if (!cidade.trim()) return setError('Escolha a cidade.');
     setLoading(true);
-    // Não limpamos os resultados atuais aqui: eles só são substituídos se a
-    // nova busca vier com sucesso.
-    const res = await prospectLeads({ uf, cidade: cidade.trim(), cnae, top: 30 });
+    const res = await prospectLeads({ uf, cidade: cidade.trim(), cnae, pagina: nextPage });
     setLoading(false);
     if (!res.ok) return setError(res.error);
     if (res.data.leads.length === 0) {
-      setError('Nenhuma empresa com telefone encontrada nesse filtro. Tente outra cidade ou segmento.');
+      setError('Nenhum lead encontrado nesse filtro. Tente outra cidade ou segmento.');
       return; // mantém a lista anterior na tela
     }
     setResults(res.data.leads);
     setSaved({});
-    persist({ results: res.data.leads, saved: {}, ufV: uf, cidadeV: cidade.trim(), cnaeV: cnae });
+    setNextPage(res.data.proximaPagina);
+    persist({
+      results: res.data.leads,
+      saved: {},
+      ufV: uf,
+      cidadeV: cidade.trim(),
+      cnaeV: cnae,
+      pageV: res.data.proximaPagina,
+    });
   }
 
   async function onSave(lead: ProspectedLead) {
@@ -403,7 +452,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     if (res.ok) {
       const nextSaved = { ...saved, [lead.cnpj]: true };
       setSaved(nextSaved);
-      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, cnaeV: cnae });
+      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, cnaeV: cnae, pageV: nextPage });
     }
   }
 
@@ -421,15 +470,24 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         placeholder="UF"
         value={uf}
         options={UFS.map((u) => ({ value: u, label: u }))}
-        onChange={setUf}
+        onChange={onChangeUf}
+        searchable
       />
-      <Input label="Cidade" value={cidade} onChangeText={setCidade} placeholder="Ex.: Goiânia" />
+      <Select
+        label="Cidade"
+        placeholder={uf ? 'Escolha a cidade' : 'Escolha o estado primeiro'}
+        value={cidade || null}
+        options={cidadeOptions}
+        onChange={onChangeCidade}
+        emptyHint={uf ? 'Carregando municípios…' : 'Escolha o estado primeiro.'}
+        searchable
+      />
       <Select
         label="Segmento (tipo de negócio)"
         placeholder="Escolha um segmento"
         value={cnae}
         options={SEGMENTOS.map((s) => ({ value: s.cnae, label: s.label }))}
-        onChange={setCnae}
+        onChange={onChangeCnae}
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}

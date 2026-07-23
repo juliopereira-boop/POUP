@@ -55,18 +55,20 @@ export interface ProspectedLead {
 export interface ProspectResult {
   leads: ProspectedLead[];
   total: number;
-  semTelefone: number;
+  /** Página a enviar na próxima busca (com os mesmos filtros) p/ trazer novos. */
+  proximaPagina: number;
 }
 
 /**
  * Prospecção ativa: busca empresas locais (dados públicos de CNPJ) por
  * estado + cidade + segmento e devolve donos/telefones pra ligar.
+ * `pagina` permite avançar para novos resultados a cada nova busca.
  */
 export async function prospectLeads(input: {
   uf: string;
   cidade: string;
   cnae: string;
-  top?: number;
+  pagina?: number;
 }): Promise<Result<ProspectResult>> {
   const { data, error } = await supabase.functions.invoke('prospect-leads', {
     body: input,
@@ -76,6 +78,6 @@ export async function prospectLeads(input: {
   return ok({
     leads: (data.leads ?? []) as ProspectedLead[],
     total: (data.total as number) ?? 0,
-    semTelefone: (data.sem_telefone as number) ?? 0,
+    proximaPagina: (data.proxima_pagina as number) ?? 1,
   });
 }

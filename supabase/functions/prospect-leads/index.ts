@@ -144,10 +144,11 @@ Deno.serve(async (req) => {
       return json({ error: 'Prospecção não configurada (CASADOSDADOS_API_KEY ausente).' });
     }
 
-    const { uf, cidade, cnae } = (await req.json().catch(() => ({}))) as {
+    const { uf, cidade, cnae, pagina } = (await req.json().catch(() => ({}))) as {
       uf?: string;
       cidade?: string;
       cnae?: string;
+      pagina?: number;
     };
     if (!uf || !cidade) return json({ error: 'Informe estado e cidade.' });
 
@@ -176,94 +177,131 @@ Deno.serve(async (req) => {
     }
 
     const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos → usa TARGET_CNAES
-    const body: Record<string, unknown> = {
+
+    const buildBody = (page: number, pageSize: number) => ({
       codigo_atividade_principal: cnaeDigits ? [cnaeDigits] : TARGET_CNAES,
       situacao_cadastral: ['ATIVA'],
       uf: [uf.toLowerCase()],
       municipio: [slug(cidade)],
       porte_empresa: { codigos: PORTE_MICRO },
       mais_filtros: { com_telefone: true },
-      limite: limit,
-      pagina: 1,
-    };
+      limite: pageSize,
+      pagina: page,
+    });
 
-    let res: Response;
-    try {
-      res = await fetch(PESQUISA_URL, {
+    async function fetchPage(
+      page: number,
+      pageSize: number,
+    ): Promise<{ status: number; arr: Record<string, unknown>[]; errText: string }> {
+      const r = await fetch(PESQUISA_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildBody(page, pageSize)),
         signal: AbortSignal.timeout(15000),
       });
-    } catch (e) {
-      return json({ error: 'Não consegui falar com a Casa dos Dados.', detail: String(e) });
-    }
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      console.error('Casa dos Dados', res.status, errBody);
-      const dica =
-        res.status === 401
-          ? 'chave de API inválida'
-          : res.status === 403
-            ? 'sem saldo para a operação'
-            : `HTTP ${res.status}`;
-      return json({
-        error: `A Casa dos Dados recusou a busca (${dica}).`,
-        detail: errBody.slice(0, 400),
-      });
+      if (!r.ok) {
+        return { status: r.status, arr: [], errText: await r.text().catch(() => '') };
+      }
+      const p = await r.json().catch(() => ({}));
+      const arr = p?.cnpjs ?? p?.data?.cnpjs ?? [];
+      return { status: 200, arr: Array.isArray(arr) ? arr : [], errText: '' };
     }
 
-    const payload = await res.json().catch(() => ({}));
-    const raw: Record<string, unknown>[] = payload?.cnpjs ?? payload?.data?.cnpjs ?? [];
-    const lista = Array.isArray(raw) ? raw.slice(0, limit) : [];
+    // Só PESSOAS: razão social que começa com o número (raiz do CNPJ) seguido
+    // do nome, ex.: "12.345.678 JOÃO DA SILVA" → guardamos só "JOÃO DA SILVA".
+    const NOME_RE = /^[\d.\/-]{6,}\s+(.+)$/;
 
-    // Regra: só PESSOAS — razão social que começa com o número (raiz do CNPJ)
-    // seguido do nome, ex.: "12.345.678 JOÃO DA SILVA". Guardamos só o nome
-    // ("JOÃO DA SILVA"), sem o número.
-    const pessoas = lista
-      .map((item) => {
-        const razao = str(item.razao_social) ?? '';
-        const m = razao.match(/^([\d.\/-]+)\s+(.+)$/);
-        const nome = m && m[1].includes('.') ? m[2].trim() : null;
-        return nome ? { item, nome } : null;
-      })
-      .filter((x): x is { item: Record<string, unknown>; nome: string } => x !== null);
+    type Lead = {
+      cnpj: string;
+      empresa: string;
+      nome: string;
+      phone: string;
+      email: string | null;
+      atividade: string | null;
+      cidade: string;
+      uf: string;
+    };
 
-    // Telefone vem da consulta detalhada; busca em paralelo com timeout.
-    const enriched = await Promise.all(
-      pessoas.map(async ({ item, nome }) => {
-        let phone = extractPhone(item);
-        let email = extractEmail(item);
-        let full = item;
-        const cnpj = str(item.cnpj) ?? '';
-        if (!phone && cnpj) {
-          const detail = await fetchDetail(cnpj);
-          if (detail) {
-            full = { ...item, ...detail };
-            phone = extractPhone(full);
-            email = email ?? extractEmail(full);
-          }
+    const PAGE_SIZE = Math.min(limit + 2, 30);
+    const MAX_PAGES = 8;
+    const leads: Lead[] = [];
+    let page = Math.max(1, Math.floor(Number(pagina) || 1));
+
+    // Pagina até completar exatamente `limit` leads (ou esgotar as páginas).
+    for (let i = 0; i < MAX_PAGES && leads.length < limit; i++) {
+      let pageData: { status: number; arr: Record<string, unknown>[]; errText: string };
+      try {
+        pageData = await fetchPage(page, PAGE_SIZE);
+      } catch (e) {
+        if (i === 0) {
+          return json({ error: 'Não consegui falar com a Casa dos Dados.', detail: String(e) });
         }
-        return { item, full, nome, phone, email };
-      }),
-    );
+        break;
+      }
+      if (pageData.status !== 200) {
+        if (i === 0) {
+          const dica =
+            pageData.status === 401
+              ? 'chave de API inválida'
+              : pageData.status === 403
+                ? 'sem saldo para a operação'
+                : `HTTP ${pageData.status}`;
+          return json({
+            error: `A Casa dos Dados recusou a busca (${dica}).`,
+            detail: pageData.errText.slice(0, 400),
+          });
+        }
+        break;
+      }
+      const arr = pageData.arr;
+      page++;
+      if (arr.length === 0) break; // acabaram os resultados
 
-    const leads = enriched
-      .filter((e) => e.phone)
-      .map(({ item, full, nome, phone, email }) => {
-        const end = (full.endereco as Record<string, unknown>) ?? {};
-        return {
-          cnpj: str(item.cnpj) ?? '',
-          empresa: nome,
-          nome,
-          phone: phone as string,
-          email,
+      const pessoas = arr
+        .map((item) => {
+          const razao = str(item.razao_social) ?? str(item.nome_fantasia) ?? '';
+          const m = razao.match(NOME_RE);
+          const nome = m ? m[1].trim() : null;
+          return nome ? { item, nome } : null;
+        })
+        .filter((x): x is { item: Record<string, unknown>; nome: string } => x !== null);
+
+      const enriched = await Promise.all(
+        pessoas.map(async ({ item, nome }) => {
+          let phone = extractPhone(item);
+          let email = extractEmail(item);
+          let full = item;
+          const cnpj = str(item.cnpj) ?? '';
+          if (!phone && cnpj) {
+            const detail = await fetchDetail(cnpj);
+            if (detail) {
+              full = { ...item, ...detail };
+              phone = extractPhone(full);
+              email = email ?? extractEmail(full);
+            }
+          }
+          return { item, full, nome, phone, email };
+        }),
+      );
+
+      for (const e of enriched) {
+        if (leads.length >= limit) break;
+        if (!e.phone) continue;
+        const end = (e.full.endereco as Record<string, unknown>) ?? {};
+        leads.push({
+          cnpj: str(e.item.cnpj) ?? '',
+          empresa: e.nome,
+          nome: e.nome,
+          phone: e.phone,
+          email: e.email,
           atividade:
-            str((full.atividade_principal as Record<string, unknown>)?.descricao as string) ?? null,
-          cidade: str(end.municipio) ?? str(full.municipio) ?? cidade,
-          uf: (str(end.uf) ?? str(full.uf) ?? uf).toUpperCase(),
-        };
-      });
+            str((e.full.atividade_principal as Record<string, unknown>)?.descricao as string) ??
+            null,
+          cidade: str(end.municipio) ?? str(e.full.municipio) ?? cidade,
+          uf: (str(end.uf) ?? str(e.full.uf) ?? uf).toUpperCase(),
+        });
+      }
+    }
 
     if (!unlimited && leads.length > 0) {
       await admin.from('prospect_usage').upsert(
@@ -281,7 +319,7 @@ Deno.serve(async (req) => {
     return json({
       leads,
       total: leads.length,
-      sem_telefone: pessoas.length - leads.length,
+      proxima_pagina: page,
       restante: unlimited ? null : PERIOD_CAP - usados - leads.length,
     });
   } catch (e) {
