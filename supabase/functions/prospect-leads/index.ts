@@ -213,11 +213,23 @@ Deno.serve(async (req) => {
 
     const payload = await res.json().catch(() => ({}));
     const raw: Record<string, unknown>[] = payload?.cnpjs ?? payload?.data?.cnpjs ?? [];
-    const candidatos = Array.isArray(raw) ? raw.slice(0, limit) : [];
+    const lista = Array.isArray(raw) ? raw.slice(0, limit) : [];
+
+    // Regra: só PESSOAS — razão social que começa com o número (raiz do CNPJ)
+    // seguido do nome, ex.: "12.345.678 JOÃO DA SILVA". Guardamos só o nome
+    // ("JOÃO DA SILVA"), sem o número.
+    const pessoas = lista
+      .map((item) => {
+        const razao = str(item.razao_social) ?? '';
+        const m = razao.match(/^([\d.\/-]+)\s+(.+)$/);
+        const nome = m && m[1].includes('.') ? m[2].trim() : null;
+        return nome ? { item, nome } : null;
+      })
+      .filter((x): x is { item: Record<string, unknown>; nome: string } => x !== null);
 
     // Telefone vem da consulta detalhada; busca em paralelo com timeout.
     const enriched = await Promise.all(
-      candidatos.map(async (item) => {
+      pessoas.map(async ({ item, nome }) => {
         let phone = extractPhone(item);
         let email = extractEmail(item);
         let full = item;
@@ -230,25 +242,18 @@ Deno.serve(async (req) => {
             email = email ?? extractEmail(full);
           }
         }
-        return { item, full, phone, email };
+        return { item, full, nome, phone, email };
       }),
     );
 
     const leads = enriched
       .filter((e) => e.phone)
-      .map(({ item, full, phone, email }) => {
-        const empresa = str(full.nome_fantasia) ?? str(full.razao_social) ?? 'Empresa';
-        const socios = full.quadro_societario ?? full.socios ?? full.qsa;
-        let dono: string | null = null;
-        if (Array.isArray(socios) && socios.length > 0) {
-          const s = socios[0] as Record<string, unknown>;
-          dono = str(s.nome) ?? str(s.nome_socio) ?? null;
-        }
+      .map(({ item, full, nome, phone, email }) => {
         const end = (full.endereco as Record<string, unknown>) ?? {};
         return {
           cnpj: str(item.cnpj) ?? '',
-          empresa,
-          nome: dono ?? empresa,
+          empresa: nome,
+          nome,
           phone: phone as string,
           email,
           atividade:
@@ -274,7 +279,7 @@ Deno.serve(async (req) => {
     return json({
       leads,
       total: leads.length,
-      sem_telefone: candidatos.length - leads.length,
+      sem_telefone: pessoas.length - leads.length,
       restante: unlimited ? null : PERIOD_CAP - usados - leads.length,
     });
   } catch (e) {

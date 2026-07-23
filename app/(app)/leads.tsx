@@ -397,7 +397,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
       name: lead.nome,
       phone: lead.phone,
       email: lead.email,
-      message: `${lead.empresa}${lead.atividade ? ` — ${lead.atividade}` : ''} · ${lead.cidade}/${lead.uf}`,
+      message: [lead.atividade, `${lead.cidade}/${lead.uf}`].filter(Boolean).join(' · '),
       source: 'prospeccao',
     });
     if (res.ok) {
@@ -449,9 +449,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
               <View style={styles.resultMain}>
                 <Text style={styles.resultName} numberOfLines={1}>
                   {lead.nome}
-                </Text>
-                <Text style={styles.resultMeta} numberOfLines={1}>
-                  {lead.empresa}
                 </Text>
                 <Text style={styles.resultMeta}>{formatPhone(lead.phone)}</Text>
               </View>
