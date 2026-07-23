@@ -205,6 +205,8 @@ export interface Lead {
 export interface LeadCampaign {
   titulo: string;
   subtitulo: string;
+  descricao: string;
+  beneficios: string[];
   convite: string;
 }
 

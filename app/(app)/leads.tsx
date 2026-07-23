@@ -295,7 +295,9 @@ function CaptacaoCard({
   const styles = useThemedStyles(makeStyles);
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [developmentId, setDevelopmentId] = useState<string | null>(null);
+  const [detalhes, setDetalhes] = useState('');
   const [convite, setConvite] = useState(() => defaultConvite(brokerName));
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -307,8 +309,8 @@ function CaptacaoCard({
 
   const link = useMemo(() => {
     if (!userId) return '';
-    const qs = developmentId ? `?empreendimento=${developmentId}` : '';
-    return `${env.appUrl}/captar/${userId}${qs}`;
+    const e = developmentId ? `&e=${developmentId}` : '';
+    return `${env.appUrl}/captar?c=${userId}${e}`;
   }, [userId, developmentId]);
 
   const developmentName = useMemo(
@@ -320,15 +322,16 @@ function CaptacaoCard({
     setError(null);
     setFeedback(null);
     setGenerating(true);
-    const res = await generateInvite({ developmentName });
+    const res = await generateInvite({ developmentName, detalhes: detalhes.trim() || null });
     setGenerating(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
     setConvite(res.data.convite);
-    setFeedback('Textos gerados! Sua página de captação já foi atualizada.');
-    setTimeout(() => setFeedback(null), 4000);
+    setPageTitle(res.data.titulo);
+    setFeedback('Página criada pela IA! Já está no ar — é só divulgar.');
+    setTimeout(() => setFeedback(null), 5000);
   }
 
   async function onDivulgar() {
@@ -350,10 +353,11 @@ function CaptacaoCard({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>📣 Divulgue e receba leads</Text>
+      <Text style={styles.cardTitle}>📣 Crie sua página e receba leads</Text>
       <Text style={styles.cardText}>
-        Compartilhe sua página de captação. Quem deixar nome e telefone vira lead automaticamente
-        aqui na Gestão de Leads — sem precisar configurar nada.
+        Descreva o empreendimento e a IA cria pra você uma página de captação bonita + o convite
+        pronto pra postar. Quem deixar nome e telefone vira lead automaticamente aqui na Gestão de
+        Leads — sem configurar nada.
       </Text>
 
       {developments.length > 0 ? (
@@ -366,23 +370,42 @@ function CaptacaoCard({
         />
       ) : null}
 
+      <Input
+        label="Descreva o empreendimento e os detalhes"
+        value={detalhes}
+        onChangeText={setDetalhes}
+        placeholder="Ex.: Apês de 2 e 3 quartos no Centro, a partir de R$ 350 mil, lazer completo, entrada facilitada em até 60x…"
+        multiline
+        numberOfLines={4}
+        style={styles.textArea}
+      />
+
+      <Button
+        label={generating ? 'Criando página…' : '✨ Criar página com IA'}
+        onPress={onGerar}
+        loading={generating}
+        style={styles.primaryCta}
+      />
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
+
+      {pageTitle ? (
+        <>
+          <Text style={styles.label}>Prévia da chamada da página</Text>
+          <View style={styles.previewBox}>
+            <Text style={styles.previewHeadline}>{pageTitle}</Text>
+          </View>
+        </>
+      ) : null}
+
       <Text style={styles.label}>Convite pronto pra postar</Text>
       <View style={styles.previewBox}>
         <Text style={styles.previewText}>{convite}</Text>
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
-
-      <Button label="📣 Divulgar agora" onPress={onDivulgar} style={styles.primaryCta} />
       <View style={styles.cardActions}>
-        <Button
-          label={generating ? 'Gerando…' : '✨ Gerar com IA'}
-          variant="secondary"
-          onPress={onGerar}
-          loading={generating}
-          style={styles.flexBtn}
-        />
+        <Button label="📣 Divulgar" onPress={onDivulgar} style={styles.flexBtn} />
         <Button
           label="Copiar link"
           variant="secondary"
@@ -535,6 +558,8 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.md,
     },
     previewText: { ...typography.body, color: colors.ink, lineHeight: 22 },
+    previewHeadline: { ...typography.heading, color: colors.ink },
+    textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
     feedback: {
       ...typography.caption,
       color: colors.success,

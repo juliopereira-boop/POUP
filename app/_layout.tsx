@@ -46,7 +46,7 @@ function ThemedNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
-        <Stack.Screen name="captar/[brokerId]" />
+        <Stack.Screen name="captar" />
         <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
       </Stack>
     </>

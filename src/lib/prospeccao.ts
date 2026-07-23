@@ -8,12 +8,12 @@ import { type LeadCampaign, type Result, err, ok } from '@/data';
  */
 export async function generateInvite(input?: {
   developmentName?: string | null;
-  extra?: string | null;
+  detalhes?: string | null;
 }): Promise<Result<LeadCampaign>> {
   const { data, error } = await supabase.functions.invoke('generate-invite', {
     body: {
       developmentName: input?.developmentName ?? undefined,
-      extra: input?.extra ?? undefined,
+      extra: input?.detalhes ?? undefined,
     },
   });
   if (error) return err(error.message);
@@ -27,6 +27,8 @@ export interface LeadPageInfo {
   agency: string | null;
   titulo: string | null;
   subtitulo: string | null;
+  descricao: string | null;
+  beneficios: string[];
 }
 
 /** Busca (público) os textos da página de captação de um corretor. */

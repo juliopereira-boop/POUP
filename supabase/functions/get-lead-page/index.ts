@@ -33,18 +33,22 @@ Deno.serve(async (req) => {
     admin.from('profiles').select('full_name, agency').eq('id', brokerId).maybeSingle(),
     admin
       .from('lead_campaigns')
-      .select('titulo, subtitulo')
+      .select('titulo, subtitulo, descricao, beneficios')
       .eq('user_id', brokerId)
       .maybeSingle(),
   ]);
 
   if (!profile) return json({ error: 'Corretor não encontrado.' }, 404);
 
+  const beneficios = Array.isArray(campaign?.beneficios) ? campaign?.beneficios : [];
+
   return json({
     brokerName: profile.full_name ?? null,
     agency: profile.agency ?? null,
     titulo: campaign?.titulo ?? null,
     subtitulo: campaign?.subtitulo ?? null,
+    descricao: campaign?.descricao ?? null,
+    beneficios,
   });
 });
 

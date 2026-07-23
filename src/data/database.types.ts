@@ -220,6 +220,8 @@ export interface Database {
           user_id: string;
           titulo: string;
           subtitulo: string;
+          descricao: string;
+          beneficios: string[];
           convite: string;
           updated_at: string;
         };
@@ -227,12 +229,16 @@ export interface Database {
           user_id: string;
           titulo: string;
           subtitulo: string;
+          descricao?: string;
+          beneficios?: string[];
           convite: string;
           updated_at?: string;
         };
         Update: {
           titulo?: string;
           subtitulo?: string;
+          descricao?: string;
+          beneficios?: string[];
           convite?: string;
           updated_at?: string;
         };

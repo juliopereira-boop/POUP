@@ -3,8 +3,5 @@
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "framework": null,
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/captar/:brokerId", "destination": "/captar/pagina.html" }
-  ]
+  "cleanUrls": true
 }
