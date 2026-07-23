@@ -26,11 +26,8 @@ const PESQUISA_URL = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa?tipo_resu
 const CONSULTA_BASE = 'https://api.casadosdados.com.br/v4/cnpj';
 const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
 
-// Regra do sistema: quando o corretor não escolhe um segmento específico
-// ("Todos os segmentos"), a busca foca nesses CNAEs (os de maior retorno de
-// leads com telefone). E SEMPRE priorizamos micro-empresas (porte '01').
-const TARGET_CNAES = ['7319002', '8219999', '5320201', '4930201', '9602501', '4923002'];
-const PORTE_MICRO = ['01'];
+// Regra do sistema: SÓ MEIs (Microempreendedor Individual), sem filtro de
+// categoria/CNAE. É o público-pessoa (dono é a própria pessoa física).
 
 // Contas de teste/admin sem limite de PERÍODO (manhã/tarde), mas com um teto
 // baixo por busca para não consumir créditos à toa durante os testes.
@@ -144,13 +141,16 @@ Deno.serve(async (req) => {
       return json({ error: 'Prospecção não configurada (CASADOSDADOS_API_KEY ausente).' });
     }
 
-    const { uf, cidade, cnae, pagina } = (await req.json().catch(() => ({}))) as {
+    const { uf, cidade, excluir } = (await req.json().catch(() => ({}))) as {
       uf?: string;
       cidade?: string;
-      cnae?: string;
-      pagina?: number;
+      /** CNPJs já vistos (não repetir em novas buscas). */
+      excluir?: string[];
     };
     if (!uf || !cidade) return json({ error: 'Informe estado e cidade.' });
+    const excluirCnpjs = Array.isArray(excluir)
+      ? excluir.map((c) => String(c).replace(/\D/g, '')).filter(Boolean).slice(0, 2000)
+      : [];
 
     // --- Limite por período (manhã/tarde) — contas de teste são ilimitadas ---
     const unlimited = UNLIMITED_EMAILS.has((user.email ?? '').toLowerCase());
@@ -176,15 +176,13 @@ Deno.serve(async (req) => {
       limit = Math.min(restante, PERIOD_CAP);
     }
 
-    const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos → usa TARGET_CNAES
-
     const buildBody = (page: number, pageSize: number) => ({
-      codigo_atividade_principal: cnaeDigits ? [cnaeDigits] : TARGET_CNAES,
       situacao_cadastral: ['ATIVA'],
       uf: [uf.toLowerCase()],
       municipio: [slug(cidade)],
-      porte_empresa: { codigos: PORTE_MICRO },
+      mei: { optante: true }, // SÓ MEIs
       mais_filtros: { com_telefone: true },
+      excluir: { cnpj: excluirCnpjs }, // não repetir os já vistos
       limite: pageSize,
       pagina: page,
     });
@@ -207,8 +205,9 @@ Deno.serve(async (req) => {
       return { status: 200, arr: Array.isArray(arr) ? arr : [], errText: '' };
     }
 
-    // Só PESSOAS: razão social que começa com o número (raiz do CNPJ) seguido
-    // do nome, ex.: "12.345.678 JOÃO DA SILVA" → guardamos só "JOÃO DA SILVA".
+    // Nome: se a razão social vier com o número na frente ("12.345.678 JOÃO
+    // DA SILVA"), guardamos só o nome ("JOÃO DA SILVA"). Se não vier número,
+    // usamos a razão como está — nunca descartamos por causa disso.
     const NOME_RE = /^[\d.\/-]{6,}\s+(.+)$/;
 
     type Lead = {
@@ -225,7 +224,7 @@ Deno.serve(async (req) => {
     const PAGE_SIZE = Math.min(limit + 2, 30);
     const MAX_PAGES = 8;
     const leads: Lead[] = [];
-    let page = Math.max(1, Math.floor(Number(pagina) || 1));
+    let page = 1;
 
     // Pagina até completar exatamente `limit` leads (ou esgotar as páginas).
     for (let i = 0; i < MAX_PAGES && leads.length < limit; i++) {
@@ -260,8 +259,9 @@ Deno.serve(async (req) => {
       const pessoas = arr
         .map((item) => {
           const razao = str(item.razao_social) ?? str(item.nome_fantasia) ?? '';
+          if (!razao) return null;
           const m = razao.match(NOME_RE);
-          const nome = m ? m[1].trim() : null;
+          const nome = (m ? m[1] : razao).trim();
           return nome ? { item, nome } : null;
         })
         .filter((x): x is { item: Record<string, unknown>; nome: string } => x !== null);
@@ -319,7 +319,6 @@ Deno.serve(async (req) => {
     return json({
       leads,
       total: leads.length,
-      proxima_pagina: page,
       restante: unlimited ? null : PERIOD_CAP - usados - leads.length,
     });
   } catch (e) {

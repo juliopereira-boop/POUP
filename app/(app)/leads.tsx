@@ -50,29 +50,6 @@ const UFS = [
   'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-/**
- * Segmentos de negócios locais cujos donos costumam ter renda mais alta —
- * bons alvos para ligar oferecendo imóvel. Cada um mapeia para o código CNAE
- * principal correspondente (só dígitos).
- */
-const SEGMENTOS: { label: string; cnae: string }[] = [
-  { label: 'Todos os segmentos', cnae: 'todos' },
-  { label: 'Escritórios de advocacia', cnae: '6911701' },
-  { label: 'Consultórios médicos', cnae: '8630503' },
-  { label: 'Consultórios odontológicos', cnae: '8630504' },
-  { label: 'Escritórios de contabilidade', cnae: '6920601' },
-  { label: 'Arquitetura e engenharia', cnae: '7111100' },
-  { label: 'Clínicas veterinárias', cnae: '7500100' },
-  { label: 'Concessionárias de veículos', cnae: '4511101' },
-  { label: 'Restaurantes', cnae: '5611201' },
-  { label: 'Farmácias e drogarias', cnae: '4771701' },
-  { label: 'Lojas de roupas', cnae: '4781400' },
-  { label: 'Salões de beleza', cnae: '9602501' },
-  { label: 'Academias', cnae: '9313100' },
-  { label: 'Hotéis e pousadas', cnae: '5510801' },
-  { label: 'Imobiliárias', cnae: '6821801' },
-];
-
 /** Copia texto (web) ou abre o compartilhar nativo — sem depender de libs extras. */
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
   if (Platform.OS === 'web') {
@@ -315,13 +292,13 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   const styles = useThemedStyles(makeStyles);
   const [uf, setUf] = useState<string | null>(null);
   const [cidade, setCidade] = useState('');
-  const [cnae, setCnae] = useState<string>('todos');
   const [cidadeOptions, setCidadeOptions] = useState<{ value: string; label: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ProspectedLead[] | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
-  const [nextPage, setNextPage] = useState(1);
+  // CNPJs já vistos (com os filtros atuais) — novas buscas nunca repetem.
+  const [seen, setSeen] = useState<string[]>([]);
 
   const storeKey = userId ? `prospect:${userId}` : null;
 
@@ -336,17 +313,15 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         const s = JSON.parse(raw) as {
           uf?: string | null;
           cidade?: string;
-          cnae?: string;
           results?: ProspectedLead[];
           saved?: Record<string, boolean>;
-          nextPage?: number;
+          seen?: string[];
         };
         if (s.uf) setUf(s.uf);
         if (s.cidade) setCidade(s.cidade);
-        if (s.cnae) setCnae(s.cnae);
         if (Array.isArray(s.results)) setResults(s.results);
         if (s.saved) setSaved(s.saved);
-        if (s.nextPage) setNextPage(s.nextPage);
+        if (Array.isArray(s.seen)) setSeen(s.seen);
       } catch {
         /* ignora cache inválido */
       }
@@ -383,8 +358,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     saved: Record<string, boolean>;
     ufV: string | null;
     cidadeV: string;
-    cnaeV: string;
-    pageV: number;
+    seenV: string[];
   }) {
     if (!storeKey) return;
     void sessionStorage.setItem(
@@ -392,27 +366,22 @@ function ProspectarCard({ userId }: { userId: string | null }) {
       JSON.stringify({
         uf: next.ufV,
         cidade: next.cidadeV,
-        cnae: next.cnaeV,
         results: next.results,
         saved: next.saved,
-        nextPage: next.pageV,
+        seen: next.seenV,
       }),
     );
   }
 
-  // Trocar qualquer filtro reinicia a paginação (nova busca começa do zero).
+  // Trocar o local reinicia a lista de "já vistos" (nova busca do zero).
   function onChangeUf(v: string) {
     setUf(v);
     setCidade('');
-    setNextPage(1);
+    setSeen([]);
   }
   function onChangeCidade(v: string) {
     setCidade(v);
-    setNextPage(1);
-  }
-  function onChangeCnae(v: string) {
-    setCnae(v);
-    setNextPage(1);
+    setSeen([]);
   }
 
   async function onProspectar() {
@@ -420,24 +389,19 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     if (!uf) return setError('Escolha o estado.');
     if (!cidade.trim()) return setError('Escolha a cidade.');
     setLoading(true);
-    const res = await prospectLeads({ uf, cidade: cidade.trim(), cnae, pagina: nextPage });
+    const res = await prospectLeads({ uf, cidade: cidade.trim(), excluir: seen });
     setLoading(false);
     if (!res.ok) return setError(res.error);
     if (res.data.leads.length === 0) {
-      setError('Nenhum lead encontrado nesse filtro. Tente outra cidade ou segmento.');
+      setError('Nenhum MEI novo encontrado nessa cidade. Tente outra cidade.');
       return; // mantém a lista anterior na tela
     }
+    const novosCnpjs = res.data.leads.map((l) => l.cnpj).filter(Boolean);
+    const nextSeen = [...seen, ...novosCnpjs];
     setResults(res.data.leads);
     setSaved({});
-    setNextPage(res.data.proximaPagina);
-    persist({
-      results: res.data.leads,
-      saved: {},
-      ufV: uf,
-      cidadeV: cidade.trim(),
-      cnaeV: cnae,
-      pageV: res.data.proximaPagina,
-    });
+    setSeen(nextSeen);
+    persist({ results: res.data.leads, saved: {}, ufV: uf, cidadeV: cidade.trim(), seenV: nextSeen });
   }
 
   async function onSave(lead: ProspectedLead) {
@@ -446,13 +410,13 @@ function ProspectarCard({ userId }: { userId: string | null }) {
       name: lead.nome,
       phone: lead.phone,
       email: lead.email,
-      message: [lead.atividade, `${lead.cidade}/${lead.uf}`].filter(Boolean).join(' · '),
+      message: `${lead.cidade}/${lead.uf}`,
       source: 'prospeccao',
     });
     if (res.ok) {
       const nextSaved = { ...saved, [lead.cnpj]: true };
       setSaved(nextSaved);
-      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, cnaeV: cnae, pageV: nextPage });
+      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, seenV: seen });
     }
   }
 
@@ -460,9 +424,9 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     <View style={[styles.card, styles.prospectCard]}>
       <Text style={styles.cardTitle}>🎯 Prospectar Leads</Text>
       <Text style={styles.cardText}>
-        Encontre donos de negócios locais (advogados, médicos, lojistas…) — o público que compra
-        imóvel — a partir de dados públicos de CNPJ. Escolha onde e o quê, e receba uma lista com
-        telefone pra ligar. Sem criar página, sem anúncio.
+        Encontre MEIs (microempreendedores) locais — pessoas com negócio próprio — a partir de
+        dados públicos de CNPJ. Escolha o estado e a cidade e receba uma lista com telefone pra
+        ligar. Cada nova busca traz contatos diferentes. Sem criar página, sem anúncio.
       </Text>
 
       <Select
@@ -481,13 +445,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         onChange={onChangeCidade}
         emptyHint={uf ? 'Carregando municípios…' : 'Escolha o estado primeiro.'}
         searchable
-      />
-      <Select
-        label="Segmento (tipo de negócio)"
-        placeholder="Escolha um segmento"
-        value={cnae}
-        options={SEGMENTOS.map((s) => ({ value: s.cnae, label: s.label }))}
-        onChange={onChangeCnae}
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
