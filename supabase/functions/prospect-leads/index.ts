@@ -1,5 +1,5 @@
 // Edge Function: PROSPECÇÃO ATIVA de leads a partir de dados PÚBLICOS de CNPJ
-// da Receita Federal, via API da Casa dos Dados.
+// da Receita Federal, via API da Casa dos Dados (v5 pesquisa + v4 consulta).
 //
 // O corretor escolhe UF + cidade + segmento (CNAE) e recebe uma lista de
 // empresas locais com nome e telefone público — donos de negócios (clínicas,
@@ -9,7 +9,7 @@
 // Limite: até 10 leads no período da manhã e 10 à tarde (horário de Brasília).
 //
 // Segredo necessário (Supabase → Edge Functions → Secrets):
-//   CASADOSDADOS_API_KEY   (Casa dos Dados → Conta → API / Integrações)
+//   CASADOSDADOS_API_KEY   (Casa dos Dados → Chave da API)
 //
 // Requer a migration 0010_prospect_usage.sql.
 
@@ -22,62 +22,88 @@ const corsHeaders = {
 };
 
 const API_KEY = Deno.env.get('CASADOSDADOS_API_KEY') ?? '';
-const BASE = 'https://api.casadosdados.com.br/v2/public/cnpj';
+const PESQUISA_URL = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa?tipo_resultado=completo';
+const CONSULTA_BASE = 'https://api.casadosdados.com.br/v4/cnpj';
 const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
 
-function normalizeCidade(s: string): string {
+/** minúsculo, sem acento — a Casa dos Dados usa cidade/UF assim (ex.: "sao paulo"). */
+function slug(s: string): string {
   return s
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
+    .toLowerCase()
     .trim();
-}
-
-function extractPhone(obj: Record<string, unknown>): string | null {
-  const tels = obj.telefones ?? obj.telefone ?? obj.contato_telefonico;
-  if (Array.isArray(tels)) {
-    for (const t of tels) {
-      if (typeof t === 'string') {
-        const d = t.replace(/\D/g, '');
-        if (d.length >= 10) return d;
-      } else if (t && typeof t === 'object') {
-        const o = t as Record<string, unknown>;
-        const d = `${o.ddd ?? ''}${o.numero ?? o.telefone ?? ''}`.replace(/\D/g, '');
-        if (d.length >= 10) return d;
-      }
-    }
-  }
-  for (const key of ['ddd_telefone_1', 'ddd_telefone_2', 'telefone_1', 'telefone', 'telefone1']) {
-    const v = obj[key];
-    if (typeof v === 'string') {
-      const d = v.replace(/\D/g, '');
-      if (d.length >= 10) return d;
-    }
-  }
-  const combo = `${obj.ddd ?? ''}${obj.numero ?? ''}`.replace(/\D/g, '');
-  if (combo.length >= 10) return combo;
-  return null;
 }
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+/** Extrai o primeiro telefone válido, cobrindo os formatos da pesquisa e da
+ * consulta detalhada (inclui bloco aninhado "estabelecimento"). */
+function extractPhone(obj: Record<string, unknown> | null): string | null {
+  if (!obj || typeof obj !== 'object') return null;
+  const sources: Record<string, unknown>[] = [obj];
+  const est = obj.estabelecimento;
+  if (est && typeof est === 'object') sources.push(est as Record<string, unknown>);
+
+  for (const src of sources) {
+    const tels = src.telefones ?? src.telefone ?? src.contato_telefonico;
+    if (Array.isArray(tels)) {
+      for (const t of tels) {
+        if (typeof t === 'string') {
+          const d = t.replace(/\D/g, '');
+          if (d.length >= 10) return d;
+        } else if (t && typeof t === 'object') {
+          const o = t as Record<string, unknown>;
+          const d = `${o.ddd ?? ''}${o.numero ?? o.telefone ?? ''}`.replace(/\D/g, '');
+          if (d.length >= 10) return d;
+        }
+      }
+    }
+    for (const [dddKey, numKey] of [
+      ['ddd1', 'telefone1'],
+      ['ddd2', 'telefone2'],
+      ['ddd_1', 'telefone_1'],
+    ]) {
+      const d = `${src[dddKey] ?? ''}${src[numKey] ?? ''}`.replace(/\D/g, '');
+      if (d.length >= 10) return d;
+    }
+    for (const key of ['ddd_telefone_1', 'ddd_telefone_2', 'telefone_1', 'telefone', 'telefone1']) {
+      const v = src[key];
+      if (typeof v === 'string') {
+        const d = v.replace(/\D/g, '');
+        if (d.length >= 10) return d;
+      }
+    }
+  }
+  return null;
+}
+
+function extractEmail(obj: Record<string, unknown> | null): string | null {
+  if (!obj) return null;
+  const est = (obj.estabelecimento as Record<string, unknown>) ?? {};
+  return str(obj.email) ?? str(est.email) ?? str(obj.correio_eletronico) ?? null;
+}
+
+/** Consulta detalhada de um CNPJ (traz telefone/e-mail). Best-effort + timeout. */
 async function fetchDetail(cnpj: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${BASE}/${cnpj.replace(/\D/g, '')}`, {
+    const res = await fetch(`${CONSULTA_BASE}/${cnpj.replace(/\D/g, '')}`, {
       headers: { 'api-key': API_KEY },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return (data?.cnpj ?? data?.data ?? data) as Record<string, unknown>;
+    return (data?.cnpj && typeof data.cnpj === 'object' ? data.cnpj : data) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
 }
 
-/** Período (manhã/tarde) e dia no horário de Brasília (UTC-3, sem horário de verão). */
 function brasiliaPeriodo(): { dia: string; periodo: 'manha' | 'tarde' } {
   const brt = new Date(Date.now() - 3 * 3600 * 1000);
   const dia = brt.toISOString().slice(0, 10);
@@ -134,36 +160,19 @@ Deno.serve(async (req) => {
     const limit = Math.min(restante, PERIOD_CAP);
 
     const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos os segmentos
-    const body = {
-      query: {
-        termo: [],
-        atividade_principal: cnaeDigits ? [cnaeDigits] : [],
-        natureza_juridica: [],
-        uf: [uf.toUpperCase()],
-        municipio: [normalizeCidade(cidade)],
-        situacao_cadastral: 'ATIVA',
-      },
-      range_query: {
-        data_abertura: { lte: null, gte: null },
-        capital_social: { lte: null, gte: null },
-      },
-      extras: {
-        somente_mei: false,
-        excluir_mei: false,
-        com_email: true,
-        incluir_atividade_secundaria: false,
-        com_contato_telefonico: true,
-        somente_fixo: false,
-        somente_celular: false,
-        somente_matriz: false,
-        somente_filial: false,
-      },
-      page: 1,
+    const body: Record<string, unknown> = {
+      codigo_atividade_principal: cnaeDigits ? [cnaeDigits] : [],
+      situacao_cadastral: ['ATIVA'],
+      uf: [uf.toLowerCase()],
+      municipio: [slug(cidade)],
+      mais_filtros: { com_telefone: true },
+      limite: limit,
+      pagina: 1,
     };
 
     let res: Response;
     try {
-      res = await fetch(`${BASE}/search`, {
+      res = await fetch(PESQUISA_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'api-key': API_KEY },
         body: JSON.stringify(body),
@@ -175,22 +184,27 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
       console.error('Casa dos Dados', res.status, errBody);
+      const dica =
+        res.status === 401
+          ? 'chave de API inválida'
+          : res.status === 403
+            ? 'sem saldo para a operação'
+            : `HTTP ${res.status}`;
       return json({
-        error: `A Casa dos Dados recusou a busca (HTTP ${res.status}). Verifique sua chave/plano.`,
+        error: `A Casa dos Dados recusou a busca (${dica}).`,
         detail: errBody.slice(0, 400),
       });
     }
 
     const payload = await res.json().catch(() => ({}));
-    const raw: Record<string, unknown>[] =
-      payload?.data?.cnpj ?? payload?.cnpj ?? payload?.data ?? payload?.results ?? [];
+    const raw: Record<string, unknown>[] = payload?.cnpjs ?? payload?.data?.cnpjs ?? [];
     const candidatos = Array.isArray(raw) ? raw.slice(0, limit) : [];
 
-    // Enriquece em paralelo: se o item da busca não trouxe telefone, busca o
-    // detalhe do CNPJ (com timeout, pra função nunca travar → nada de 502).
+    // Telefone vem da consulta detalhada; busca em paralelo com timeout.
     const enriched = await Promise.all(
       candidatos.map(async (item) => {
         let phone = extractPhone(item);
+        let email = extractEmail(item);
         let full = item;
         const cnpj = str(item.cnpj) ?? '';
         if (!phone && cnpj) {
@@ -198,42 +212,46 @@ Deno.serve(async (req) => {
           if (detail) {
             full = { ...item, ...detail };
             phone = extractPhone(full);
+            email = email ?? extractEmail(full);
           }
         }
-        return { item, full, phone };
+        return { item, full, phone, email };
       }),
     );
 
     const leads = enriched
       .filter((e) => e.phone)
-      .map(({ item, full, phone }) => {
-        const empresa =
-          str(full.nome_fantasia) ?? str(full.razao_social) ?? str(item.razao_social) ?? 'Empresa';
-        const socios = full.socios ?? full.qsa;
+      .map(({ item, full, phone, email }) => {
+        const empresa = str(full.nome_fantasia) ?? str(full.razao_social) ?? 'Empresa';
+        const socios = full.quadro_societario ?? full.socios ?? full.qsa;
         let dono: string | null = null;
         if (Array.isArray(socios) && socios.length > 0) {
           const s = socios[0] as Record<string, unknown>;
           dono = str(s.nome) ?? str(s.nome_socio) ?? null;
         }
+        const end = (full.endereco as Record<string, unknown>) ?? {};
         return {
           cnpj: str(item.cnpj) ?? '',
           empresa,
           nome: dono ?? empresa,
           phone: phone as string,
-          email: str(full.email) ?? str(full.correio_eletronico),
+          email,
           atividade:
-            str((full.atividade_principal as Record<string, unknown>)?.descricao as string) ??
-            str(full.cnae_principal) ??
-            null,
-          cidade: str(full.municipio) ?? cidade,
-          uf: str(full.uf) ?? uf,
+            str((full.atividade_principal as Record<string, unknown>)?.descricao as string) ?? null,
+          cidade: str(end.municipio) ?? str(full.municipio) ?? cidade,
+          uf: (str(end.uf) ?? str(full.uf) ?? uf).toUpperCase(),
         };
       });
 
-    // Consome a cota do período pela quantidade efetivamente retornada.
     if (leads.length > 0) {
       await admin.from('prospect_usage').upsert(
-        { user_id: user.id, dia, periodo, usados: usados + leads.length, updated_at: new Date().toISOString() },
+        {
+          user_id: user.id,
+          dia,
+          periodo,
+          usados: usados + leads.length,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'user_id,dia,periodo' },
       );
     }
