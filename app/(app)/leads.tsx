@@ -17,9 +17,10 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
-import { db, type Company, type Development, type Lead, type LeadStatus } from '@/data';
+import { db, type Development, type Lead, type LeadStatus } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
+import { generateInvite } from '@/lib/prospeccao';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -100,7 +101,11 @@ export default function LeadsScreen() {
       {tab === 'gestao' ? (
         <GestaoLeadsTab userId={user?.id ?? null} />
       ) : (
-        <ProspeccaoTab userId={user?.id ?? null} brokerPhone={profile?.phone ?? null} />
+        <ProspeccaoTab
+          userId={user?.id ?? null}
+          brokerName={profile?.fullName ?? null}
+          brokerPhone={profile?.phone ?? null}
+        />
       )}
     </Screen>
   );
@@ -254,104 +259,140 @@ function statusStyle(status: LeadStatus, styles: ReturnType<typeof makeStyles>) 
 
 function ProspeccaoTab({
   userId,
+  brokerName,
   brokerPhone,
 }: {
   userId: string | null;
+  brokerName: string | null;
   brokerPhone: string | null;
 }) {
-  const styles = useThemedStyles(makeStyles);
-
   return (
     <View>
-      <LandingPageCard userId={userId} />
+      <CaptacaoCard userId={userId} brokerName={brokerName} />
       <WhatsAppCard brokerPhone={brokerPhone} />
-      <MetaLeadAdsCard userId={userId} />
-      <View style={styles.googleNote}>
-        <Text style={styles.googleNoteText}>
-          Google Local Services (anúncios locais do Google) ainda não tem uma integração
-          self-service disponível — é um programa por convite, com painel próprio do Google. Por
-          enquanto, acompanhe esses leads direto no painel do Google.
-        </Text>
-      </View>
     </View>
   );
 }
 
-function LandingPageCard({ userId }: { userId: string | null }) {
+/** Convite padrão (client-side) para o botão Divulgar já funcionar sem IA. */
+function defaultConvite(brokerName: string | null): string {
+  const quem = brokerName?.trim() ? brokerName.trim().split(' ')[0] : 'eu';
+  return `🏡 Sonhando com o imóvel próprio? Me manda seu nome e telefone que ${quem === 'eu' ? 'eu' : quem} te ajudo a simular e realizar esse sonho! 👇`;
+}
+
+/**
+ * Coração da prospecção: em 1 toque o corretor divulga sua página de captação
+ * (quem preencher nome+telefone vira lead automático). A IA escreve o convite
+ * e os textos da página — o corretor não precisa configurar nada.
+ */
+function CaptacaoCard({
+  userId,
+  brokerName,
+}: {
+  userId: string | null;
+  brokerName: string | null;
+}) {
   const styles = useThemedStyles(makeStyles);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [developmentId, setDevelopmentId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [convite, setConvite] = useState(() => defaultConvite(brokerName));
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
-    Promise.all([db.companies.list(userId), db.developments.list(userId)]).then(
-      ([comps, devs]) => {
-        setCompanies(comps);
-        setDevelopments(devs);
-      },
-    );
+    db.developments.list(userId).then(setDevelopments);
   }, [userId]);
-
-  const developmentOptions = useMemo(
-    () => developments.filter((d) => !companyId || d.companyId === companyId),
-    [developments, companyId],
-  );
 
   const link = useMemo(() => {
     if (!userId) return '';
-    const params = new URLSearchParams();
-    if (companyId) params.set('empresa', companyId);
-    if (developmentId) params.set('empreendimento', developmentId);
-    const qs = params.toString();
-    return `${env.appUrl}/captar/${userId}${qs ? `?${qs}` : ''}`;
-  }, [userId, companyId, developmentId]);
+    const qs = developmentId ? `?empreendimento=${developmentId}` : '';
+    return `${env.appUrl}/captar/${userId}${qs}`;
+  }, [userId, developmentId]);
 
-  async function onCopy() {
+  const developmentName = useMemo(
+    () => developments.find((d) => d.id === developmentId)?.name ?? null,
+    [developments, developmentId],
+  );
+
+  async function onGerar() {
+    setError(null);
+    setFeedback(null);
+    setGenerating(true);
+    const res = await generateInvite({ developmentName });
+    setGenerating(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setConvite(res.data.convite);
+    setFeedback('Textos gerados! Sua página de captação já foi atualizada.');
+    setTimeout(() => setFeedback(null), 4000);
+  }
+
+  async function onDivulgar() {
+    setFeedback(null);
+    const result = await shareOrCopy(`${convite}\n\n${link}`);
+    if (result === 'copied') {
+      setFeedback('Copiado! Cole no Instagram, WhatsApp ou onde quiser divulgar.');
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  }
+
+  async function onCopyLink() {
     const result = await shareOrCopy(link);
     if (result === 'copied') {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setFeedback('Link copiado!');
+      setTimeout(() => setFeedback(null), 3000);
     }
   }
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>📝 Página de captação</Text>
+      <Text style={styles.cardTitle}>📣 Divulgue e receba leads</Text>
       <Text style={styles.cardText}>
-        Um link público com um formulário simples (nome e telefone). Compartilhe no Instagram,
-        WhatsApp ou anúncios — cada envio vira um lead automaticamente na Gestão de Leads.
+        Compartilhe sua página de captação. Quem deixar nome e telefone vira lead automaticamente
+        aqui na Gestão de Leads — sem precisar configurar nada.
       </Text>
 
-      <Select
-        label="Empresa (opcional)"
-        placeholder="Todas"
-        value={companyId}
-        options={companies.map((c) => ({ value: c.id, label: c.name }))}
-        onChange={(v) => {
-          setCompanyId(v);
-          setDevelopmentId(null);
-        }}
-      />
-      <Select
-        label="Empreendimento (opcional)"
-        placeholder="Todos"
-        value={developmentId}
-        options={developmentOptions.map((d) => ({ value: d.id, label: d.name }))}
-        onChange={setDevelopmentId}
-      />
+      {developments.length > 0 ? (
+        <Select
+          label="Empreendimento (opcional)"
+          placeholder="Geral (qualquer imóvel)"
+          value={developmentId}
+          options={developments.map((d) => ({ value: d.id, label: d.name }))}
+          onChange={setDevelopmentId}
+        />
+      ) : null}
 
-      <View style={styles.linkBox}>
-        <Text style={styles.linkText} numberOfLines={1}>
-          {link}
-        </Text>
+      <Text style={styles.label}>Convite pronto pra postar</Text>
+      <View style={styles.previewBox}>
+        <Text style={styles.previewText}>{convite}</Text>
       </View>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
+
+      <Button label="📣 Divulgar agora" onPress={onDivulgar} style={styles.primaryCta} />
       <View style={styles.cardActions}>
-        <Button label={copied ? 'Copiado!' : 'Copiar link'} variant="secondary" onPress={onCopy} />
-        <Button label="Abrir" onPress={() => void Linking.openURL(link)} />
+        <Button
+          label={generating ? 'Gerando…' : '✨ Gerar com IA'}
+          variant="secondary"
+          onPress={onGerar}
+          loading={generating}
+          style={styles.flexBtn}
+        />
+        <Button
+          label="Copiar link"
+          variant="secondary"
+          onPress={onCopyLink}
+          style={styles.flexBtn}
+        />
       </View>
+      <Pressable onPress={() => void Linking.openURL(link)} hitSlop={6}>
+        <Text style={styles.link}>Ver minha página de captação</Text>
+      </Pressable>
     </View>
   );
 }
@@ -359,16 +400,15 @@ function LandingPageCard({ userId }: { userId: string | null }) {
 function WhatsAppCard({ brokerPhone }: { brokerPhone: string | null }) {
   const styles = useThemedStyles(makeStyles);
   const digits = (brokerPhone ?? '').replace(/\D/g, '');
-  const message = 'Olá! Vi seu contato e gostaria de saber mais sobre imóveis disponíveis.';
+  const message = 'Olá! Gostaria de saber mais sobre imóveis disponíveis.';
   const link = digits ? `https://wa.me/55${digits}?text=${encodeURIComponent(message)}` : '';
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>💬 Link do WhatsApp</Text>
+      <Text style={styles.cardTitle}>💬 Falar direto no WhatsApp</Text>
       <Text style={styles.cardText}>
-        Um link (e um QR code) que abre uma conversa direto com você no WhatsApp — ótimo pra bio
-        do Instagram, cartão ou placa. Esses contatos não entram sozinhos na lista; adicione-os
-        manualmente em Gestão de Leads depois de conversar.
+        Um link e um QR code que abrem uma conversa direto com você — ótimo pra bio do Instagram,
+        cartão ou placa.
       </Text>
       {!digits ? (
         <Text style={styles.warn}>
@@ -376,11 +416,6 @@ function WhatsAppCard({ brokerPhone }: { brokerPhone: string | null }) {
         </Text>
       ) : (
         <>
-          <View style={styles.linkBox}>
-            <Text style={styles.linkText} numberOfLines={1}>
-              {link}
-            </Text>
-          </View>
           <View style={styles.qrWrap}>
             <Image source={{ uri: qrCodeUrl(link) }} style={styles.qrImage} />
           </View>
@@ -389,105 +424,12 @@ function WhatsAppCard({ brokerPhone }: { brokerPhone: string | null }) {
               label="Copiar link"
               variant="secondary"
               onPress={() => void shareOrCopy(link)}
+              style={styles.flexBtn}
             />
-            <Button label="Abrir" onPress={() => void Linking.openURL(link)} />
+            <Button label="Abrir" onPress={() => void Linking.openURL(link)} style={styles.flexBtn} />
           </View>
         </>
       )}
-    </View>
-  );
-}
-
-function MetaLeadAdsCard({ userId }: { userId: string | null }) {
-  const styles = useThemedStyles(makeStyles);
-  const [expanded, setExpanded] = useState(false);
-  const [pageId, setPageId] = useState('');
-  const [token, setToken] = useState('');
-  const [verifyToken, setVerifyToken] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    db.leads.getMetaIntegration(userId).then((integration) => {
-      if (!integration) {
-        setVerifyToken(Math.random().toString(36).slice(2, 15));
-        return;
-      }
-      setPageId(integration.pageId);
-      setToken(integration.pageAccessToken);
-      setVerifyToken(integration.verifyToken);
-    });
-  }, [userId]);
-
-  const webhookUrl = `${env.supabaseUrl}/functions/v1/meta-leads-webhook`;
-
-  async function onSave() {
-    if (!userId) return;
-    setError(null);
-    if (!pageId.trim() || !token.trim()) {
-      setError('Informe o Page ID e o token de acesso da página.');
-      return;
-    }
-    setSaving(true);
-    const res = await db.leads.saveMetaIntegration(userId, {
-      pageId: pageId.trim(),
-      pageAccessToken: token.trim(),
-      verifyToken,
-      companyId: null,
-      developmentId: null,
-    });
-    setSaving(false);
-    if (!res.ok) return setError(res.error);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
-
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>📘 Facebook/Instagram (Lead Ads)</Text>
-      <Text style={styles.cardText}>
-        Recebe automaticamente, aqui na Gestão de Leads, os contatos que preenchem o formulário
-        dos seus anúncios de captação de leads no Facebook/Instagram.
-      </Text>
-      <Pressable onPress={() => setExpanded((v) => !v)}>
-        <Text style={styles.link}>{expanded ? 'Ocultar' : 'Como configurar'}</Text>
-      </Pressable>
-      {expanded ? (
-        <Text style={styles.cardText}>
-          1) Isso exige um App no Meta for Developers com a permissão{' '}
-          <Text style={styles.bold}>leads_retrieval</Text> aprovada pelo Meta (App Review — feito
-          no painel do Meta, não aqui).{'\n'}
-          2) No seu App, configure o Webhook com a URL abaixo e o verify token gerado.{'\n'}
-          3) Cole o Page ID e o Page Access Token (gerados no Meta Business Suite) nos campos
-          abaixo e salve.
-        </Text>
-      ) : null}
-
-      <Text style={styles.label}>Webhook URL</Text>
-      <View style={styles.linkBox}>
-        <Text style={styles.linkText} numberOfLines={1}>
-          {webhookUrl}
-        </Text>
-      </View>
-      <Text style={styles.label}>Verify token</Text>
-      <View style={styles.linkBox}>
-        <Text style={styles.linkText} numberOfLines={1}>
-          {verifyToken}
-        </Text>
-      </View>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Input label="Page ID" value={pageId} onChangeText={setPageId} placeholder="123456789" />
-      <Input
-        label="Page Access Token"
-        value={token}
-        onChangeText={setToken}
-        placeholder="EAAxxxxxxxx..."
-        autoCapitalize="none"
-      />
-      <Button label={saved ? 'Salvo!' : 'Salvar integração'} onPress={onSave} loading={saving} />
     </View>
   );
 }
@@ -584,24 +526,33 @@ const makeStyles = (colors: AppColors) =>
     cardTitle: { ...typography.heading, color: colors.ink, marginBottom: spacing.sm },
     cardText: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.md },
     label: { ...typography.label, color: colors.inkMuted, marginBottom: spacing.sm },
-    linkBox: {
+    previewBox: {
       backgroundColor: colors.surfaceAlt,
       borderRadius: radius.md,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
       marginBottom: spacing.md,
     },
-    linkText: { ...typography.caption, color: colors.ink },
+    previewText: { ...typography.body, color: colors.ink, lineHeight: 22 },
+    feedback: {
+      ...typography.caption,
+      color: colors.success,
+      backgroundColor: colors.successSoft,
+      padding: spacing.md,
+      borderRadius: 8,
+      marginBottom: spacing.md,
+      overflow: 'hidden',
+    },
     cardActions: { flexDirection: 'row', gap: spacing.md },
-    link: { ...typography.label, color: colors.primary, marginBottom: spacing.md },
-    bold: { fontWeight: '700' },
+    flexBtn: { flex: 1 },
+    primaryCta: { marginBottom: spacing.md },
+    link: {
+      ...typography.label,
+      color: colors.primary,
+      marginTop: spacing.md,
+      textAlign: 'center',
+    },
     qrWrap: { alignItems: 'center', marginBottom: spacing.md },
     qrImage: { width: 160, height: 160, borderRadius: radius.md },
-    googleNote: {
-      backgroundColor: colors.surfaceAlt,
-      borderRadius: radius.md,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
-    },
-    googleNoteText: { ...typography.caption, color: colors.inkSubtle },
   });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -8,8 +8,12 @@ import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { supabase } from '@/lib/supabase';
 import { formatPhone } from '@/lib/masks';
+import { getLeadPage } from '@/lib/prospeccao';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+
+const DEFAULT_TITLE = 'Quero saber mais';
+const DEFAULT_SUBTITLE = 'Deixe seu nome e telefone que um corretor entra em contato.';
 
 /**
  * Landing page PÚBLICA de captação de leads — sem login, aberta pra qualquer
@@ -32,6 +36,22 @@ export default function CaptarLeadScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [title, setTitle] = useState(DEFAULT_TITLE);
+  const [subtitle, setSubtitle] = useState(DEFAULT_SUBTITLE);
+
+  // Carrega os textos da campanha do corretor (gerados pela IA), se houver.
+  useEffect(() => {
+    if (!brokerId) return;
+    let active = true;
+    getLeadPage(brokerId).then((info) => {
+      if (!active || !info) return;
+      if (info.titulo) setTitle(info.titulo);
+      if (info.subtitulo) setSubtitle(info.subtitulo);
+    });
+    return () => {
+      active = false;
+    };
+  }, [brokerId]);
 
   async function submit() {
     setError(null);
@@ -71,10 +91,8 @@ export default function CaptarLeadScreen() {
         </View>
       ) : (
         <View style={styles.card}>
-          <Text style={styles.title}>Quero saber mais</Text>
-          <Text style={styles.subtitle}>
-            Deixe seu nome e telefone que um corretor entra em contato.
-          </Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 

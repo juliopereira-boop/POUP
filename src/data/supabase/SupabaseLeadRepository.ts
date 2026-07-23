@@ -1,14 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { LeadRepository } from '../repositories';
-import {
-  type Lead,
-  type LeadStatus,
-  type MetaLeadIntegration,
-  type MetaLeadIntegrationInput,
-  type Result,
-  err,
-  ok,
-} from '../types';
+import { type Lead, type LeadStatus, type Result, err, ok } from '../types';
 
 const SELECT =
   'id, name, phone, email, message, source, company_id, development_id, status, created_at, updated_at, companies(name), developments(name)';
@@ -87,52 +79,5 @@ export class SupabaseLeadRepository implements LeadRepository {
     const { error } = await supabase.from('leads').delete().eq('id', id);
     if (error) return err(error.message);
     return ok(undefined);
-  }
-
-  async getMetaIntegration(userId: string): Promise<MetaLeadIntegration | null> {
-    const { data, error } = await supabase
-      .from('meta_lead_integrations')
-      .select('page_id, page_access_token, verify_token, company_id, development_id, updated_at')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return {
-      pageId: data.page_id,
-      pageAccessToken: data.page_access_token,
-      verifyToken: data.verify_token,
-      companyId: data.company_id,
-      developmentId: data.development_id,
-      updatedAt: data.updated_at,
-    };
-  }
-
-  async saveMetaIntegration(
-    userId: string,
-    data: MetaLeadIntegrationInput,
-  ): Promise<Result<MetaLeadIntegration>> {
-    const { data: row, error } = await supabase
-      .from('meta_lead_integrations')
-      .upsert(
-        {
-          user_id: userId,
-          page_id: data.pageId,
-          page_access_token: data.pageAccessToken,
-          verify_token: data.verifyToken,
-          company_id: data.companyId,
-          development_id: data.developmentId,
-        },
-        { onConflict: 'user_id' },
-      )
-      .select('page_id, page_access_token, verify_token, company_id, development_id, updated_at')
-      .single();
-    if (error || !row) return err(error?.message ?? 'Falha ao salvar a integração.');
-    return ok({
-      pageId: row.page_id,
-      pageAccessToken: row.page_access_token,
-      verifyToken: row.verify_token,
-      companyId: row.company_id,
-      developmentId: row.development_id,
-      updatedAt: row.updated_at,
-    });
   }
 }

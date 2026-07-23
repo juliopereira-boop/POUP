@@ -215,33 +215,25 @@ export interface Database {
         };
         Relationships: [];
       };
-      meta_lead_integrations: {
+      lead_campaigns: {
         Row: {
           user_id: string;
-          page_id: string;
-          page_access_token: string;
-          verify_token: string;
-          company_id: string | null;
-          development_id: string | null;
-          created_at: string;
+          titulo: string;
+          subtitulo: string;
+          convite: string;
           updated_at: string;
         };
         Insert: {
           user_id: string;
-          page_id: string;
-          page_access_token: string;
-          verify_token: string;
-          company_id?: string | null;
-          development_id?: string | null;
-          created_at?: string;
+          titulo: string;
+          subtitulo: string;
+          convite: string;
           updated_at?: string;
         };
         Update: {
-          page_id?: string;
-          page_access_token?: string;
-          verify_token?: string;
-          company_id?: string | null;
-          development_id?: string | null;
+          titulo?: string;
+          subtitulo?: string;
+          convite?: string;
           updated_at?: string;
         };
         Relationships: [];

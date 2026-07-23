@@ -198,22 +198,14 @@ export interface Lead {
   updatedAt: string;
 }
 
-/** Config da integração com o Meta Lead Ads (Facebook/Instagram) de um usuário. */
-export interface MetaLeadIntegration {
-  pageId: string;
-  pageAccessToken: string;
-  verifyToken: string;
-  companyId: string | null;
-  developmentId: string | null;
-  updatedAt: string;
-}
-
-export interface MetaLeadIntegrationInput {
-  pageId: string;
-  pageAccessToken: string;
-  verifyToken: string;
-  companyId: string | null;
-  developmentId: string | null;
+/**
+ * Textos de captação gerados pela IA para o corretor: o que aparece na página
+ * pública de captação (título/subtítulo) e o convite pronto pra compartilhar.
+ */
+export interface LeadCampaign {
+  titulo: string;
+  subtitulo: string;
+  convite: string;
 }
 
 /**

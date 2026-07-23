@@ -14,8 +14,6 @@ import type {
   DevelopmentInput,
   Lead,
   LeadStatus,
-  MetaLeadIntegration,
-  MetaLeadIntegrationInput,
   Result,
   Simulation,
   SimulationInput,
@@ -130,9 +128,9 @@ export interface MaterialRepository {
 }
 
 /**
- * Leads captados (gestão + prospecção). Leads chegam por 4 caminhos:
- * landing page pública, link de WhatsApp (cadastro manual), Meta Lead Ads
- * (webhook) ou cadastro manual direto na Gestão de Leads.
+ * Leads captados (gestão + prospecção). Leads chegam por 3 caminhos:
+ * página pública de captação, link de WhatsApp (cadastro manual) ou cadastro
+ * manual direto na Gestão de Leads.
  */
 export interface LeadRepository {
   /** Leads do usuário, mais recentes primeiro. */
@@ -143,9 +141,4 @@ export interface LeadRepository {
   ): Promise<Result<Lead>>;
   updateStatus(id: string, status: LeadStatus): Promise<Result<void>>;
   remove(id: string): Promise<Result<void>>;
-  getMetaIntegration(userId: string): Promise<MetaLeadIntegration | null>;
-  saveMetaIntegration(
-    userId: string,
-    data: MetaLeadIntegrationInput,
-  ): Promise<Result<MetaLeadIntegration>>;
 }
