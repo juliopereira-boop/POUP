@@ -177,7 +177,7 @@ export type SimulationInput = Omit<
 >;
 
 /** Origem do lead. */
-export type LeadSource = 'landing' | 'whatsapp' | 'meta' | 'manual';
+export type LeadSource = 'landing' | 'whatsapp' | 'prospeccao' | 'meta' | 'manual';
 /** Ciclo de vida simples do lead. */
 export type LeadStatus = 'novo' | 'em_contato' | 'convertido' | 'perdido';
 

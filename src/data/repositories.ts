@@ -13,6 +13,7 @@ import type {
   Development,
   DevelopmentInput,
   Lead,
+  LeadSource,
   LeadStatus,
   Result,
   Simulation,
@@ -137,7 +138,13 @@ export interface LeadRepository {
   list(userId: string): Promise<Lead[]>;
   create(
     userId: string,
-    data: { name: string; phone: string; email?: string | null },
+    data: {
+      name: string;
+      phone: string;
+      email?: string | null;
+      message?: string | null;
+      source?: LeadSource;
+    },
   ): Promise<Result<Lead>>;
   updateStatus(id: string, status: LeadStatus): Promise<Result<void>>;
   remove(id: string): Promise<Result<void>>;

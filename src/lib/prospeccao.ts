@@ -39,3 +39,43 @@ export async function getLeadPage(brokerId: string): Promise<LeadPageInfo | null
   if (error || !data || data.error) return null;
   return data as LeadPageInfo;
 }
+
+/** Um lead prospectado a partir de dados públicos de CNPJ (ainda não salvo). */
+export interface ProspectedLead {
+  cnpj: string;
+  empresa: string;
+  nome: string;
+  phone: string;
+  email: string | null;
+  atividade: string | null;
+  cidade: string;
+  uf: string;
+}
+
+export interface ProspectResult {
+  leads: ProspectedLead[];
+  total: number;
+  semTelefone: number;
+}
+
+/**
+ * Prospecção ativa: busca empresas locais (dados públicos de CNPJ) por
+ * estado + cidade + segmento e devolve donos/telefones pra ligar.
+ */
+export async function prospectLeads(input: {
+  uf: string;
+  cidade: string;
+  cnae: string;
+  top?: number;
+}): Promise<Result<ProspectResult>> {
+  const { data, error } = await supabase.functions.invoke('prospect-leads', {
+    body: input,
+  });
+  if (error) return err(error.message);
+  if (data?.error) return err(data.error as string);
+  return ok({
+    leads: (data.leads ?? []) as ProspectedLead[],
+    total: (data.total as number) ?? 0,
+    semTelefone: (data.sem_telefone as number) ?? 0,
+  });
+}

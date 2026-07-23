@@ -20,7 +20,7 @@ import { Select } from '@/components/Select';
 import { db, type Development, type Lead, type LeadStatus } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
-import { generateInvite } from '@/lib/prospeccao';
+import { generateInvite, prospectLeads, type ProspectedLead } from '@/lib/prospeccao';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -38,9 +38,38 @@ const STATUS_ORDER: LeadStatus[] = ['novo', 'em_contato', 'convertido', 'perdido
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
   whatsapp: 'WhatsApp',
+  prospeccao: 'Prospecção',
   meta: 'Facebook/Instagram',
   manual: 'Manual',
 };
+
+/** Estados (UF) para o filtro de prospecção. */
+const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+];
+
+/**
+ * Segmentos de negócios locais cujos donos costumam ter renda mais alta —
+ * bons alvos para ligar oferecendo imóvel. Cada um mapeia para o código CNAE
+ * principal correspondente (só dígitos).
+ */
+const SEGMENTOS: { label: string; cnae: string }[] = [
+  { label: 'Escritórios de advocacia', cnae: '6911701' },
+  { label: 'Consultórios médicos', cnae: '8630503' },
+  { label: 'Consultórios odontológicos', cnae: '8630504' },
+  { label: 'Escritórios de contabilidade', cnae: '6920601' },
+  { label: 'Arquitetura e engenharia', cnae: '7111100' },
+  { label: 'Clínicas veterinárias', cnae: '7500100' },
+  { label: 'Concessionárias de veículos', cnae: '4511101' },
+  { label: 'Restaurantes', cnae: '5611201' },
+  { label: 'Farmácias e drogarias', cnae: '4771701' },
+  { label: 'Lojas de roupas', cnae: '4781400' },
+  { label: 'Salões de beleza', cnae: '9602501' },
+  { label: 'Academias', cnae: '9313100' },
+  { label: 'Hotéis e pousadas', cnae: '5510801' },
+  { label: 'Imobiliárias', cnae: '6821801' },
+];
 
 /** Copia texto (web) ou abre o compartilhar nativo — sem depender de libs extras. */
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
@@ -268,8 +297,122 @@ function ProspeccaoTab({
 }) {
   return (
     <View>
+      <ProspectarCard userId={userId} />
       <CaptacaoCard userId={userId} brokerName={brokerName} />
       <WhatsAppCard brokerPhone={brokerPhone} />
+    </View>
+  );
+}
+
+/**
+ * Prospecção ATIVA: o corretor escolhe estado + cidade + segmento e recebe
+ * uma lista de donos de empresas locais (dados públicos de CNPJ) com telefone
+ * pra ligar. Salva os que quiser na Gestão de Leads. Sem página, sem anúncio.
+ */
+function ProspectarCard({ userId }: { userId: string | null }) {
+  const styles = useThemedStyles(makeStyles);
+  const [uf, setUf] = useState<string | null>(null);
+  const [cidade, setCidade] = useState('');
+  const [cnae, setCnae] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<ProspectedLead[] | null>(null);
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
+
+  async function onProspectar() {
+    setError(null);
+    if (!uf) return setError('Escolha o estado.');
+    if (!cidade.trim()) return setError('Informe a cidade.');
+    if (!cnae) return setError('Escolha o segmento.');
+    setLoading(true);
+    setResults(null);
+    setSaved({});
+    const res = await prospectLeads({ uf, cidade: cidade.trim(), cnae, top: 30 });
+    setLoading(false);
+    if (!res.ok) return setError(res.error);
+    setResults(res.data.leads);
+    if (res.data.leads.length === 0) {
+      setError('Nenhuma empresa com telefone encontrada nesse filtro. Tente outra cidade ou segmento.');
+    }
+  }
+
+  async function onSave(lead: ProspectedLead) {
+    if (!userId) return;
+    const res = await db.leads.create(userId, {
+      name: lead.nome,
+      phone: lead.phone,
+      email: lead.email,
+      message: `${lead.empresa}${lead.atividade ? ` — ${lead.atividade}` : ''} · ${lead.cidade}/${lead.uf}`,
+      source: 'prospeccao',
+    });
+    if (res.ok) setSaved((prev) => ({ ...prev, [lead.cnpj]: true }));
+  }
+
+  return (
+    <View style={[styles.card, styles.prospectCard]}>
+      <Text style={styles.cardTitle}>🎯 Prospectar Leads</Text>
+      <Text style={styles.cardText}>
+        Encontre donos de negócios locais (advogados, médicos, lojistas…) — o público que compra
+        imóvel — a partir de dados públicos de CNPJ. Escolha onde e o quê, e receba uma lista com
+        telefone pra ligar. Sem criar página, sem anúncio.
+      </Text>
+
+      <Select
+        label="Estado"
+        placeholder="UF"
+        value={uf}
+        options={UFS.map((u) => ({ value: u, label: u }))}
+        onChange={setUf}
+      />
+      <Input label="Cidade" value={cidade} onChangeText={setCidade} placeholder="Ex.: Goiânia" />
+      <Select
+        label="Segmento (tipo de negócio)"
+        placeholder="Escolha um segmento"
+        value={cnae}
+        options={SEGMENTOS.map((s) => ({ value: s.cnae, label: s.label }))}
+        onChange={setCnae}
+      />
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <Button
+        label={loading ? 'Buscando…' : '🎯 Prospectar'}
+        onPress={onProspectar}
+        loading={loading}
+        style={styles.primaryCta}
+      />
+
+      {results && results.length > 0 ? (
+        <View style={styles.results}>
+          <Text style={styles.resultsCount}>{results.length} encontrados</Text>
+          {results.map((lead) => (
+            <View key={lead.cnpj} style={styles.resultRow}>
+              <View style={styles.resultMain}>
+                <Text style={styles.resultName} numberOfLines={1}>
+                  {lead.nome}
+                </Text>
+                <Text style={styles.resultMeta} numberOfLines={1}>
+                  {lead.empresa}
+                </Text>
+                <Text style={styles.resultMeta}>{formatPhone(lead.phone)}</Text>
+              </View>
+              <View style={styles.resultActions}>
+                <Pressable
+                  onPress={() => void Linking.openURL(`https://wa.me/55${lead.phone}`)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.resultIcon}>💬</Text>
+                </Pressable>
+                {saved[lead.cnpj] ? (
+                  <Text style={styles.savedTag}>Salvo ✓</Text>
+                ) : (
+                  <Button label="Salvar" variant="secondary" onPress={() => void onSave(lead)} />
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -560,6 +703,25 @@ const makeStyles = (colors: AppColors) =>
     previewText: { ...typography.body, color: colors.ink, lineHeight: 22 },
     previewHeadline: { ...typography.heading, color: colors.ink },
     textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
+    prospectCard: { borderColor: colors.primary, borderWidth: 1.5 },
+    results: { marginTop: spacing.lg, gap: spacing.md },
+    resultsCount: { ...typography.label, color: colors.inkMuted },
+    resultRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      gap: spacing.md,
+    },
+    resultMain: { flex: 1 },
+    resultName: { ...typography.body, color: colors.ink, fontWeight: '600' },
+    resultMeta: { ...typography.caption, color: colors.inkSubtle, marginTop: 1 },
+    resultActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    resultIcon: { fontSize: 18 },
+    savedTag: { ...typography.caption, color: colors.success, fontWeight: '700' },
     feedback: {
       ...typography.caption,
       color: colors.success,

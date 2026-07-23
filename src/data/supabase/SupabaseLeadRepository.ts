@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { LeadRepository } from '../repositories';
-import { type Lead, type LeadStatus, type Result, err, ok } from '../types';
+import { type Lead, type LeadSource, type LeadStatus, type Result, err, ok } from '../types';
 
 const SELECT =
   'id, name, phone, email, message, source, company_id, development_id, status, created_at, updated_at, companies(name), developments(name)';
@@ -52,7 +52,13 @@ export class SupabaseLeadRepository implements LeadRepository {
 
   async create(
     userId: string,
-    data: { name: string; phone: string; email?: string | null },
+    data: {
+      name: string;
+      phone: string;
+      email?: string | null;
+      message?: string | null;
+      source?: LeadSource;
+    },
   ): Promise<Result<Lead>> {
     const { data: row, error } = await supabase
       .from('leads')
@@ -61,7 +67,8 @@ export class SupabaseLeadRepository implements LeadRepository {
         name: data.name,
         phone: data.phone,
         email: data.email ?? null,
-        source: 'manual',
+        message: data.message ?? null,
+        source: data.source ?? 'manual',
       })
       .select(SELECT)
       .single();
