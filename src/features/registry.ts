@@ -22,8 +22,8 @@ export const FEATURES: Feature[] = [
     title: 'Leads',
     emoji: '📇',
     route: '/(app)/leads',
-    description: 'Gerencie seus contatos e oportunidades de venda.',
-    ready: false,
+    description: 'Gerencie seus contatos e capte novos leads com prospecção.',
+    ready: true,
   },
   {
     key: 'calendario',

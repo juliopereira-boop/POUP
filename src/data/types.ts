@@ -176,6 +176,46 @@ export type SimulationInput = Omit<
   'id' | 'status' | 'createdAt' | 'updatedAt'
 >;
 
+/** Origem do lead. */
+export type LeadSource = 'landing' | 'whatsapp' | 'meta' | 'manual';
+/** Ciclo de vida simples do lead. */
+export type LeadStatus = 'novo' | 'em_contato' | 'convertido' | 'perdido';
+
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  message: string | null;
+  source: LeadSource;
+  companyId: string | null;
+  /** Preenchido em consultas com join. */
+  companyName?: string | null;
+  developmentId: string | null;
+  developmentName?: string | null;
+  status: LeadStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Config da integração com o Meta Lead Ads (Facebook/Instagram) de um usuário. */
+export interface MetaLeadIntegration {
+  pageId: string;
+  pageAccessToken: string;
+  verifyToken: string;
+  companyId: string | null;
+  developmentId: string | null;
+  updatedAt: string;
+}
+
+export interface MetaLeadIntegrationInput {
+  pageId: string;
+  pageAccessToken: string;
+  verifyToken: string;
+  companyId: string | null;
+  developmentId: string | null;
+}
+
 /**
  * Um item dentro do Material de Vendas (armazenado no Storage, não no banco).
  * Pode ser uma pasta (isFolder) ou um arquivo.

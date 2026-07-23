@@ -11,6 +11,7 @@ import type {
   BillingRepository,
   CompanyRepository,
   DevelopmentRepository,
+  LeadRepository,
   MaterialRepository,
   ProfileRepository,
   SimulationRepository,
@@ -22,6 +23,7 @@ import { SupabaseCompanyRepository } from './supabase/SupabaseCompanyRepository'
 import { SupabaseDevelopmentRepository } from './supabase/SupabaseDevelopmentRepository';
 import { SupabaseSimulationRepository } from './supabase/SupabaseSimulationRepository';
 import { SupabaseMaterialRepository } from './supabase/SupabaseMaterialRepository';
+import { SupabaseLeadRepository } from './supabase/SupabaseLeadRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -31,6 +33,7 @@ export interface DataLayer {
   developments: DevelopmentRepository;
   simulations: SimulationRepository;
   material: MaterialRepository;
+  leads: LeadRepository;
 }
 
 /**
@@ -53,6 +56,7 @@ function createDataLayer(provider: Provider): DataLayer {
         developments: new SupabaseDevelopmentRepository(),
         simulations: new SupabaseSimulationRepository(),
         material: new SupabaseMaterialRepository(),
+        leads: new SupabaseLeadRepository(),
       };
   }
 }
@@ -65,6 +69,7 @@ export type {
   BillingRepository,
   CompanyRepository,
   DevelopmentRepository,
+  LeadRepository,
   MaterialRepository,
   ProfileRepository,
   SimulationRepository,

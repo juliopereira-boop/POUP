@@ -173,6 +173,79 @@ export interface Database {
         };
         Relationships: [];
       };
+      leads: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          phone: string;
+          email: string | null;
+          message: string | null;
+          source: string;
+          company_id: string | null;
+          development_id: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          phone: string;
+          email?: string | null;
+          message?: string | null;
+          source?: string;
+          company_id?: string | null;
+          development_id?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          phone?: string;
+          email?: string | null;
+          message?: string | null;
+          source?: string;
+          company_id?: string | null;
+          development_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      meta_lead_integrations: {
+        Row: {
+          user_id: string;
+          page_id: string;
+          page_access_token: string;
+          verify_token: string;
+          company_id: string | null;
+          development_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          page_id: string;
+          page_access_token: string;
+          verify_token: string;
+          company_id?: string | null;
+          development_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          page_id?: string;
+          page_access_token?: string;
+          verify_token?: string;
+          company_id?: string | null;
+          development_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       simulations: {
         Row: {
           id: string;
