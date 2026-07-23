@@ -26,6 +26,12 @@ const PESQUISA_URL = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa?tipo_resu
 const CONSULTA_BASE = 'https://api.casadosdados.com.br/v4/cnpj';
 const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
 
+// Regra do sistema: quando o corretor não escolhe um segmento específico
+// ("Todos os segmentos"), a busca foca nesses CNAEs (os de maior retorno de
+// leads com telefone). E SEMPRE priorizamos micro-empresas (porte '01').
+const TARGET_CNAES = ['7319002', '8219999', '5320201', '4930201', '9602501', '4923002'];
+const PORTE_MICRO = ['01'];
+
 /** minúsculo, sem acento — a Casa dos Dados usa cidade/UF assim (ex.: "sao paulo"). */
 function slug(s: string): string {
   return s
@@ -159,12 +165,13 @@ Deno.serve(async (req) => {
     }
     const limit = Math.min(restante, PERIOD_CAP);
 
-    const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos os segmentos
+    const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos → usa TARGET_CNAES
     const body: Record<string, unknown> = {
-      codigo_atividade_principal: cnaeDigits ? [cnaeDigits] : [],
+      codigo_atividade_principal: cnaeDigits ? [cnaeDigits] : TARGET_CNAES,
       situacao_cadastral: ['ATIVA'],
       uf: [uf.toLowerCase()],
       municipio: [slug(cidade)],
+      porte_empresa: { codigos: PORTE_MICRO },
       mais_filtros: { com_telefone: true },
       limite: limit,
       pagina: 1,

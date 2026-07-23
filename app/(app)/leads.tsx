@@ -21,6 +21,7 @@ import { db, type Development, type Lead, type LeadStatus } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
 import { generateInvite, prospectLeads, type ProspectedLead } from '@/lib/prospeccao';
+import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -320,20 +321,74 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   const [results, setResults] = useState<ProspectedLead[] | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
 
+  const storeKey = userId ? `prospect:${userId}` : null;
+
+  // Restaura a última prospecção salva (persiste até uma nova busca) — os
+  // resultados NÃO somem ao sair/voltar da tela.
+  useEffect(() => {
+    if (!storeKey) return;
+    let active = true;
+    sessionStorage.getItem(storeKey).then((raw) => {
+      if (!active || !raw) return;
+      try {
+        const s = JSON.parse(raw) as {
+          uf?: string | null;
+          cidade?: string;
+          cnae?: string;
+          results?: ProspectedLead[];
+          saved?: Record<string, boolean>;
+        };
+        if (s.uf) setUf(s.uf);
+        if (s.cidade) setCidade(s.cidade);
+        if (s.cnae) setCnae(s.cnae);
+        if (Array.isArray(s.results)) setResults(s.results);
+        if (s.saved) setSaved(s.saved);
+      } catch {
+        /* ignora cache inválido */
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [storeKey]);
+
+  function persist(next: {
+    results: ProspectedLead[] | null;
+    saved: Record<string, boolean>;
+    ufV: string | null;
+    cidadeV: string;
+    cnaeV: string;
+  }) {
+    if (!storeKey) return;
+    void sessionStorage.setItem(
+      storeKey,
+      JSON.stringify({
+        uf: next.ufV,
+        cidade: next.cidadeV,
+        cnae: next.cnaeV,
+        results: next.results,
+        saved: next.saved,
+      }),
+    );
+  }
+
   async function onProspectar() {
     setError(null);
     if (!uf) return setError('Escolha o estado.');
     if (!cidade.trim()) return setError('Informe a cidade.');
     setLoading(true);
-    setResults(null);
-    setSaved({});
+    // Não limpamos os resultados atuais aqui: eles só são substituídos se a
+    // nova busca vier com sucesso.
     const res = await prospectLeads({ uf, cidade: cidade.trim(), cnae, top: 30 });
     setLoading(false);
     if (!res.ok) return setError(res.error);
-    setResults(res.data.leads);
     if (res.data.leads.length === 0) {
       setError('Nenhuma empresa com telefone encontrada nesse filtro. Tente outra cidade ou segmento.');
+      return; // mantém a lista anterior na tela
     }
+    setResults(res.data.leads);
+    setSaved({});
+    persist({ results: res.data.leads, saved: {}, ufV: uf, cidadeV: cidade.trim(), cnaeV: cnae });
   }
 
   async function onSave(lead: ProspectedLead) {
@@ -345,7 +400,11 @@ function ProspectarCard({ userId }: { userId: string | null }) {
       message: `${lead.empresa}${lead.atividade ? ` — ${lead.atividade}` : ''} · ${lead.cidade}/${lead.uf}`,
       source: 'prospeccao',
     });
-    if (res.ok) setSaved((prev) => ({ ...prev, [lead.cnpj]: true }));
+    if (res.ok) {
+      const nextSaved = { ...saved, [lead.cnpj]: true };
+      setSaved(nextSaved);
+      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, cnaeV: cnae });
+    }
   }
 
   return (
