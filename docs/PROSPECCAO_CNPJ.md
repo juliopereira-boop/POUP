@@ -1,9 +1,9 @@
 # Prospectar Leads — configuração (Casa dos Dados)
 
-A ferramenta **Prospectar Leads** (aba Prospecção, dentro de Leads) busca donos
-de empresas locais a partir dos **dados públicos de CNPJ da Receita Federal**,
-usando a API da **Casa dos Dados**. É 100% legal (dado público) e não depende de
-criar página nem rodar anúncio.
+A ferramenta **Prospectar Leads** (aba Prospecção, dentro de Leads) busca leads
+locais — pessoas com negócio próprio na cidade escolhida — usando a API da
+**Casa dos Dados** sobre a base pública da Receita Federal. É 100% legal (dado
+público) e não depende de criar página nem rodar anúncio.
 
 Para funcionar, você cria uma conta na Casa dos Dados, pega a **chave de API** e
 cola nos segredos do Supabase. Passo a passo:
@@ -33,15 +33,16 @@ Supabase). Deixe a verificação de JWT **ligada** (só o corretor logado usa).
 
 ## Pronto
 
-Na aba **Prospecção**, o corretor escolhe **estado + cidade + segmento**
-(o padrão é "Todos os segmentos") e clica em **Prospectar**. Aparece a lista de
-empresas locais com nome e telefone; é só tocar em **Salvar** para jogar na
-Gestão de Leads, ou no ícone do WhatsApp para falar na hora.
+Na aba **Prospecção**, o corretor escolhe **estado + cidade** e clica em
+**Prospectar**. Aparece a lista de leads locais com nome e telefone; é só
+tocar em **Salvar** para jogar na Gestão de Leads, ou no ícone do WhatsApp
+para falar na hora. Cada nova busca traz leads diferentes — nunca repete os
+já vistos.
 
 ## Observações honestas
 
-- Os telefones vêm do cadastro público da Receita: nem toda empresa tem
-  telefone cadastrado (as sem telefone são omitidas da lista).
+- Nem todo lead tem telefone cadastrado (os sem telefone são omitidos da
+  lista).
 - São telefones **comerciais/públicos** do negócio — não o WhatsApp pessoal.
 - A faixa gratuita da Casa dos Dados é limitada; uso intenso consome créditos
   (poucos centavos por lead).

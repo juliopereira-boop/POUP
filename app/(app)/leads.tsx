@@ -393,7 +393,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     setLoading(false);
     if (!res.ok) return setError(res.error);
     if (res.data.leads.length === 0) {
-      setError('Nenhum MEI novo encontrado nessa cidade. Tente outra cidade.');
+      setError('Nenhum lead novo encontrado nessa cidade. Tente outra cidade.');
       return; // mantém a lista anterior na tela
     }
     const novosCnpjs = res.data.leads.map((l) => l.cnpj).filter(Boolean);
@@ -424,9 +424,9 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     <View style={[styles.card, styles.prospectCard]}>
       <Text style={styles.cardTitle}>🎯 Prospectar Leads</Text>
       <Text style={styles.cardText}>
-        Encontre MEIs (microempreendedores) locais — pessoas com negócio próprio — a partir de
-        dados públicos de CNPJ. Escolha o estado e a cidade e receba uma lista com telefone pra
-        ligar. Cada nova busca traz contatos diferentes. Sem criar página, sem anúncio.
+        Encontre leads locais — pessoas com negócio próprio na região escolhida. Escolha o estado e
+        a cidade e receba uma lista com nome e telefone pra ligar. Cada nova busca traz contatos
+        diferentes. Sem criar página, sem anúncio.
       </Text>
 
       <Select
