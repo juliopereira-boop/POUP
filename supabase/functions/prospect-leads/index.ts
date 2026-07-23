@@ -32,8 +32,10 @@ const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
 const TARGET_CNAES = ['7319002', '8219999', '5320201', '4930201', '9602501', '4923002'];
 const PORTE_MICRO = ['01'];
 
-// Contas de teste/admin sem limite de prospecção por período.
+// Contas de teste/admin sem limite de PERÍODO (manhã/tarde), mas com um teto
+// baixo por busca para não consumir créditos à toa durante os testes.
 const UNLIMITED_EMAILS = new Set(['julio.pereira@sellmyhouse.com.br']);
+const UNLIMITED_PER_SEARCH_CAP = 5;
 
 /** minúsculo, sem acento — a Casa dos Dados usa cidade/UF assim (ex.: "sao paulo"). */
 function slug(s: string): string {
@@ -153,7 +155,7 @@ Deno.serve(async (req) => {
     const unlimited = UNLIMITED_EMAILS.has((user.email ?? '').toLowerCase());
     const { dia, periodo } = brasiliaPeriodo();
     let usados = 0;
-    let limit = 30; // ilimitado: puxa mais por busca
+    let limit = UNLIMITED_PER_SEARCH_CAP; // conta de teste: teto baixo por busca
     if (!unlimited) {
       const { data: usage } = await admin
         .from('prospect_usage')
