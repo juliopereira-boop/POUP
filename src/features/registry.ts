@@ -18,6 +18,22 @@ export interface Feature {
 
 export const FEATURES: Feature[] = [
   {
+    key: 'leads',
+    title: 'Leads',
+    emoji: '📇',
+    route: '/(app)/leads',
+    description: 'Gerencie seus contatos e oportunidades de venda.',
+    ready: false,
+  },
+  {
+    key: 'calendario',
+    title: 'Calendário',
+    emoji: '📅',
+    route: '/(app)/calendario',
+    description: 'Organize compromissos, visitas e vencimentos.',
+    ready: false,
+  },
+  {
     key: 'simulador',
     title: 'Simulador de poupança',
     emoji: '🏡',

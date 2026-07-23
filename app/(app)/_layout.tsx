@@ -38,6 +38,8 @@ export default function AppLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="leads" options={{ title: 'Leads' }} />
+        <Stack.Screen name="calendario" options={{ title: 'Calendário' }} />
         <Stack.Screen name="simulador" options={{ headerShown: false }} />
         <Stack.Screen name="relatorios/index" options={{ title: 'Relatórios' }} />
         <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} />
