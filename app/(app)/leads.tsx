@@ -55,6 +55,7 @@ const UFS = [
  * principal correspondente (só dígitos).
  */
 const SEGMENTOS: { label: string; cnae: string }[] = [
+  { label: 'Todos os segmentos', cnae: 'todos' },
   { label: 'Escritórios de advocacia', cnae: '6911701' },
   { label: 'Consultórios médicos', cnae: '8630503' },
   { label: 'Consultórios odontológicos', cnae: '8630504' },
@@ -313,7 +314,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   const styles = useThemedStyles(makeStyles);
   const [uf, setUf] = useState<string | null>(null);
   const [cidade, setCidade] = useState('');
-  const [cnae, setCnae] = useState<string | null>(null);
+  const [cnae, setCnae] = useState<string>('todos');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ProspectedLead[] | null>(null);
@@ -323,7 +324,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     setError(null);
     if (!uf) return setError('Escolha o estado.');
     if (!cidade.trim()) return setError('Informe a cidade.');
-    if (!cnae) return setError('Escolha o segmento.');
     setLoading(true);
     setResults(null);
     setSaved({});
