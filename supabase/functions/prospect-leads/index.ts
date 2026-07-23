@@ -32,6 +32,9 @@ const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
 const TARGET_CNAES = ['7319002', '8219999', '5320201', '4930201', '9602501', '4923002'];
 const PORTE_MICRO = ['01'];
 
+// Contas de teste/admin sem limite de prospecção por período.
+const UNLIMITED_EMAILS = new Set(['julio.pereira@sellmyhouse.com.br']);
+
 /** minúsculo, sem acento — a Casa dos Dados usa cidade/UF assim (ex.: "sao paulo"). */
 function slug(s: string): string {
   return s
@@ -146,24 +149,29 @@ Deno.serve(async (req) => {
     };
     if (!uf || !cidade) return json({ error: 'Informe estado e cidade.' });
 
-    // --- Limite por período (manhã/tarde) ---
+    // --- Limite por período (manhã/tarde) — contas de teste são ilimitadas ---
+    const unlimited = UNLIMITED_EMAILS.has((user.email ?? '').toLowerCase());
     const { dia, periodo } = brasiliaPeriodo();
-    const { data: usage } = await admin
-      .from('prospect_usage')
-      .select('usados')
-      .eq('user_id', user.id)
-      .eq('dia', dia)
-      .eq('periodo', periodo)
-      .maybeSingle();
-    const usados = (usage?.usados as number) ?? 0;
-    const restante = PERIOD_CAP - usados;
-    if (restante <= 0) {
-      const proximo = periodo === 'manha' ? 'à tarde' : 'amanhã de manhã';
-      return json({
-        error: `Você já usou seus ${PERIOD_CAP} leads do período da ${periodo === 'manha' ? 'manhã' : 'tarde'}. Volte ${proximo} para prospectar mais.`,
-      });
+    let usados = 0;
+    let limit = 30; // ilimitado: puxa mais por busca
+    if (!unlimited) {
+      const { data: usage } = await admin
+        .from('prospect_usage')
+        .select('usados')
+        .eq('user_id', user.id)
+        .eq('dia', dia)
+        .eq('periodo', periodo)
+        .maybeSingle();
+      usados = (usage?.usados as number) ?? 0;
+      const restante = PERIOD_CAP - usados;
+      if (restante <= 0) {
+        const proximo = periodo === 'manha' ? 'à tarde' : 'amanhã de manhã';
+        return json({
+          error: `Você já usou seus ${PERIOD_CAP} leads do período da ${periodo === 'manha' ? 'manhã' : 'tarde'}. Volte ${proximo} para prospectar mais.`,
+        });
+      }
+      limit = Math.min(restante, PERIOD_CAP);
     }
-    const limit = Math.min(restante, PERIOD_CAP);
 
     const cnaeDigits = (cnae ?? '').replace(/\D/g, ''); // '' = todos → usa TARGET_CNAES
     const body: Record<string, unknown> = {
@@ -250,7 +258,7 @@ Deno.serve(async (req) => {
         };
       });
 
-    if (leads.length > 0) {
+    if (!unlimited && leads.length > 0) {
       await admin.from('prospect_usage').upsert(
         {
           user_id: user.id,
@@ -267,7 +275,7 @@ Deno.serve(async (req) => {
       leads,
       total: leads.length,
       sem_telefone: candidatos.length - leads.length,
-      restante: restante - leads.length,
+      restante: unlimited ? null : PERIOD_CAP - usados - leads.length,
     });
   } catch (e) {
     console.error(e);
