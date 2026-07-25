@@ -18,7 +18,6 @@ function mapUser(user: User | null): AuthUser | null {
   };
 }
 
-/** Traduz erros do Supabase para mensagens em português amigáveis. */
 function friendlyError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes('invalid login credentials')) return 'Email ou senha incorretos.';
@@ -62,7 +61,6 @@ export class SupabaseAuthRepository implements AuthRepository {
     const redirectTo = `${getAppUrl()}`;
 
     if (Platform.OS === 'web') {
-      // Web: redirect completo do navegador.
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo },
@@ -71,7 +69,6 @@ export class SupabaseAuthRepository implements AuthRepository {
       return ok(undefined);
     }
 
-    // Nativo: abre o navegador do sistema e captura o retorno via deep link.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo, skipBrowserRedirect: true },
@@ -81,7 +78,6 @@ export class SupabaseAuthRepository implements AuthRepository {
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success') return err('Login com Google cancelado.');
 
-    // O token volta na URL; extraímos e criamos a sessão.
     const url = new URL(result.url);
     const params = new URLSearchParams(url.hash.replace(/^#/, ''));
     const access_token = params.get('access_token');

@@ -1,12 +1,5 @@
 import type { Href } from 'expo-router';
 
-/**
- * Registro central das funcionalidades do POUP.
- *
- * O menu principal e as rotas são gerados a partir daqui — para adicionar uma
- * nova funcionalidade, inclua um item e crie a tela correspondente em
- * app/(app)/<route>.tsx. Marque `ready: true` quando a feature estiver pronta.
- */
 export interface Feature {
   key: string;
   title: string;

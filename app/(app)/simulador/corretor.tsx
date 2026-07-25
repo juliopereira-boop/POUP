@@ -26,11 +26,9 @@ export default function SimuladorCorretor() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    // Correspondentes da empresa selecionada.
     if (sim.companyId) {
       setCorrespondents(await db.companies.listCorrespondents(sim.companyId));
     }
-    // Gerente responsável vem do cadastro do empreendimento.
     if (sim.developmentId) {
       const devs = await db.developments.list(user.id);
       setManagerName(devs.find((d) => d.id === sim.developmentId)?.managerName ?? null);
@@ -85,7 +83,6 @@ export default function SimuladorCorretor() {
 
       <Text style={styles.sectionLabel}>Dados do negócio</Text>
       <View style={styles.card}>
-        {/* Gerente responsável — do cadastro do empreendimento (não editável aqui) */}
         <Field label="Gerente" value={managerName} />
       </View>
 

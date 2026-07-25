@@ -16,7 +16,6 @@ type ProfilePatch = Partial<Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>>
 interface ProfileContextValue {
   profile: UserProfile | null;
   loading: boolean;
-  /** true quando o corretor ainda não completou o cadastro obrigatório. */
   needsOnboarding: boolean;
   refresh: () => Promise<void>;
   updateProfile: (patch: ProfilePatch) => Promise<Result<UserProfile>>;

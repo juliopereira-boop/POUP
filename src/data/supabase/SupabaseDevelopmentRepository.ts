@@ -5,7 +5,6 @@ import { type Development, type DevelopmentInput, type Result, err, ok } from '.
 const SELECT =
   'id, company_id, name, delivery_date, manager_name, created_at, updated_at, companies(name)';
 
-/** Linha retornada com o join da empresa (para exibir o nome dela na lista). */
 interface DevelopmentJoinRow {
   id: string;
   company_id: string;

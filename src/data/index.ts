@@ -1,11 +1,3 @@
-/**
- * Ponto único de composição da camada de dados.
- *
- * A UI importa `db` daqui e usa `db.auth`, `db.profiles`, `db.billing`, etc.
- * Para migrar de banco no futuro (ex.: um Postgres próprio, Prisma, outra API),
- * basta criar novas implementações das interfaces em ./repositories.ts e
- * trocá-las aqui. Nenhuma tela precisa mudar.
- */
 import type {
   AuthRepository,
   BillingRepository,
@@ -36,11 +28,6 @@ export interface DataLayer {
   leads: LeadRepository;
 }
 
-/**
- * Provedor ativo. Hoje: 'supabase'.
- * Amanhã, adicione um case aqui (ex.: 'api', 'prisma') e retorne a
- * implementação correspondente.
- */
 type Provider = 'supabase';
 const ACTIVE_PROVIDER: Provider = 'supabase';
 

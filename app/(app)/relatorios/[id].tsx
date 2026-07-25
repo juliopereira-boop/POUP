@@ -64,10 +64,6 @@ export default function SimulationDetailScreen() {
   async function onEdit() {
     if (!sim) return;
     setNotice(null);
-    // Abre o simulador em MODO EDIÇÃO: o estado vai para uma chave de rascunho
-    // separada, então não afeta a simulação nova iniciada pelo menu. O
-    // setPendingEditId é um handoff SÍNCRONO (imune a corrida do query param);
-    // o param na URL fica como fallback para reload/deeplink.
     setPendingEditId(sim.id);
     await sessionStorage.setItem(EDIT_DRAFT_KEY, JSON.stringify(sim.state));
     router.push({ pathname: '/(app)/simulador', params: { editId: sim.id } });
@@ -85,7 +81,6 @@ export default function SimulationDetailScreen() {
         developmentName: sim.developmentName,
         deliveryDate: sim.deliveryDate,
         gerente: sim.managerName,
-        // Reusa a data original da proposta para manter o PDF consistente.
         todayISO: sim.proposalDate ?? new Date().toISOString().slice(0, 10),
       });
     } finally {
@@ -150,7 +145,6 @@ export default function SimulationDetailScreen() {
     <Screen>
       <Stack.Screen options={{ title: sim.clientName?.trim() || 'Simulação' }} />
 
-      {/* Resumo em destaque */}
       <View style={styles.hero}>
         <View style={styles.heroTop}>
           <Text style={styles.heroClient} numberOfLines={2}>
@@ -186,7 +180,6 @@ export default function SimulationDetailScreen() {
         </View>
       </View>
 
-      {/* Ações */}
       <View style={styles.actions}>
         <Button label="Editar" variant="secondary" onPress={onEdit} style={styles.actionBtn} />
         <Button
@@ -199,7 +192,6 @@ export default function SimulationDetailScreen() {
       <Button label="Venda realizada (em breve)" variant="secondary" onPress={onSaleDone} />
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-      {/* Cliente */}
       <SectionBand label={st.hasSecondProponent ? '1º Proponente' : 'Cliente'} />
       <View style={styles.card}>
         <Row label="Nome" value={st.proponent1.name} />
@@ -223,7 +215,6 @@ export default function SimulationDetailScreen() {
         </>
       ) : null}
 
-      {/* Empreendimento */}
       <SectionBand label="Empreendimento" />
       <View style={styles.card}>
         <Row label="Empresa" value={sim.companyName ?? '—'} />
@@ -237,7 +228,6 @@ export default function SimulationDetailScreen() {
         <Row label="Correspondente" value={st.correspondentName ?? '—'} last />
       </View>
 
-      {/* Financiamento */}
       <SectionBand label="Financiamento" />
       <View style={styles.card}>
         <Row label="Financiamento aprovado" value={money(st.financingApproved)} />
@@ -259,7 +249,6 @@ export default function SimulationDetailScreen() {
         ) : null}
       </View>
 
-      {/* Fluxo de pagamento */}
       <SectionBand label="Fluxo de pagamento" />
       <View style={styles.card}>
         <Row label="Poupança" value={brl(flow.poupanca)} />

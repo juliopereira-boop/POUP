@@ -31,7 +31,6 @@ export default function RelatoriosScreen() {
   const [sims, setSims] = useState<Simulation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtros — recolhidos por padrão; "Filtrar" abre/fecha o painel.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [clientQuery, setClientQuery] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -46,7 +45,6 @@ export default function RelatoriosScreen() {
     setLoading(false);
   }, [user]);
 
-  // Recarrega ao focar (ex.: voltar do detalhe ou de concluir uma simulação).
   useFocusEffect(
     useCallback(() => {
       void load();
@@ -115,7 +113,6 @@ export default function RelatoriosScreen() {
       {loading ? (
         <Text style={styles.muted}>Carregando...</Text>
       ) : sims.length === 0 ? (
-        // Sem nenhuma simulação: mostra só o estado vazio (filtros seriam inúteis).
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>📊</Text>
           <Text style={styles.emptyTitle}>Nenhuma simulação ainda</Text>
@@ -125,7 +122,6 @@ export default function RelatoriosScreen() {
         </View>
       ) : (
         <>
-          {/* Barra de filtros: recolhida por padrão, um único botão abre o painel. */}
           <View style={styles.filterBar}>
             <Pressable
               onPress={() => setFiltersOpen((v) => !v)}
@@ -169,7 +165,7 @@ export default function RelatoriosScreen() {
                 options={companyOptions}
                 onChange={(v) => {
                   setCompanyFilter(v);
-                  setDevelopmentFilter(''); // troca de empresa reseta o empreendimento
+                  setDevelopmentFilter('');
                 }}
               />
               <Select

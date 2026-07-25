@@ -1,32 +1,19 @@
-/**
- * Paletas do POUP — tema claro e escuro.
- *
- * Ambas expõem exatamente as mesmas chaves (AppColors), então qualquer
- * componente que use `colors.X` funciona nos dois temas. A paleta ativa é
- * fornecida pelo ThemeProvider via useTheme().
- */
-
 export const lightColors = {
-  // Marca / tinta
   ink: '#111827',
   inkMuted: '#6B7280',
   inkSubtle: '#9CA3AF',
 
-  // Ação
   primary: '#2563EB',
   primaryDark: '#1D4ED8',
   primarySoft: '#EFF4FF',
 
-  // Superfícies
   background: '#F3F4F6',
   surface: '#FFFFFF',
   surfaceAlt: '#F9FAFB',
 
-  // Bordas / linhas
   border: '#E5E7EB',
   borderStrong: '#D1D5DB',
 
-  // Feedback
   success: '#16A34A',
   successSoft: '#ECFDF5',
   danger: '#DC2626',
@@ -34,7 +21,6 @@ export const lightColors = {
   warning: '#D97706',
   warningSoft: '#FFFBEB',
 
-  // Neutros fixos
   white: '#FFFFFF',
   black: '#000000',
 } as const;
@@ -68,7 +54,6 @@ export const darkColors: AppColors = {
   black: '#000000',
 };
 
-/** Paleta padrão (claro) — usada como fallback fora do ThemeProvider. */
 export const colors = lightColors;
 
 export type ColorScheme = 'light' | 'dark';

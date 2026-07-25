@@ -5,11 +5,9 @@ import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { Logo } from './Logo';
 
 interface LoadingScreenProps {
-  /** Mensagem opcional exibida abaixo do spinner (ex.: "Confirmando pagamento..."). */
   message?: string;
 }
 
-/** Tela de carregamento em tela cheia (splash de sessão/assinatura). */
 export function LoadingScreen({ message }: LoadingScreenProps = {}) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

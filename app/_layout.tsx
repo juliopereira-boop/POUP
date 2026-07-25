@@ -8,11 +8,6 @@ import { SubscriptionProvider } from '@/providers/SubscriptionProvider';
 import { ProfileProvider } from '@/providers/ProfileProvider';
 import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
 
-/**
- * Layout raiz do app.
- * Ordem dos providers importa: Subscription depende de Auth; tudo dentro do
- * ThemeProvider para as cores serem reativas ao tema.
- */
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

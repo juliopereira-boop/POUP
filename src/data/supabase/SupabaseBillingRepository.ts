@@ -51,17 +51,12 @@ export class SupabaseBillingRepository implements BillingRepository {
     return mapSubscription(data);
   }
 
-  /** Bytes usados no Storage pelo usuário (via função SQL user_storage_used). */
   async getStorageUsedBytes(userId: string): Promise<number> {
     const { data, error } = await supabase.rpc('user_storage_used', { uid: userId });
     if (error || data == null) return 0;
     return Number(data);
   }
 
-  /**
-   * Chama a Edge Function `create-checkout-session`, que fala com o Stripe
-   * usando segredos que só existem no servidor. O client nunca vê a secret key.
-   */
   async createCheckoutSession(priceId: string): Promise<Result<{ url: string }>> {
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {
       body: {

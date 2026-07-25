@@ -49,7 +49,6 @@ export default function LoginScreen() {
     const result = await signInWithGoogle();
     setGoogleLoading(false);
     if (!result.ok) notify(result.error);
-    // No web, o fluxo redireciona a página; no nativo, o AuthProvider assume.
   }
 
   return (

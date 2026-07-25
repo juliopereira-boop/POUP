@@ -4,7 +4,6 @@ import Svg, { Path } from 'react-native-svg';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
-/** Ícone "G" do Google em SVG (multi-cor oficial). */
 function GoogleIcon({ size = 20 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48">

@@ -1,13 +1,3 @@
-// Edge Function PÚBLICA: devolve os textos da página de captação de um
-// corretor (título/subtítulo gerados pela IA) + o nome do corretor, para a
-// landing page pública app/captar/[brokerId].tsx exibir.
-//
-// Sem verificação de JWT (o visitante não está logado):
-//   supabase functions deploy get-lead-page --no-verify-jwt
-//
-// Segredos necessários (já injetados pelo Supabase): SUPABASE_URL,
-// SUPABASE_SERVICE_ROLE_KEY.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {

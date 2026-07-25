@@ -12,17 +12,14 @@ import { useGlobalSearchParams } from 'expo-router';
 import { LoadingScreen } from '@/components/Loading';
 import { sessionStorage } from '@/lib/storage';
 
-/** Um proponente (comprador) da simulação. */
 export interface Proponent {
   name: string;
   cpf: string;
   email: string;
   contact: string;
-  /** Renda bruta (mascarada em R$). */
   rendaBruta: string;
 }
 
-/** Tipo de associação do 2º proponente com o 1º. */
 export type AssociationType = 'conjuge' | 'parente' | 'fiador' | 'socio';
 
 export const ASSOCIATION_OPTIONS: { value: AssociationType; label: string }[] = [
@@ -36,83 +33,43 @@ export function emptyProponent(): Proponent {
   return { name: '', cpf: '', email: '', contact: '', rendaBruta: '' };
 }
 
-/**
- * Estado do fluxo do Simulador de poupança, compartilhado entre as páginas
- * do wizard (empreendimento → corretor → cliente → financiamento). Vive no
- * _layout e é PERSISTIDO em disco a cada mudança — se o navegador/app for
- * recarregado (troca de app, app em segundo plano descartado pelo sistema
- * etc.), o progresso é restaurado automaticamente em vez de se perder.
- */
 export interface SimuladorState {
   companyId: string | null;
   developmentId: string | null;
-  /** Bloco/Quadra (0 a 100). */
   block: number;
-  /** Unidade (digitada). */
   unit: string;
-  /** Valor da unidade (mascarado em R$). */
   unitValue: string;
-  /** Risco da poupança (%) da empresa selecionada (do cadastro). */
   companyRisk: number | null;
-  /** Regras de negócio da empresa (limites). */
   companyMaxInstallments: number | null;
   companyMaxSemiannual: number | null;
   companyMaxAnnual: number | null;
   companyCoincide: boolean;
-  /** Correspondente selecionado (da empresa). */
   correspondentId: string | null;
   correspondentName: string | null;
-  /** 1º proponente. */
   proponent1: Proponent;
-  /** Se há um 2º proponente. */
   hasSecondProponent: boolean;
-  /** Tipo de associação do 2º proponente. */
   association: AssociationType | null;
-  /** 2º proponente. */
   proponent2: Proponent;
 
-  // --- Valores de financiamento ---
-  /** Financiamento aprovado (mascarado em R$). */
   financingApproved: string;
-  /** Subsídio aprovado (mascarado em R$). */
   subsidy: string;
-  /** FGTS (mascarado em R$). */
   fgts: string;
-  /** Cupom: tipo de desconto ('R$' fixo ou '%' sobre o valor da unidade). */
   couponType: 'R$' | '%' | null;
-  /** Valor do cupom (mascarado conforme o tipo). */
   couponValue: string;
-  /** Se o usuário já viu o aviso de validação do cupom. */
   couponWarningSeen: boolean;
 
-  // --- Taxa CEF ---
-  /** Cliente paga a taxa CEF? (sim = verde). */
   cefClientPays: boolean;
-  /** Parcelar a taxa CEF? */
   cefInstallment: boolean;
-  /** Quantidade de parcelas da taxa CEF. */
   cefInstallmentsCount: string;
-  /** Valor da parcela CEF (mascarado em R$). */
   cefParcela: string;
 
-  // --- Fluxo de pagamento (página 5) ---
-  /** Ato do cliente (mascarado em R$). */
   ato: string;
-  /** Vencimento do ato (ISO). */
   atoDueDate: string | null;
-  /** Quantidade de parcelas mensais. */
   mensaisCount: string;
-  /**
-   * Dia do mês do vencimento das mensais (editável). O mês/ano continua
-   * travado (1 mês após o ato); só o dia é livre. Semestrais/anuais usam o
-   * mesmo dia. Vazio = usa o dia do vencimento do ato (comportamento padrão).
-   */
   mensalDueDay: string;
-  /** Semestrais. */
   semestralEnabled: boolean;
   semestralCount: string;
   semestralValue: string;
-  /** Anuais. */
   anualEnabled: boolean;
   anualCount: string;
   anualValue: string;
@@ -123,13 +80,7 @@ interface SimuladorContextValue extends SimuladorState {
   setProponent1: (patch: Partial<Proponent>) => void;
   setProponent2: (patch: Partial<Proponent>) => void;
   reset: () => void;
-  /**
-   * Se preenchido, este wizard está EDITANDO uma simulação já salva em
-   * Relatórios (o id dela). Nesse modo, o rascunho é guardado numa chave
-   * separada, então NÃO interfere na simulação nova iniciada pelo menu.
-   */
   editId: string | null;
-  /** Estado "puro" (sem métodos) — usado para persistir a simulação. */
   snapshot: SimuladorState;
 }
 
@@ -172,24 +123,12 @@ const INITIAL: SimuladorState = {
   anualValue: '',
 };
 
-/** Estado inicial exportado — usado ao ler simulações salvas (backfill). */
 export const INITIAL_SIMULADOR_STATE: SimuladorState = INITIAL;
 
 const DRAFT_KEY = 'poup.simulador.draft';
-/**
- * Chave SEPARADA para o rascunho de edição (quando o wizard foi aberto a
- * partir de um card em Relatórios). Assim, editar uma simulação salva NUNCA
- * mexe no rascunho da simulação nova iniciada pelo menu.
- */
 export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';
 const SAVE_DEBOUNCE_MS = 300;
 
-/**
- * Alvo de edição pendente, definido de forma SÍNCRONA pela tela de detalhe de
- * Relatórios imediatamente antes de navegar para o simulador. Isso torna o
- * modo de edição imune a corrida do query param na 1ª renderização (o param
- * só é usado como fallback em reload/deeplink no web).
- */
 let pendingEditId: string | null = null;
 export function setPendingEditId(id: string | null): void {
   pendingEditId = id;
@@ -199,12 +138,6 @@ const SimuladorContext = createContext<SimuladorContextValue | undefined>(undefi
 
 export function SimuladorProvider({ children }: { children: ReactNode }) {
   const params = useGlobalSearchParams<{ editId?: string }>();
-  // Resolve o modo (edição x novo) UMA vez, no mount, de forma determinística:
-  // usa o handoff síncrono (pendingEditId) e cai no param da URL só no reload.
-  // Como é `useState` inicial, não muda ao navegar entre as etapas nem quando
-  // um outro provider re-renderiza por mudança de params globais.
-  // Leitura PURA no inicializador (sem efeitos colaterais — seguro sob
-  // StrictMode). O consumo do handoff é feito no efeito de mount abaixo.
   const [editId] = useState<string | null>(() => pendingEditId ?? params.editId ?? null);
   const draftKey = editId ? EDIT_DRAFT_KEY : DRAFT_KEY;
 
@@ -212,14 +145,10 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Consome o handoff síncrono após o mount, para não vazar para o próximo
-  // provider (ex.: uma simulação nova aberta pelo menu depois).
   useEffect(() => {
     pendingEditId = null;
   }, []);
 
-  // Restaura o rascunho salvo (se houver) ao montar o wizard, usando a chave
-  // já resolvida (estável — editId nunca muda).
   useEffect(() => {
     let mounted = true;
     sessionStorage.getItem(draftKey).then((raw) => {
@@ -229,7 +158,6 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
           const saved = JSON.parse(raw) as Partial<SimuladorState>;
           setState({ ...INITIAL, ...saved });
         } catch {
-          // Rascunho corrompido: ignora e começa do zero.
         }
       }
       setHydrated(true);
@@ -239,8 +167,6 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
     };
   }, [draftKey]);
 
-  // Salva a cada mudança (com um pequeno debounce), só depois de hidratado —
-  // evita sobrescrever um rascunho salvo com o estado inicial em branco.
   useEffect(() => {
     if (!hydrated) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);

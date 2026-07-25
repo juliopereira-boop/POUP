@@ -1,15 +1,3 @@
-// Edge Function: recebe webhooks do Stripe e sincroniza a tabela `subscriptions`.
-// Esta tabela é a FONTE DA VERDADE do acesso ao app (o client só lê dela).
-//
-// Segredos necessários:
-//   STRIPE_SECRET_KEY
-//   STRIPE_WEBHOOK_SECRET     whsec_... (do endpoint criado no Stripe Dashboard)
-//   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (injetados)
-//
-// IMPORTANTE: configure este endpoint SEM verificação de JWT:
-//   supabase functions deploy stripe-webhook --no-verify-jwt
-// (o Stripe não envia JWT; a autenticidade vem da assinatura do webhook.)
-
 import Stripe from 'https://esm.sh/stripe@17.3.1?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -25,13 +13,10 @@ const admin = createClient(
 
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 
-// Mapeamento price -> plano. Os price IDs vêm dos mesmos segredos usados no
-// client; defina no Supabase: supabase secrets set STRIPE_PRICE_START=price_...
 const PRICE_START = Deno.env.get('STRIPE_PRICE_START') ?? '';
 const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
 
 const GB = 1024 * 1024 * 1024;
-// ⚠️ Mantenha em sincronia com src/features/plans.ts (storageLimitBytes).
 const PLAN_LIMITS: Record<string, number> = {
   start: 5 * GB,
   pro: 25 * GB,
@@ -39,7 +24,7 @@ const PLAN_LIMITS: Record<string, number> = {
 
 function tierForPrice(priceId: string | null | undefined): 'start' | 'pro' {
   if (priceId && priceId === PRICE_PRO) return 'pro';
-  return 'start'; // padrão seguro
+  return 'start';
 }
 
 Deno.serve(async (req) => {
@@ -65,7 +50,6 @@ Deno.serve(async (req) => {
         break;
       }
       default:
-        // Ignoramos os demais eventos.
         break;
     }
     return new Response(JSON.stringify({ received: true }), {
@@ -99,7 +83,6 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
 
   const priceId = sub.items.data[0]?.price?.id ?? null;
   const tier = tierForPrice(priceId);
-  // Se a assinatura não está ativa, zera o limite (bloqueia novos uploads).
   const active = sub.status === 'active' || sub.status === 'trialing';
   const storageLimit = active ? PLAN_LIMITS[tier] : 0;
 

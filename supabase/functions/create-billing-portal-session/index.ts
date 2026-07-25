@@ -1,12 +1,6 @@
-// Edge Function: abre o Portal do Cliente do Stripe (gerenciar/cancelar plano,
-// trocar cartão). Requer que o usuário já tenha um stripe_customer_id.
-
 import Stripe from 'https://esm.sh/stripe@17.3.1?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-// Cabeçalhos CORS. Duplicado em cada função (em vez de um arquivo
-// compartilhado) para que cada função seja um único arquivo autocontido —
-// assim dá pra colar e publicar direto pelo Dashboard do Supabase, sem CLI.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

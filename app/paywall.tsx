@@ -21,8 +21,6 @@ export default function PaywallScreen() {
   const [checkingAgain, setCheckingAgain] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Já é assinante? Não faz sentido ver o paywall.
-  // (Se checkAgain() confirmar o pagamento, isActive vira true e cai aqui.)
   if (user && isActive) return <Redirect href="/(app)" />;
   if (!user) return <Redirect href="/(auth)/login" />;
 

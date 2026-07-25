@@ -3,7 +3,6 @@ import { colors } from './colors';
 export { colors, lightColors, darkColors } from './colors';
 export type { AppColors, ColorScheme } from './colors';
 
-/** Espaçamentos em escala de 4pt. */
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -14,7 +13,6 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
-/** Raios de canto. */
 export const radius = {
   sm: 8,
   md: 12,
@@ -23,7 +21,6 @@ export const radius = {
   pill: 999,
 } as const;
 
-/** Tipografia — tamanhos e pesos. */
 export const typography = {
   display: { fontSize: 28, fontWeight: '700' as const, lineHeight: 34 },
   title: { fontSize: 22, fontWeight: '700' as const, lineHeight: 28 },
@@ -33,7 +30,6 @@ export const typography = {
   caption: { fontSize: 13, fontWeight: '400' as const, lineHeight: 16 },
 } as const;
 
-/** Sombra suave e consistente entre plataformas (iOS/Android/Web). */
 export const shadow = {
   card: {
     shadowColor: '#0F172A',
@@ -51,11 +47,6 @@ export const shadow = {
   },
 } as const;
 
-/**
- * Largura máxima do conteúdo em telas grandes (PC/tablet).
- * O app é mobile-first; em telas largas centralizamos o conteúdo
- * para não "esticar" e manter a leitura confortável.
- */
 export const layout = {
   maxContentWidth: 640,
 } as const;

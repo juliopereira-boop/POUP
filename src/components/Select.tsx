@@ -15,9 +15,7 @@ interface SelectProps {
   value: string | null;
   options: SelectOption[];
   onChange: (value: string) => void;
-  /** Mensagem exibida quando não há opções (ex.: cadastre uma empresa antes). */
   emptyHint?: string;
-  /** Mostra um campo de busca no topo da lista (útil para listas longas). */
   searchable?: boolean;
 }
 
@@ -28,10 +26,6 @@ function norm(s: string): string {
     .toLowerCase();
 }
 
-/**
- * Dropdown simples (expande/colapsa uma lista abaixo do campo).
- * Funciona igual em web e nativo, sem depender de picker nativo.
- */
 export function Select({
   label,
   placeholder,

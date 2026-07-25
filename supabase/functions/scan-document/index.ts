@@ -1,21 +1,5 @@
-// Edge Function: escaneia um documento de identidade (CNH ou RG) usando o
-// Claude (Anthropic API, com visão) e extrai nome completo e CPF.
-//
-// Segredo necessário (Supabase → Edge Functions → Secrets):
-//   ANTHROPIC_API_KEY   sk-ant-...
-//
-// Aceita: CNH modelo antigo, CNH modelo novo (Mercosul), RG modelo antigo e
-// a nova Carteira de Identidade Nacional (CIN).
-//
-// O client chama isto via supabase.functions.invoke('scan-document'), que já
-// envia o JWT do usuário no header Authorization — só usuários logados podem
-// acionar (evita abuso, já que cada chamada tem custo).
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-// Cabeçalhos CORS. Duplicado (em vez de um arquivo compartilhado) para que
-// esta função seja um único arquivo autocontido — dá pra colar direto no
-// editor do Supabase Dashboard, sem CLI.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

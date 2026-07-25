@@ -1,12 +1,6 @@
 import { currencyToNumber } from '@/lib/masks';
 import type { SimuladorState } from './SimuladorProvider';
 
-/**
- * Cálculos do fluxo de pagamento do Simulador.
- * Centralizado aqui para páginas 4 e 5 usarem a mesma fórmula.
- */
-
-/** Valor total que o cliente paga em poupança (fora dos financiamentos). */
 export function computePoupanca(sim: SimuladorState): number {
   const unit = currencyToNumber(sim.unitValue);
   const fin = currencyToNumber(sim.financingApproved);
@@ -21,7 +15,6 @@ export function computePoupanca(sim: SimuladorState): number {
   return Math.max(0, unit - fin - sub - fgts - coupon);
 }
 
-/** Soma dos financiamentos (financiamento + subsídio + FGTS). */
 export function computeFinancingSum(sim: SimuladorState): number {
   return (
     currencyToNumber(sim.financingApproved) +
@@ -30,7 +23,6 @@ export function computeFinancingSum(sim: SimuladorState): number {
   );
 }
 
-/** Adiciona `n` meses a uma data ISO (yyyy-mm-dd), com clamp de dia. */
 export function addMonths(iso: string, n: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   const monthIndex = m - 1 + n;
@@ -41,7 +33,6 @@ export function addMonths(iso: string, n: number): string {
   return `${ty}-${String(tm + 1).padStart(2, '0')}-${String(td).padStart(2, '0')}`;
 }
 
-/** Troca o DIA de uma data ISO (mantém mês/ano), com clamp ao último dia do mês. */
 export function withDay(iso: string, day: number): string {
   const [y, m] = iso.split('-').map(Number);
   const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -70,7 +61,6 @@ const MONTH_ABBR = [
   'Dez',
 ];
 
-/** Formata uma data ISO mostrando somente mês/ano (ex.: "Mar/2027"). */
 export function formatMonthYearBR(iso: string | null): string {
   if (!iso) return '—';
   const [y, m] = iso.split('-');
@@ -78,7 +68,6 @@ export function formatMonthYearBR(iso: string | null): string {
   return `${MONTH_ABBR[idx] ?? m}/${y}`;
 }
 
-/** Diferença em meses inteiros entre duas datas ISO (to − from). */
 export function monthsBetween(fromISO: string, toISO: string | null): number | null {
   if (!toISO) return null;
   const [fy, fm] = fromISO.split('-').map(Number);
@@ -89,34 +78,21 @@ export function monthsBetween(fromISO: string, toISO: string | null): number | n
 export interface FlowResult {
   poupanca: number;
   ato: number;
-  /** Data do 1º vencimento das mensais (1 mês após o ato). */
   mensalFirstDue: string | null;
   mensaisCount: number;
-  /** Valor de cada parcela mensal (o número animado em verde). */
   monthlyValue: number;
   semestralCount: number;
   semestralValue: number;
   semestralTotal: number;
-  /** Vencimentos das semestrais (em ordem). */
   semestralDueDates: string[];
   anualCount: number;
   anualValue: number;
   anualTotal: number;
   anualDueDates: string[];
-  /** Quanto já foi distribuído (ato + mensais + intercaladas). */
   distributed: number;
-  /** Diferença entre a poupança e o distribuído (idealmente 0). */
   saldo: number;
 }
 
-/**
- * Monta o fluxo de pagamento a partir do estado.
- * - Mensal: valor = (poupança − ato − semestrais − anuais) / qtd mensal.
- * - Vencimentos: mensal 1º = ato + 1 mês (mês/ano travados; dia editável via
- *   `sim.mensalDueDay`); semestral 1º = mensal + 6; anual 1º = mensal + 12
- *   (semestrais/anuais herdam o mesmo dia do mensal). Se `coincidir` estiver
- *   desligado, intercaladas pulam +1 mês.
- */
 export function buildFlow(sim: SimuladorState): FlowResult {
   const poupanca = computePoupanca(sim);
   const ato = currencyToNumber(sim.ato);
@@ -133,9 +109,6 @@ export function buildFlow(sim: SimuladorState): FlowResult {
   const remaining = poupanca - ato - semestralTotal - anualTotal;
   const monthlyValue = mensaisCount > 0 ? remaining / mensaisCount : 0;
 
-  // Mês/ano do 1º vencimento mensal ficam travados em "1 mês após o ato";
-  // só o DIA é editável (sim.mensalDueDay). Semestrais/anuais herdam esse
-  // mesmo dia automaticamente, pois usam mensalFirstDue como âncora abaixo.
   const mensalAnchor = sim.atoDueDate ? addMonths(sim.atoDueDate, 1) : null;
   const customDay = parseInt(sim.mensalDueDay || '', 10);
   const mensalFirstDue = mensalAnchor

@@ -32,7 +32,6 @@ function initialScheme(): ColorScheme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [scheme, setSchemeState] = useState<ColorScheme>(initialScheme);
 
-  // Restaura a preferência salva (se houver).
   useEffect(() => {
     let mounted = true;
     sessionStorage.getItem(STORAGE_KEY).then((saved) => {
@@ -78,11 +77,6 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
-/**
- * Cria estilos temáticos memoizados pela paleta ativa.
- * Uso: `const styles = useThemedStyles(makeStyles);` onde
- * `makeStyles = (colors) => StyleSheet.create({ ... })`.
- */
 export function useThemedStyles<T>(factory: (colors: AppColors) => T): T {
   const { colors } = useTheme();
   return useMemo(() => factory(colors), [factory, colors]);

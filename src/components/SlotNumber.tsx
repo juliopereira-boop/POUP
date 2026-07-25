@@ -4,7 +4,6 @@ import { StyleSheet, Text, type TextStyle } from 'react-native';
 import { colors } from '@/theme';
 
 interface SlotNumberProps {
-  /** Valor alvo (em reais). */
   value: number;
   style?: TextStyle;
   durationMs?: number;
@@ -14,10 +13,6 @@ function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/**
- * Número monetário que anima ("caça-níquel") do valor anterior para o novo,
- * chamando atenção. Usado no valor das parcelas mensais.
- */
 export function SlotNumber({ value, style, durationMs = 500 }: SlotNumberProps) {
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
@@ -30,7 +25,7 @@ export function SlotNumber({ value, style, durationMs = 500 }: SlotNumberProps) 
     let raf: number;
     const tick = () => {
       const t = Math.min(1, (Date.now() - start) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+      const eased = 1 - Math.pow(1 - t, 3);
       setDisplay(from + (to - from) * eased);
       if (t < 1) {
         raf = requestAnimationFrame(tick);

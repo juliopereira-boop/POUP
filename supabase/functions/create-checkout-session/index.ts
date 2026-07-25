@@ -1,19 +1,6 @@
-// Edge Function: cria uma sessão de Checkout do Stripe para o plano mensal.
-//
-// Segredos necessários (defina com `supabase secrets set`):
-//   STRIPE_SECRET_KEY         sk_live_... ou sk_test_...
-//   SUPABASE_URL              (injetado automaticamente)
-//   SUPABASE_SERVICE_ROLE_KEY (injetado automaticamente)
-//
-// O client chama isto via supabase.functions.invoke('create-checkout-session'),
-// que já envia o JWT do usuário no header Authorization.
-
 import Stripe from 'https://esm.sh/stripe@17.3.1?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-// Cabeçalhos CORS. Duplicado em cada função (em vez de um arquivo
-// compartilhado) para que cada função seja um único arquivo autocontido —
-// assim dá pra colar e publicar direto pelo Dashboard do Supabase, sem CLI.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -36,7 +23,6 @@ Deno.serve(async (req) => {
       return json({ error: 'Não autenticado.' }, 401);
     }
 
-    // Cliente com o contexto do usuário para descobrir quem está chamando.
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -51,7 +37,6 @@ Deno.serve(async (req) => {
     const { priceId, successUrl, cancelUrl } = await req.json();
     if (!priceId) return json({ error: 'priceId é obrigatório.' }, 400);
 
-    // Reaproveita o customer do Stripe se já existir para este usuário.
     const { data: existing } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')

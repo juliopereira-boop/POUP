@@ -41,14 +41,11 @@ export default function SimuladorFluxo() {
     const [comps, devs, existing] = await Promise.all([
       db.companies.list(user.id),
       db.developments.list(user.id),
-      // Em modo edição, carrega a simulação salva para preservar o snapshot.
       sim.editId ? db.simulations.get(sim.editId) : Promise.resolve(null),
     ]);
     setStored(existing);
     const comp = comps.find((c) => c.id === sim.companyId);
     const dev = devs.find((d) => d.id === sim.developmentId);
-    // Em edição, se o cadastro foi alterado/excluído, mantém o valor salvo
-    // (é por isso que guardamos o snapshot — o PDF continua fiel).
     setCompanyName(comp?.name ?? existing?.companyName ?? null);
     setDevelopmentName(dev?.name ?? existing?.developmentName ?? null);
     setDeliveryDate(dev?.deliveryDate ?? existing?.deliveryDate ?? null);
@@ -62,7 +59,6 @@ export default function SimuladorFluxo() {
   const poupanca = useMemo(() => computePoupanca(sim), [sim]);
   const flow = useMemo(() => buildFlow(sim), [sim]);
 
-  /** Limita a quantidade ao máximo das regras de negócio da empresa. */
   function clampCount(text: string, max: number | null): string {
     const digits = text.replace(/[^0-9]/g, '');
     if (!digits) return '';
@@ -78,8 +74,6 @@ export default function SimuladorFluxo() {
     if (flow.mensaisCount <= 0) return setError('Informe a quantidade de parcelas mensais.');
     setGenerating(true);
     try {
-      // Em edição, preserva a data original da proposta (o PDF e os "meses
-      // para entrega" ficam consistentes com a geração original).
       const genDate =
         sim.editId && stored?.proposalDate
           ? stored.proposalDate
@@ -94,8 +88,6 @@ export default function SimuladorFluxo() {
         todayISO: genDate,
       });
 
-      // A simulação concluída "migra" para Relatórios. Guardamos só os DADOS
-      // (o PDF nunca é salvo — é sempre regerado sob demanda a partir daqui).
       const unitValue = currencyToNumber(sim.unitValue);
       const riskPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
       const input: SimulationInput = {
@@ -121,9 +113,6 @@ export default function SimuladorFluxo() {
         return;
       }
 
-      // Limpa a simulação inteira (memória + rascunho) para não deixar dados de
-      // um cliente "vazando" pra próxima simulação, e volta ao menu (a
-      // simulação concluída já está salva e aparece em Relatórios).
       sim.reset();
       router.replace('/(app)');
     } catch (e) {
@@ -147,7 +136,6 @@ export default function SimuladorFluxo() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {/* Ato */}
       <View style={styles.row}>
         <View style={styles.col}>
           <Input
@@ -167,7 +155,6 @@ export default function SimuladorFluxo() {
         </View>
       </View>
 
-      {/* Mensais */}
       <View style={styles.row}>
         <View style={styles.col}>
           <Input
@@ -192,13 +179,11 @@ export default function SimuladorFluxo() {
         </View>
       </View>
 
-      {/* Valor mensal animado (o destaque) */}
       <View style={styles.slotCard}>
         <Text style={styles.slotLabel}>Valor da parcela mensal</Text>
         <SlotNumber value={flow.monthlyValue} />
       </View>
 
-      {/* Semestrais */}
       {sim.semestralEnabled ? (
         <View style={styles.interCard}>
           <View style={styles.interHeader}>
@@ -240,7 +225,6 @@ export default function SimuladorFluxo() {
         />
       )}
 
-      {/* Anuais */}
       {sim.anualEnabled ? (
         <View style={styles.interCard}>
           <View style={styles.interHeader}>
@@ -282,7 +266,6 @@ export default function SimuladorFluxo() {
         />
       )}
 
-      {/* Saldo */}
       <View style={[styles.saldoCard, saldoOk ? styles.saldoOk : styles.saldoBad]}>
         <Text style={styles.saldoLabel}>Saldo a distribuir</Text>
         <Text style={[styles.saldoValue, saldoOk ? styles.saldoValueOk : styles.saldoValueBad]}>

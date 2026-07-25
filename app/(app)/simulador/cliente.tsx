@@ -57,7 +57,6 @@ export default function SimuladorCliente() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {/* 1º proponente */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>1º Proponente</Text>
@@ -66,7 +65,6 @@ export default function SimuladorCliente() {
         <ProponentFields value={sim.proponent1} onChange={sim.setProponent1} />
       </View>
 
-      {/* 2º proponente (opcional) */}
       {sim.hasSecondProponent ? (
         <View style={styles.card}>
           <View style={styles.cardHeader}>

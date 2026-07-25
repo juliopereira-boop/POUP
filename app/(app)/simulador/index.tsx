@@ -49,7 +49,7 @@ export default function SimuladorEmpreendimento() {
 
   function onSelectCompany(companyId: string) {
     sim.setField('companyId', companyId);
-    sim.setField('developmentId', null); // troca de empresa reseta o empreendimento
+    sim.setField('developmentId', null);
     const company = companies.find((c) => c.id === companyId);
     sim.setField('companyRisk', company?.risk ?? null);
     sim.setField('companyMaxInstallments', company?.maxInstallments ?? null);

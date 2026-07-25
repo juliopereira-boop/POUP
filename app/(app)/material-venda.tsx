@@ -21,11 +21,9 @@ import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
-/** Limite por arquivo, para não estourar o armazenamento com um único upload. */
 const MAX_FILE_MB = 25;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 
-/** Repositório externo da Canopus (empresa é redirecionada pra cá). */
 const CANOPUS_URL = 'https://canopus.liveprint.com.br/login';
 function isCanopus(name: string | null | undefined): boolean {
   return (name ?? '').toLowerCase().includes('canopus');
@@ -38,7 +36,6 @@ interface PickedFile {
   size: number;
 }
 
-// --- Seletor de arquivos (sem depender de tipos DOM) ---
 interface WebFile {
   name: string;
   type: string;
@@ -109,14 +106,12 @@ export default function MaterialVendaScreen() {
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [loadingCadastros, setLoadingCadastros] = useState(true);
 
-  // Navegação: empresa → empreendimento → pastas.
   const [companiesOpen, setCompaniesOpen] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [devsOpen, setDevsOpen] = useState(false);
   const [development, setDevelopment] = useState<Development | null>(null);
   const [folderSegs, setFolderSegs] = useState<string[]>([]);
 
-  // Conteúdo do Storage no nível atual.
   const [entries, setEntries] = useState<StorageEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -147,7 +142,6 @@ export default function MaterialVendaScreen() {
     };
   }, [user]);
 
-  /** Caminho relativo (após o userId) do nível atual dentro do Storage. */
   const relPath = useMemo(() => {
     if (!company || !development) return null;
     return ['material', company.id, development.id, ...folderSegs].join('/');
@@ -267,7 +261,6 @@ export default function MaterialVendaScreen() {
     <Screen>
       <Text style={styles.title}>Material de Vendas</Text>
 
-      {/* Trilha de navegação */}
       <View style={styles.breadcrumb}>
         <Crumb
           label="Empresas"
@@ -315,7 +308,6 @@ export default function MaterialVendaScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {/* NÍVEL 1: empresas */}
       {!company ? (
         <View>
           <Button
@@ -351,7 +343,6 @@ export default function MaterialVendaScreen() {
         </View>
       ) : null}
 
-      {/* NÍVEL 2: empreendimentos */}
       {company && !development ? (
         <View>
           <Button
@@ -373,7 +364,6 @@ export default function MaterialVendaScreen() {
         </View>
       ) : null}
 
-      {/* NÍVEL 3+: pastas e arquivos */}
       {company && development ? (
         <View>
           <View style={styles.toolbar}>

@@ -8,7 +8,6 @@ import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
 interface MonthYearFieldProps {
   label?: string;
-  /** Data em ISO (yyyy-mm-dd), sempre no 1º dia do mês, ou null. */
   value: string | null;
   onChange: (iso: string) => void;
   placeholder?: string;
@@ -44,11 +43,6 @@ function formatBR(value: string | null): string {
   return `${MONTHS[month - 1]}/${year}`;
 }
 
-/**
- * Campo de mês/ano (sem dia) usado na data de entrega do empreendimento.
- * - Web: <input type="month"> (seletor nativo do navegador).
- * - iOS/Android: modal com dois seletores nativos (mês e ano).
- */
 export function MonthYearField({ label, value, onChange, placeholder }: MonthYearFieldProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

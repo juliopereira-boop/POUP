@@ -5,7 +5,6 @@ import type { AuthUser, Result } from '@/data';
 
 interface AuthContextValue {
   user: AuthUser | null;
-  /** true enquanto restauramos a sessão inicial. */
   initializing: boolean;
   signIn: (email: string, password: string) => Promise<Result<AuthUser>>;
   signUp: (email: string, password: string, fullName?: string) => Promise<Result<AuthUser | null>>;
@@ -16,15 +15,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-/**
- * Compara os dados relevantes de dois usuários, ignorando identidade de
- * objeto. O Supabase dispara onAuthStateChange (com um NOVO objeto de user)
- * em eventos como refresh automático de token — algo que acontece sozinho
- * quando a aba volta a ficar visível (ex.: usuário troca de app e volta).
- * Sem essa comparação, cada refresh de token trocaria a referência de `user`,
- * derrubando em cascata qualquer provider/efeito que dependa de [user]
- * (ex.: SubscriptionProvider), causando remounts indevidos da árvore.
- */
 function sameUser(a: AuthUser | null, b: AuthUser | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -43,7 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Restaura a sessão persistida ao abrir o app.
     db.auth
       .getCurrentUser()
       .then((u) => {
@@ -53,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) setInitializing(false);
       });
 
-    // Mantém o estado sincronizado com login/logout/refresh de token.
     const unsubscribe = db.auth.onAuthStateChange(({ user: u }) => {
       if (!mounted) return;
       setUser((prev) => (sameUser(prev, u) ? prev : u));

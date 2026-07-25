@@ -1,10 +1,3 @@
-/**
- * Tipos do banco (formato compatível com `supabase gen types typescript`).
- *
- * Mantido à mão por enquanto (projeto Supabase gerenciado manualmente).
- * Quando conectarmos o CLI do Supabase, regenere com:
- *   supabase gen types typescript --project-id <ref> > src/data/database.types.ts
- */
 export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 export interface Database {

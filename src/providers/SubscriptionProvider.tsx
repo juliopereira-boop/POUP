@@ -7,18 +7,10 @@ import { useAuth } from './AuthProvider';
 
 interface SubscriptionContextValue {
   subscription: Subscription | null;
-  /** Assinatura ativa/trial → libera o app. */
   isActive: boolean;
-  /** Nível do plano atual (start/pro), ou null. */
   tier: PlanTier | null;
-  /** Config do plano atual (nome, limite, benefícios). */
   plan: PlanConfig | null;
   loading: boolean;
-  /**
-   * true SOMENTE até a 1ª busca terminar (nunca mais volta a true depois).
-   * Use isto (não `loading`) para decidir se mostra um loading de tela cheia
-   * — assim, atualizações em segundo plano não desmontam a árvore de telas.
-   */
   initialLoad: boolean;
   refresh: () => Promise<void>;
 }

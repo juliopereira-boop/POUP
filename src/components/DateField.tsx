@@ -7,11 +7,9 @@ import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
 interface DateFieldProps {
   label?: string;
-  /** Data em ISO (yyyy-mm-dd) ou null. */
   value: string | null;
   onChange: (iso: string) => void;
   placeholder?: string;
-  /** Somente leitura: mostra a data mas não abre o seletor. */
   readOnly?: boolean;
 }
 
@@ -22,11 +20,6 @@ function formatBR(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
-/**
- * Campo de data que usa o seletor NATIVO:
- * - Web: <input type="date"> (calendário do próprio sistema/navegador).
- * - iOS/Android: DateTimePicker nativo aberto ao tocar no campo.
- */
 export function DateField({ label, value, onChange, placeholder, readOnly }: DateFieldProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -35,7 +28,6 @@ export function DateField({ label, value, onChange, placeholder, readOnly }: Dat
   const labelNode = label ? <Text style={styles.label}>{label}</Text> : null;
 
   if (Platform.OS === 'web') {
-    // Input DOM real (react-dom): o navegador abre o calendário nativo.
     const input = createElement('input', {
       type: 'date',
       value: value ?? '',
@@ -44,8 +36,6 @@ export function DateField({ label, value, onChange, placeholder, readOnly }: Dat
       style: {
         height: 52,
         width: '100%',
-        // minWidth:0 permite o input encolher dentro de um flex container
-        // (inputs de data têm largura intrínseca e, sem isso, estouram a caixa).
         minWidth: 0,
         maxWidth: '100%',
         border: `1px solid ${colors.border}`,

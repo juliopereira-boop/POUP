@@ -23,7 +23,6 @@ export default function SimuladorFinanciamento() {
   const [warningOpen, setWarningOpen] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
 
-  // --- Cálculo do risco em tempo real ---
   const calc = useMemo(() => {
     const unitValue = currencyToNumber(sim.unitValue);
     const financing = currencyToNumber(sim.financingApproved);
@@ -110,13 +109,11 @@ export default function SimuladorFinanciamento() {
         keyboardType="numeric"
       />
 
-      {/* Risco da poupança (somente leitura, do cadastro da empresa) */}
       <Text style={styles.label}>Risco da poupança (cadastro)</Text>
       <View style={styles.readonlyField}>
         <Text style={styles.readonlyText}>{hasRisk ? `${risk}%` : 'Não cadastrado'}</Text>
       </View>
 
-      {/* Cupom */}
       <View style={styles.couponRow}>
         <Pressable onPress={pressCoupon} style={styles.couponButton} accessibilityLabel="Cupom">
           <Text style={styles.couponPlus}>+</Text>
@@ -184,7 +181,6 @@ export default function SimuladorFinanciamento() {
         </View>
       ) : null}
 
-      {/* Taxa CEF */}
       <View style={styles.cefCard}>
         <ToggleField
           label="Taxa CEF cliente paga"
@@ -211,8 +207,6 @@ export default function SimuladorFinanciamento() {
             ) : null}
           </>
         ) : null}
-        {/* Independente de quem paga a taxa CEF — é um valor de referência
-            usado na negociação (ex.: proposta em PDF). */}
         <Input
           label="Parcela CEF"
           value={sim.cefParcela}
@@ -222,7 +216,6 @@ export default function SimuladorFinanciamento() {
         />
       </View>
 
-      {/* Status do risco (atualiza em tempo real) */}
       <View
         style={[
           styles.statusCard,
@@ -261,7 +254,6 @@ export default function SimuladorFinanciamento() {
 
       <Button label="Avançar" onPress={advance} style={styles.cta} />
 
-      {/* Aviso do cupom */}
       <Modal visible={warningOpen} transparent animationType="fade" onRequestClose={closeWarning}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>

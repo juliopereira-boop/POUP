@@ -10,7 +10,6 @@ interface SwipeToDeleteProps {
   onDelete: () => void;
 }
 
-/** Arraste para o lado para revelar a lixeira vermelha e excluir. */
 export function SwipeToDelete({ children, onDelete }: SwipeToDeleteProps) {
   const styles = useThemedStyles(makeStyles);
   const ref = useRef<Swipeable>(null);

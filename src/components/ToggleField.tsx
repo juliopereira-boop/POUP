@@ -7,15 +7,10 @@ interface ToggleFieldProps {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
-  /** Legendas para ligado/desligado. */
   onLabel?: string;
   offLabel?: string;
 }
 
-/**
- * Interruptor com legenda (Sim/Não): verde quando ligado, vermelho quando
- * desligado. A legenda mostra o estado atual ao lado.
- */
 export function ToggleField({
   label,
   value,

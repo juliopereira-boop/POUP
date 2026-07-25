@@ -3,10 +3,8 @@ import type { MaterialRepository } from '../repositories';
 import { type Result, type StorageEntry, err, ok } from '../types';
 
 const BUCKET = 'uploads';
-/** Nome do objeto-placeholder que "materializa" uma pasta vazia no Storage. */
 const PLACEHOLDER = '.emptyFolderPlaceholder';
 
-/** Item cru retornado pelo Storage do Supabase. */
 interface RawObject {
   name: string;
   id: string | null;
@@ -19,9 +17,8 @@ function joinRel(userId: string, relPath: string): string {
   return rel ? `${userId}/${rel}` : userId;
 }
 
-/** Traduz erros conhecidos do Storage para mensagens amigáveis. */
 function friendly(message: string): string {
-  if (/Limite de armazenamento/i.test(message)) return message; // já é PT (trigger de cota)
+  if (/Limite de armazenamento/i.test(message)) return message;
   if (/exceeded|quota|storage/i.test(message)) {
     return 'Limite de armazenamento do plano atingido. Faça upgrade para o plano Pro.';
   }
@@ -49,7 +46,6 @@ export class SupabaseMaterialRepository implements MaterialRepository {
           mimeType: o.metadata?.mimetype ?? null,
         };
       })
-      // Pastas primeiro, depois arquivos (ambos já em ordem alfabética).
       .sort((a, b) => (a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1));
   }
 
@@ -99,7 +95,6 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     let targets: string[];
     if (isFolder) {
       targets = await this.collectPaths(path);
-      // Pasta vazia: remove ao menos o placeholder.
       if (targets.length === 0) targets = [`${path}/${PLACEHOLDER}`];
     } else {
       targets = [path];

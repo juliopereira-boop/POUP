@@ -3,7 +3,6 @@ import { Stack } from 'expo-router';
 import { SimuladorProvider } from '@/features/simulador/SimuladorProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 
-/** Wizard do Simulador de poupança — mantém o estado entre as páginas. */
 export default function SimuladorLayout() {
   const { colors } = useTheme();
   return (

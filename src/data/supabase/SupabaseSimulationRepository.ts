@@ -45,8 +45,6 @@ function mapSimulation(row: SimulationRow): Simulation {
     deliveryDate: row.delivery_date,
     managerName: row.manager_name,
     proposalDate: row.proposal_date,
-    // Backfill contra o estado inicial: se um campo novo for adicionado ao
-    // SimuladorState, simulações antigas (sem esse campo) não quebram.
     state: { ...INITIAL_SIMULADOR_STATE, ...row.state },
     status: row.status,
     createdAt: row.created_at,
@@ -68,7 +66,6 @@ function payload(data: SimulationInput) {
     delivery_date: data.deliveryDate,
     manager_name: data.managerName,
     proposal_date: data.proposalDate,
-    // jsonb: o estado é um objeto serializável (SimuladorState).
     state: data.state as unknown as Json,
   };
 }

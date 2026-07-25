@@ -44,13 +44,11 @@ const SOURCE_LABEL: Record<Lead['source'], string> = {
   manual: 'Manual',
 };
 
-/** Estados (UF) para o filtro de prospecção. */
 const UFS = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
   'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-/** Copia texto (web) ou abre o compartilhar nativo — sem depender de libs extras. */
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
   if (Platform.OS === 'web') {
     const nav = (globalThis as unknown as { navigator?: { clipboard?: { writeText: (s: string) => Promise<void> } } })
@@ -118,8 +116,6 @@ export default function LeadsScreen() {
     </Screen>
   );
 }
-
-// ============================= GESTÃO DE LEADS =============================
 
 function GestaoLeadsTab({ userId }: { userId: string | null }) {
   const styles = useThemedStyles(makeStyles);
@@ -263,8 +259,6 @@ function statusStyle(status: LeadStatus, styles: ReturnType<typeof makeStyles>) 
   }
 }
 
-// =============================== PROSPECÇÃO ===============================
-
 function ProspeccaoTab({
   userId,
   brokerName,
@@ -283,11 +277,6 @@ function ProspeccaoTab({
   );
 }
 
-/**
- * Prospecção ATIVA: o corretor escolhe estado + cidade + segmento e recebe
- * uma lista de donos de empresas locais (dados públicos de CNPJ) com telefone
- * pra ligar. Salva os que quiser na Gestão de Leads. Sem página, sem anúncio.
- */
 function ProspectarCard({ userId }: { userId: string | null }) {
   const styles = useThemedStyles(makeStyles);
   const [uf, setUf] = useState<string | null>(null);
@@ -297,13 +286,10 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ProspectedLead[] | null>(null);
   const [saved, setSaved] = useState<Record<string, boolean>>({});
-  // CNPJs já vistos (com os filtros atuais) — novas buscas nunca repetem.
   const [seen, setSeen] = useState<string[]>([]);
 
   const storeKey = userId ? `prospect:${userId}` : null;
 
-  // Restaura a última prospecção salva (persiste até uma nova busca) — os
-  // resultados NÃO somem ao sair/voltar da tela.
   useEffect(() => {
     if (!storeKey) return;
     let active = true;
@@ -323,7 +309,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         if (s.saved) setSaved(s.saved);
         if (Array.isArray(s.seen)) setSeen(s.seen);
       } catch {
-        /* ignora cache inválido */
       }
     });
     return () => {
@@ -331,8 +316,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     };
   }, [storeKey]);
 
-  // Carrega os municípios do estado escolhido (API pública do IBGE), para a
-  // cidade ser selecionável (evita erro de digitação).
   useEffect(() => {
     if (!uf) {
       setCidadeOptions([]);
@@ -373,7 +356,6 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     );
   }
 
-  // Trocar o local reinicia a lista de "já vistos" (nova busca do zero).
   function onChangeUf(v: string) {
     setUf(v);
     setCidade('');
@@ -394,7 +376,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     if (!res.ok) return setError(res.error);
     if (res.data.leads.length === 0) {
       setError('Nenhum lead novo encontrado nessa cidade. Tente outra cidade.');
-      return; // mantém a lista anterior na tela
+      return;
     }
     const novosCnpjs = res.data.leads.map((l) => l.cnpj).filter(Boolean);
     const nextSeen = [...seen, ...novosCnpjs];
@@ -488,17 +470,11 @@ function ProspectarCard({ userId }: { userId: string | null }) {
   );
 }
 
-/** Convite padrão (client-side) para o botão Divulgar já funcionar sem IA. */
 function defaultConvite(brokerName: string | null): string {
   const quem = brokerName?.trim() ? brokerName.trim().split(' ')[0] : 'eu';
   return `🏡 Sonhando com o imóvel próprio? Me manda seu nome e telefone que ${quem === 'eu' ? 'eu' : quem} te ajudo a simular e realizar esse sonho! 👇`;
 }
 
-/**
- * Coração da prospecção: em 1 toque o corretor divulga sua página de captação
- * (quem preencher nome+telefone vira lead automático). A IA escreve o convite
- * e os textos da página — o corretor não precisa configurar nada.
- */
 function CaptacaoCard({
   userId,
   brokerName,

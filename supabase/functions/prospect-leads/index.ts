@@ -1,18 +1,3 @@
-// Edge Function: PROSPECÇÃO ATIVA de leads a partir de dados PÚBLICOS de CNPJ
-// da Receita Federal, via API da Casa dos Dados (v5 pesquisa + v4 consulta).
-//
-// O corretor escolhe UF + cidade + segmento (CNAE) e recebe uma lista de
-// empresas locais com nome e telefone público — donos de negócios (clínicas,
-// escritórios, lojas) são o público de renda mais alta que compra imóvel.
-// Tudo dado público e legal (nada de raspar renda de pessoa física).
-//
-// Limite: até 10 leads no período da manhã e 10 à tarde (horário de Brasília).
-//
-// Segredo necessário (Supabase → Edge Functions → Secrets):
-//   CASADOSDADOS_API_KEY   (Casa dos Dados → Chave da API)
-//
-// Requer a migration 0010_prospect_usage.sql.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {
@@ -24,17 +9,11 @@ const corsHeaders = {
 const API_KEY = Deno.env.get('CASADOSDADOS_API_KEY') ?? '';
 const PESQUISA_URL = 'https://api.casadosdados.com.br/v5/cnpj/pesquisa?tipo_resultado=completo';
 const CONSULTA_BASE = 'https://api.casadosdados.com.br/v4/cnpj';
-const PERIOD_CAP = 10; // 10 de manhã + 10 à tarde = 20/dia
+const PERIOD_CAP = 10;
 
-// Regra do sistema: SÓ MEIs (Microempreendedor Individual), sem filtro de
-// categoria/CNAE. É o público-pessoa (dono é a própria pessoa física).
-
-// Contas de teste/admin sem limite de PERÍODO (manhã/tarde), mas com um teto
-// baixo por busca para não consumir créditos à toa durante os testes.
 const UNLIMITED_EMAILS = new Set(['julio.pereira@sellmyhouse.com.br']);
 const UNLIMITED_PER_SEARCH_CAP = 5;
 
-/** minúsculo, sem acento — a Casa dos Dados usa cidade/UF assim (ex.: "sao paulo"). */
 function slug(s: string): string {
   return s
     .normalize('NFD')
@@ -47,8 +26,6 @@ function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-/** Extrai o primeiro telefone válido, cobrindo os formatos da pesquisa e da
- * consulta detalhada (inclui bloco aninhado "estabelecimento"). */
 function extractPhone(obj: Record<string, unknown> | null): string | null {
   if (!obj || typeof obj !== 'object') return null;
   const sources: Record<string, unknown>[] = [obj];
@@ -94,7 +71,6 @@ function extractEmail(obj: Record<string, unknown> | null): string | null {
   return str(obj.email) ?? str(est.email) ?? str(obj.correio_eletronico) ?? null;
 }
 
-/** Consulta detalhada de um CNPJ (traz telefone/e-mail). Best-effort + timeout. */
 async function fetchDetail(cnpj: string): Promise<Record<string, unknown> | null> {
   try {
     const res = await fetch(`${CONSULTA_BASE}/${cnpj.replace(/\D/g, '')}`, {
@@ -144,7 +120,6 @@ Deno.serve(async (req) => {
     const { uf, cidade, excluir } = (await req.json().catch(() => ({}))) as {
       uf?: string;
       cidade?: string;
-      /** CNPJs já vistos (não repetir em novas buscas). */
       excluir?: string[];
     };
     if (!uf || !cidade) return json({ error: 'Informe estado e cidade.' });
@@ -152,11 +127,10 @@ Deno.serve(async (req) => {
       ? excluir.map((c) => String(c).replace(/\D/g, '')).filter(Boolean).slice(0, 2000)
       : [];
 
-    // --- Limite por período (manhã/tarde) — contas de teste são ilimitadas ---
     const unlimited = UNLIMITED_EMAILS.has((user.email ?? '').toLowerCase());
     const { dia, periodo } = brasiliaPeriodo();
     let usados = 0;
-    let limit = UNLIMITED_PER_SEARCH_CAP; // conta de teste: teto baixo por busca
+    let limit = UNLIMITED_PER_SEARCH_CAP;
     if (!unlimited) {
       const { data: usage } = await admin
         .from('prospect_usage')
@@ -180,9 +154,9 @@ Deno.serve(async (req) => {
       situacao_cadastral: ['ATIVA'],
       uf: [uf.toLowerCase()],
       municipio: [slug(cidade)],
-      mei: { optante: true }, // SÓ MEIs
+      mei: { optante: true },
       mais_filtros: { com_telefone: true },
-      excluir: { cnpj: excluirCnpjs }, // não repetir os já vistos
+      excluir: { cnpj: excluirCnpjs },
       limite: pageSize,
       pagina: page,
     });
@@ -205,9 +179,6 @@ Deno.serve(async (req) => {
       return { status: 200, arr: Array.isArray(arr) ? arr : [], errText: '' };
     }
 
-    // Nome: se a razão social vier com o número na frente ("12.345.678 JOÃO
-    // DA SILVA"), guardamos só o nome ("JOÃO DA SILVA"). Se não vier número,
-    // usamos a razão como está — nunca descartamos por causa disso.
     const NOME_RE = /^[\d.\/-]{6,}\s+(.+)$/;
 
     type Lead = {
@@ -226,7 +197,6 @@ Deno.serve(async (req) => {
     const leads: Lead[] = [];
     let page = 1;
 
-    // Pagina até completar exatamente `limit` leads (ou esgotar as páginas).
     for (let i = 0; i < MAX_PAGES && leads.length < limit; i++) {
       let pageData: { status: number; arr: Record<string, unknown>[]; errText: string };
       try {
@@ -254,7 +224,7 @@ Deno.serve(async (req) => {
       }
       const arr = pageData.arr;
       page++;
-      if (arr.length === 0) break; // acabaram os resultados
+      if (arr.length === 0) break;
 
       const pessoas = arr
         .map((item) => {

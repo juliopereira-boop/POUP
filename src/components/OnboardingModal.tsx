@@ -8,11 +8,6 @@ import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
-/**
- * Popup exibido após o primeiro login enquanto o corretor não completa o
- * cadastro obrigatório (nome, imobiliária, CNPJ, telefone). Depois, os mesmos
- * dados ficam editáveis na tela de Perfil.
- */
 export function OnboardingModal() {
   const styles = useThemedStyles(makeStyles);
   const { needsOnboarding, profile, updateProfile } = useProfile();
@@ -39,7 +34,6 @@ export function OnboardingModal() {
     });
     setSaving(false);
     if (!result.ok) setError(result.error);
-    // Se ok, needsOnboarding vira false e o modal fecha sozinho.
   }
 
   return (

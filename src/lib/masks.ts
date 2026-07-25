@@ -1,13 +1,7 @@
-/**
- * Máscaras de formatação de campos brasileiros.
- * Aplicadas ao digitar (onChangeText) e também na exibição.
- */
-
 function onlyDigits(v: string | null | undefined): string {
   return (v ?? '').replace(/\D/g, '');
 }
 
-/** Telefone: (98) 98888-8888 (celular) ou (98) 8888-8888 (fixo). */
 export function formatPhone(value: string): string {
   const d = onlyDigits(value).slice(0, 11);
   if (d.length === 0) return '';
@@ -17,7 +11,6 @@ export function formatPhone(value: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
-/** CNPJ: 55.555.555/0001-55 */
 export function formatCNPJ(value: string): string {
   const d = onlyDigits(value).slice(0, 14);
   let out = d;
@@ -28,7 +21,6 @@ export function formatCNPJ(value: string): string {
   return out;
 }
 
-/** CPF: 555.555.555-55 */
 export function formatCPF(value: string): string {
   const d = onlyDigits(value).slice(0, 11);
   let out = d;
@@ -38,7 +30,6 @@ export function formatCPF(value: string): string {
   return out;
 }
 
-/** Valor monetário em Real: R$ 350.000,00 (a partir dos dígitos digitados). */
 export function formatCurrencyBRL(value: string): string {
   const d = onlyDigits(value);
   if (!d) return '';
@@ -50,7 +41,6 @@ export function formatCurrencyBRL(value: string): string {
   return `R$ ${reais}`;
 }
 
-/** Converte um valor monetário mascarado de volta para número (reais). */
 export function currencyToNumber(masked: string): number {
   const d = onlyDigits(masked);
   return d ? parseInt(d, 10) / 100 : 0;

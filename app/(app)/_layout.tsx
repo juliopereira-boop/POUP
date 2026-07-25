@@ -7,20 +7,11 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme } from '@/providers/ThemeProvider';
 
-/**
- * Guarda do app: exige login + assinatura ativa.
- * Toda a área "logada" fica sob este grupo.
- */
 export default function AppLayout() {
   const { colors } = useTheme();
   const { user, initializing } = useAuth();
   const { isActive, initialLoad } = useSubscription();
 
-  // IMPORTANTE: usar `initialLoad` (não `loading`) aqui. `loading` volta a
-  // true toda vez que a assinatura é reconferida em segundo plano (ex.: após
-  // o app voltar do segundo plano). Se usássemos `loading`, cada uma dessas
-  // reconferências desmontaria o <Stack> inteiro — incluindo o estado do
-  // Simulador — jogando o usuário de volta pro menu e apagando o progresso.
   if (initializing || initialLoad) return <LoadingScreen />;
   if (!user) return <Redirect href="/(auth)/login" />;
   if (!isActive) return <Redirect href="/paywall" />;

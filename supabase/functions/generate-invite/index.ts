@@ -1,14 +1,3 @@
-// Edge Function: gera, com o Claude, os textos de captação de leads do
-// corretor — o título/subtítulo da página pública e o convite pra postar no
-// Instagram/WhatsApp. Salva o resultado em `public.lead_campaigns` (um por
-// corretor) e devolve pro app.
-//
-// Segredo necessário (Supabase → Edge Functions → Secrets):
-//   ANTHROPIC_API_KEY   sk-ant-...
-//
-// Chamada pelo app logado via supabase.functions.invoke('generate-invite'),
-// que envia o JWT do usuário no header Authorization.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {
@@ -107,7 +96,6 @@ Deno.serve(async (req) => {
       extra?: string;
     };
 
-    // Dados do corretor para personalizar o texto.
     const { data: profile } = await admin
       .from('profiles')
       .select('full_name, agency')
@@ -159,7 +147,6 @@ Deno.serve(async (req) => {
       ? result.beneficios.filter((b) => typeof b === 'string' && b.trim()).slice(0, 5)
       : [];
 
-    // Salva a campanha (um registro por corretor).
     const { error: saveError } = await admin.from('lead_campaigns').upsert(
       {
         user_id: user.id,

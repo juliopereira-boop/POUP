@@ -10,10 +10,6 @@ interface ScanDocumentButtonProps {
   onScanned: (result: ScannedDocument) => void;
 }
 
-/**
- * Botão discreto (ícone de scanner) — tira foto da CNH/RG do cliente e usa o
- * Claude para ler nome e CPF. O resultado sempre cai em campos editáveis.
- */
 export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

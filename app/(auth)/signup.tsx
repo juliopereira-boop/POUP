@@ -45,7 +45,6 @@ export default function SignUpScreen() {
       notify(result.error);
       return;
     }
-    // Se o projeto exigir confirmação de email, não haverá sessão ainda.
     if (!result.data) {
       Alert.alert('Quase lá!', 'Enviamos um email de confirmação. Confirme para continuar.');
       router.replace('/(auth)/login');

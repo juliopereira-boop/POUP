@@ -1,12 +1,3 @@
--- =============================================================================
--- POUP — Schema inicial
--- Rode este arquivo no Supabase: Dashboard > SQL Editor > New query > cole e RUN.
--- (ou via CLI: supabase db push)
--- =============================================================================
-
--- ---------------------------------------------------------------------------
--- Tabela: profiles  (1:1 com auth.users)
--- ---------------------------------------------------------------------------
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text,
@@ -19,10 +10,6 @@ create table if not exists public.profiles (
 
 comment on table public.profiles is 'Dados do corretor, espelhando auth.users.';
 
--- ---------------------------------------------------------------------------
--- Tabela: subscriptions  (fonte da verdade do acesso pago)
--- Atualizada pela Edge Function stripe-webhook via service role.
--- ---------------------------------------------------------------------------
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users (id) on delete cascade,
@@ -41,13 +28,9 @@ comment on table public.subscriptions is 'Estado da assinatura Stripe por usuár
 create index if not exists subscriptions_user_id_idx on public.subscriptions (user_id);
 create index if not exists subscriptions_customer_idx on public.subscriptions (stripe_customer_id);
 
--- ---------------------------------------------------------------------------
--- Row Level Security
--- ---------------------------------------------------------------------------
 alter table public.profiles enable row level security;
 alter table public.subscriptions enable row level security;
 
--- profiles: cada usuário lê/edita apenas o próprio registro.
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
   on public.profiles for select
@@ -64,16 +47,11 @@ create policy "profiles_update_own"
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
--- subscriptions: usuário SÓ LÊ a própria. Escrita é exclusiva do service role
--- (webhook do Stripe), que ignora RLS — por isso não há policy de write aqui.
 drop policy if exists "subscriptions_select_own" on public.subscriptions;
 create policy "subscriptions_select_own"
   on public.subscriptions for select
   using (auth.uid() = user_id);
 
--- ---------------------------------------------------------------------------
--- Trigger: ao criar um usuário, cria profile + subscription "none".
--- ---------------------------------------------------------------------------
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -102,9 +80,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- ---------------------------------------------------------------------------
--- Trigger: mantém updated_at atualizado.
--- ---------------------------------------------------------------------------
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql

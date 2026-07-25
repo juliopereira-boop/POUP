@@ -14,12 +14,6 @@ interface NumberPickerFieldProps {
   max?: number;
 }
 
-/**
- * Campo numérico que abre o SELETOR NATIVO do aparelho (igual ao de horário):
- * - Web (inclui navegador do celular): renderiza um <select> nativo — ao tocar,
- *   o sistema abre sua própria roleta/lista.
- * - iOS/Android (app nativo): um botão que abre a roleta nativa num modal.
- */
 export function NumberPickerField({
   label,
   value,
@@ -31,7 +25,6 @@ export function NumberPickerField({
   const styles = useThemedStyles(makeStyles);
   const options = Array.from({ length: max - min + 1 }, (_, i) => min + i);
 
-  // ---- Web: <select> nativo estilizado como campo ----
   if (Platform.OS === 'web') {
     return (
       <View style={styles.wrap}>
@@ -51,7 +44,6 @@ export function NumberPickerField({
     );
   }
 
-  // ---- Nativo: botão que abre a roleta nativa num modal ----
   return <NativePicker label={label} value={value} onChange={onChange} options={options} />;
 }
 

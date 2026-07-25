@@ -12,16 +12,6 @@ import { getLeadPage } from '@/lib/prospeccao';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, shadow, type AppColors } from '@/theme';
 
-/**
- * Landing page PÚBLICA de captação de leads — sem login, aberta pra qualquer
- * visitante que recebeu o link (Instagram, WhatsApp, anúncio, etc.).
- *
- * IMPORTANTE: esta é uma rota ESTÁTICA (/captar) e o corretor vem por query
- * string (?c=<id>&e=<empreendimento>), de propósito. Rotas dinâmicas de
- * segmento (/captar/[id]) viram um arquivo com colchetes no export estático e
- * exigem rewrite especial no host — o que já quebrou em produção. Query string
- * cai sempre no mesmo arquivo estático e funciona em qualquer hospedagem.
- */
 const DEFAULT_TITLE = 'Realize o sonho do seu imóvel';
 const DEFAULT_SUBTITLE = 'Deixe seu contato e um especialista fala com você — sem compromisso.';
 const DEFAULT_BENEFITS = [
@@ -47,7 +37,6 @@ export default function CaptarLeadScreen() {
   const [brokerName, setBrokerName] = useState<string | null>(null);
   const [agency, setAgency] = useState<string | null>(null);
 
-  // Carrega os textos da campanha do corretor (gerados pela IA), se houver.
   useEffect(() => {
     if (!brokerId) return;
     let active = true;

@@ -1,16 +1,3 @@
--- =============================================================================
--- POUP — Cadastros: Empresas (construtoras) e Empreendimentos
---
--- Rode DEPOIS do 0002. (SQL Editor > cole > Run)
---
--- - companies: construtoras. Campo `risk` = risco da poupança da construtora,
---   usado como parâmetro no Simulador de poupança.
--- - developments: empreendimentos, sempre associados a uma empresa.
--- =============================================================================
-
--- ---------------------------------------------------------------------------
--- companies
--- ---------------------------------------------------------------------------
 create table if not exists public.companies (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -25,9 +12,6 @@ comment on column public.companies.risk is
 
 create index if not exists companies_user_id_idx on public.companies (user_id);
 
--- ---------------------------------------------------------------------------
--- developments (empreendimentos)
--- ---------------------------------------------------------------------------
 create table if not exists public.developments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -40,9 +24,6 @@ create table if not exists public.developments (
 create index if not exists developments_user_id_idx on public.developments (user_id);
 create index if not exists developments_company_id_idx on public.developments (company_id);
 
--- ---------------------------------------------------------------------------
--- RLS — cada usuário só enxerga/edita os próprios cadastros
--- ---------------------------------------------------------------------------
 alter table public.companies enable row level security;
 alter table public.developments enable row level security;
 
@@ -58,9 +39,6 @@ create policy "developments_all_own"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
--- ---------------------------------------------------------------------------
--- updated_at automático (reusa a função criada em 0001)
--- ---------------------------------------------------------------------------
 drop trigger if exists companies_set_updated_at on public.companies;
 create trigger companies_set_updated_at
   before update on public.companies

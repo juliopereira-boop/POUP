@@ -15,7 +15,6 @@ export default function MenuScreen() {
   const { user } = useAuth();
   const { width } = useWindowDimensions();
 
-  // 2 colunas no celular; 3 em telas largas (PC/tablet).
   const columns = width >= 900 ? 3 : 2;
   const firstName = (user?.displayName ?? user?.email ?? 'corretor').split(' ')[0].split('@')[0];
 

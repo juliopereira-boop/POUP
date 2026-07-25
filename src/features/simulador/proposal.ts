@@ -38,19 +38,10 @@ function pctOf(n: number, total: number): string {
   return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
 }
 
-/**
- * Logo do PDF: SOMENTE o nome "POUP" (sem o símbolo), em fonte FINA.
- * A tipografia oficial é a "Banana" (Canva); por ser uma fonte proprietária
- * que não vem embutida no navegador, usamos uma pilha de fontes finas/
- * geométricas semelhantes como fallback. O aspecto fino vem de font-weight:300.
- */
 function brandHtml(): string {
   return `<div class="brand">POUP</div>`;
 }
 
-// --- Diagrama "Jornada do cliente" (mapa estilo metrô) exibido no final da
-// proposta, igual ao modelo de referência. É estático (não reflete o estágio
-// real da simulação) — desenhado em SVG puro para imprimir nítido no PDF.
 const J_GRAY = '#A3A3A3';
 const J_GRAY_TXT = '#7A7A7A';
 const J_GOLD = '#C9A227';
@@ -162,7 +153,6 @@ function journeyMapSvg(): string {
   </svg>`;
 }
 
-/** Linha da tabela de negociação. */
 function flowRow(label: string, qtd: string, valor: string, total: string, venc: string): string {
   return `<tr>
     <td class="lbl">${label}</td>
@@ -173,10 +163,6 @@ function flowRow(label: string, qtd: string, valor: string, total: string, venc:
   </tr>`;
 }
 
-/**
- * Nome de arquivo sugerido para o PDF: "Cliente-Empreendimento", sem
- * caracteres inválidos em nomes de arquivo.
- */
 function proposalFileName(ctx: ProposalContext): string {
   const client = ctx.sim.proponent1.name.trim() || 'Cliente';
   const dev = ctx.developmentName?.trim() || 'Proposta';
@@ -208,11 +194,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
 
   const parcelasPoupanca = flow.mensaisCount + flow.semestralCount + flow.anualCount;
   const contrato = unitValue;
-  // Total a ser pago pelo cliente: tudo, menos subsídio e FGTS (que não saem
-  // do bolso do cliente).
   const totalPago = contrato - sub - fgts;
-  // Checagem de distribuição: ato + mensais + intercaladas + financiamentos
-  // deve fechar com o valor do contrato.
   const totalDistribuido =
     flow.ato + financingSum + flow.monthlyValue * flow.mensaisCount + flow.semestralTotal + flow.anualTotal;
   const saldo = contrato - totalDistribuido;
@@ -412,12 +394,6 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
   return { style, bodyHtml, fileName: proposalFileName(ctx) };
 }
 
-/**
- * Script embutido no documento completo (usado no nativo via expo-print):
- * ao carregar, se o conteúdo for mais alto que uma página A4, reduz a escala
- * do `.sheet` até caber — garante uma única página mesmo com pequenas
- * diferenças de métricas de fonte entre motores de renderização.
- */
 const AUTO_FIT_SCRIPT = `<script>
 (function () {
   function fit() {
@@ -437,7 +413,6 @@ const AUTO_FIT_SCRIPT = `<script>
 })();
 </script>`;
 
-/** Documento HTML completo e independente — usado no nativo (expo-print). */
 export function generateProposalHtml(ctx: ProposalContext): string {
   const { style, bodyHtml, fileName } = buildProposalParts(ctx);
   return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(fileName)}</title>
@@ -474,49 +449,17 @@ interface PrintGlobal {
   setTimeout: (cb: () => void, ms: number) => void;
 }
 
-/**
- * Imprime a proposta no web usando um IFRAME OCULTO.
- *
- * Por que iframe (e não nova aba): quando o app é aberto como atalho na tela
- * inicial do celular (modo standalone/PWA), NÃO existe "nova aba" — abrir uma
- * cai numa tela quebrada/inexistente. O iframe evita isso por completo.
- *
- * Por que iframe (e não imprimir o próprio documento): esconder o app via CSS
- * se mostrou frágil e voltava a imprimir a TELA inteira. O iframe é um
- * documento ISOLADO contendo só a proposta, então nunca "vaza" o app pro PDF.
- *
- * Detalhes CRÍTICOS para NÃO imprimir em branco:
- *  - O iframe precisa ficar PINTADO. `opacity:0`, `visibility:hidden` e
- *    `display:none` fazem o motor de impressão do Chromium tratar o iframe
- *    como não-renderizado e serializar uma página VAZIA. Por isso ele fica
- *    apenas FORA DA TELA (`left:-10000px`), com tamanho real de folha A4
- *    (nunca 0x0, que também imprime em branco).
- *  - `srcdoc` navega de forma assíncrona; imprimimos só no evento `load`.
- *    Como fallback (caso o `load` não dispare em algum motor), também
- *    escrevemos o HTML via `document.open/write/close`.
- *  - Ainda no `load`, esperamos um `requestAnimationFrame` + ~500ms para o
- *    layout, o SVG e o auto-ajuste de escala assentarem antes de imprimir.
- *  - O iframe só é removido no `afterprint` (ou por timeout longo), nunca
- *    antes do job de impressão ser serializado.
- * O <title> (nome do arquivo Cliente-Empreendimento) e o auto-ajuste de
- * escala para 1 página já vêm embutidos em generateProposalHtml.
- */
 function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
   const doc = g.document;
   if (!doc) return Promise.resolve();
   const html = generateProposalHtml(ctx);
-  // Alguns navegadores (Safari incluso) usam o <title> do documento de NÍVEL
-  // SUPERIOR — não o do iframe — como nome sugerido no "Salvar como PDF".
-  // Por isso trocamos o título da página toda durante a impressão.
   const originalTitle = doc.title;
   doc.title = proposalFileName(ctx);
 
   return new Promise<void>((resolve) => {
     const iframe = doc.createElement('iframe');
     iframe.setAttribute('aria-hidden', 'true');
-    // PINTADO, porém fora da tela — sem opacity/visibility/display que
-    // fariam o motor de impressão pular a renderização (página em branco).
     iframe.style.position = 'fixed';
     iframe.style.left = '-10000px';
     iframe.style.top = '0';
@@ -534,7 +477,6 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
         try {
           doc.body.removeChild(iframe);
         } catch {
-          // ignore
         }
       }, 1000);
       resolve();
@@ -551,15 +493,12 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
       win.onafterprint = cleanup;
       const raf = win.requestAnimationFrame ?? g.requestAnimationFrame;
       const afterPaint = () => {
-        // Espera layout/SVG e o auto-ajuste de escala assentarem.
         g.setTimeout(() => {
           try {
             win.focus?.();
           } catch {
-            // ignore
           }
           win.print?.();
-          // Fallback: nem todo navegador dispara afterprint de forma confiável.
           g.setTimeout(cleanup, 60000);
         }, 500);
       };
@@ -571,8 +510,6 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
     iframe.srcdoc = html;
     doc.body.appendChild(iframe);
 
-    // Fallback de robustez: se o evento `load` do srcdoc não disparar,
-    // escrevemos o HTML diretamente no documento do iframe e imprimimos.
     g.setTimeout(() => {
       if (printed) return;
       const cdoc = iframe.contentDocument;
@@ -582,7 +519,6 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
           cdoc.write(html);
           cdoc.close();
         } catch {
-          // ignore
         }
       }
       doPrint();
@@ -592,12 +528,6 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
   });
 }
 
-/**
- * Gera e compartilha/imprime o PDF da proposta.
- * A Promise só resolve depois que o usuário conclui a impressão/
- * compartilhamento (fecha o diálogo) — use isso para saber quando é seguro
- * limpar a simulação e voltar ao menu.
- */
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
   if (Platform.OS === 'web') {
     await printHtmlWeb(ctx);

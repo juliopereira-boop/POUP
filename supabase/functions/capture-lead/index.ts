@@ -1,12 +1,3 @@
-// Edge Function: recebe submissões da LANDING PAGE PÚBLICA de captação de
-// leads (app/captar/[brokerId].tsx) e insere em `public.leads`.
-//
-// Pública e SEM verificação de JWT (o visitante não está logado):
-//   supabase functions deploy capture-lead --no-verify-jwt
-//
-// Segredos necessários (já injetados pelo Supabase): SUPABASE_URL,
-// SUPABASE_SERVICE_ROLE_KEY.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {
@@ -54,8 +45,6 @@ Deno.serve(async (req) => {
   const phoneDigits = onlyDigits(body.phone ?? '');
   const brokerUserId = (body.brokerUserId ?? '').trim();
 
-  // Validação mínima — não travamos em regras rígidas demais, mas exigimos
-  // o essencial pra um lead ser útil e identificável.
   if (!brokerUserId) {
     return new Response(JSON.stringify({ error: 'Link de captação inválido.' }), {
       status: 400,
@@ -75,8 +64,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Confirma que o link aponta pra um corretor de verdade (evita popular
-  // leads "órfãos" com um brokerUserId inventado).
   const { data: profile } = await admin
     .from('profiles')
     .select('id')

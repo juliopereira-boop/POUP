@@ -10,11 +10,6 @@ interface FeaturePlaceholderProps {
   description: string;
 }
 
-/**
- * Tela padrão para funcionalidades ainda não construídas.
- * Cada feature do menu será desenvolvida uma a uma, substituindo este
- * placeholder pela implementação real.
- */
 export function FeaturePlaceholder({ emoji, title, description }: FeaturePlaceholderProps) {
   const styles = useThemedStyles(makeStyles);
   return (

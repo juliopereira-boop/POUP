@@ -1,17 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-/**
- * Adaptador de armazenamento para a sessão do Supabase.
- *
- * - Nativo (iOS/Android): AsyncStorage (persistente).
- * - Web: localStorage via AsyncStorage web shim, com fallback em memória
- *   para ambientes SSR/estáticos onde `window` não existe.
- *
- * Mantido isolado para trocar por SecureStore/expo-secure-store facilmente
- * quando quisermos criptografar tokens em nativo.
- */
-
 const memoryStore = new Map<string, string>();
 
 const isWeb = Platform.OS === 'web';

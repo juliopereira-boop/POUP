@@ -1,11 +1,6 @@
 import { supabase } from './supabase';
 import { type LeadCampaign, type Result, err, ok } from '@/data';
 
-/**
- * Pede à Edge Function `generate-invite` que o Claude escreva os textos de
- * captação do corretor (título/subtítulo da página + convite pra postar) e
- * salve como a campanha ativa. Opcionalmente personaliza por empreendimento.
- */
 export async function generateInvite(input?: {
   developmentName?: string | null;
   detalhes?: string | null;
@@ -21,7 +16,6 @@ export async function generateInvite(input?: {
   return ok(data as LeadCampaign);
 }
 
-/** Textos exibidos na página pública de captação (retornados por get-lead-page). */
 export interface LeadPageInfo {
   brokerName: string | null;
   agency: string | null;
@@ -31,7 +25,6 @@ export interface LeadPageInfo {
   beneficios: string[];
 }
 
-/** Busca (público) os textos da página de captação de um corretor. */
 export async function getLeadPage(brokerId: string): Promise<LeadPageInfo | null> {
   const { data, error } = await supabase.functions.invoke('get-lead-page', {
     body: { brokerId },
@@ -40,7 +33,6 @@ export async function getLeadPage(brokerId: string): Promise<LeadPageInfo | null
   return data as LeadPageInfo;
 }
 
-/** Um lead prospectado a partir de dados públicos de CNPJ (ainda não salvo). */
 export interface ProspectedLead {
   cnpj: string;
   empresa: string;
@@ -57,11 +49,6 @@ export interface ProspectResult {
   total: number;
 }
 
-/**
- * Prospecção ativa: busca MEIs locais (dados públicos de CNPJ) por estado +
- * cidade e devolve nome/telefone pra ligar. `excluir` são os CNPJs já vistos,
- * para novas buscas nunca repetirem os mesmos.
- */
 export async function prospectLeads(input: {
   uf: string;
   cidade: string;

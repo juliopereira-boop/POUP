@@ -7,14 +7,9 @@ interface MenuCardProps {
   title: string;
   emoji: string;
   onPress: () => void;
-  /** Marca o item como "em breve" quando a feature ainda não foi construída. */
   comingSoon?: boolean;
 }
 
-/**
- * Card do menu principal — grade 2 colunas, como na referência do app.
- * Usa emoji como ícone provisório (fácil de trocar por ícones 3D/PNG depois).
- */
 export function MenuCard({ title, emoji, onPress, comingSoon = false }: MenuCardProps) {
   const styles = useThemedStyles(makeStyles);
   return (

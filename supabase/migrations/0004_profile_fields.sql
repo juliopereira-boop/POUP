@@ -1,11 +1,3 @@
--- =============================================================================
--- POUP — Campos adicionais do perfil do corretor
---
--- Rode DEPOIS do 0003. (SQL Editor > cole > Run)
---
--- Adiciona imobiliária e CNPJ ao perfil (usados no onboarding e no Simulador).
--- =============================================================================
-
 alter table public.profiles
   add column if not exists agency text,
   add column if not exists cnpj text;

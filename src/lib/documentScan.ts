@@ -8,12 +8,6 @@ export interface ScannedDocument {
   confidence: 'alta' | 'media' | 'baixa';
 }
 
-/**
- * Envia a foto de um documento (CNH ou RG, qualquer modelo) para a Edge
- * Function `scan-document`, que usa o Claude (visão) para extrair nome e CPF.
- * O resultado deve sempre ser exibido em campos EDITÁVEIS — nunca salvo
- * automaticamente sem revisão do corretor.
- */
 export async function scanDocument(
   imageBase64: string,
   mimeType: string,
