@@ -14,6 +14,7 @@ import type {
   LeadPatch,
   LeadSource,
   LeadStage,
+  LeadStageFlag,
   LeadStageInput,
   LeadStatus,
   Result,
@@ -150,4 +151,14 @@ export interface LeadRepository {
   updateStage(id: string, data: Partial<LeadStageInput>): Promise<Result<LeadStage>>;
   removeStage(id: string): Promise<Result<void>>;
   seedDefaultStages(userId: string): Promise<LeadStage[]>;
+
+  /**
+   * Move o lead para a etapa marcada com a flag informada.
+   * Retorna a etapa aplicada, ou `null` quando o usuário não tem etapa com essa flag.
+   */
+  moveToFlaggedStage(
+    userId: string,
+    leadId: string,
+    flag: LeadStageFlag,
+  ): Promise<Result<LeadStage | null>>;
 }

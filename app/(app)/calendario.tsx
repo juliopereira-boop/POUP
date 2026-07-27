@@ -871,7 +871,7 @@ function DetailModal({
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
     segment: {
       flexDirection: 'row',
       backgroundColor: colors.surfaceAlt,

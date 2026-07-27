@@ -274,7 +274,7 @@ export default function SimuladorFinanciamento() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.xl },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.xl },
     label: { ...typography.label, color: colors.inkMuted, marginBottom: spacing.sm },
     readonlyField: {
       minHeight: 52,

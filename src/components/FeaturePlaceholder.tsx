@@ -37,7 +37,7 @@ const makeStyles = (colors: AppColors) =>
       alignItems: 'center',
     },
     emoji: { fontSize: 56, marginBottom: spacing.lg },
-    title: { ...typography.title, color: colors.ink, textAlign: 'center', marginBottom: spacing.sm },
+    title: { ...typography.title, color: colors.primary, textAlign: 'center', marginBottom: spacing.sm },
     description: {
       ...typography.body,
       color: colors.inkMuted,

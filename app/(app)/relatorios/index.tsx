@@ -269,7 +269,7 @@ function SimulationCard({ sim, onPress }: { sim: Simulation; onPress: () => void
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: colors.ink },
+    title: { ...typography.title, color: colors.primary },
     subtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.lg },
     filterBar: {
       flexDirection: 'row',

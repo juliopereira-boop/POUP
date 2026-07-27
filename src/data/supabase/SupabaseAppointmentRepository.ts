@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { AppointmentRepository } from '../repositories';
+import { moveLeadToFlaggedStage } from './SupabaseLeadRepository';
 import {
   type Appointment,
   type AppointmentInput,
@@ -157,6 +158,12 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
     if (error || !row) return err(error?.message ?? 'Falha ao salvar o agendamento.');
     const appointment = mapAppointment(row as unknown as AppointmentRow);
     await logHistory(appointment.id, 'criado', null, appointment.startAt);
+    // Automação: todo agendamento ligado a um lead move o lead para a etapa
+    // marcada como "de agendamento". Fica aqui (e não na UI) para valer em
+    // todos os caminhos de criação de agendamento do app.
+    if (appointment.leadId) {
+      await moveLeadToFlaggedStage(userId, appointment.leadId, 'agendamento');
+    }
     return ok(appointment);
   }
 

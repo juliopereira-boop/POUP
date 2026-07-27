@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { SplashGate } from '@/components/SplashGate';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { SubscriptionProvider } from '@/providers/SubscriptionProvider';
 import { ProfileProvider } from '@/providers/ProfileProvider';
@@ -16,7 +17,9 @@ export default function RootLayout() {
           <AuthProvider>
             <ProfileProvider>
               <SubscriptionProvider>
-                <ThemedNavigator />
+                <SplashGate>
+                  <ThemedNavigator />
+                </SplashGate>
               </SubscriptionProvider>
             </ProfileProvider>
           </AuthProvider>

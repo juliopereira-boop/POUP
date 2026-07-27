@@ -73,7 +73,7 @@ export default function ForgotPasswordScreen() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
   header: { alignItems: 'center', marginBottom: spacing.xl },
-  title: { ...typography.title, color: colors.ink, marginBottom: spacing.xs },
+  title: { ...typography.title, color: colors.primary, marginBottom: spacing.xs },
   subtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.xl },
   cta: { marginTop: spacing.sm },
   link: { ...typography.label, color: colors.primary },

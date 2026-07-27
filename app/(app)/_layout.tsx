@@ -23,7 +23,7 @@ export default function AppLayout() {
         screenOptions={{
           headerShown: true,
           headerBackTitle: 'Voltar',
-          headerTintColor: colors.ink,
+          headerTintColor: colors.primary,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.background },

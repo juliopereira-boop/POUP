@@ -293,7 +293,7 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
     poupancaCard: {
       backgroundColor: colors.surfaceAlt,
       borderRadius: radius.lg,
@@ -302,7 +302,7 @@ const makeStyles = (colors: AppColors) =>
       alignItems: 'center',
     },
     poupancaLabel: { ...typography.caption, color: colors.inkMuted },
-    poupancaValue: { ...typography.title, color: colors.ink, marginTop: 2 },
+    poupancaValue: { ...typography.title, color: colors.primary, marginTop: 2 },
     row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
     col: { flex: 1 },
     slotCard: {

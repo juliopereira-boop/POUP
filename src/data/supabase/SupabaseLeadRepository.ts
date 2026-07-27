@@ -6,6 +6,7 @@ import {
   type LeadPatch,
   type LeadSource,
   type LeadStage,
+  type LeadStageFlag,
   type LeadStageInput,
   type LeadStatus,
   type Result,
@@ -16,7 +17,13 @@ import {
 const SELECT =
   'id, name, phone, email, message, source, company_id, development_id, status, stage_id, cpf, income, birth_date, notes, created_at, updated_at, companies(name), developments(name)';
 
-const STAGE_SELECT = 'id, nome, cor, ordem, ativo';
+const STAGE_SELECT = 'id, nome, cor, ordem, ativo, is_agendamento, is_simulacao';
+
+/** Coluna de flag correspondente a cada automação de etapa. */
+const FLAG_COLUMN: Record<LeadStageFlag, 'is_agendamento' | 'is_simulacao'> = {
+  agendamento: 'is_agendamento',
+  simulacao: 'is_simulacao',
+};
 
 interface LeadRow {
   id: string;
@@ -45,6 +52,17 @@ interface StageRow {
   cor: string;
   ordem: number;
   ativo: boolean;
+  is_agendamento: boolean | null;
+  is_simulacao: boolean | null;
+}
+
+interface StageUpdateRow {
+  nome?: string;
+  cor?: string;
+  ordem?: number;
+  ativo?: boolean;
+  is_agendamento?: boolean;
+  is_simulacao?: boolean;
 }
 
 interface LeadUpdateRow {
@@ -96,7 +114,71 @@ function mapStage(row: StageRow): LeadStage {
     cor: row.cor,
     ordem: row.ordem,
     ativo: row.ativo,
+    isAgendamento: row.is_agendamento ?? false,
+    isSimulacao: row.is_simulacao ?? false,
   };
+}
+
+/**
+ * Garante que só uma etapa do usuário fica com a flag ligada: desliga a flag
+ * em todas as outras. Roda ANTES da escrita da etapa-alvo porque o banco tem
+ * índice único parcial por (user_id) para cada flag.
+ */
+async function clearStageFlag(
+  userId: string,
+  column: 'is_agendamento' | 'is_simulacao',
+  exceptId?: string,
+): Promise<void> {
+  const patch: StageUpdateRow =
+    column === 'is_agendamento' ? { is_agendamento: false } : { is_simulacao: false };
+  let query = supabase
+    .from('lead_stages')
+    .update(patch)
+    .eq('user_id', userId)
+    .eq(column, true);
+  if (exceptId) query = query.neq('id', exceptId);
+  await query;
+}
+
+async function stageOwnerId(stageId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('lead_stages')
+    .select('user_id')
+    .eq('id', stageId)
+    .maybeSingle();
+  return (data as { user_id: string } | null)?.user_id ?? null;
+}
+
+/**
+ * Automação central de etapa: move o lead para a etapa marcada com a flag.
+ * Usada pela UI (via repositório de leads) e pelo repositório de agendamentos,
+ * para que nenhum caminho de criação fique de fora.
+ */
+export async function moveLeadToFlaggedStage(
+  userId: string,
+  leadId: string,
+  flag: LeadStageFlag,
+): Promise<Result<LeadStage | null>> {
+  const { data: stageRow, error: stageError } = await supabase
+    .from('lead_stages')
+    .select(STAGE_SELECT)
+    .eq('user_id', userId)
+    .eq('ativo', true)
+    .eq(FLAG_COLUMN[flag], true)
+    .order('ordem', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (stageError) return err(stageError.message);
+  if (!stageRow) return ok(null);
+
+  const stage = mapStage(stageRow as unknown as StageRow);
+  const { error } = await supabase
+    .from('leads')
+    .update({ stage_id: stage.id })
+    .eq('id', leadId)
+    .eq('user_id', userId);
+  if (error) return err(error.message);
+  return ok(stage);
 }
 
 function buildPatch(patch: LeadPatch): LeadUpdateRow {
@@ -192,6 +274,8 @@ export class SupabaseLeadRepository implements LeadRepository {
   }
 
   async createStage(userId: string, data: LeadStageInput): Promise<Result<LeadStage>> {
+    if (data.isAgendamento) await clearStageFlag(userId, 'is_agendamento');
+    if (data.isSimulacao) await clearStageFlag(userId, 'is_simulacao');
     const { data: row, error } = await supabase
       .from('lead_stages')
       .insert({
@@ -200,6 +284,8 @@ export class SupabaseLeadRepository implements LeadRepository {
         cor: data.cor,
         ordem: data.ordem,
         ativo: data.ativo ?? true,
+        is_agendamento: data.isAgendamento ?? false,
+        is_simulacao: data.isSimulacao ?? false,
       })
       .select(STAGE_SELECT)
       .single();
@@ -208,11 +294,22 @@ export class SupabaseLeadRepository implements LeadRepository {
   }
 
   async updateStage(id: string, data: Partial<LeadStageInput>): Promise<Result<LeadStage>> {
-    const patch: { nome?: string; cor?: string; ordem?: number; ativo?: boolean } = {};
+    const patch: StageUpdateRow = {};
     if (data.nome !== undefined) patch.nome = data.nome;
     if (data.cor !== undefined) patch.cor = data.cor;
     if (data.ordem !== undefined) patch.ordem = data.ordem;
     if (data.ativo !== undefined) patch.ativo = data.ativo;
+    if (data.isAgendamento !== undefined) patch.is_agendamento = data.isAgendamento;
+    if (data.isSimulacao !== undefined) patch.is_simulacao = data.isSimulacao;
+
+    if (data.isAgendamento === true || data.isSimulacao === true) {
+      const ownerId = await stageOwnerId(id);
+      if (ownerId) {
+        if (data.isAgendamento === true) await clearStageFlag(ownerId, 'is_agendamento', id);
+        if (data.isSimulacao === true) await clearStageFlag(ownerId, 'is_simulacao', id);
+      }
+    }
+
     const { data: row, error } = await supabase
       .from('lead_stages')
       .update(patch)
@@ -241,10 +338,20 @@ export class SupabaseLeadRepository implements LeadRepository {
           cor: s.cor,
           ordem: s.ordem,
           ativo: s.ativo ?? true,
+          is_agendamento: s.isAgendamento ?? false,
+          is_simulacao: s.isSimulacao ?? false,
         })),
       )
       .select(STAGE_SELECT);
     if (error || !data) return [];
     return (data as unknown as StageRow[]).map(mapStage).sort((a, b) => a.ordem - b.ordem);
+  }
+
+  moveToFlaggedStage(
+    userId: string,
+    leadId: string,
+    flag: LeadStageFlag,
+  ): Promise<Result<LeadStage | null>> {
+    return moveLeadToFlaggedStage(userId, leadId, flag);
   }
 }

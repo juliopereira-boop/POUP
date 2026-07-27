@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { ToggleField } from '@/components/ToggleField';
 import { db, type LeadStage } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -45,6 +46,8 @@ export default function WorkflowScreen() {
   const [editing, setEditing] = useState<LeadStage | null>(null);
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(PALETTE[0]);
+  const [isAgendamento, setIsAgendamento] = useState(false);
+  const [isSimulacao, setIsSimulacao] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +79,8 @@ export default function WorkflowScreen() {
     setEditing(null);
     setNome('');
     setCor(PALETTE[0]);
+    setIsAgendamento(false);
+    setIsSimulacao(false);
     setError(null);
     setModalOpen(true);
   }
@@ -84,6 +89,8 @@ export default function WorkflowScreen() {
     setEditing(stage);
     setNome(stage.nome);
     setCor(stage.cor);
+    setIsAgendamento(stage.isAgendamento);
+    setIsSimulacao(stage.isSimulacao);
     setError(null);
     setModalOpen(true);
   }
@@ -106,11 +113,18 @@ export default function WorkflowScreen() {
     const nextOrdem = stages.length ? Math.max(...stages.map((s) => s.ordem)) + 1 : 1;
     setSaving(true);
     const result = editing
-      ? await db.leads.updateStage(editing.id, { nome: nomeTrimmed, cor: corTrimmed })
+      ? await db.leads.updateStage(editing.id, {
+          nome: nomeTrimmed,
+          cor: corTrimmed,
+          isAgendamento,
+          isSimulacao,
+        })
       : await db.leads.createStage(user.id, {
           nome: nomeTrimmed,
           cor: corTrimmed,
           ordem: nextOrdem,
+          isAgendamento,
+          isSimulacao,
         });
     setSaving(false);
     if (!result.ok) return setError(result.error);
@@ -168,6 +182,14 @@ export default function WorkflowScreen() {
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{stage.nome}</Text>
               <Text style={styles.itemMeta}>{stage.cor.toUpperCase()}</Text>
+              {stage.isAgendamento || stage.isSimulacao ? (
+                <View style={styles.tagRow}>
+                  {stage.isAgendamento ? (
+                    <Text style={styles.tag}>Automática: agendamento</Text>
+                  ) : null}
+                  {stage.isSimulacao ? <Text style={styles.tag}>Automática: simulação</Text> : null}
+                </View>
+              ) : null}
             </View>
             <View style={styles.itemActions}>
               <Pressable
@@ -269,6 +291,36 @@ export default function WorkflowScreen() {
                 />
                 <Text style={styles.previewText}>{nome.trim() || 'Prévia da etapa'}</Text>
               </View>
+
+              <Text style={styles.automationLabel}>Automações</Text>
+              <View style={styles.automationBlock}>
+                <ToggleField
+                  label="Etapa de agendamento"
+                  value={isAgendamento}
+                  onChange={(value) => {
+                    setIsAgendamento(value);
+                    setError(null);
+                  }}
+                />
+                <Text style={styles.automationHint}>
+                  O lead entra aqui automaticamente quando um agendamento é criado para ele. Apenas
+                  uma etapa pode ter esta marcação — ao marcar aqui, ela sai da etapa anterior.
+                </Text>
+              </View>
+              <View style={styles.automationBlock}>
+                <ToggleField
+                  label="Etapa de simulação"
+                  value={isSimulacao}
+                  onChange={(value) => {
+                    setIsSimulacao(value);
+                    setError(null);
+                  }}
+                />
+                <Text style={styles.automationHint}>
+                  O lead entra aqui automaticamente quando uma simulação é feita para ele. Apenas
+                  uma etapa pode ter esta marcação — ao marcar aqui, ela sai da etapa anterior.
+                </Text>
+              </View>
             </ScrollView>
 
             <View style={styles.sheetActions}>
@@ -341,7 +393,7 @@ const makeStyles = (colors: AppColors) =>
       borderTopRightRadius: radius.xl,
       padding: spacing.xl,
     },
-    sheetTitle: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+    sheetTitle: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
     sheetScroll: { maxHeight: 420 },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
     flex1: { flex: 1 },
@@ -368,6 +420,34 @@ const makeStyles = (colors: AppColors) =>
     },
     previewRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     previewText: { ...typography.body, color: colors.ink },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+    tag: {
+      ...typography.caption,
+      color: colors.primary,
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      overflow: 'hidden',
+    },
+    automationLabel: {
+      ...typography.label,
+      color: colors.inkMuted,
+      marginTop: spacing.xl,
+      marginBottom: spacing.sm,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    automationBlock: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+      marginBottom: spacing.md,
+    },
+    automationHint: { ...typography.caption, color: colors.inkMuted },
     error: {
       ...typography.caption,
       color: colors.danger,

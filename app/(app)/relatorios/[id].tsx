@@ -314,7 +314,7 @@ const makeStyles = (colors: AppColors) =>
       justifyContent: 'space-between',
       gap: spacing.md,
     },
-    heroClient: { ...typography.title, color: colors.ink, flexShrink: 1 },
+    heroClient: { ...typography.title, color: colors.primary, flexShrink: 1 },
     heroDev: { ...typography.body, color: colors.inkMuted, marginTop: 2 },
     heroMonthly: {
       flexDirection: 'row',

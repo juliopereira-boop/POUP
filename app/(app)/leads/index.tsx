@@ -45,6 +45,9 @@ type Tab = 'gestao' | 'prospeccao';
 
 const SHOW_CAPTACAO_CARD = false;
 
+const MEDIA_LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
+const MAX_WA_TEXT_LENGTH = 1800;
+
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
   whatsapp: 'WhatsApp',
@@ -54,14 +57,42 @@ const SOURCE_LABEL: Record<Lead['source'], string> = {
 };
 
 const UFS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
-  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
 ];
 
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
   if (Platform.OS === 'web') {
-    const nav = (globalThis as unknown as { navigator?: { clipboard?: { writeText: (s: string) => Promise<void> } } })
-      .navigator;
+    const nav = (
+      globalThis as unknown as {
+        navigator?: { clipboard?: { writeText: (s: string) => Promise<void> } };
+      }
+    ).navigator;
     if (nav?.clipboard) {
       try {
         await nav.clipboard.writeText(text);
@@ -137,6 +168,8 @@ function GestaoLeadsTab({
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stages, setStages] = useState<LeadStage[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [developments, setDevelopments] = useState<Development[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -144,15 +177,25 @@ function GestaoLeadsTab({
   const [error, setError] = useState<string | null>(null);
   const [atendimento, setAtendimento] = useState<Lead | null>(null);
 
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [fCompany, setFCompany] = useState<string | null>(null);
+  const [fDevelopment, setFDevelopment] = useState<string | null>(null);
+  const [fStage, setFStage] = useState<string | null>(null);
+  const [fBusca, setFBusca] = useState('');
+
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    const [list, stageList] = await Promise.all([
+    const [list, stageList, comps, devs] = await Promise.all([
       db.leads.list(userId),
       db.leads.listStages(userId),
+      db.companies.list(userId),
+      db.developments.list(userId),
     ]);
     setLeads(list);
     setStages(stageList);
+    setCompanies(comps);
+    setDevelopments(devs);
     setLoading(false);
   }, [userId]);
 
@@ -173,6 +216,35 @@ function GestaoLeadsTab({
     setNewPhone('');
     setAdding(false);
     void load();
+  }
+
+  const filterDevs = useMemo(
+    () => (fCompany ? developments.filter((d) => d.companyId === fCompany) : developments),
+    [developments, fCompany],
+  );
+
+  const activeFilters =
+    (fCompany ? 1 : 0) + (fDevelopment ? 1 : 0) + (fStage ? 1 : 0) + (fBusca.trim() ? 1 : 0);
+
+  const filtered = useMemo(() => {
+    const termo = fBusca.trim().toLowerCase();
+    const termoDigits = fBusca.replace(/\D/g, '');
+    return leads.filter((l) => {
+      if (fCompany && l.companyId !== fCompany) return false;
+      if (fDevelopment && l.developmentId !== fDevelopment) return false;
+      if (fStage && l.stageId !== fStage) return false;
+      if (!termo) return true;
+      if (l.name.toLowerCase().includes(termo)) return true;
+      const cpfDigits = (l.cpf ?? '').replace(/\D/g, '');
+      return termoDigits.length > 0 && cpfDigits.includes(termoDigits);
+    });
+  }, [leads, fCompany, fDevelopment, fStage, fBusca]);
+
+  function limparFiltros() {
+    setFCompany(null);
+    setFDevelopment(null);
+    setFStage(null);
+    setFBusca('');
   }
 
   function onRemove(lead: Lead) {
@@ -215,6 +287,69 @@ function GestaoLeadsTab({
         </View>
       ) : null}
 
+      {!loading && leads.length > 0 ? (
+        <View style={styles.filterWrap}>
+          <Pressable
+            style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
+            onPress={() => setFiltersOpen((v) => !v)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.filterToggleText}>
+              Filtros{activeFilters > 0 ? ` (${activeFilters})` : ''}
+            </Text>
+            <Text style={styles.filterChevron}>{filtersOpen ? '⌃' : '⌄'}</Text>
+          </Pressable>
+
+          {filtersOpen ? (
+            <View style={styles.filterBody}>
+              <Input
+                label="Buscar por nome ou CPF"
+                value={fBusca}
+                onChangeText={setFBusca}
+                placeholder="Digite o nome ou o CPF"
+                autoCapitalize="none"
+              />
+              <Select
+                label="Empresa"
+                placeholder="Todas as empresas"
+                value={fCompany}
+                options={companies.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={(v) => {
+                  setFCompany(v);
+                  setFDevelopment(null);
+                }}
+                emptyHint="Nenhuma empresa cadastrada."
+              />
+              <Select
+                label="Empreendimento"
+                placeholder="Todos os empreendimentos"
+                value={fDevelopment}
+                options={filterDevs.map((d) => ({ value: d.id, label: d.name }))}
+                onChange={setFDevelopment}
+                emptyHint="Nenhum empreendimento cadastrado."
+              />
+              <Select
+                label="Etapa"
+                placeholder="Todas as etapas"
+                value={fStage}
+                options={stages.map((st) => ({ value: st.id, label: st.nome }))}
+                onChange={setFStage}
+                emptyHint="Configure as etapas em Configurações › Workflow de Leads."
+              />
+              {activeFilters > 0 ? (
+                <Button label="Limpar filtros" variant="secondary" onPress={limparFiltros} />
+              ) : null}
+            </View>
+          ) : null}
+
+          {activeFilters > 0 ? (
+            <Text style={styles.filterCount}>
+              {filtered.length} de {leads.length} lead(s)
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
       {loading ? (
         <ActivityIndicator style={styles.loader} />
       ) : leads.length === 0 ? (
@@ -224,8 +359,13 @@ function GestaoLeadsTab({
             Nenhum lead ainda. Toque em “Prospecção” acima para começar a captar.
           </Text>
         </View>
+      ) : filtered.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyEmoji}>🔍</Text>
+          <Text style={styles.emptyText}>Nenhum lead encontrado com esses filtros.</Text>
+        </View>
       ) : (
-        leads.map((lead) => {
+        filtered.map((lead) => {
           const stage = stages.find((s) => s.id === lead.stageId) ?? null;
           return (
             <View key={lead.id} style={styles.leadRow}>
@@ -240,8 +380,7 @@ function GestaoLeadsTab({
                   {lead.name}
                 </Text>
                 <Text style={styles.leadMeta}>
-                  {formatPhone(lead.phone)} ·{' '}
-                  {lead.source === 'whatsapp' ? '💬 ' : ''}
+                  {formatPhone(lead.phone)} · {lead.source === 'whatsapp' ? '💬 ' : ''}
                   {SOURCE_LABEL[lead.source]}
                 </Text>
                 {stage ? (
@@ -313,6 +452,7 @@ function AtendimentoModal({
   const [entries, setEntries] = useState<StorageEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [selected, setSelected] = useState<StorageEntry[]>([]);
+  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [opening, setOpening] = useState(false);
 
   useEffect(() => {
@@ -340,6 +480,7 @@ function AtendimentoModal({
     setFolderSegs([]);
     setEntries([]);
     setSelected([]);
+    setMediaUrls({});
   }, [visible]);
 
   const companyDevs = useMemo(
@@ -397,6 +538,7 @@ function AtendimentoModal({
     setDevelopmentId(null);
     setMessage('');
     setSelected([]);
+    setMediaUrls({});
     setFolderSegs([]);
     setMediaOpen(false);
     setError(null);
@@ -405,6 +547,7 @@ function AtendimentoModal({
   function onSelectDevelopment(v: string) {
     setDevelopmentId(v);
     setSelected([]);
+    setMediaUrls({});
     setFolderSegs([]);
     setMediaOpen(false);
     const dev = developments.find((d) => d.id === v);
@@ -412,25 +555,52 @@ function AtendimentoModal({
   }
 
   function toggleFile(entry: StorageEntry) {
+    const alreadySelected = selected.some((s) => s.path === entry.path);
     setSelected((prev) =>
-      prev.some((s) => s.path === entry.path)
-        ? prev.filter((s) => s.path !== entry.path)
-        : [...prev, entry],
+      alreadySelected ? prev.filter((s) => s.path !== entry.path) : [...prev, entry],
     );
+    if (alreadySelected || mediaUrls[entry.path]) return;
+    setOpening(true);
+    void db.material
+      .signedUrl(entry.path, MEDIA_LINK_TTL_SECONDS)
+      .then((url) => {
+        if (url) setMediaUrls((prev) => ({ ...prev, [entry.path]: url }));
+      })
+      .catch(() => undefined)
+      .finally(() => setOpening(false));
   }
 
-  async function onAbrirConversa() {
+  function onAbrirConversa() {
     if (!lead) return;
-    setOpening(true);
-    const urls: string[] = [];
-    for (const f of selected) {
-      const url = await db.material.signedUrl(f.path);
-      if (url) urls.push(url);
-    }
-    setOpening(false);
+    const links = selected.map((f) => mediaUrls[f.path]).filter((u): u is string => Boolean(u));
     const digits = lead.phone.replace(/\D/g, '');
-    const texto = urls.length > 0 ? `${message}\n\n${urls.join('\n')}` : message;
-    void Linking.openURL(`https://wa.me/55${digits}?text=${encodeURIComponent(texto)}`);
+    if (!digits) {
+      setError('Este lead não tem telefone cadastrado.');
+      return;
+    }
+
+    let texto = message;
+    const kept: string[] = [];
+    for (const link of links) {
+      const tentativa = [message, '', ...kept, link].join('\n');
+      if (encodeURIComponent(tentativa).length > MAX_WA_TEXT_LENGTH) break;
+      kept.push(link);
+      texto = tentativa;
+    }
+
+    const faltando = selected.length - kept.length;
+    try {
+      void Linking.openURL(`https://wa.me/55${digits}?text=${encodeURIComponent(texto)}`);
+    } catch {
+      setError('Não foi possível abrir o WhatsApp. Copie a mensagem e envie manualmente.');
+      return;
+    }
+    if (faltando > 0) {
+      setError(
+        `${faltando} arquivo(s) não entraram na mensagem (limite do WhatsApp). Envie em uma segunda mensagem.`,
+      );
+      return;
+    }
     onClose();
   }
 
@@ -548,7 +718,9 @@ function AtendimentoModal({
 
                 {selected.length > 0 ? (
                   <Text style={styles.selectedCount}>
-                    {selected.length} mídia(s) selecionada(s): {selected.map((s) => s.name).join(', ')}
+                    {selected.length} mídia(s) selecionada(s):{' '}
+                    {selected.map((s) => s.name).join(', ')}
+                    {opening ? ' — preparando os links…' : ''}
                   </Text>
                 ) : null}
 
@@ -556,7 +728,7 @@ function AtendimentoModal({
                   label="Abrir conversa"
                   onPress={onAbrirConversa}
                   loading={opening}
-                  disabled={!message.trim() || generating}
+                  disabled={!message.trim() || generating || opening}
                   style={styles.modalCta}
                 />
               </>
@@ -617,8 +789,7 @@ function ProspectarCard({ userId }: { userId: string | null }) {
         if (Array.isArray(s.results)) setResults(s.results);
         if (s.saved) setSaved(s.saved);
         if (Array.isArray(s.seen)) setSeen(s.seen);
-      } catch {
-      }
+      } catch {}
     });
     return () => {
       active = false;
@@ -692,7 +863,13 @@ function ProspectarCard({ userId }: { userId: string | null }) {
     setResults(res.data.leads);
     setSaved({});
     setSeen(nextSeen);
-    persist({ results: res.data.leads, saved: {}, ufV: uf, cidadeV: cidade.trim(), seenV: nextSeen });
+    persist({
+      results: res.data.leads,
+      saved: {},
+      ufV: uf,
+      cidadeV: cidade.trim(),
+      seenV: nextSeen,
+    });
   }
 
   async function onSave(lead: ProspectedLead) {
@@ -954,7 +1131,11 @@ function WhatsAppCard({
               onPress={() => void shareOrCopy(link)}
               style={styles.flexBtn}
             />
-            <Button label="Abrir" onPress={() => void Linking.openURL(link)} style={styles.flexBtn} />
+            <Button
+              label="Abrir"
+              onPress={() => void Linking.openURL(link)}
+              style={styles.flexBtn}
+            />
           </View>
         </>
       )}
@@ -964,7 +1145,7 @@ function WhatsAppCard({
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
     segment: {
       flexDirection: 'row',
       backgroundColor: colors.surfaceAlt,
@@ -978,11 +1159,41 @@ const makeStyles = (colors: AppColors) =>
       borderRadius: radius.sm,
       alignItems: 'center',
     },
-    segmentItemActive: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+    segmentItemActive: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     segmentText: { ...typography.label, color: colors.inkMuted },
     segmentTextActive: { color: colors.primary },
 
     addToggle: { marginBottom: spacing.md },
+    filterWrap: { marginBottom: spacing.md },
+    filterToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+    },
+    filterToggleText: { ...typography.label, color: colors.primary },
+    filterChevron: { ...typography.label, color: colors.primary },
+    filterBody: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderTopWidth: 0,
+      borderBottomLeftRadius: radius.lg,
+      borderBottomRightRadius: radius.lg,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.lg,
+    },
+    filterCount: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.sm },
     addCard: {
       borderWidth: 1,
       borderColor: colors.border,

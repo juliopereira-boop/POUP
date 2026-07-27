@@ -269,7 +269,7 @@ const makeStyles = (colors: AppColors) =>
     },
     badgeText: { color: colors.white, fontSize: 10.5, fontWeight: '700' },
 
-    greeting: { ...typography.heading, color: colors.ink, marginBottom: spacing.lg },
+    greeting: { ...typography.heading, color: colors.primary, marginBottom: spacing.lg },
 
     carouselWrap: { marginHorizontal: -spacing.lg, marginBottom: spacing.xl },
     carousel: { paddingHorizontal: spacing.lg, gap: spacing.md },
@@ -337,7 +337,7 @@ const makeStyles = (colors: AppColors) =>
     },
     tileFeatured: { backgroundColor: colors.navy, borderColor: colors.navy },
     tilePressed: { opacity: 0.75 },
-    tileLabel: { ...typography.caption, color: colors.ink, fontWeight: '600', fontSize: 12.5 },
+    tileLabel: { ...typography.caption, color: colors.ink, fontWeight: '700', fontSize: 12.5 },
     tileLabelFeatured: { color: colors.white },
 
     todayBlock: { marginBottom: spacing.lg },

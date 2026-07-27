@@ -114,7 +114,7 @@ const makeStyles = (colors: AppColors) =>
     color: colors.inkMuted,
     marginTop: spacing.md,
   },
-  title: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+  title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
   cta: { marginTop: spacing.sm },
   forgot: { alignSelf: 'flex-end', marginBottom: spacing.lg },
   link: { ...typography.label, color: colors.primary },

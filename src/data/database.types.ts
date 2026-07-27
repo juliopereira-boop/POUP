@@ -289,6 +289,8 @@ export interface Database {
           cor: string;
           ordem: number;
           ativo: boolean;
+          is_agendamento: boolean;
+          is_simulacao: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -299,8 +301,17 @@ export interface Database {
           cor?: string;
           ordem?: number;
           ativo?: boolean;
+          is_agendamento?: boolean;
+          is_simulacao?: boolean;
         };
-        Update: { nome?: string; cor?: string; ordem?: number; ativo?: boolean };
+        Update: {
+          nome?: string;
+          cor?: string;
+          ordem?: number;
+          ativo?: boolean;
+          is_agendamento?: boolean;
+          is_simulacao?: boolean;
+        };
         Relationships: [];
       };
       leads: {

@@ -118,7 +118,7 @@ function Divider() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.xs },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.xs },
     hint: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.xl },
     sectionLabel: {
       ...typography.label,

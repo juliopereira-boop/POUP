@@ -39,7 +39,7 @@ export const darkColors: AppColors = {
   primaryDark: '#FFB183',
   primarySoft: '#3A210F',
 
-  navy: '#111827',
+  navy: '#FF751F',
   navySoft: '#1B2130',
 
   background: '#0B1120',

@@ -792,7 +792,7 @@ function EntryRow({
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.md },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.md },
     breadcrumb: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -886,7 +886,7 @@ const makeStyles = (colors: AppColors) =>
       borderTopRightRadius: radius.xl,
       padding: spacing.xl,
     },
-    sheetTitle: { ...typography.title, color: colors.ink, marginBottom: spacing.xs },
+    sheetTitle: { ...typography.title, color: colors.primary, marginBottom: spacing.xs },
     sheetSubtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.lg },
     sheetScroll: { maxHeight: 320, marginTop: spacing.md },
     sheetAction: { marginTop: spacing.md },

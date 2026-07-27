@@ -31,6 +31,6 @@ const makeStyles = (colors: AppColors) =>
     gap: spacing.md,
   },
   emoji: { fontSize: 48 },
-  title: { ...typography.title, color: colors.ink },
+  title: { ...typography.title, color: colors.primary },
   link: { ...typography.label, color: colors.primary, marginTop: spacing.md },
 });

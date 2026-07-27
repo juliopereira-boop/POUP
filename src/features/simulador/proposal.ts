@@ -11,6 +11,7 @@ import {
   formatMonthYearBR,
   monthsBetween,
 } from './calc';
+import { LOGO_DATA_URI } from './logoDataUri';
 import type { SimuladorState } from './SimuladorProvider';
 
 export interface ProposalContext {
@@ -39,7 +40,7 @@ function pctOf(n: number, total: number): string {
 }
 
 function brandHtml(): string {
-  return `<div class="brand">POUP</div>`;
+  return `<img class="brand" src="${LOGO_DATA_URI}" alt=""/>`;
 }
 
 const J_GRAY = '#A3A3A3';
@@ -270,7 +271,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     .sheet { border: 2px solid #333; }
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 5px 12px; }
     .top .date { font-weight: 700; }
-    .top .brand { font-family: 'Banana', 'Century Gothic', 'Questrial', 'Trebuchet MS', Arial, sans-serif; font-weight: 300; font-size: 26px; letter-spacing: 2.5px; color: #1a1a1a; }
+    .top .brand { display: block; height: 30px; width: auto; flex: 0 0 auto; }
     .resumoWrap { display: flex; gap: 8px; align-items: flex-start; }
     .resumo.main { flex: 2; }
     .resumo.side { flex: 1; font-size: 9px; }
@@ -403,7 +404,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     <div class="band">JORNADA DO CLIENTE</div>
     <div class="journeyWrap">${journeyMapSvg()}</div>
 
-    <div class="obs muted">Proposta gerada pelo POUP em ${formatDateBR(ctx.todayISO)}. Cupom, quando aplicado, sujeito à validação da construtora.</div>
+    <div class="obs muted">Proposta gerada em ${formatDateBR(ctx.todayISO)}. Cupom, quando aplicado, sujeito à validação da construtora.</div>
   </div></div>`;
 
   return { style, bodyHtml, fileName: proposalFileName(ctx) };

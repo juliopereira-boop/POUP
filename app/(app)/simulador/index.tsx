@@ -144,7 +144,7 @@ export default function SimuladorEmpreendimento() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
-    title: { ...typography.title, color: colors.ink, marginBottom: spacing.xl },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.xl },
     row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
     col: { flex: 1 },
     cta: { marginTop: spacing.md },

@@ -306,6 +306,15 @@ export default function LeadDetailScreen() {
 
   async function onSimular() {
     if (!lead) return;
+    // Automação: simular move o lead para a etapa marcada como "de simulação".
+    // Disparado sem bloquear para não atrasar a navegação para o simulador.
+    if (userId) {
+      const simStage = stages.find((s) => s.isSimulacao) ?? null;
+      if (simStage && simStage.id !== lead.stageId) {
+        setLead({ ...lead, stageId: simStage.id });
+      }
+      void db.leads.moveToFlaggedStage(userId, lead.id, 'simulacao');
+    }
     await sessionStorage.setItem(
       PREFILL_KEY,
       JSON.stringify({
@@ -621,7 +630,8 @@ export default function LeadDetailScreen() {
           onClose={() => setApptOpen(false)}
           onSaved={() => {
             setApptOpen(false);
-            void loadAppointments();
+            // Recarrega o lead também: criar agendamento move a etapa automaticamente.
+            void load();
           }}
         />
       ) : null}
@@ -734,7 +744,7 @@ const makeStyles = (colors: AppColors) =>
       padding: spacing.lg,
       marginBottom: spacing.lg,
     },
-    heroName: { ...typography.title, color: colors.ink },
+    heroName: { ...typography.title, color: colors.primary },
     heroPhone: { ...typography.body, color: colors.inkMuted, marginTop: 2 },
     heroMeta: { ...typography.caption, color: colors.inkSubtle, marginTop: spacing.xs },
     heroStage: {

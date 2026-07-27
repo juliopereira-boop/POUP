@@ -174,6 +174,10 @@ export interface LeadStage {
   cor: string;
   ordem: number;
   ativo: boolean;
+  /** Etapa-destino automática quando um agendamento é criado para o lead. */
+  isAgendamento: boolean;
+  /** Etapa-destino automática quando uma simulação é iniciada para o lead. */
+  isSimulacao: boolean;
 }
 
 export interface LeadStageInput {
@@ -181,15 +185,21 @@ export interface LeadStageInput {
   cor: string;
   ordem: number;
   ativo?: boolean;
+  isAgendamento?: boolean;
+  isSimulacao?: boolean;
 }
+
+/** Automações de etapa disponíveis (no máximo uma etapa por flag). */
+export type LeadStageFlag = 'agendamento' | 'simulacao';
 
 export const DEFAULT_LEAD_STAGES: LeadStageInput[] = [
   { nome: 'Novo', cor: '#6B7280', ordem: 1 },
   { nome: 'Em contato', cor: '#FF751F', ordem: 2 },
-  { nome: 'Visita agendada', cor: '#0891B2', ordem: 3 },
-  { nome: 'Proposta', cor: '#7C3AED', ordem: 4 },
-  { nome: 'Convertido', cor: '#16A34A', ordem: 5 },
-  { nome: 'Perdido', cor: '#DC2626', ordem: 6 },
+  { nome: 'Agendado', cor: '#0891B2', ordem: 3, isAgendamento: true },
+  { nome: 'Em simulação', cor: '#2563EB', ordem: 4, isSimulacao: true },
+  { nome: 'Proposta', cor: '#7C3AED', ordem: 5 },
+  { nome: 'Convertido', cor: '#16A34A', ordem: 6 },
+  { nome: 'Perdido', cor: '#DC2626', ordem: 7 },
 ];
 
 export interface LeadCampaign {

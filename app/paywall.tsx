@@ -170,7 +170,7 @@ const makeStyles = (colors: AppColors) =>
   },
   badgeText: { ...typography.caption, color: colors.primary, fontWeight: '700' },
   planName: { ...typography.heading, color: colors.ink },
-  planPrice: { ...typography.title, color: colors.ink, marginBottom: spacing.lg },
+  planPrice: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
   benefits: { marginBottom: spacing.lg, gap: spacing.sm },
   benefit: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   check: { color: colors.success, fontWeight: '700', fontSize: 16 },
