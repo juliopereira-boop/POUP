@@ -13,7 +13,7 @@ export function LoadingScreen({ message }: LoadingScreenProps = {}) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.container}>
-      <Logo size={40} />
+      <Logo size={96} />
       <ActivityIndicator color={colors.primary} style={styles.spinner} />
       {message ? <Text style={styles.message}>{message}</Text> : null}
     </View>
