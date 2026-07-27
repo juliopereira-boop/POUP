@@ -106,6 +106,11 @@ export interface CompanyMaterial {
   driveUrl: string | null;
 }
 
+export interface DevelopmentMaterial {
+  developmentId: string;
+  driveUrl: string | null;
+}
+
 export interface Simulation {
   id: string;
   clientName: string | null;

@@ -10,6 +10,7 @@ import type {
   Correspondent,
   Development,
   DevelopmentInput,
+  DevelopmentMaterial,
   Lead,
   LeadSource,
   LeadStatus,
@@ -107,6 +108,12 @@ export interface MaterialRepository {
     companyId: string,
     driveUrl: string | null,
   ): Promise<Result<CompanyMaterial>>;
+  listDevelopmentMaterials(userId: string): Promise<DevelopmentMaterial[]>;
+  saveDevelopmentMaterial(
+    userId: string,
+    developmentId: string,
+    driveUrl: string | null,
+  ): Promise<Result<DevelopmentMaterial>>;
 }
 
 export interface AppointmentRepository {

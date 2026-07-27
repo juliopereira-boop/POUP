@@ -28,11 +28,6 @@ const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 const MAX_DEPTH = 5;
 const ROOT = 'material';
 
-const CANOPUS_URL = 'https://canopus.liveprint.com.br/login';
-function isCanopus(name: string | null | undefined): boolean {
-  return (name ?? '').toLowerCase().includes('canopus');
-}
-
 interface PickedFile {
   name: string;
   blob: Blob;
@@ -125,6 +120,10 @@ export default function MaterialVendaScreen() {
   const [linkVisible, setLinkVisible] = useState(false);
   const [linkDraft, setLinkDraft] = useState('');
 
+  const [devDriveUrls, setDevDriveUrls] = useState<Record<string, string | null>>({});
+  const [devLinkOpen, setDevLinkOpen] = useState(false);
+  const [devLinkDraft, setDevLinkDraft] = useState('');
+
   const [entries, setEntries] = useState<StorageEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -143,10 +142,11 @@ export default function MaterialVendaScreen() {
     let mounted = true;
     setLoadingCadastros(true);
     void (async () => {
-      const [comps, devs, roots] = await Promise.all([
+      const [comps, devs, roots, devMats] = await Promise.all([
         db.companies.list(user.id),
         db.developments.list(user.id),
         db.material.list(user.id, ROOT),
+        db.material.listDevelopmentMaterials(user.id),
       ]);
       const mats = await Promise.all(
         comps.map((c) => db.material.getCompanyMaterial(user.id, c.id)),
@@ -156,10 +156,13 @@ export default function MaterialVendaScreen() {
       for (const m of mats) {
         if (m) links[m.companyId] = m.driveUrl;
       }
+      const devLinks: Record<string, string | null> = {};
+      for (const m of devMats) devLinks[m.developmentId] = m.driveUrl;
       const folderIds = new Set(roots.filter((e) => e.isFolder).map((e) => e.name));
       setCompanies(comps);
       setDevelopments(devs);
       setDriveUrls(links);
+      setDevDriveUrls(devLinks);
       setAddedIds(comps.filter((c) => folderIds.has(c.id) || c.id in links).map((c) => c.id));
       setLoadingCadastros(false);
     })();
@@ -188,6 +191,7 @@ export default function MaterialVendaScreen() {
     [developments, company],
   );
   const driveUrl = company ? (driveUrls[company.id] ?? null) : null;
+  const devDriveUrl = development ? (devDriveUrls[development.id] ?? null) : null;
 
   useEffect(() => {
     if (!user || !company) {
@@ -258,10 +262,6 @@ export default function MaterialVendaScreen() {
 
   function onOpenCompany(c: Company) {
     setError(null);
-    if (isCanopus(c.name)) {
-      void Linking.openURL(CANOPUS_URL);
-      return;
-    }
     autoConfigRef.current = !driveUrls[c.id];
     setCompany(c);
     setDevelopment(null);
@@ -291,6 +291,29 @@ export default function MaterialVendaScreen() {
     }
     setDriveUrls((prev) => ({ ...prev, [company.id]: res.data.driveUrl }));
     setConfigOpen(false);
+  }
+
+  function openDevLink() {
+    if (!development) return;
+    setDevLinkDraft(devDriveUrls[development.id] ?? '');
+    setDevLinkOpen(true);
+  }
+
+  async function onSaveDevLink() {
+    if (!user || !development) return;
+    setBusy(true);
+    const res = await db.material.saveDevelopmentMaterial(
+      user.id,
+      development.id,
+      devLinkDraft.trim() || null,
+    );
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setDevDriveUrls((prev) => ({ ...prev, [development.id]: res.data.driveUrl }));
+    setDevLinkOpen(false);
   }
 
   async function uploadTo(path: string): Promise<boolean> {
@@ -454,23 +477,14 @@ export default function MaterialVendaScreen() {
               {addedCompanies.map((c) => (
                 <NavRow
                   key={c.id}
-                  icon={isCanopus(c.name) ? '🔗' : '🏢'}
+                  icon="🏢"
                   label={c.name}
-                  meta={
-                    isCanopus(c.name)
-                      ? 'Repositório externo'
-                      : driveUrls[c.id]
-                        ? 'Material online configurado'
-                        : 'Toque para configurar'
-                  }
+                  meta={driveUrls[c.id] ? 'Material online configurado' : 'Toque para configurar'}
                   onPress={() => onOpenCompany(c)}
                 />
               ))}
             </View>
           )}
-          <Text style={styles.hint}>
-            Empresas com repositório externo (ex.: Canopus) abrem o site oficial.
-          </Text>
         </View>
       ) : null}
 
@@ -562,8 +576,27 @@ export default function MaterialVendaScreen() {
                 <Text style={styles.toolLabel}>Adicionar Pasta</Text>
               </Pressable>
             )}
+            {folderSegs.length === 0 ? (
+              <Pressable
+                style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
+                onPress={openDevLink}
+                disabled={busy}
+                accessibilityLabel="Link do empreendimento"
+              >
+                <Text style={styles.toolIcon}>🔗</Text>
+                <Text style={styles.toolLabel}>Link</Text>
+              </Pressable>
+            ) : null}
             {busy ? <ActivityIndicator style={styles.toolLoader} /> : null}
           </View>
+
+          {folderSegs.length === 0 && devDriveUrl ? (
+            <Button
+              label="🔗 Abrir material online"
+              onPress={() => void Linking.openURL(devDriveUrl)}
+              style={styles.topAction}
+            />
+          ) : null}
 
           <Text style={styles.usage}>
             {usedBytes == null ? '' : formatBytes(usedBytes)}
@@ -634,7 +667,7 @@ export default function MaterialVendaScreen() {
                 {availableCompanies.map((c) => (
                   <NavRow
                     key={c.id}
-                    icon={isCanopus(c.name) ? '🔗' : '🏢'}
+                    icon="🏢"
                     label={c.name}
                     onPress={() => void onAddCompany(c)}
                   />
@@ -704,6 +737,36 @@ export default function MaterialVendaScreen() {
               style={styles.sheetAction}
             />
             <Button label="Fechar" variant="ghost" onPress={() => setConfigOpen(false)} />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={devLinkOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setDevLinkOpen(false)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Link do empreendimento</Text>
+            <Text style={styles.hint}>
+              Cole aqui o link do material online (Drive, site do empreendimento, etc.).
+            </Text>
+            <Input
+              value={devLinkDraft}
+              onChangeText={setDevLinkDraft}
+              placeholder="https://..."
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            <Button label="Salvar" onPress={() => void onSaveDevLink()} loading={busy} />
+            <Button
+              label="Cancelar"
+              variant="ghost"
+              onPress={() => setDevLinkOpen(false)}
+              style={styles.sheetAction}
+            />
           </View>
         </View>
       </Modal>

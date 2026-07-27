@@ -169,6 +169,24 @@ export interface Database {
         };
         Relationships: [];
       };
+      development_materials: {
+        Row: {
+          user_id: string;
+          development_id: string;
+          drive_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          development_id: string;
+          drive_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: { drive_url?: string | null; updated_at?: string };
+        Relationships: [];
+      };
       company_materials: {
         Row: {
           user_id: string;
