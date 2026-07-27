@@ -32,7 +32,7 @@ const SERVICES: ServiceItem[] = [
   { key: 'cadastros', label: 'Cadastros', icon: 'building', route: '/(app)/cadastros' },
   { key: 'comissao', label: 'Comissão', icon: 'coins', route: '/(app)/comissao' },
   { key: 'vendas', label: 'Vendas', icon: 'handshake', route: '/(app)/vendas' },
-  { key: 'configuracoes', label: 'Configurações', icon: 'gear', route: '/(app)/configuracoes' },
+  { key: 'configuracoes', label: 'Ajustes', icon: 'gear', route: '/(app)/configuracoes' },
 ];
 
 function startOfToday(): Date {
