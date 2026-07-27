@@ -142,6 +142,7 @@ export interface Database {
           user_id: string;
           company_id: string;
           name: string;
+          description: string | null;
           delivery_date: string | null;
           manager_name: string | null;
           created_at: string;
@@ -152,6 +153,7 @@ export interface Database {
           user_id: string;
           company_id: string;
           name: string;
+          description?: string | null;
           delivery_date?: string | null;
           manager_name?: string | null;
           created_at?: string;
@@ -160,10 +162,123 @@ export interface Database {
         Update: {
           company_id?: string;
           name?: string;
+          description?: string | null;
           delivery_date?: string | null;
           manager_name?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      company_materials: {
+        Row: {
+          user_id: string;
+          company_id: string;
+          drive_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          company_id: string;
+          drive_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: { drive_url?: string | null; updated_at?: string };
+        Relationships: [];
+      };
+      appointment_types: {
+        Row: { id: string; nome: string; cor: string; icone: string | null; ordem: number; ativo: boolean };
+        Insert: { id: string; nome: string; cor: string; icone?: string | null; ordem?: number; ativo?: boolean };
+        Update: { nome?: string; cor?: string; icone?: string | null; ordem?: number; ativo?: boolean };
+        Relationships: [];
+      };
+      appointment_statuses: {
+        Row: { id: string; nome: string; cor: string; ordem: number; ativo: boolean };
+        Insert: { id: string; nome: string; cor: string; ordem?: number; ativo?: boolean };
+        Update: { nome?: string; cor?: string; ordem?: number; ativo?: boolean };
+        Relationships: [];
+      };
+      appointments: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          type_id: string;
+          status_id: string;
+          lead_id: string | null;
+          start_at: string;
+          end_at: string | null;
+          location: string | null;
+          priority: string;
+          reminder_minutes: number[];
+          source: string;
+          completed_at: string | null;
+          completed_note: string | null;
+          cancelled_at: string | null;
+          cancel_reason: string | null;
+          deleted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          description?: string | null;
+          type_id: string;
+          status_id?: string;
+          lead_id?: string | null;
+          start_at: string;
+          end_at?: string | null;
+          location?: string | null;
+          priority?: string;
+          reminder_minutes?: number[];
+          source?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          type_id?: string;
+          status_id?: string;
+          lead_id?: string | null;
+          start_at?: string;
+          end_at?: string | null;
+          location?: string | null;
+          priority?: string;
+          reminder_minutes?: number[];
+          completed_at?: string | null;
+          completed_note?: string | null;
+          cancelled_at?: string | null;
+          cancel_reason?: string | null;
+          deleted_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      appointment_history: {
+        Row: {
+          id: string;
+          appointment_id: string;
+          user_id: string;
+          action: string;
+          old_value: string | null;
+          new_value: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          appointment_id: string;
+          user_id: string;
+          action: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          created_at?: string;
+        };
+        Update: { action?: string };
         Relationships: [];
       };
       leads: {

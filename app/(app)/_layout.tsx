@@ -1,6 +1,7 @@
 import { Redirect, Stack } from 'expo-router';
-import { Fragment } from 'react';
+import { View } from 'react-native';
 
+import { BottomTabBar } from '@/components/BottomTabBar';
 import { LoadingScreen } from '@/components/Loading';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { useAuth } from '@/providers/AuthProvider';
@@ -17,7 +18,7 @@ export default function AppLayout() {
   if (!isActive) return <Redirect href="/paywall" />;
 
   return (
-    <Fragment>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack
         screenOptions={{
           headerShown: true,
@@ -46,7 +47,8 @@ export default function AppLayout() {
         <Stack.Screen name="comissao" options={{ title: 'Controle de Comissão' }} />
         <Stack.Screen name="vendas" options={{ title: 'Vendas Realizadas' }} />
       </Stack>
+      <BottomTabBar />
       <OnboardingModal />
-    </Fragment>
+    </View>
   );
 }

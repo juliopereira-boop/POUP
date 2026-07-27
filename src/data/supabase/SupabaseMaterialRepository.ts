@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import type { MaterialRepository } from '../repositories';
-import { type Result, type StorageEntry, err, ok } from '../types';
+import { type CompanyMaterial, type Result, type StorageEntry, err, ok } from '../types';
+import type { Database } from '../database.types';
+
+type CompanyMaterialRow = Database['public']['Tables']['company_materials']['Row'];
 
 const BUCKET = 'uploads';
 const PLACEHOLDER = '.emptyFolderPlaceholder';
@@ -15,6 +18,10 @@ interface RawObject {
 function joinRel(userId: string, relPath: string): string {
   const rel = relPath.replace(/^\/+|\/+$/g, '');
   return rel ? `${userId}/${rel}` : userId;
+}
+
+function mapCompanyMaterial(row: CompanyMaterialRow): CompanyMaterial {
+  return { companyId: row.company_id, driveUrl: row.drive_url };
 }
 
 function friendly(message: string): string {
@@ -108,5 +115,34 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
     if (error || !data) return null;
     return data.signedUrl;
+  }
+
+  async getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null> {
+    const { data, error } = await supabase
+      .from('company_materials')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return mapCompanyMaterial(data);
+  }
+
+  async saveCompanyMaterial(
+    userId: string,
+    companyId: string,
+    driveUrl: string | null,
+  ): Promise<Result<CompanyMaterial>> {
+    const clean = driveUrl?.trim() ? driveUrl.trim() : null;
+    const { data, error } = await supabase
+      .from('company_materials')
+      .upsert(
+        { user_id: userId, company_id: companyId, drive_url: clean },
+        { onConflict: 'user_id,company_id' },
+      )
+      .select('*')
+      .single();
+    if (error || !data) return err(error?.message ?? 'Falha ao salvar o material da empresa.');
+    return ok(mapCompanyMaterial(data));
   }
 }

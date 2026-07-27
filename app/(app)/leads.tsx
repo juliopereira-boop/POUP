@@ -4,8 +4,10 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -17,17 +19,31 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
-import { db, type Development, type Lead, type LeadStatus } from '@/data';
+import {
+  db,
+  type Company,
+  type Development,
+  type Lead,
+  type LeadStatus,
+  type StorageEntry,
+} from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
-import { generateInvite, prospectLeads, type ProspectedLead } from '@/lib/prospeccao';
+import {
+  generateInvite,
+  generatePitch,
+  prospectLeads,
+  type ProspectedLead,
+} from '@/lib/prospeccao';
 import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
-import { radius, spacing, typography, type AppColors } from '@/theme';
+import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
 type Tab = 'gestao' | 'prospeccao';
+
+const SHOW_CAPTACAO_CARD = false;
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   novo: 'Novo',
@@ -105,7 +121,7 @@ export default function LeadsScreen() {
       </View>
 
       {tab === 'gestao' ? (
-        <GestaoLeadsTab userId={user?.id ?? null} />
+        <GestaoLeadsTab userId={user?.id ?? null} brokerName={profile?.fullName ?? null} />
       ) : (
         <ProspeccaoTab
           userId={user?.id ?? null}
@@ -117,7 +133,13 @@ export default function LeadsScreen() {
   );
 }
 
-function GestaoLeadsTab({ userId }: { userId: string | null }) {
+function GestaoLeadsTab({
+  userId,
+  brokerName,
+}: {
+  userId: string | null;
+  brokerName: string | null;
+}) {
   const styles = useThemedStyles(makeStyles);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,6 +147,7 @@ function GestaoLeadsTab({ userId }: { userId: string | null }) {
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [atendimento, setAtendimento] = useState<Lead | null>(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -216,7 +239,9 @@ function GestaoLeadsTab({ userId }: { userId: string | null }) {
                 {lead.name}
               </Text>
               <Text style={styles.leadMeta}>
-                {formatPhone(lead.phone)} · {SOURCE_LABEL[lead.source]}
+                {formatPhone(lead.phone)} ·{' '}
+                {lead.source === 'whatsapp' ? '💬 ' : ''}
+                {SOURCE_LABEL[lead.source]}
               </Text>
               {lead.developmentName ? (
                 <Text style={styles.leadMeta}>{lead.developmentName}</Text>
@@ -229,10 +254,7 @@ function GestaoLeadsTab({ userId }: { userId: string | null }) {
               >
                 <Text style={styles.statusText}>{STATUS_LABEL[lead.status]}</Text>
               </Pressable>
-              <Pressable
-                onPress={() => void Linking.openURL(`https://wa.me/55${lead.phone}`)}
-                hitSlop={8}
-              >
+              <Pressable onPress={() => setAtendimento(lead)} hitSlop={8}>
                 <Text style={styles.leadIcon}>💬</Text>
               </Pressable>
               <Pressable onPress={() => onRemove(lead)} hitSlop={8}>
@@ -242,7 +264,308 @@ function GestaoLeadsTab({ userId }: { userId: string | null }) {
           </View>
         ))
       )}
+
+      <AtendimentoModal
+        visible={!!atendimento}
+        lead={atendimento}
+        userId={userId}
+        brokerName={brokerName}
+        onClose={() => setAtendimento(null)}
+      />
     </View>
+  );
+}
+
+function defaultPitch(brokerName: string | null, developmentName: string | null): string {
+  const quem = brokerName?.trim() ? brokerName.trim().split(' ')[0] : null;
+  const imovel = developmentName ? `o ${developmentName}` : 'um imóvel que combina com você';
+  return [
+    `Olá! ${quem ? `Aqui é ${quem}, corretor(a) de imóveis.` : 'Tudo bem?'}`,
+    '',
+    `Separei ${imovel} pra te mostrar — acho que você vai gostar 🏡`,
+    '',
+    'Quer conhecer pessoalmente? Consigo agendar sua visita e também fazer uma análise de crédito sem compromisso pra você saber exatamente quanto pode investir.',
+  ].join('\n');
+}
+
+function AtendimentoModal({
+  visible,
+  lead,
+  userId,
+  brokerName,
+  onClose,
+}: {
+  visible: boolean;
+  lead: Lead | null;
+  userId: string | null;
+  brokerName: string | null;
+  onClose: () => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [developments, setDevelopments] = useState<Development[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [developmentId, setDevelopmentId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [folderSegs, setFolderSegs] = useState<string[]>([]);
+  const [entries, setEntries] = useState<StorageEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const [selected, setSelected] = useState<StorageEntry[]>([]);
+  const [opening, setOpening] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !userId) return;
+    let active = true;
+    void Promise.all([db.companies.list(userId), db.developments.list(userId)]).then(
+      ([comps, devs]) => {
+        if (!active) return;
+        setCompanies(comps);
+        setDevelopments(devs);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [visible, userId]);
+
+  useEffect(() => {
+    if (!visible) return;
+    setCompanyId(null);
+    setDevelopmentId(null);
+    setMessage('');
+    setError(null);
+    setMediaOpen(false);
+    setFolderSegs([]);
+    setEntries([]);
+    setSelected([]);
+  }, [visible]);
+
+  const companyDevs = useMemo(
+    () => developments.filter((d) => d.companyId === companyId),
+    [developments, companyId],
+  );
+
+  const development = useMemo(
+    () => developments.find((d) => d.id === developmentId) ?? null,
+    [developments, developmentId],
+  );
+
+  const mediaPath = useMemo(() => {
+    if (!companyId || !developmentId) return null;
+    return ['material', companyId, developmentId, ...folderSegs].join('/');
+  }, [companyId, developmentId, folderSegs]);
+
+  useEffect(() => {
+    if (!mediaOpen || !userId || !mediaPath) return;
+    let active = true;
+    setLoadingEntries(true);
+    void db.material.list(userId, mediaPath).then((list) => {
+      if (!active) return;
+      setEntries(list);
+      setLoadingEntries(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [mediaOpen, userId, mediaPath]);
+
+  const gerar = useCallback(
+    async (dev: Development) => {
+      setGenerating(true);
+      setError(null);
+      const res = await generatePitch({
+        developmentName: dev.name,
+        companyName: dev.companyName,
+        descricao: dev.description,
+        brokerName,
+      });
+      setGenerating(false);
+      if (!res.ok) {
+        setMessage(defaultPitch(brokerName, dev.name));
+        setError('A IA não respondeu agora — deixamos uma mensagem padrão pra você ajustar.');
+        return;
+      }
+      setMessage(res.data.mensagem);
+    },
+    [brokerName],
+  );
+
+  function onSelectCompany(v: string) {
+    setCompanyId(v);
+    setDevelopmentId(null);
+    setMessage('');
+    setSelected([]);
+    setFolderSegs([]);
+    setMediaOpen(false);
+    setError(null);
+  }
+
+  function onSelectDevelopment(v: string) {
+    setDevelopmentId(v);
+    setSelected([]);
+    setFolderSegs([]);
+    setMediaOpen(false);
+    const dev = developments.find((d) => d.id === v);
+    if (dev) void gerar(dev);
+  }
+
+  function toggleFile(entry: StorageEntry) {
+    setSelected((prev) =>
+      prev.some((s) => s.path === entry.path)
+        ? prev.filter((s) => s.path !== entry.path)
+        : [...prev, entry],
+    );
+  }
+
+  async function onAbrirConversa() {
+    if (!lead) return;
+    setOpening(true);
+    const urls: string[] = [];
+    for (const f of selected) {
+      const url = await db.material.signedUrl(f.path);
+      if (url) urls.push(url);
+    }
+    setOpening(false);
+    const digits = lead.phone.replace(/\D/g, '');
+    const texto = urls.length > 0 ? `${message}\n\n${urls.join('\n')}` : message;
+    void Linking.openURL(`https://wa.me/55${digits}?text=${encodeURIComponent(texto)}`);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              💬 Atender {lead?.name ?? ''}
+            </Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Text style={styles.modalClose}>✕</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Select
+              label="Empresa"
+              placeholder="Selecione a empresa"
+              value={companyId}
+              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              onChange={onSelectCompany}
+              emptyHint="Nenhuma empresa cadastrada."
+            />
+
+            <Select
+              label="Empreendimento"
+              placeholder={companyId ? 'Selecione o empreendimento' : 'Escolha a empresa primeiro'}
+              value={developmentId}
+              options={companyDevs.map((d) => ({ value: d.id, label: d.name }))}
+              onChange={onSelectDevelopment}
+              emptyHint={
+                companyId
+                  ? 'Nenhum empreendimento para esta empresa.'
+                  : 'Escolha a empresa primeiro.'
+              }
+            />
+
+            {developmentId ? (
+              <>
+                <Input
+                  label="Mensagem"
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder={generating ? 'A IA está escrevendo…' : 'Escreva sua mensagem'}
+                  multiline
+                  numberOfLines={8}
+                  editable={!generating}
+                  style={styles.messageArea}
+                />
+                {generating ? (
+                  <View style={styles.generatingRow}>
+                    <ActivityIndicator />
+                    <Text style={styles.caption}>Gerando mensagem com IA…</Text>
+                  </View>
+                ) : (
+                  <Button
+                    label="✨ Gerar novamente"
+                    variant="secondary"
+                    onPress={() => development && void gerar(development)}
+                  />
+                )}
+                {error ? <Text style={styles.subtleError}>{error}</Text> : null}
+
+                <Button
+                  label={mediaOpen ? '− Selecione sua mídia' : '📎 Selecione sua mídia'}
+                  variant="secondary"
+                  onPress={() => setMediaOpen((v) => !v)}
+                  style={styles.mediaToggle}
+                />
+                <Text style={styles.caption}>As mídias vão como links prontos na mensagem.</Text>
+
+                {mediaOpen ? (
+                  <View style={styles.mediaBox}>
+                    {folderSegs.length > 0 ? (
+                      <Pressable onPress={() => setFolderSegs(folderSegs.slice(0, -1))} hitSlop={6}>
+                        <Text style={styles.mediaBack}>‹ {folderSegs.join(' / ')}</Text>
+                      </Pressable>
+                    ) : null}
+                    {loadingEntries ? (
+                      <ActivityIndicator style={styles.loader} />
+                    ) : entries.length === 0 ? (
+                      <Text style={styles.caption}>
+                        Nenhum arquivo aqui. Suba os materiais em Material de Vendas.
+                      </Text>
+                    ) : (
+                      entries.map((e) => {
+                        const isSel = selected.some((s) => s.path === e.path);
+                        return (
+                          <Pressable
+                            key={e.path}
+                            onPress={() =>
+                              e.isFolder ? setFolderSegs([...folderSegs, e.name]) : toggleFile(e)
+                            }
+                            style={({ pressed }) => [
+                              styles.mediaRow,
+                              isSel && styles.mediaRowSelected,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text style={styles.mediaIcon}>
+                              {e.isFolder ? '📁' : isSel ? '☑️' : '⬜'}
+                            </Text>
+                            <Text style={styles.mediaName} numberOfLines={1}>
+                              {e.name}
+                            </Text>
+                            {e.isFolder ? <Text style={styles.mediaChevron}>›</Text> : null}
+                          </Pressable>
+                        );
+                      })
+                    )}
+                  </View>
+                ) : null}
+
+                {selected.length > 0 ? (
+                  <Text style={styles.selectedCount}>
+                    {selected.length} mídia(s) selecionada(s): {selected.map((s) => s.name).join(', ')}
+                  </Text>
+                ) : null}
+
+                <Button
+                  label="Abrir conversa"
+                  onPress={onAbrirConversa}
+                  loading={opening}
+                  disabled={!message.trim() || generating}
+                  style={styles.modalCta}
+                />
+              </>
+            ) : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -271,8 +594,8 @@ function ProspeccaoTab({
   return (
     <View>
       <ProspectarCard userId={userId} />
-      <CaptacaoCard userId={userId} brokerName={brokerName} />
-      <WhatsAppCard brokerPhone={brokerPhone} />
+      {SHOW_CAPTACAO_CARD ? <CaptacaoCard userId={userId} brokerName={brokerName} /> : null}
+      <WhatsAppCard userId={userId} brokerPhone={brokerPhone} />
     </View>
   );
 }
@@ -610,18 +933,24 @@ function CaptacaoCard({
   );
 }
 
-function WhatsAppCard({ brokerPhone }: { brokerPhone: string | null }) {
+function WhatsAppCard({
+  userId,
+  brokerPhone,
+}: {
+  userId: string | null;
+  brokerPhone: string | null;
+}) {
   const styles = useThemedStyles(makeStyles);
   const digits = (brokerPhone ?? '').replace(/\D/g, '');
-  const message = 'Olá! Gostaria de saber mais sobre imóveis disponíveis.';
-  const link = digits ? `https://wa.me/55${digits}?text=${encodeURIComponent(message)}` : '';
+  const link = userId && digits ? `${env.appUrl}/captar?c=${userId}&wa=1` : '';
 
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>💬 Falar direto no WhatsApp</Text>
       <Text style={styles.cardText}>
         Um link e um QR code que abrem uma conversa direto com você — ótimo pra bio do Instagram,
-        cartão ou placa.
+        cartão ou placa. Quem chega por aqui é cadastrado automaticamente na Gestão de Leads, com a
+        origem “WhatsApp”, antes de cair na conversa.
       </Text>
       {!digits ? (
         <Text style={styles.warn}>
@@ -789,4 +1118,63 @@ const makeStyles = (colors: AppColors) =>
     },
     qrWrap: { alignItems: 'center', marginBottom: spacing.md },
     qrImage: { width: 160, height: 160, borderRadius: radius.md },
+
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    },
+    modalSheet: {
+      width: '100%',
+      maxWidth: layout.maxContentWidth,
+      maxHeight: '92%',
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      padding: spacing.xl,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    modalTitle: { ...typography.heading, color: colors.ink, flex: 1 },
+    modalClose: { ...typography.heading, color: colors.inkMuted },
+    modalCta: { marginTop: spacing.lg, marginBottom: spacing.lg },
+    messageArea: { minHeight: 160, paddingTop: spacing.md, textAlignVertical: 'top' },
+    generatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      marginBottom: spacing.md,
+    },
+    caption: { ...typography.caption, color: colors.inkSubtle, marginTop: spacing.sm },
+    subtleError: { ...typography.caption, color: colors.warning, marginTop: spacing.sm },
+    mediaToggle: { marginTop: spacing.lg },
+    mediaBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+      marginTop: spacing.md,
+    },
+    mediaBack: { ...typography.label, color: colors.primary, marginBottom: spacing.sm },
+    mediaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.sm,
+    },
+    mediaRowSelected: { backgroundColor: colors.successSoft },
+    mediaIcon: { fontSize: 16 },
+    mediaName: { ...typography.body, color: colors.ink, flex: 1 },
+    mediaChevron: { ...typography.body, color: colors.inkSubtle },
+    pressed: { opacity: 0.6 },
+    selectedCount: { ...typography.caption, color: colors.success, marginTop: spacing.md },
   });

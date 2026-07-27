@@ -1,7 +1,12 @@
 import type {
+  Appointment,
+  AppointmentInput,
+  AppointmentStatusInfo,
+  AppointmentType,
   AuthUser,
   Company,
   CompanyInput,
+  CompanyMaterial,
   Correspondent,
   Development,
   DevelopmentInput,
@@ -96,6 +101,28 @@ export interface MaterialRepository {
   ): Promise<Result<void>>;
   remove(path: string, isFolder: boolean): Promise<Result<void>>;
   signedUrl(path: string, expiresIn?: number): Promise<string | null>;
+  getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null>;
+  saveCompanyMaterial(
+    userId: string,
+    companyId: string,
+    driveUrl: string | null,
+  ): Promise<Result<CompanyMaterial>>;
+}
+
+export interface AppointmentRepository {
+  listRange(userId: string, startISO: string, endISO: string): Promise<Appointment[]>;
+  listByLead(userId: string, leadId: string): Promise<Appointment[]>;
+  create(userId: string, data: AppointmentInput): Promise<Result<Appointment>>;
+  update(id: string, data: Partial<AppointmentInput>): Promise<Result<Appointment>>;
+  setStatus(
+    id: string,
+    statusId: string,
+    extra?: { note?: string | null; reason?: string | null },
+  ): Promise<Result<void>>;
+  reschedule(id: string, startAt: string, endAt: string | null): Promise<Result<void>>;
+  remove(id: string): Promise<Result<void>>;
+  listTypes(): Promise<AppointmentType[]>;
+  listStatuses(): Promise<AppointmentStatusInfo[]>;
 }
 
 export interface LeadRepository {

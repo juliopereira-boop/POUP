@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@/components/Button';
@@ -20,9 +20,17 @@ const DEFAULT_BENEFITS = [
   'As melhores condições e oportunidades',
 ];
 
+const WA_TITLE = 'Fale com um especialista';
+const WA_SUBTITLE = 'Deixe seu nome e telefone que abrimos o WhatsApp na hora.';
+
 export default function CaptarLeadScreen() {
   const styles = useThemedStyles(makeStyles);
-  const { c: brokerId, e: developmentId } = useLocalSearchParams<{ c?: string; e?: string }>();
+  const {
+    c: brokerId,
+    e: developmentId,
+    wa,
+  } = useLocalSearchParams<{ c?: string; e?: string; wa?: string }>();
+  const isWhatsAppFlow = wa === '1';
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -30,29 +38,33 @@ export default function CaptarLeadScreen() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const [title, setTitle] = useState(DEFAULT_TITLE);
-  const [subtitle, setSubtitle] = useState(DEFAULT_SUBTITLE);
+  const [title, setTitle] = useState(isWhatsAppFlow ? WA_TITLE : DEFAULT_TITLE);
+  const [subtitle, setSubtitle] = useState(isWhatsAppFlow ? WA_SUBTITLE : DEFAULT_SUBTITLE);
   const [descricao, setDescricao] = useState('');
   const [beneficios, setBeneficios] = useState<string[]>(DEFAULT_BENEFITS);
   const [brokerName, setBrokerName] = useState<string | null>(null);
   const [agency, setAgency] = useState<string | null>(null);
+  const [brokerPhone, setBrokerPhone] = useState<string | null>(null);
 
   useEffect(() => {
     if (!brokerId) return;
     let active = true;
     getLeadPage(brokerId).then((info) => {
       if (!active || !info) return;
-      if (info.titulo) setTitle(info.titulo);
-      if (info.subtitulo) setSubtitle(info.subtitulo);
-      if (info.descricao) setDescricao(info.descricao);
-      if (info.beneficios && info.beneficios.length > 0) setBeneficios(info.beneficios);
+      if (!isWhatsAppFlow) {
+        if (info.titulo) setTitle(info.titulo);
+        if (info.subtitulo) setSubtitle(info.subtitulo);
+        if (info.descricao) setDescricao(info.descricao);
+        if (info.beneficios && info.beneficios.length > 0) setBeneficios(info.beneficios);
+      }
       setBrokerName(info.brokerName);
       setAgency(info.agency);
+      setBrokerPhone((info as { brokerPhone?: string | null }).brokerPhone ?? null);
     });
     return () => {
       active = false;
     };
-  }, [brokerId]);
+  }, [brokerId, isWhatsAppFlow]);
 
   async function submit() {
     setError(null);
@@ -65,12 +77,20 @@ export default function CaptarLeadScreen() {
         name: name.trim(),
         phone,
         developmentId,
+        source: isWhatsAppFlow ? 'whatsapp' : 'landing',
       },
     });
     setSending(false);
     if (fnError || data?.error) {
       setError((data?.error as string) ?? 'Não foi possível enviar. Tente novamente.');
       return;
+    }
+    if (isWhatsAppFlow) {
+      const digits = (brokerPhone ?? '').replace(/\D/g, '');
+      if (digits) {
+        const texto = `Olá! Meu nome é ${name.trim()} e gostaria de saber mais sobre imóveis.`;
+        void Linking.openURL(`https://wa.me/55${digits}?text=${encodeURIComponent(texto)}`);
+      }
     }
     setDone(true);
   }

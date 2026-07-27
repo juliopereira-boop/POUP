@@ -77,6 +77,7 @@ export interface Development {
   companyId: string;
   name: string;
   companyName?: string | null;
+  description: string | null;
   deliveryDate: string | null;
   managerName: string | null;
   createdAt: string;
@@ -95,8 +96,14 @@ export interface CompanyInput {
 export interface DevelopmentInput {
   companyId: string;
   name: string;
+  description: string | null;
   deliveryDate: string | null;
   managerName: string | null;
+}
+
+export interface CompanyMaterial {
+  companyId: string;
+  driveUrl: string | null;
 }
 
 export interface Simulation {
@@ -158,6 +165,70 @@ export interface StorageEntry {
   size: number | null;
   updatedAt: string | null;
   mimeType: string | null;
+}
+
+export interface AppointmentType {
+  id: string;
+  nome: string;
+  cor: string;
+  icone: string | null;
+}
+
+export interface AppointmentStatusInfo {
+  id: string;
+  nome: string;
+  cor: string;
+}
+
+export type AppointmentPriority = 'baixa' | 'normal' | 'alta' | 'urgente';
+export type AppointmentSource =
+  | 'manual'
+  | 'sistema'
+  | 'automacao'
+  | 'api'
+  | 'lead'
+  | 'venda'
+  | 'comissao'
+  | 'financeiro';
+
+export interface Appointment {
+  id: string;
+  title: string;
+  description: string | null;
+  typeId: string;
+  statusId: string;
+  leadId: string | null;
+  leadName?: string | null;
+  startAt: string;
+  endAt: string | null;
+  location: string | null;
+  priority: AppointmentPriority;
+  reminderMinutes: number[];
+  source: AppointmentSource;
+  completedAt: string | null;
+  completedNote: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppointmentInput {
+  title: string;
+  description?: string | null;
+  typeId: string;
+  leadId?: string | null;
+  startAt: string;
+  endAt?: string | null;
+  location?: string | null;
+  priority?: AppointmentPriority;
+  reminderMinutes?: number[];
+  source?: AppointmentSource;
+}
+
+export function isAppointmentLate(a: Appointment): boolean {
+  if (a.statusId === 'concluido' || a.statusId === 'cancelado') return false;
+  return new Date(a.startAt).getTime() < Date.now();
 }
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };

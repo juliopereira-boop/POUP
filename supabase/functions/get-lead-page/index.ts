@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
   if (!brokerId) return json({ error: 'brokerId ausente.' }, 400);
 
   const [{ data: profile }, { data: campaign }] = await Promise.all([
-    admin.from('profiles').select('full_name, agency').eq('id', brokerId).maybeSingle(),
+    admin.from('profiles').select('full_name, agency, phone').eq('id', brokerId).maybeSingle(),
     admin
       .from('lead_campaigns')
       .select('titulo, subtitulo, descricao, beneficios')
@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
   return json({
     brokerName: profile.full_name ?? null,
     agency: profile.agency ?? null,
+    brokerPhone: profile.phone ?? null,
     titulo: campaign?.titulo ?? null,
     subtitulo: campaign?.subtitulo ?? null,
     descricao: campaign?.descricao ?? null,

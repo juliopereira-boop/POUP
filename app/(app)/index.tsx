@@ -1,83 +1,367 @@
-import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 
-import { Logo } from '@/components/Logo';
-import { MenuCard } from '@/components/MenuCard';
+import { Icon, type IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
-import { FEATURES } from '@/features/registry';
+import { WordMark } from '@/components/WordMark';
+import { db, isAppointmentLate, type Appointment, type AppointmentType } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
-import { spacing, typography, type AppColors } from '@/theme';
-import { useThemedStyles } from '@/providers/ThemeProvider';
+import { useProfile } from '@/providers/ProfileProvider';
+import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
+import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 
-export default function MenuScreen() {
+interface ServiceItem {
+  key: string;
+  label: string;
+  icon: IconName;
+  route: Href;
+}
+
+const SERVICES: ServiceItem[] = [
+  { key: 'leads', label: 'Leads', icon: 'contacts', route: '/(app)/leads' },
+  { key: 'simulador', label: 'Simulador', icon: 'house', route: '/(app)/simulador' },
+  { key: 'relatorios', label: 'Relatórios', icon: 'chart', route: '/(app)/relatorios' },
+  {
+    key: 'material',
+    label: 'Material de Venda',
+    icon: 'briefcase',
+    route: '/(app)/material-venda',
+  },
+  { key: 'calendario', label: 'Calendário', icon: 'calendar', route: '/(app)/calendario' },
+  { key: 'cadastros', label: 'Cadastros', icon: 'building', route: '/(app)/cadastros' },
+  { key: 'comissao', label: 'Comissão', icon: 'coins', route: '/(app)/comissao' },
+  { key: 'vendas', label: 'Vendas', icon: 'handshake', route: '/(app)/vendas' },
+  { key: 'configuracoes', label: 'Configurações', icon: 'gear', route: '/(app)/configuracoes' },
+];
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function hhmm(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function dayLabel(iso: string): string {
+  const target = new Date(iso);
+  target.setHours(0, 0, 0, 0);
+  const diff = Math.round((target.getTime() - startOfToday().getTime()) / 86400000);
+  if (diff === 0) return 'Hoje';
+  if (diff === 1) return 'Amanhã';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export default function HomeScreen() {
+  const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { width } = useWindowDimensions();
 
-  const columns = width >= 900 ? 3 : 2;
-  const firstName = (user?.displayName ?? user?.email ?? 'corretor').split(' ')[0].split('@')[0];
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [types, setTypes] = useState<AppointmentType[]>([]);
+
+  const columns = width >= 720 ? 4 : 3;
+  const firstName = (profile?.fullName ?? user?.displayName ?? user?.email ?? 'corretor')
+    .split(' ')[0]
+    .split('@')[0];
+
+  const load = useCallback(async () => {
+    if (!user?.id) return;
+    const from = startOfToday();
+    const to = new Date(from.getTime() + 14 * 86400000);
+    const [list, tps] = await Promise.all([
+      db.appointments.listRange(user.id, from.toISOString(), to.toISOString()),
+      db.appointments.listTypes(),
+    ]);
+    setAppointments(list);
+    setTypes(tps);
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  const typeById = useMemo(() => {
+    const map: Record<string, AppointmentType> = {};
+    types.forEach((t) => {
+      map[t.id] = t;
+    });
+    return map;
+  }, [types]);
+
+  const pending = useMemo(
+    () => appointments.filter((a) => a.statusId !== 'concluido' && a.statusId !== 'cancelado'),
+    [appointments],
+  );
+
+  const todayList = useMemo(() => {
+    const limit = startOfToday().getTime() + 86400000;
+    return pending.filter((a) => new Date(a.startAt).getTime() < limit);
+  }, [pending]);
+
+  const reminders = pending.slice(0, 6);
 
   return (
-    <Screen>
-      <View style={styles.topBar}>
-        <Logo size={30} />
-        <Pressable
-          onPress={() => router.push('/(app)/configuracoes')}
-          accessibilityLabel="Configurações"
-          style={styles.avatar}
-        >
-          <Text style={styles.avatarText}>{firstName.charAt(0).toUpperCase()}</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.greeting}>Olá, {firstName} 👋</Text>
-      <Text style={styles.title}>Menu Principal</Text>
-
-      <View style={styles.grid}>
-        {FEATURES.map((feature) => (
-          <View
-            key={feature.key}
-            style={[styles.cell, { width: `${100 / columns}%` }]}
+    <>
+      <View style={styles.header}>
+        <WordMark size={26} />
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => router.push('/(app)/calendario')}
+            accessibilityLabel="Agenda"
+            style={styles.headerBtn}
           >
-            <MenuCard
-              title={feature.title}
-              emoji={feature.emoji}
-              comingSoon={!feature.ready}
-              onPress={() => router.push(feature.route)}
-            />
-          </View>
-        ))}
+            <Icon name="bell" size={22} color={colors.ink} />
+            {todayList.length > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{todayList.length}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/(app)/perfil')}
+            accessibilityLabel="Meu perfil"
+            style={styles.headerBtn}
+          >
+            <Icon name="user" size={22} color={colors.ink} />
+          </Pressable>
+        </View>
       </View>
-    </Screen>
+
+      <Screen>
+        <Text style={styles.greeting}>Olá, {firstName}</Text>
+
+        {reminders.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carousel}
+            style={styles.carouselWrap}
+          >
+            {reminders.map((a) => {
+              const t = typeById[a.typeId];
+              const late = isAppointmentLate(a);
+              return (
+                <Pressable
+                  key={a.id}
+                  onPress={() => router.push('/(app)/calendario')}
+                  style={styles.reminder}
+                >
+                  <View
+                    style={[styles.reminderBar, { backgroundColor: t?.cor ?? colors.primary }]}
+                  />
+                  <View style={styles.reminderBody}>
+                    <Text style={styles.reminderType}>
+                      {(t?.nome ?? 'Compromisso').toUpperCase()}
+                    </Text>
+                    <Text style={styles.reminderTitle} numberOfLines={1}>
+                      {a.leadName ?? a.title}
+                    </Text>
+                    <Text style={[styles.reminderWhen, late && styles.reminderLate]}>
+                      {late ? '⚠️ ' : ''}
+                      {dayLabel(a.startAt)} · {hhmm(a.startAt)}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <Pressable style={styles.emptyReminder} onPress={() => router.push('/(app)/calendario')}>
+            <Icon name="calendar" size={20} color={colors.inkMuted} />
+            <Text style={styles.emptyReminderText}>
+              Nenhum compromisso por aqui. Toque para abrir sua agenda.
+            </Text>
+          </Pressable>
+        )}
+
+        <View style={styles.panel}>
+          <Text style={styles.panelTitle}>O que você quer fazer?</Text>
+          <View style={styles.grid}>
+            {SERVICES.map((s, i) => {
+              const featured = i === 0;
+              return (
+                <View key={s.key} style={[styles.cell, { width: `${100 / columns}%` }]}>
+                  <Pressable
+                    onPress={() => router.push(s.route)}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.tile,
+                      featured && styles.tileFeatured,
+                      pressed && styles.tilePressed,
+                    ]}
+                  >
+                    <Icon name={s.icon} size={24} color={featured ? colors.white : colors.navy} />
+                    <Text style={[styles.tileLabel, featured && styles.tileLabelFeatured]}>
+                      {s.label}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {todayList.length > 0 ? (
+          <View style={styles.todayBlock}>
+            <Text style={styles.sectionTitle}>Hoje</Text>
+            {todayList.map((a) => {
+              const t = typeById[a.typeId];
+              return (
+                <Pressable
+                  key={a.id}
+                  onPress={() => router.push('/(app)/calendario')}
+                  style={styles.todayRow}
+                >
+                  <Text style={styles.todayTime}>{hhmm(a.startAt)}</Text>
+                  <View style={[styles.todayDot, { backgroundColor: t?.cor ?? colors.primary }]} />
+                  <View style={styles.todayMain}>
+                    <Text style={styles.todayTitle} numberOfLines={1}>
+                      {a.leadName ?? a.title}
+                    </Text>
+                    <Text style={styles.todayType}>{t?.nome ?? 'Compromisso'}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      </Screen>
+    </>
   );
 }
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: colors.white, ...typography.label, fontSize: 16 },
-  greeting: { ...typography.body, color: colors.inkMuted },
-  title: { ...typography.display, color: colors.ink, marginBottom: spacing.xl },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing.sm,
-  },
-  cell: {
-    padding: spacing.sm,
-  },
-});
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xxl,
+      paddingBottom: spacing.md,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    headerBtn: { padding: spacing.sm },
+    badge: {
+      position: 'absolute',
+      top: 2,
+      right: 2,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeText: { color: colors.white, fontSize: 10.5, fontWeight: '700' },
+
+    greeting: { ...typography.heading, color: colors.ink, marginBottom: spacing.lg },
+
+    carouselWrap: { marginHorizontal: -spacing.lg, marginBottom: spacing.xl },
+    carousel: { paddingHorizontal: spacing.lg, gap: spacing.md },
+    reminder: {
+      width: 250,
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+      ...shadow.card,
+    },
+    reminderBar: { width: 5 },
+    reminderBody: { flex: 1, padding: spacing.lg, gap: 3 },
+    reminderType: {
+      ...typography.caption,
+      color: colors.inkSubtle,
+      fontSize: 10.5,
+      letterSpacing: 1.1,
+      fontWeight: '700',
+    },
+    reminderTitle: { ...typography.body, color: colors.ink, fontWeight: '600' },
+    reminderWhen: { ...typography.caption, color: colors.inkMuted },
+    reminderLate: { color: colors.danger, fontWeight: '700' },
+
+    emptyReminder: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+    },
+    emptyReminderText: { ...typography.caption, color: colors.inkMuted, flex: 1 },
+
+    panel: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+    },
+    panelTitle: {
+      ...typography.heading,
+      color: colors.ink,
+      fontSize: 17,
+      marginBottom: spacing.lg,
+    },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -spacing.xs },
+    cell: { padding: spacing.xs },
+    tile: {
+      aspectRatio: 1,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      justifyContent: 'space-between',
+    },
+    tileFeatured: { backgroundColor: colors.navy, borderColor: colors.navy },
+    tilePressed: { opacity: 0.75 },
+    tileLabel: { ...typography.caption, color: colors.ink, fontWeight: '600', fontSize: 12.5 },
+    tileLabelFeatured: { color: colors.white },
+
+    todayBlock: { marginBottom: spacing.lg },
+    sectionTitle: {
+      ...typography.heading,
+      color: colors.ink,
+      fontSize: 17,
+      marginBottom: spacing.md,
+    },
+    todayRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    todayTime: { ...typography.label, color: colors.ink, width: 46 },
+    todayDot: { width: 8, height: 8, borderRadius: 4 },
+    todayMain: { flex: 1 },
+    todayTitle: { ...typography.body, color: colors.ink, fontWeight: '600' },
+    todayType: { ...typography.caption, color: colors.inkSubtle, marginTop: 1 },
+  });

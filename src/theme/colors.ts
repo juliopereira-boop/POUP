@@ -7,6 +7,9 @@ export const lightColors = {
   primaryDark: '#1D4ED8',
   primarySoft: '#EFF4FF',
 
+  navy: '#141B4D',
+  navySoft: '#EEF0FA',
+
   background: '#F3F4F6',
   surface: '#FFFFFF',
   surfaceAlt: '#F9FAFB',
@@ -35,6 +38,9 @@ export const darkColors: AppColors = {
   primary: '#3B82F6',
   primaryDark: '#93C5FD',
   primarySoft: '#172554',
+
+  navy: '#1E293B',
+  navySoft: '#172033',
 
   background: '#0B1120',
   surface: '#111827',

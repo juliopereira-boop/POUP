@@ -24,7 +24,7 @@ export const FEATURES: Feature[] = [
     emoji: '📅',
     route: '/(app)/calendario',
     description: 'Organize compromissos, visitas e vencimentos.',
-    ready: false,
+    ready: true,
   },
   {
     key: 'simulador',

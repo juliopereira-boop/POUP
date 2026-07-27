@@ -19,7 +19,10 @@ interface Payload {
   message?: string;
   companyId?: string;
   developmentId?: string;
+  source?: string;
 }
+
+const ALLOWED_SOURCES = new Set(['landing', 'whatsapp']);
 
 function onlyDigits(v: string): string {
   return v.replace(/\D/g, '');
@@ -82,7 +85,7 @@ Deno.serve(async (req) => {
     phone: phoneDigits,
     email: body.email?.trim() || null,
     message: body.message?.trim() || null,
-    source: 'landing',
+    source: ALLOWED_SOURCES.has(body.source ?? '') ? body.source : 'landing',
     company_id: body.companyId || null,
     development_id: body.developmentId || null,
   });

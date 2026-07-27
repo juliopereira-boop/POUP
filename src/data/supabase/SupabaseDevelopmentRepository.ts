@@ -3,12 +3,13 @@ import type { DevelopmentRepository } from '../repositories';
 import { type Development, type DevelopmentInput, type Result, err, ok } from '../types';
 
 const SELECT =
-  'id, company_id, name, delivery_date, manager_name, created_at, updated_at, companies(name)';
+  'id, company_id, name, description, delivery_date, manager_name, created_at, updated_at, companies(name)';
 
 interface DevelopmentJoinRow {
   id: string;
   company_id: string;
   name: string;
+  description: string | null;
   delivery_date: string | null;
   manager_name: string | null;
   created_at: string;
@@ -22,6 +23,7 @@ function mapDevelopment(row: DevelopmentJoinRow): Development {
     companyId: row.company_id,
     name: row.name,
     companyName: row.companies?.name ?? null,
+    description: row.description ?? null,
     deliveryDate: row.delivery_date,
     managerName: row.manager_name,
     createdAt: row.created_at,
@@ -33,6 +35,7 @@ function payload(data: DevelopmentInput) {
   return {
     company_id: data.companyId,
     name: data.name,
+    description: data.description,
     delivery_date: data.deliveryDate,
     manager_name: data.managerName,
   };

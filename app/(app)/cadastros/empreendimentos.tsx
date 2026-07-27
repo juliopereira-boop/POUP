@@ -24,6 +24,7 @@ export default function EmpreendimentosScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
   const [managerName, setManagerName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -49,6 +50,7 @@ export default function EmpreendimentosScreen() {
     setEditingId(null);
     setCompanyId(null);
     setName('');
+    setDescription('');
     setDeliveryDate(null);
     setManagerName('');
     setError(null);
@@ -58,6 +60,7 @@ export default function EmpreendimentosScreen() {
     setEditingId(dev.id);
     setCompanyId(dev.companyId);
     setName(dev.name);
+    setDescription(dev.description ?? '');
     setDeliveryDate(dev.deliveryDate);
     setManagerName(dev.managerName ?? '');
     setError(null);
@@ -78,6 +81,7 @@ export default function EmpreendimentosScreen() {
     const payload = {
       companyId,
       name: name.trim(),
+      description: description.trim() || null,
       deliveryDate,
       managerName: managerName.trim() || null,
     };
@@ -147,6 +151,15 @@ export default function EmpreendimentosScreen() {
           value={name}
           onChangeText={setName}
           placeholder="Ex.: Residencial..."
+        />
+        <Input
+          label="Descrição do empreendimento (opcional)"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Ex.: 2 quartos sendo uma suíte, varanda gourmet, lazer completo…"
+          multiline
+          numberOfLines={4}
+          style={styles.textArea}
         />
 
         <Text style={styles.sectionTitle}>Regras de negócio</Text>
@@ -232,6 +245,7 @@ const makeStyles = (colors: AppColors) =>
       marginTop: spacing.md,
       marginBottom: spacing.md,
     },
+    textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
     formActions: { flexDirection: 'row', gap: spacing.md },
     flex1: { flex: 1 },
     sectionLabel: {

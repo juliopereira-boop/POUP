@@ -16,6 +16,25 @@ export async function generateInvite(input?: {
   return ok(data as LeadCampaign);
 }
 
+export async function generatePitch(input: {
+  developmentName?: string | null;
+  companyName?: string | null;
+  descricao?: string | null;
+  brokerName?: string | null;
+}): Promise<Result<{ mensagem: string }>> {
+  const { data, error } = await supabase.functions.invoke('generate-pitch', {
+    body: {
+      developmentName: input.developmentName ?? undefined,
+      companyName: input.companyName ?? undefined,
+      descricao: input.descricao ?? undefined,
+      brokerName: input.brokerName ?? undefined,
+    },
+  });
+  if (error) return err(error.message);
+  if (data?.error) return err(data.error as string);
+  return ok(data as { mensagem: string });
+}
+
 export interface LeadPageInfo {
   brokerName: string | null;
   agency: string | null;
