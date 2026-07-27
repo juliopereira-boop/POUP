@@ -10,9 +10,11 @@ import type {
   Correspondent,
   Development,
   DevelopmentInput,
-  DevelopmentMaterial,
   Lead,
+  LeadPatch,
   LeadSource,
+  LeadStage,
+  LeadStageInput,
   LeadStatus,
   Result,
   Simulation,
@@ -108,12 +110,6 @@ export interface MaterialRepository {
     companyId: string,
     driveUrl: string | null,
   ): Promise<Result<CompanyMaterial>>;
-  listDevelopmentMaterials(userId: string): Promise<DevelopmentMaterial[]>;
-  saveDevelopmentMaterial(
-    userId: string,
-    developmentId: string,
-    driveUrl: string | null,
-  ): Promise<Result<DevelopmentMaterial>>;
 }
 
 export interface AppointmentRepository {
@@ -144,6 +140,14 @@ export interface LeadRepository {
       source?: LeadSource;
     },
   ): Promise<Result<Lead>>;
+  get(id: string): Promise<Lead | null>;
   updateStatus(id: string, status: LeadStatus): Promise<Result<void>>;
+  update(id: string, patch: LeadPatch): Promise<Result<Lead>>;
   remove(id: string): Promise<Result<void>>;
+
+  listStages(userId: string): Promise<LeadStage[]>;
+  createStage(userId: string, data: LeadStageInput): Promise<Result<LeadStage>>;
+  updateStage(id: string, data: Partial<LeadStageInput>): Promise<Result<LeadStage>>;
+  removeStage(id: string): Promise<Result<void>>;
+  seedDefaultStages(userId: string): Promise<LeadStage[]>;
 }

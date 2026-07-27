@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -120,10 +120,6 @@ export default function MaterialVendaScreen() {
   const [linkVisible, setLinkVisible] = useState(false);
   const [linkDraft, setLinkDraft] = useState('');
 
-  const [devDriveUrls, setDevDriveUrls] = useState<Record<string, string | null>>({});
-  const [devLinkOpen, setDevLinkOpen] = useState(false);
-  const [devLinkDraft, setDevLinkDraft] = useState('');
-
   const [entries, setEntries] = useState<StorageEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -133,8 +129,6 @@ export default function MaterialVendaScreen() {
   const [error, setError] = useState<string | null>(null);
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
 
-  const autoConfigRef = useRef(false);
-
   const limitBytes = subscription?.storageLimitBytes ?? plan?.storageLimitBytes ?? 0;
 
   useEffect(() => {
@@ -142,11 +136,10 @@ export default function MaterialVendaScreen() {
     let mounted = true;
     setLoadingCadastros(true);
     void (async () => {
-      const [comps, devs, roots, devMats] = await Promise.all([
+      const [comps, devs, roots] = await Promise.all([
         db.companies.list(user.id),
         db.developments.list(user.id),
         db.material.list(user.id, ROOT),
-        db.material.listDevelopmentMaterials(user.id),
       ]);
       const mats = await Promise.all(
         comps.map((c) => db.material.getCompanyMaterial(user.id, c.id)),
@@ -156,13 +149,10 @@ export default function MaterialVendaScreen() {
       for (const m of mats) {
         if (m) links[m.companyId] = m.driveUrl;
       }
-      const devLinks: Record<string, string | null> = {};
-      for (const m of devMats) devLinks[m.developmentId] = m.driveUrl;
       const folderIds = new Set(roots.filter((e) => e.isFolder).map((e) => e.name));
       setCompanies(comps);
       setDevelopments(devs);
       setDriveUrls(links);
-      setDevDriveUrls(devLinks);
       setAddedIds(comps.filter((c) => folderIds.has(c.id) || c.id in links).map((c) => c.id));
       setLoadingCadastros(false);
     })();
@@ -191,7 +181,6 @@ export default function MaterialVendaScreen() {
     [developments, company],
   );
   const driveUrl = company ? (driveUrls[company.id] ?? null) : null;
-  const devDriveUrl = development ? (devDriveUrls[development.id] ?? null) : null;
 
   useEffect(() => {
     if (!user || !company) {
@@ -205,14 +194,6 @@ export default function MaterialVendaScreen() {
       const files = list.filter((e) => !e.isFolder);
       setGeneralFiles(files);
       setLoadingGeneral(false);
-      if (autoConfigRef.current) {
-        autoConfigRef.current = false;
-        if (files.length === 0) {
-          setLinkDraft('');
-          setLinkVisible(false);
-          setConfigOpen(true);
-        }
-      }
     });
     return () => {
       mounted = false;
@@ -262,7 +243,6 @@ export default function MaterialVendaScreen() {
 
   function onOpenCompany(c: Company) {
     setError(null);
-    autoConfigRef.current = !driveUrls[c.id];
     setCompany(c);
     setDevelopment(null);
     setFolderSegs([]);
@@ -293,28 +273,7 @@ export default function MaterialVendaScreen() {
     setConfigOpen(false);
   }
 
-  function openDevLink() {
-    if (!development) return;
-    setDevLinkDraft(devDriveUrls[development.id] ?? '');
-    setDevLinkOpen(true);
-  }
 
-  async function onSaveDevLink() {
-    if (!user || !development) return;
-    setBusy(true);
-    const res = await db.material.saveDevelopmentMaterial(
-      user.id,
-      development.id,
-      devLinkDraft.trim() || null,
-    );
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
-      return;
-    }
-    setDevDriveUrls((prev) => ({ ...prev, [development.id]: res.data.driveUrl }));
-    setDevLinkOpen(false);
-  }
 
   async function uploadTo(path: string): Promise<boolean> {
     if (!user) return false;
@@ -576,27 +535,9 @@ export default function MaterialVendaScreen() {
                 <Text style={styles.toolLabel}>Adicionar Pasta</Text>
               </Pressable>
             )}
-            {folderSegs.length === 0 ? (
-              <Pressable
-                style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
-                onPress={openDevLink}
-                disabled={busy}
-                accessibilityLabel="Link do empreendimento"
-              >
-                <Text style={styles.toolIcon}>🔗</Text>
-                <Text style={styles.toolLabel}>Link</Text>
-              </Pressable>
-            ) : null}
             {busy ? <ActivityIndicator style={styles.toolLoader} /> : null}
           </View>
 
-          {folderSegs.length === 0 && devDriveUrl ? (
-            <Button
-              label="🔗 Abrir material online"
-              onPress={() => void Linking.openURL(devDriveUrl)}
-              style={styles.topAction}
-            />
-          ) : null}
 
           <Text style={styles.usage}>
             {usedBytes == null ? '' : formatBytes(usedBytes)}
@@ -741,35 +682,6 @@ export default function MaterialVendaScreen() {
         </View>
       </Modal>
 
-      <Modal
-        visible={devLinkOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setDevLinkOpen(false)}
-      >
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Link do empreendimento</Text>
-            <Text style={styles.hint}>
-              Cole aqui o link do material online (Drive, site do empreendimento, etc.).
-            </Text>
-            <Input
-              value={devLinkDraft}
-              onChangeText={setDevLinkDraft}
-              placeholder="https://..."
-              autoCapitalize="none"
-              keyboardType="url"
-            />
-            <Button label="Salvar" onPress={() => void onSaveDevLink()} loading={busy} />
-            <Button
-              label="Cancelar"
-              variant="ghost"
-              onPress={() => setDevLinkOpen(false)}
-              style={styles.sheetAction}
-            />
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         visible={folderModalOpen}

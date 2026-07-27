@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layout, spacing } from '@/theme';
@@ -16,18 +16,28 @@ interface ScreenProps {
 export function Screen({ children, scroll = true, center = false, contentStyle, backgroundColor }: ScreenProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const bg = backgroundColor ?? colors.background;
+
+  const isDesktop = width >= layout.desktopBreakpoint;
+  const isTablet = !isDesktop && width >= layout.tabletBreakpoint;
+  const maxWidth = isDesktop ? layout.maxContentWidthWide : layout.maxContentWidth;
+  const paddingHorizontal = isDesktop ? spacing.xxl : isTablet ? spacing.xl : spacing.lg;
 
   const inner = (
     <View
       style={[
         styles.content,
         center && styles.center,
-        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
+        {
+          paddingHorizontal,
+          paddingTop: insets.top + spacing.lg,
+          paddingBottom: insets.bottom + spacing.xl,
+        },
         contentStyle,
       ]}
     >
-      <View style={styles.constrained}>{children}</View>
+      <View style={[styles.constrained, { maxWidth }]}>{children}</View>
     </View>
   );
 
@@ -53,7 +63,6 @@ const styles = StyleSheet.create({
   centerScroll: { justifyContent: 'center' },
   content: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
     alignItems: 'center',
   },
   center: {
@@ -61,6 +70,5 @@ const styles = StyleSheet.create({
   },
   constrained: {
     width: '100%',
-    maxWidth: layout.maxContentWidth,
   },
 });

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/providers/ThemeProvider';
-import { Mark } from './Mark';
+import { Logo } from './Logo';
 
 interface WordMarkProps {
   size?: number;
@@ -13,7 +13,7 @@ export function WordMark({ size = 34, color }: WordMarkProps) {
   const tint = color ?? colors.ink;
   return (
     <View style={styles.row}>
-      <Mark height={size * 0.5} color={tint} />
+      <Logo size={size} />
       <Text style={[styles.text, { color: tint, fontSize: size * 0.6 }]}>POUP</Text>
     </View>
   );

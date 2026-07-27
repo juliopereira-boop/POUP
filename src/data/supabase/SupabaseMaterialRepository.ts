@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import type { MaterialRepository } from '../repositories';
 import {
   type CompanyMaterial,
-  type DevelopmentMaterial,
   type Result,
   type StorageEntry,
   err,
@@ -181,36 +180,5 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     return ok(mapCompanyMaterial(data));
   }
 
-  async listDevelopmentMaterials(userId: string): Promise<DevelopmentMaterial[]> {
-    const { data, error } = await supabase
-      .from('development_materials')
-      .select('development_id, drive_url')
-      .eq('user_id', userId);
-    if (error || !data) return [];
-    return data.map((row) => ({ developmentId: row.development_id, driveUrl: row.drive_url }));
-  }
 
-  async saveDevelopmentMaterial(
-    userId: string,
-    developmentId: string,
-    driveUrl: string | null,
-  ): Promise<Result<DevelopmentMaterial>> {
-    const trimmed = driveUrl?.trim() ?? '';
-    if (trimmed && /^(javascript|data|vbscript|file):/i.test(trimmed)) {
-      return err('Link inválido. Use um endereço http(s).');
-    }
-    const clean = trimmed ? trimmed.slice(0, 2000) : null;
-    const { data, error } = await supabase
-      .from('development_materials')
-      .upsert(
-        { user_id: userId, development_id: developmentId, drive_url: clean },
-        { onConflict: 'user_id,development_id' },
-      )
-      .select('development_id, drive_url')
-      .single();
-    if (error || !data) {
-      return err(error?.message ?? 'Falha ao salvar o link do empreendimento.');
-    }
-    return ok({ developmentId: data.development_id, driveUrl: data.drive_url });
-  }
 }

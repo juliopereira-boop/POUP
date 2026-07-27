@@ -169,24 +169,6 @@ export interface Database {
         };
         Relationships: [];
       };
-      development_materials: {
-        Row: {
-          user_id: string;
-          development_id: string;
-          drive_url: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          user_id: string;
-          development_id: string;
-          drive_url?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: { drive_url?: string | null; updated_at?: string };
-        Relationships: [];
-      };
       company_materials: {
         Row: {
           user_id: string;
@@ -299,6 +281,28 @@ export interface Database {
         Update: { action?: string };
         Relationships: [];
       };
+      lead_stages: {
+        Row: {
+          id: string;
+          user_id: string;
+          nome: string;
+          cor: string;
+          ordem: number;
+          ativo: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          nome: string;
+          cor?: string;
+          ordem?: number;
+          ativo?: boolean;
+        };
+        Update: { nome?: string; cor?: string; ordem?: number; ativo?: boolean };
+        Relationships: [];
+      };
       leads: {
         Row: {
           id: string;
@@ -311,6 +315,11 @@ export interface Database {
           company_id: string | null;
           development_id: string | null;
           status: string;
+          stage_id: string | null;
+          cpf: string | null;
+          income: number | null;
+          birth_date: string | null;
+          notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -337,6 +346,11 @@ export interface Database {
           company_id?: string | null;
           development_id?: string | null;
           status?: string;
+          stage_id?: string | null;
+          cpf?: string | null;
+          income?: number | null;
+          birth_date?: string | null;
+          notes?: string | null;
           updated_at?: string;
         };
         Relationships: [];

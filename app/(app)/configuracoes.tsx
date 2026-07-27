@@ -82,6 +82,15 @@ export default function ConfiguracoesScreen() {
         <NavRow label="Empresas e empreendimentos" onPress={() => router.push('/(app)/cadastros')} />
       </View>
 
+      <Text style={styles.sectionLabel}>Leads</Text>
+      <View style={styles.card}>
+        <NavRow
+          label="Workflow de Leads"
+          subtitle="Etapas, ordem e cores do seu funil"
+          onPress={() => router.push('/(app)/workflow')}
+        />
+      </View>
+
       <Text style={styles.sectionLabel}>Assinatura</Text>
       <View style={styles.card}>
         <Row label="Plano" value={plan?.name ?? '—'} />
@@ -174,7 +183,15 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
+function NavRow({
+  label,
+  subtitle,
+  onPress,
+}: {
+  label: string;
+  subtitle?: string;
+  onPress: () => void;
+}) {
   const styles = useThemedStyles(makeStyles);
   return (
     <Pressable
@@ -182,7 +199,10 @@ function NavRow({ label, onPress }: { label: string; onPress: () => void }) {
       style={({ pressed }) => [styles.navRow, pressed && styles.navRowPressed]}
       accessibilityRole="button"
     >
-      <Text style={styles.rowValue}>{label}</Text>
+      <View style={styles.navRowText}>
+        <Text style={styles.navRowLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.navRowSubtitle}>{subtitle}</Text> : null}
+      </View>
       <Text style={styles.chevron}>›</Text>
     </Pressable>
   );
@@ -228,6 +248,9 @@ const makeStyles = (colors: AppColors) =>
       paddingVertical: spacing.lg,
     },
     navRowPressed: { opacity: 0.6 },
+    navRowText: { flex: 1, gap: 2 },
+    navRowLabel: { ...typography.body, color: colors.ink },
+    navRowSubtitle: { ...typography.caption, color: colors.inkMuted },
     chevron: { ...typography.title, color: colors.inkSubtle },
     themeRow: {
       flexDirection: 'row',

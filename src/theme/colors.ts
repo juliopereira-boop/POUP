@@ -3,12 +3,12 @@ export const lightColors = {
   inkMuted: '#6B7280',
   inkSubtle: '#9CA3AF',
 
-  primary: '#2563EB',
-  primaryDark: '#1D4ED8',
-  primarySoft: '#EFF4FF',
+  primary: '#FF751F',
+  primaryDark: '#E25F0E',
+  primarySoft: '#FFF3EA',
 
-  navy: '#141B4D',
-  navySoft: '#EEF0FA',
+  navy: '#1F2430',
+  navySoft: '#F2F3F6',
 
   background: '#F3F4F6',
   surface: '#FFFFFF',
@@ -35,12 +35,12 @@ export const darkColors: AppColors = {
   inkMuted: '#9CA3AF',
   inkSubtle: '#6B7280',
 
-  primary: '#3B82F6',
-  primaryDark: '#93C5FD',
-  primarySoft: '#172554',
+  primary: '#FF8A45',
+  primaryDark: '#FFB183',
+  primarySoft: '#3A210F',
 
-  navy: '#1E293B',
-  navySoft: '#172033',
+  navy: '#111827',
+  navySoft: '#1B2130',
 
   background: '#0B1120',
   surface: '#111827',

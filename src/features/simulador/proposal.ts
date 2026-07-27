@@ -88,7 +88,7 @@ function jNode(
   return `<g>
     <circle cx="${cx}" cy="${cy}" r="20" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
     <g transform="translate(${cx},${cy})">${jIcon(iconKind, iconColor, fill)}</g>
-    <text x="${cx}" y="${cy + 38}" font-size="13" font-weight="700" fill="${labelColor}" text-anchor="middle" font-family="Arial" letter-spacing="0.2">${label}</text>
+    <text x="${cx}" y="${cy + 32}" font-size="13" font-weight="700" fill="${labelColor}" text-anchor="middle" font-family="Arial" letter-spacing="0.2">${label}</text>
   </g>`;
 }
 
@@ -101,9 +101,9 @@ function journeyMapSvg(): string {
   const xRepasse = 555;
   const xAtendMid = 695;
   const xRight = 940;
-  const yTop = 38;
-  const yMid = 122;
-  const yLow = 206;
+  const yTop = 30;
+  const yMid = 104;
+  const yLow = 178;
   const w = 5;
 
   const paths = [
@@ -139,7 +139,7 @@ function journeyMapSvg(): string {
     jNode(xRight, yLow, J_WHITE, J_GRAY, 'search', J_GRAY, 'PESQUISA', J_GRAY_TXT),
   ].join('');
 
-  return `<svg class="journeySvg" viewBox="0 0 1040 258" xmlns="http://www.w3.org/2000/svg">
+  return `<svg class="journeySvg" viewBox="0 0 1040 214" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="jg1" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="${J_GOLD}"/><stop offset="100%" stop-color="${J_GREEN}"/>
@@ -257,7 +257,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     : '';
 
   const style = `
-    @page { size: A4; margin: 10mm; }
+    @page { size: A4; margin: 8mm; }
     * {
       box-sizing: border-box;
       font-family: Arial, Helvetica, sans-serif;
@@ -265,38 +265,53 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
       print-color-adjust: exact;
     }
     html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    body { margin: 0; padding: 12px; color: #1a1a1a; font-size: 10.5px; }
+    body { margin: 0; padding: 0; color: #1a1a1a; font-size: 10.2px; line-height: 1.2; }
+    .fit { width: 100%; }
     .sheet { border: 2px solid #333; }
-    .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 7px 14px; }
+    .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 5px 12px; }
     .top .date { font-weight: 700; }
-    .top .brand { font-family: 'Banana', 'Century Gothic', 'Questrial', 'Trebuchet MS', Arial, sans-serif; font-weight: 300; font-size: 30px; letter-spacing: 3px; color: #1a1a1a; }
-    .resumoWrap { display: flex; gap: 10px; align-items: flex-start; }
+    .top .brand { font-family: 'Banana', 'Century Gothic', 'Questrial', 'Trebuchet MS', Arial, sans-serif; font-weight: 300; font-size: 26px; letter-spacing: 2.5px; color: #1a1a1a; }
+    .resumoWrap { display: flex; gap: 8px; align-items: flex-start; }
     .resumo.main { flex: 2; }
-    .resumo.side { flex: 1; font-size: 9.5px; }
-    .resumo.side td { padding: 2.5px 6px; }
-    .band { background: ${ORANGE}; color: #fff; font-weight: 700; text-align: center; padding: 3px; letter-spacing: .5px; }
+    .resumo.side { flex: 1; font-size: 9px; }
+    .resumo.side td { padding: 2px 6px; }
+    .band {
+      background: ${ORANGE};
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+      padding: 2.5px;
+      letter-spacing: .5px;
+      font-size: 9.8px;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
     table { width: 100%; border-collapse: collapse; }
-    .kv td { border: 1px solid #bbb; padding: 3.5px 8px; }
+    .kv td { border: 1px solid #bbb; padding: 2.5px 7px; }
     .kv td.k { background: #f2f2f2; font-weight: 700; text-align: right; width: 18%; }
-    .flow td { border: 1px solid #bbb; padding: 3px 8px; }
-    .flow th { background: ${GRAYHDR}; border: 1px solid #bbb; padding: 3px; font-size: 10px; }
+    .flow td { border: 1px solid #bbb; padding: 2px 7px; }
+    .flow th { background: ${GRAYHDR}; border: 1px solid #bbb; padding: 2.5px; font-size: 9.6px; }
     td.lbl { background: #f2f2f2; font-weight: 700; }
     td.c { text-align: center; }
     td.r { text-align: right; }
     td.b { font-weight: 700; }
-    td.small { font-size: 10px; }
-    .totrow td { border: 1px solid #bbb; padding: 3.5px 8px; font-weight: 700; }
+    td.small { font-size: 9.6px; }
+    .totrow td { border: 1px solid #bbb; padding: 2.5px 7px; font-weight: 700; }
     .green { background: ${GREEN}; }
     .red { background: ${RED}; }
-    .accept { background: ${GREEN}; text-align: center; font-weight: 800; color: #2b6a2b; padding: 6px; margin: 4px; border-radius: 4px; }
-    .resumo td { border: 1px solid #bbb; padding: 3.5px 8px; }
+    .accept { background: ${GREEN}; text-align: center; font-weight: 800; color: #2b6a2b; padding: 4px; margin: 3px; border-radius: 4px; }
+    .resumo td { border: 1px solid #bbb; padding: 2.5px 7px; }
     .muted { color: #666; }
-    .journeyWrap { text-align: center; margin-top: 4px; }
-    .journeySvg { height: 140px; width: auto; }
-    .obs { border: 1px solid #bbb; padding: 6px; margin-top: 4px; font-size: 9.5px; }
+    .journeyWrap { text-align: center; margin-top: 1px; padding-bottom: 2px; }
+    .journeySvg { width: 100%; height: 128px; display: block; }
+    .obs { border: 1px solid #bbb; padding: 4px 6px; margin-top: 3px; font-size: 9px; }
+    table, tr, .top, .accept, .resumoWrap, .journeyWrap, .obs {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
   `;
 
-  const bodyHtml = `<div class="sheet">
+  const bodyHtml = `<div class="fit"><div class="sheet">
     <div class="top">
       ${brandHtml()}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>

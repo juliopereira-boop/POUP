@@ -106,11 +106,6 @@ export interface CompanyMaterial {
   driveUrl: string | null;
 }
 
-export interface DevelopmentMaterial {
-  developmentId: string;
-  driveUrl: string | null;
-}
-
 export interface Simulation {
   id: string;
   clientName: string | null;
@@ -151,9 +146,51 @@ export interface Lead {
   developmentId: string | null;
   developmentName?: string | null;
   status: LeadStatus;
+  stageId: string | null;
+  cpf: string | null;
+  income: number | null;
+  birthDate: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface LeadPatch {
+  name?: string;
+  phone?: string;
+  email?: string | null;
+  cpf?: string | null;
+  income?: number | null;
+  birthDate?: string | null;
+  notes?: string | null;
+  companyId?: string | null;
+  developmentId?: string | null;
+  stageId?: string | null;
+}
+
+export interface LeadStage {
+  id: string;
+  nome: string;
+  cor: string;
+  ordem: number;
+  ativo: boolean;
+}
+
+export interface LeadStageInput {
+  nome: string;
+  cor: string;
+  ordem: number;
+  ativo?: boolean;
+}
+
+export const DEFAULT_LEAD_STAGES: LeadStageInput[] = [
+  { nome: 'Novo', cor: '#6B7280', ordem: 1 },
+  { nome: 'Em contato', cor: '#FF751F', ordem: 2 },
+  { nome: 'Visita agendada', cor: '#0891B2', ordem: 3 },
+  { nome: 'Proposta', cor: '#7C3AED', ordem: 4 },
+  { nome: 'Convertido', cor: '#16A34A', ordem: 5 },
+  { nome: 'Perdido', cor: '#DC2626', ordem: 6 },
+];
 
 export interface LeadCampaign {
   titulo: string;

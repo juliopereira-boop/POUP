@@ -13,7 +13,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -24,7 +24,7 @@ import {
   type Company,
   type Development,
   type Lead,
-  type LeadStatus,
+  type LeadStage,
   type StorageEntry,
 } from '@/data';
 import { formatPhone } from '@/lib/masks';
@@ -45,13 +45,6 @@ type Tab = 'gestao' | 'prospeccao';
 
 const SHOW_CAPTACAO_CARD = false;
 
-const STATUS_LABEL: Record<LeadStatus, string> = {
-  novo: 'Novo',
-  em_contato: 'Em contato',
-  convertido: 'Convertido',
-  perdido: 'Perdido',
-};
-const STATUS_ORDER: LeadStatus[] = ['novo', 'em_contato', 'convertido', 'perdido'];
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
   whatsapp: 'WhatsApp',
@@ -141,7 +134,9 @@ function GestaoLeadsTab({
   brokerName: string | null;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [stages, setStages] = useState<LeadStage[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -152,7 +147,12 @@ function GestaoLeadsTab({
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    setLeads(await db.leads.list(userId));
+    const [list, stageList] = await Promise.all([
+      db.leads.list(userId),
+      db.leads.listStages(userId),
+    ]);
+    setLeads(list);
+    setStages(stageList);
     setLoading(false);
   }, [userId]);
 
@@ -173,13 +173,6 @@ function GestaoLeadsTab({
     setNewPhone('');
     setAdding(false);
     void load();
-  }
-
-  async function onChangeStatus(lead: Lead) {
-    const idx = STATUS_ORDER.indexOf(lead.status);
-    const next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
-    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: next } : l)));
-    await db.leads.updateStatus(lead.id, next);
   }
 
   function onRemove(lead: Lead) {
@@ -232,37 +225,41 @@ function GestaoLeadsTab({
           </Text>
         </View>
       ) : (
-        leads.map((lead) => (
-          <View key={lead.id} style={styles.leadRow}>
-            <View style={styles.leadMain}>
-              <Text style={styles.leadName} numberOfLines={1}>
-                {lead.name}
-              </Text>
-              <Text style={styles.leadMeta}>
-                {formatPhone(lead.phone)} ·{' '}
-                {lead.source === 'whatsapp' ? '💬 ' : ''}
-                {SOURCE_LABEL[lead.source]}
-              </Text>
-              {lead.developmentName ? (
-                <Text style={styles.leadMeta}>{lead.developmentName}</Text>
-              ) : null}
-            </View>
-            <View style={styles.leadActions}>
+        leads.map((lead) => {
+          const stage = stages.find((s) => s.id === lead.stageId) ?? null;
+          return (
+            <View key={lead.id} style={styles.leadRow}>
               <Pressable
-                onPress={() => onChangeStatus(lead)}
-                style={[styles.statusBadge, statusStyle(lead.status, styles)]}
+                style={({ pressed }) => [styles.leadMain, pressed && styles.pressed]}
+                onPress={() => router.push(`/(app)/leads/${lead.id}`)}
+                accessibilityRole="button"
               >
-                <Text style={styles.statusText}>{STATUS_LABEL[lead.status]}</Text>
+                <Text style={styles.leadName} numberOfLines={1}>
+                  {lead.name}
+                </Text>
+                <Text style={styles.leadMeta}>
+                  {formatPhone(lead.phone)} ·{' '}
+                  {lead.source === 'whatsapp' ? '💬 ' : ''}
+                  {SOURCE_LABEL[lead.source]}
+                </Text>
+                {stage ? (
+                  <Text style={[styles.leadStage, { color: stage.cor }]}>{stage.nome}</Text>
+                ) : null}
+                {lead.developmentName ? (
+                  <Text style={styles.leadMeta}>{lead.developmentName}</Text>
+                ) : null}
               </Pressable>
-              <Pressable onPress={() => setAtendimento(lead)} hitSlop={8}>
-                <Text style={styles.leadIcon}>💬</Text>
-              </Pressable>
-              <Pressable onPress={() => onRemove(lead)} hitSlop={8}>
-                <Text style={styles.leadIcon}>🗑️</Text>
-              </Pressable>
+              <View style={styles.leadActions}>
+                <Pressable onPress={() => setAtendimento(lead)} hitSlop={8}>
+                  <Text style={styles.leadIcon}>💬</Text>
+                </Pressable>
+                <Pressable onPress={() => onRemove(lead)} hitSlop={8}>
+                  <Text style={styles.leadIcon}>🗑️</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-        ))
+          );
+        })
       )}
 
       <AtendimentoModal
@@ -567,19 +564,6 @@ function AtendimentoModal({
       </View>
     </Modal>
   );
-}
-
-function statusStyle(status: LeadStatus, styles: ReturnType<typeof makeStyles>) {
-  switch (status) {
-    case 'convertido':
-      return styles.statusOk;
-    case 'perdido':
-      return styles.statusBad;
-    case 'em_contato':
-      return styles.statusMid;
-    default:
-      return styles.statusNeutral;
-  }
 }
 
 function ProspeccaoTab({
@@ -1044,18 +1028,9 @@ const makeStyles = (colors: AppColors) =>
     leadMain: { flex: 1 },
     leadName: { ...typography.body, color: colors.ink, fontWeight: '600' },
     leadMeta: { ...typography.caption, color: colors.inkSubtle, marginTop: 1 },
+    leadStage: { ...typography.caption, fontWeight: '700', marginTop: 2 },
     leadActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     leadIcon: { fontSize: 16 },
-    statusBadge: {
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-    },
-    statusText: { ...typography.caption, fontWeight: '700' },
-    statusNeutral: { backgroundColor: colors.surfaceAlt },
-    statusMid: { backgroundColor: colors.warningSoft },
-    statusOk: { backgroundColor: colors.successSoft },
-    statusBad: { backgroundColor: colors.dangerSoft },
 
     card: {
       borderWidth: 1,

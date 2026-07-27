@@ -49,6 +49,9 @@ export const shadow = {
 
 export const layout = {
   maxContentWidth: 640,
+  maxContentWidthWide: 1080,
+  desktopBreakpoint: 900,
+  tabletBreakpoint: 640,
 } as const;
 
 export const theme = { colors, spacing, radius, typography, shadow, layout } as const;
