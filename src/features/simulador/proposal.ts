@@ -141,10 +141,10 @@ function journeyMapSvg(): string {
 
   return `<svg class="journeySvg" viewBox="0 0 1040 214" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="jg1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <linearGradient id="jg1" gradientUnits="userSpaceOnUse" x1="${xCadastro}" y1="0" x2="${xReserva}" y2="0">
         <stop offset="0%" stop-color="${J_GOLD}"/><stop offset="100%" stop-color="${J_GREEN}"/>
       </linearGradient>
-      <linearGradient id="jg2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <linearGradient id="jg2" gradientUnits="userSpaceOnUse" x1="${xReserva}" y1="0" x2="${xVenda}" y2="0">
         <stop offset="0%" stop-color="${J_GREEN}"/><stop offset="100%" stop-color="${J_GRAY}"/>
       </linearGradient>
     </defs>
@@ -404,7 +404,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     <div class="journeyWrap">${journeyMapSvg()}</div>
 
     <div class="obs muted">Proposta gerada pelo POUP em ${formatDateBR(ctx.todayISO)}. Cupom, quando aplicado, sujeito à validação da construtora.</div>
-  </div>`;
+  </div></div>`;
 
   return { style, bodyHtml, fileName: proposalFileName(ctx) };
 }
@@ -412,16 +412,22 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
 const AUTO_FIT_SCRIPT = `<script>
 (function () {
   function fit() {
+    var wrap = document.querySelector('.fit');
     var sheet = document.querySelector('.sheet');
-    if (!sheet) return;
+    if (!wrap || !sheet) return;
+    wrap.style.height = '';
+    wrap.style.overflow = '';
+    sheet.style.transform = '';
+    sheet.style.width = '';
     var availablePx = (297 - 20) * 96 / 25.4;
     var height = sheet.getBoundingClientRect().height;
-    if (height > availablePx) {
-      var scale = availablePx / height;
-      sheet.style.transformOrigin = 'top left';
-      sheet.style.transform = 'scale(' + scale + ')';
-      sheet.style.width = (100 / scale) + '%';
-    }
+    if (height <= availablePx) return;
+    var scale = availablePx / height;
+    sheet.style.transformOrigin = 'top left';
+    sheet.style.transform = 'scale(' + scale + ')';
+    sheet.style.width = (100 / scale) + '%';
+    wrap.style.height = Math.floor(height * scale) + 'px';
+    wrap.style.overflow = 'hidden';
   }
   if (document.readyState === 'complete') fit();
   else window.addEventListener('load', fit);

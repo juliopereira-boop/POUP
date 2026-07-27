@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -47,15 +47,30 @@ export default function SimuladorEmpreendimento() {
     [developments, sim.companyId],
   );
 
+  const applyCompanyRules = useCallback(
+    (company: Company | undefined) => {
+      sim.setField('companyRisk', company?.risk ?? null);
+      sim.setField('companyMaxInstallments', company?.maxInstallments ?? null);
+      sim.setField('companyMaxSemiannual', company?.maxSemiannual ?? null);
+      sim.setField('companyMaxAnnual', company?.maxAnnual ?? null);
+      sim.setField('companyCoincide', company?.coincideInstallments ?? true);
+    },
+    [sim],
+  );
+
+  const rulesFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!sim.companyId || companies.length === 0) return;
+    if (rulesFor.current === sim.companyId) return;
+    rulesFor.current = sim.companyId;
+    applyCompanyRules(companies.find((c) => c.id === sim.companyId));
+  }, [sim.companyId, companies, applyCompanyRules]);
+
   function onSelectCompany(companyId: string) {
     sim.setField('companyId', companyId);
     sim.setField('developmentId', null);
-    const company = companies.find((c) => c.id === companyId);
-    sim.setField('companyRisk', company?.risk ?? null);
-    sim.setField('companyMaxInstallments', company?.maxInstallments ?? null);
-    sim.setField('companyMaxSemiannual', company?.maxSemiannual ?? null);
-    sim.setField('companyMaxAnnual', company?.maxAnnual ?? null);
-    sim.setField('companyCoincide', company?.coincideInstallments ?? true);
+    rulesFor.current = companyId;
+    applyCompanyRules(companies.find((c) => c.id === companyId));
   }
 
   function advance() {

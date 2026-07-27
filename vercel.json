@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "framework": null,
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/leads/:id", "destination": "/leads/%5Bid%5D.html" },
+    { "source": "/relatorios/:id", "destination": "/relatorios/%5Bid%5D.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

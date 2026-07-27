@@ -231,7 +231,9 @@ function GestaoLeadsTab({
             <View key={lead.id} style={styles.leadRow}>
               <Pressable
                 style={({ pressed }) => [styles.leadMain, pressed && styles.pressed]}
-                onPress={() => router.push(`/(app)/leads/${lead.id}`)}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/leads/[id]', params: { id: lead.id } })
+                }
                 accessibilityRole="button"
               >
                 <Text style={styles.leadName} numberOfLines={1}>

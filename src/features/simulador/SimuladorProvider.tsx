@@ -127,7 +127,15 @@ export const INITIAL_SIMULADOR_STATE: SimuladorState = INITIAL;
 
 const DRAFT_KEY = 'poup.simulador.draft';
 export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';
+export const PREFILL_KEY = 'simulador:prefill';
 const SAVE_DEBOUNCE_MS = 300;
+
+export interface LeadPrefill {
+  leadId?: string;
+  companyId?: string | null;
+  developmentId?: string | null;
+  proponent1?: Partial<Proponent>;
+}
 
 let pendingEditId: string | null = null;
 export function setPendingEditId(id: string | null): void {
@@ -151,17 +159,33 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    sessionStorage.getItem(draftKey).then((raw) => {
-      if (!mounted) return;
+    void (async () => {
+      const raw = await sessionStorage.getItem(draftKey);
+      let next: SimuladorState = INITIAL;
       if (raw) {
         try {
-          const saved = JSON.parse(raw) as Partial<SimuladorState>;
-          setState({ ...INITIAL, ...saved });
+          next = { ...INITIAL, ...(JSON.parse(raw) as Partial<SimuladorState>) };
         } catch {
         }
       }
+      const prefillRaw = await sessionStorage.getItem(PREFILL_KEY);
+      if (prefillRaw) {
+        await sessionStorage.removeItem(PREFILL_KEY);
+        try {
+          const p = JSON.parse(prefillRaw) as LeadPrefill;
+          next = {
+            ...next,
+            companyId: p.companyId ?? next.companyId,
+            developmentId: p.developmentId ?? next.developmentId,
+            proponent1: { ...next.proponent1, ...(p.proponent1 ?? {}) },
+          };
+        } catch {
+        }
+      }
+      if (!mounted) return;
+      setState(next);
       setHydrated(true);
-    });
+    })();
     return () => {
       mounted = false;
     };

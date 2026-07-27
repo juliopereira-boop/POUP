@@ -21,7 +21,7 @@ export function Screen({ children, scroll = true, center = false, contentStyle, 
 
   const isDesktop = width >= layout.desktopBreakpoint;
   const isTablet = !isDesktop && width >= layout.tabletBreakpoint;
-  const maxWidth = isDesktop ? layout.maxContentWidthWide : layout.maxContentWidth;
+  const maxWidth = isDesktop && !center ? layout.maxContentWidthWide : layout.maxContentWidth;
   const paddingHorizontal = isDesktop ? spacing.xxl : isTablet ? spacing.xl : spacing.lg;
 
   const inner = (
