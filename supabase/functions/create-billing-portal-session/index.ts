@@ -12,6 +12,16 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   httpClient: Stripe.createFetchHttpClient(),
 });
 
+function safeUrl(v: unknown): string | undefined {
+  if (typeof v !== 'string' || v.length > 2000) return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -44,13 +54,13 @@ Deno.serve(async (req) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: sub.stripe_customer_id,
-      return_url: returnUrl,
+      return_url: safeUrl(returnUrl),
     });
 
     return json({ url: session.url });
   } catch (e) {
-    console.error(e);
-    return json({ error: (e as Error).message }, 500);
+    console.error('Falha ao abrir portal de cobrança:', (e as Error).name);
+    return json({ error: 'Não foi possível abrir o portal de cobrança. Tente novamente.' }, 500);
   }
 });
 

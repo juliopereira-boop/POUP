@@ -67,9 +67,10 @@ export function Icon({ name, size = 24, color, strokeWidth = 1.7 }: IconProps) {
 
       {name === 'gear' ? (
         <>
-          <Circle cx={12} cy={12} r={3.2} {...common} />
+          <Circle cx={12} cy={12} r={3} {...common} />
+          <Circle cx={12} cy={12} r={7.8} {...common} />
           <Path
-            d="M12 2.8v2.4M12 18.8v2.4M4.5 4.5l1.7 1.7M17.8 17.8l1.7 1.7M2.8 12h2.4M18.8 12h2.4M4.5 19.5l1.7-1.7M17.8 6.2l1.7-1.7"
+            d="M12 4.2v2.1M12 17.7v2.1M5.5 8.25l1.85 1.05M16.65 14.7l1.85 1.05M5.5 15.75l1.85-1.05M16.65 9.3l1.85-1.05"
             {...common}
           />
         </>
@@ -104,10 +105,10 @@ export function Icon({ name, size = 24, color, strokeWidth = 1.7 }: IconProps) {
       ) : null}
 
       {name === 'handshake' ? (
-        <Path
-          d="M3 12.5 7 8.5l3 2.5 2-1.5 2 1.5 3-2.5 4 4-4 4-3-2.5-2 1.5-2-1.5-3 2.5z"
-          {...common}
-        />
+        <>
+          <Path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" {...common} />
+          <Path d="M9 14.2l2.2 2.2 4-4.2" {...common} />
+        </>
       ) : null}
 
       {name === 'building' ? (

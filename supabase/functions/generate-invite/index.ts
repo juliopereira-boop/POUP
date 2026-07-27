@@ -46,6 +46,15 @@ const TOOL_SCHEMA = {
   },
 };
 
+const MAX_NAME = 200;
+const MAX_EXTRA = 2000;
+
+function capped(v: unknown, max: number): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.slice(0, max).trim();
+  return t ? t : null;
+}
+
 function buildPrompt(input: {
   brokerName: string | null;
   agency: string | null;
@@ -92,8 +101,8 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      developmentName?: string;
-      extra?: string;
+      developmentName?: unknown;
+      extra?: unknown;
     };
 
     const { data: profile } = await admin
@@ -105,8 +114,8 @@ Deno.serve(async (req) => {
     const prompt = buildPrompt({
       brokerName: profile?.full_name ?? null,
       agency: profile?.agency ?? null,
-      developmentName: body.developmentName?.trim() || null,
-      extra: body.extra?.trim() || null,
+      developmentName: capped(body.developmentName, MAX_NAME),
+      extra: capped(body.extra, MAX_EXTRA),
     });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -163,8 +172,8 @@ Deno.serve(async (req) => {
 
     return json({ ...result, beneficios });
   } catch (e) {
-    console.error(e);
-    return json({ error: (e as Error).message }, 500);
+    console.error('Falha ao gerar convite:', (e as Error).name);
+    return json({ error: 'Não foi possível gerar os textos agora. Tente novamente.' }, 500);
   }
 });
 

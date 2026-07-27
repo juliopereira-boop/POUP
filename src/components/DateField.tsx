@@ -20,6 +20,20 @@ function formatBR(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+function parseLocal(ymd: string | null): Date {
+  if (!ymd) return new Date();
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
+function toYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function DateField({ label, value, onChange, placeholder, readOnly }: DateFieldProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -70,11 +84,11 @@ export function DateField({ label, value, onChange, placeholder, readOnly }: Dat
       </Pressable>
       {show ? (
         <DateTimePicker
-          value={value ? new Date(value) : new Date()}
+          value={parseLocal(value)}
           mode="date"
           onChange={(_e, date) => {
             setShow(false);
-            if (date) onChange(date.toISOString().slice(0, 10));
+            if (date) onChange(toYmd(date));
           }}
         />
       ) : null}

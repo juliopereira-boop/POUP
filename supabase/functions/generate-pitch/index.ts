@@ -25,6 +25,15 @@ const TOOL_SCHEMA = {
   },
 };
 
+const MAX_NAME = 200;
+const MAX_DESCRICAO = 2000;
+
+function capped(v: unknown, max: number): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.slice(0, max).trim();
+  return t ? t : null;
+}
+
 function buildPrompt(input: {
   brokerName: string | null;
   developmentName: string | null;
@@ -72,13 +81,13 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      developmentName?: string;
-      companyName?: string;
-      descricao?: string;
-      brokerName?: string;
+      developmentName?: unknown;
+      companyName?: unknown;
+      descricao?: unknown;
+      brokerName?: unknown;
     };
 
-    let brokerName = body.brokerName?.trim() || null;
+    let brokerName = capped(body.brokerName, MAX_NAME);
     if (!brokerName) {
       const { data: profile } = await admin
         .from('profiles')
@@ -90,9 +99,9 @@ Deno.serve(async (req) => {
 
     const prompt = buildPrompt({
       brokerName,
-      developmentName: body.developmentName?.trim() || null,
-      companyName: body.companyName?.trim() || null,
-      descricao: body.descricao?.trim() || null,
+      developmentName: capped(body.developmentName, MAX_NAME),
+      companyName: capped(body.companyName, MAX_NAME),
+      descricao: capped(body.descricao, MAX_DESCRICAO),
     });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {

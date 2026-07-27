@@ -24,8 +24,25 @@ interface Payload {
 
 const ALLOWED_SOURCES = new Set(['landing', 'whatsapp']);
 
-function onlyDigits(v: string): string {
-  return v.replace(/\D/g, '');
+const MAX_NAME = 200;
+const MAX_EMAIL = 320;
+const MAX_MESSAGE = 2000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function text(v: unknown, max: number): string {
+  if (typeof v !== 'string') return '';
+  return v.slice(0, max).trim();
+}
+
+function uuidOrNull(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return UUID_RE.test(t) ? t : null;
+}
+
+function onlyDigits(v: unknown): string {
+  if (typeof v !== 'string') return '';
+  return v.slice(0, 40).replace(/\D/g, '');
 }
 
 Deno.serve(async (req) => {
@@ -44,9 +61,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  const name = (body.name ?? '').trim();
-  const phoneDigits = onlyDigits(body.phone ?? '');
-  const brokerUserId = (body.brokerUserId ?? '').trim();
+  if (!body || typeof body !== 'object') {
+    return new Response(JSON.stringify({ error: 'JSON inválido.' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const name = text(body.name, MAX_NAME + 1);
+  const phoneDigits = onlyDigits(body.phone);
+  const brokerUserId = uuidOrNull(body.brokerUserId);
+  const email = text(body.email, MAX_EMAIL);
+  const message = text(body.message, MAX_MESSAGE);
 
   if (!brokerUserId) {
     return new Response(JSON.stringify({ error: 'Link de captação inválido.' }), {
@@ -54,7 +80,13 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  if (!name || name.length > 200) {
+  if (email && !/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) {
+    return new Response(JSON.stringify({ error: 'E-mail inválido.' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (!name || name.length > MAX_NAME) {
     return new Response(JSON.stringify({ error: 'Informe seu nome.' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -83,11 +115,12 @@ Deno.serve(async (req) => {
     user_id: brokerUserId,
     name,
     phone: phoneDigits,
-    email: body.email?.trim() || null,
-    message: body.message?.trim() || null,
-    source: ALLOWED_SOURCES.has(body.source ?? '') ? body.source : 'landing',
-    company_id: body.companyId || null,
-    development_id: body.developmentId || null,
+    email: email || null,
+    message: message || null,
+    source:
+      typeof body.source === 'string' && ALLOWED_SOURCES.has(body.source) ? body.source : 'landing',
+    company_id: uuidOrNull(body.companyId),
+    development_id: uuidOrNull(body.developmentId),
   });
   if (error) {
     console.error('Erro ao inserir lead:', error.message);

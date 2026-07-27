@@ -12,6 +12,22 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   httpClient: Stripe.createFetchHttpClient(),
 });
 
+const ALLOWED_PRICES = new Set(
+  [Deno.env.get('STRIPE_PRICE_START'), Deno.env.get('STRIPE_PRICE_PRO')].filter(
+    (v): v is string => typeof v === 'string' && v.length > 0,
+  ),
+);
+
+function safeUrl(v: unknown): string | undefined {
+  if (typeof v !== 'string' || v.length > 2000) return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -35,7 +51,12 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: 'Não autenticado.' }, 401);
 
     const { priceId, successUrl, cancelUrl } = await req.json();
-    if (!priceId) return json({ error: 'priceId é obrigatório.' }, 400);
+    if (typeof priceId !== 'string' || !priceId.startsWith('price_') || priceId.length > 255) {
+      return json({ error: 'priceId inválido.' }, 400);
+    }
+    if (ALLOWED_PRICES.size > 0 && !ALLOWED_PRICES.has(priceId)) {
+      return json({ error: 'Plano indisponível.' }, 400);
+    }
 
     const { data: existing } = await supabase
       .from('subscriptions')
@@ -56,8 +77,8 @@ Deno.serve(async (req) => {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      success_url: safeUrl(successUrl),
+      cancel_url: safeUrl(cancelUrl),
       allow_promotion_codes: true,
       subscription_data: { metadata: { supabase_user_id: user.id } },
       metadata: { supabase_user_id: user.id },
@@ -65,8 +86,8 @@ Deno.serve(async (req) => {
 
     return json({ url: session.url });
   } catch (e) {
-    console.error(e);
-    return json({ error: (e as Error).message }, 500);
+    console.error('Falha ao criar checkout:', (e as Error).name);
+    return json({ error: 'Não foi possível iniciar o pagamento. Tente novamente.' }, 500);
   }
 });
 

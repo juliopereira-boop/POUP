@@ -11,13 +11,16 @@ const admin = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 );
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
 
-  const body = (await req.json().catch(() => ({}))) as { brokerId?: string };
-  const brokerId = (body.brokerId ?? '').trim();
-  if (!brokerId) return json({ error: 'brokerId ausente.' }, 400);
+  const body = (await req.json().catch(() => ({}))) as { brokerId?: unknown };
+  const raw = typeof body?.brokerId === 'string' ? body.brokerId.trim() : '';
+  if (!UUID_RE.test(raw)) return json({ error: 'brokerId inválido.' }, 400);
+  const brokerId = raw;
 
   const [{ data: profile }, { data: campaign }] = await Promise.all([
     admin.from('profiles').select('full_name, agency, phone').eq('id', brokerId).maybeSingle(),

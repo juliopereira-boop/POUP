@@ -13,7 +13,6 @@ import {
 import { useFocusEffect } from 'expo-router';
 
 import { Button } from '@/components/Button';
-import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select, type SelectOption } from '@/components/Select';
@@ -51,6 +50,7 @@ import {
   weekDays,
   ymdFromISO,
 } from '@/features/agenda/dates';
+import { DayField } from '@/features/agenda/DayField';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -556,7 +556,7 @@ function CreateModal({
               }))}
               onChange={setTypeId}
             />
-            <DateField label="Data" value={date} onChange={setDate} />
+            <DayField label="Data" value={date} onChange={setDate} />
             <Input
               label="Hora inicial"
               value={startTime}
@@ -787,7 +787,7 @@ function DetailModal({
 
             {pane === 'reagendar' ? (
               <View style={styles.pane}>
-                <DateField label="Nova data" value={date} onChange={setDate} />
+                <DayField label="Nova data" value={date} onChange={setDate} />
                 <Input
                   label="Nova hora inicial"
                   value={startTime}

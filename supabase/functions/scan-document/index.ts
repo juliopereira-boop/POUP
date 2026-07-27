@@ -40,6 +40,9 @@ const TOOL_SCHEMA = {
   },
 };
 
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_BASE64_LEN = 8 * 1024 * 1024;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -58,8 +61,17 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: 'Não autenticado.' }, 401);
 
     const { imageBase64, mimeType } = await req.json();
-    if (!imageBase64 || !mimeType) {
+    if (typeof imageBase64 !== 'string' || typeof mimeType !== 'string') {
       return json({ error: 'imageBase64 e mimeType são obrigatórios.' }, 400);
+    }
+    if (!imageBase64) {
+      return json({ error: 'imageBase64 e mimeType são obrigatórios.' }, 400);
+    }
+    if (!ALLOWED_MIME.has(mimeType)) {
+      return json({ error: 'Formato de imagem não suportado.' }, 400);
+    }
+    if (imageBase64.length > MAX_BASE64_LEN) {
+      return json({ error: 'Imagem muito grande. Use uma foto menor.' }, 413);
     }
     if (!ANTHROPIC_API_KEY) {
       return json({ error: 'Scanner não configurado (ANTHROPIC_API_KEY ausente).' }, 500);
@@ -108,8 +120,8 @@ Deno.serve(async (req) => {
 
     return json(result);
   } catch (e) {
-    console.error(e);
-    return json({ error: (e as Error).message }, 500);
+    console.error('Falha no scan de documento:', (e as Error).name);
+    return json({ error: 'Não foi possível ler o documento. Tente novamente.' }, 500);
   }
 });
 

@@ -15,9 +15,33 @@ interface RawObject {
   metadata: { size?: number; mimetype?: string } | null;
 }
 
+const MAX_SEGMENT = 120;
+
 function joinRel(userId: string, relPath: string): string {
   const rel = relPath.replace(/^\/+|\/+$/g, '');
   return rel ? `${userId}/${rel}` : userId;
+}
+
+function stripUnsafe(raw: string): string {
+  const clean = raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[\\/]/g, '_')
+    .trim();
+  if (!clean || clean === '.' || clean === '..') return '';
+  return clean;
+}
+
+function sanitizeSegment(raw: string): string {
+  return stripUnsafe(raw).slice(0, MAX_SEGMENT).trim();
+}
+
+function sanitizeFileName(raw: string): string {
+  const base = stripUnsafe(raw);
+  if (base.length <= MAX_SEGMENT) return base;
+  const dot = base.lastIndexOf('.');
+  const ext = dot > 0 && base.length - dot <= 12 ? base.slice(dot) : '';
+  return `${base.slice(0, MAX_SEGMENT - ext.length).trim()}${ext}`;
 }
 
 function mapCompanyMaterial(row: CompanyMaterialRow): CompanyMaterial {
@@ -57,8 +81,8 @@ export class SupabaseMaterialRepository implements MaterialRepository {
   }
 
   async createFolder(userId: string, relPath: string, name: string): Promise<Result<void>> {
-    const clean = name.trim().replace(/[\\/]/g, '').trim();
-    if (!clean) return err('Informe um nome para a pasta.');
+    const clean = sanitizeSegment(name);
+    if (!clean) return err('Informe um nome válido para a pasta.');
     const path = `${joinRel(userId, relPath)}/${clean}/${PLACEHOLDER}`;
     const { error } = await supabase.storage
       .from(BUCKET)
@@ -74,7 +98,7 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     data: Blob,
     contentType: string,
   ): Promise<Result<void>> {
-    const clean = fileName.replace(/[\\/]/g, '_').trim() || `arquivo-${Date.now()}`;
+    const clean = sanitizeFileName(fileName) || `arquivo-${Date.now()}`;
     const path = `${joinRel(userId, relPath)}/${clean}`;
     const { error } = await supabase.storage
       .from(BUCKET)
@@ -133,7 +157,11 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     companyId: string,
     driveUrl: string | null,
   ): Promise<Result<CompanyMaterial>> {
-    const clean = driveUrl?.trim() ? driveUrl.trim() : null;
+    const trimmed = driveUrl?.trim() ?? '';
+    if (trimmed && /^(javascript|data|vbscript|file):/i.test(trimmed)) {
+      return err('Link inválido. Use um endereço http(s).');
+    }
+    const clean = trimmed ? trimmed.slice(0, 2000) : null;
     const { data, error } = await supabase
       .from('company_materials')
       .upsert(

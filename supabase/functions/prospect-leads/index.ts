@@ -14,6 +14,12 @@ const PERIOD_CAP = 10;
 const UNLIMITED_EMAILS = new Set(['julio.pereira@sellmyhouse.com.br']);
 const UNLIMITED_PER_SEARCH_CAP = 5;
 
+const ALLOWED_UF = new Set([
+  'ac', 'al', 'am', 'ap', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mg', 'ms', 'mt',
+  'pa', 'pb', 'pe', 'pi', 'pr', 'rj', 'rn', 'ro', 'rr', 'rs', 'sc', 'se', 'sp', 'to',
+]);
+const MAX_CIDADE = 120;
+
 function slug(s: string): string {
   return s
     .normalize('NFD')
@@ -117,12 +123,19 @@ Deno.serve(async (req) => {
       return json({ error: 'Prospecção não configurada (CASADOSDADOS_API_KEY ausente).' });
     }
 
-    const { uf, cidade, excluir } = (await req.json().catch(() => ({}))) as {
-      uf?: string;
-      cidade?: string;
-      excluir?: string[];
+    const {
+      uf: ufRaw,
+      cidade: cidadeRaw,
+      excluir,
+    } = (await req.json().catch(() => ({}))) as {
+      uf?: unknown;
+      cidade?: unknown;
+      excluir?: unknown;
     };
+    const uf = typeof ufRaw === 'string' ? ufRaw.trim().toLowerCase() : '';
+    const cidade = typeof cidadeRaw === 'string' ? cidadeRaw.slice(0, MAX_CIDADE).trim() : '';
     if (!uf || !cidade) return json({ error: 'Informe estado e cidade.' });
+    if (!ALLOWED_UF.has(uf)) return json({ error: 'Estado inválido.' });
     const excluirCnpjs = Array.isArray(excluir)
       ? excluir.map((c) => String(c).replace(/\D/g, '')).filter(Boolean).slice(0, 2000)
       : [];
@@ -203,7 +216,7 @@ Deno.serve(async (req) => {
         pageData = await fetchPage(page, PAGE_SIZE);
       } catch (e) {
         if (i === 0) {
-          return json({ error: 'Não consegui falar com a Casa dos Dados.', detail: String(e) });
+          return json({ error: 'Não consegui falar com a Casa dos Dados.' });
         }
         break;
       }
@@ -215,10 +228,7 @@ Deno.serve(async (req) => {
               : pageData.status === 403
                 ? 'sem saldo para a operação'
                 : `HTTP ${pageData.status}`;
-          return json({
-            error: `A Casa dos Dados recusou a busca (${dica}).`,
-            detail: pageData.errText.slice(0, 400),
-          });
+          return json({ error: `A Casa dos Dados recusou a busca (${dica}).` });
         }
         break;
       }
@@ -291,9 +301,8 @@ Deno.serve(async (req) => {
       total: leads.length,
       restante: unlimited ? null : PERIOD_CAP - usados - leads.length,
     });
-  } catch (e) {
-    console.error(e);
-    return json({ error: 'Erro interno na prospecção.', detail: (e as Error).message });
+  } catch {
+    return json({ error: 'Erro interno na prospecção.' });
   }
 });
 
