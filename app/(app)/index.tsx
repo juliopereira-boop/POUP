@@ -8,6 +8,7 @@ import { WordMark } from '@/components/WordMark';
 import { db, isAppointmentLate, type Appointment, type AppointmentType } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
+import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 
@@ -62,6 +63,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { trialDaysLeft } = useSubscription();
   const { width } = useWindowDimensions();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -140,6 +142,17 @@ export default function HomeScreen() {
       <Screen>
         <Text style={styles.greeting}>Olá, {firstName}</Text>
 
+        {trialDaysLeft != null ? (
+          <Pressable style={styles.trialBanner} onPress={() => router.push('/paywall')}>
+            <Text style={styles.trialTitle}>
+              {trialDaysLeft === 1
+                ? 'Último dia do seu teste gratuito'
+                : `Faltam ${trialDaysLeft} dias do seu teste gratuito`}
+            </Text>
+            <Text style={styles.trialText}>Toque para assinar e não perder o acesso.</Text>
+          </Pressable>
+        ) : null}
+
         {reminders.length > 0 ? (
           <ScrollView
             horizontal
@@ -153,7 +166,9 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={a.id}
-                  onPress={() => router.push('/(app)/calendario')}
+                  onPress={() =>
+                    router.push({ pathname: '/(app)/agendamentos/[id]', params: { id: a.id } })
+                  }
                   style={styles.reminder}
                 >
                   <View
@@ -219,7 +234,9 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={a.id}
-                  onPress={() => router.push('/(app)/calendario')}
+                  onPress={() =>
+                    router.push({ pathname: '/(app)/agendamentos/[id]', params: { id: a.id } })
+                  }
                   style={styles.todayRow}
                 >
                   <Text style={styles.todayTime}>{hhmm(a.startAt)}</Text>
@@ -270,6 +287,19 @@ const makeStyles = (colors: AppColors) =>
     badgeText: { color: colors.white, fontSize: 10.5, fontWeight: '700' },
 
     greeting: { ...typography.heading, color: colors.primary, marginBottom: spacing.lg },
+
+    trialBanner: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      marginBottom: spacing.lg,
+      gap: 2,
+    },
+    trialTitle: { ...typography.label, color: colors.primaryDark },
+    trialText: { ...typography.caption, color: colors.inkMuted },
 
     carouselWrap: { marginHorizontal: -spacing.lg, marginBottom: spacing.xl },
     carousel: { paddingHorizontal: spacing.lg, gap: spacing.md },

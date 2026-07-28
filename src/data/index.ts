@@ -7,6 +7,7 @@ import type {
   LeadRepository,
   MaterialRepository,
   ProfileRepository,
+  SettingsRepository,
   SimulationRepository,
 } from './repositories';
 import { SupabaseAuthRepository } from './supabase/SupabaseAuthRepository';
@@ -18,6 +19,7 @@ import { SupabaseSimulationRepository } from './supabase/SupabaseSimulationRepos
 import { SupabaseMaterialRepository } from './supabase/SupabaseMaterialRepository';
 import { SupabaseLeadRepository } from './supabase/SupabaseLeadRepository';
 import { SupabaseAppointmentRepository } from './supabase/SupabaseAppointmentRepository';
+import { SupabaseSettingsRepository } from './supabase/SupabaseSettingsRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -29,6 +31,7 @@ export interface DataLayer {
   material: MaterialRepository;
   leads: LeadRepository;
   appointments: AppointmentRepository;
+  settings: SettingsRepository;
 }
 
 type Provider = 'supabase';
@@ -48,6 +51,7 @@ function createDataLayer(provider: Provider): DataLayer {
         material: new SupabaseMaterialRepository(),
         leads: new SupabaseLeadRepository(),
         appointments: new SupabaseAppointmentRepository(),
+        settings: new SupabaseSettingsRepository(),
       };
   }
 }
@@ -64,5 +68,6 @@ export type {
   LeadRepository,
   MaterialRepository,
   ProfileRepository,
+  SettingsRepository,
   SimulationRepository,
 } from './repositories';

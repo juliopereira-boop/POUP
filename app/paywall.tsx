@@ -15,7 +15,7 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 export default function PaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const { user, signOut } = useAuth();
-  const { isActive, refresh } = useSubscription();
+  const { isActive, refresh, trialExpired } = useSubscription();
   const { pending } = useLocalSearchParams<{ pending?: string }>();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [checkingAgain, setCheckingAgain] = useState(false);
@@ -54,8 +54,19 @@ export default function PaywallScreen() {
     <Screen center>
       <View style={styles.header}>
         <Logo size={40} />
-        <Text style={styles.subtitle}>Escolha seu plano</Text>
+        <Text style={styles.subtitle}>
+          {trialExpired ? 'Seu teste gratuito terminou' : 'Escolha seu plano'}
+        </Text>
       </View>
+
+      {trialExpired ? (
+        <View style={styles.trialBanner}>
+          <Text style={styles.trialText}>
+            O período de teste gratuito desta conta acabou e o acesso ficou bloqueado. Escolha um
+            plano abaixo para voltar a usar o POUP — seus dados continuam salvos.
+          </Text>
+        </View>
+      ) : null}
 
       {pending === '1' ? (
         <View style={styles.pendingBanner}>
@@ -203,5 +214,15 @@ const makeStyles = (colors: AppColors) =>
     marginBottom: spacing.md,
   },
   pendingButton: { alignSelf: 'stretch' },
+  trialBanner: {
+    width: '100%',
+    backgroundColor: colors.warningSoft,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  trialText: { ...typography.body, color: colors.ink },
   signout: { marginTop: spacing.md },
 });

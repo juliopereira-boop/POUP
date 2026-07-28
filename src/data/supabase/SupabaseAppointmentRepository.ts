@@ -14,7 +14,7 @@ import {
 } from '../types';
 
 const SELECT =
-  'id, title, description, type_id, status_id, lead_id, start_at, end_at, location, priority, reminder_minutes, source, completed_at, completed_note, cancelled_at, cancel_reason, created_at, updated_at, leads(name)';
+  'id, title, description, type_id, status_id, lead_id, company_id, development_id, start_at, end_at, location, priority, reminder_minutes, source, completed_at, completed_note, cancelled_at, cancel_reason, created_at, updated_at, leads(name), companies(name), developments(name)';
 
 interface AppointmentRow {
   id: string;
@@ -23,6 +23,8 @@ interface AppointmentRow {
   type_id: string;
   status_id: string;
   lead_id: string | null;
+  company_id: string | null;
+  development_id: string | null;
   start_at: string;
   end_at: string | null;
   location: string | null;
@@ -36,6 +38,8 @@ interface AppointmentRow {
   created_at: string;
   updated_at: string;
   leads: { name: string } | null;
+  companies: { name: string } | null;
+  developments: { name: string } | null;
 }
 
 interface AppointmentPatch {
@@ -43,6 +47,8 @@ interface AppointmentPatch {
   description?: string | null;
   type_id?: string;
   lead_id?: string | null;
+  company_id?: string | null;
+  development_id?: string | null;
   start_at?: string;
   end_at?: string | null;
   location?: string | null;
@@ -60,6 +66,10 @@ function mapAppointment(row: AppointmentRow): Appointment {
     statusId: row.status_id,
     leadId: row.lead_id,
     leadName: row.leads?.name ?? null,
+    companyId: row.company_id,
+    companyName: row.companies?.name ?? null,
+    developmentId: row.development_id,
+    developmentName: row.developments?.name ?? null,
     startAt: row.start_at,
     endAt: row.end_at,
     location: row.location,
@@ -81,6 +91,8 @@ function buildPatch(data: Partial<AppointmentInput>): AppointmentPatch {
   if (data.description !== undefined) patch.description = data.description;
   if (data.typeId !== undefined) patch.type_id = data.typeId;
   if (data.leadId !== undefined) patch.lead_id = data.leadId;
+  if (data.companyId !== undefined) patch.company_id = data.companyId;
+  if (data.developmentId !== undefined) patch.development_id = data.developmentId;
   if (data.startAt !== undefined) patch.start_at = data.startAt;
   if (data.endAt !== undefined) patch.end_at = data.endAt;
   if (data.location !== undefined) patch.location = data.location;
@@ -112,6 +124,17 @@ async function logHistory(
 }
 
 export class SupabaseAppointmentRepository implements AppointmentRepository {
+  async get(id: string): Promise<Appointment | null> {
+    const { data, error } = await supabase
+      .from('appointments')
+      .select(SELECT)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single();
+    if (error || !data) return null;
+    return mapAppointment(data as unknown as AppointmentRow);
+  }
+
   async listRange(userId: string, startISO: string, endISO: string): Promise<Appointment[]> {
     const { data, error } = await supabase
       .from('appointments')
@@ -146,6 +169,8 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
         description: data.description ?? null,
         type_id: data.typeId,
         lead_id: data.leadId ?? null,
+        company_id: data.companyId ?? null,
+        development_id: data.developmentId ?? null,
         start_at: data.startAt,
         end_at: data.endAt ?? null,
         location: data.location ?? null,
@@ -202,6 +227,16 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
     if (statusId === 'cancelado') {
       patch.cancelled_at = now;
       patch.cancel_reason = extra?.reason ?? null;
+    }
+    // Voltar para um status "em aberto" limpa os registros de conclusão e de
+    // cancelamento, senão a tela mostraria dados de um desfecho antigo.
+    if (statusId !== 'concluido') {
+      patch.completed_at = null;
+      patch.completed_note = null;
+    }
+    if (statusId !== 'cancelado') {
+      patch.cancelled_at = null;
+      patch.cancel_reason = null;
     }
 
     const { error } = await supabase.from('appointments').update(patch).eq('id', id);

@@ -7,8 +7,8 @@ export const lightColors = {
   primaryDark: '#E25F0E',
   primarySoft: '#FFF3EA',
 
-  navy: '#1F2430',
-  navySoft: '#F2F3F6',
+  navy: '#FF751F',
+  navySoft: '#FFF3EA',
 
   background: '#F3F4F6',
   surface: '#FFFFFF',

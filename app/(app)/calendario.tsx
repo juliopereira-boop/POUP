@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -21,7 +19,6 @@ import {
   isAppointmentLate,
   type Appointment,
   type AppointmentPriority,
-  type AppointmentStatusInfo,
   type AppointmentType,
   type Lead,
 } from '@/data';
@@ -48,7 +45,6 @@ import {
   startOfDay,
   startOfWeek,
   weekDays,
-  ymdFromISO,
 } from '@/features/agenda/dates';
 import { DayField } from '@/features/agenda/DayField';
 import { useAuth } from '@/providers/AuthProvider';
@@ -72,20 +68,9 @@ const PRIORITY_OPTIONS: SelectOption[] = [
 
 const FALLBACK_COLOR = '#6B7280';
 
-function confirmDelete(message: string, onConfirm: () => void) {
-  if (Platform.OS === 'web') {
-    // eslint-disable-next-line no-alert
-    if (window.confirm(message)) onConfirm();
-    return;
-  }
-  Alert.alert('Excluir agendamento', message, [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Excluir', style: 'destructive', onPress: onConfirm },
-  ]);
-}
-
 export default function CalendarioScreen() {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -94,11 +79,9 @@ export default function CalendarioScreen() {
   const [selected, setSelected] = useState(() => startOfDay(new Date()));
   const [items, setItems] = useState<Appointment[]>([]);
   const [types, setTypes] = useState<AppointmentType[]>([]);
-  const [statuses, setStatuses] = useState<AppointmentStatusInfo[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [detail, setDetail] = useState<Appointment | null>(null);
 
   const range = useMemo(() => {
     if (mode === 'mes') {
@@ -133,12 +116,10 @@ export default function CalendarioScreen() {
   useEffect(() => {
     if (!userId) return;
     void db.appointments.listTypes().then(setTypes);
-    void db.appointments.listStatuses().then(setStatuses);
     void db.leads.list(userId).then(setLeads);
   }, [userId]);
 
   const typeMap = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
-  const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
@@ -298,7 +279,9 @@ export default function CalendarioScreen() {
                 key={item.id}
                 item={item}
                 type={typeMap.get(item.typeId)}
-                onPress={() => setDetail(item)}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/agendamentos/[id]', params: { id: item.id } })
+                }
               />
             ))
           )}
@@ -333,7 +316,12 @@ export default function CalendarioScreen() {
                       key={item.id}
                       item={item}
                       type={typeMap.get(item.typeId)}
-                      onPress={() => setDetail(item)}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/(app)/agendamentos/[id]',
+                          params: { id: item.id },
+                        })
+                      }
                     />
                   ))
                 )}
@@ -356,7 +344,9 @@ export default function CalendarioScreen() {
                 key={item.id}
                 item={item}
                 type={typeMap.get(item.typeId)}
-                onPress={() => setDetail(item)}
+                onPress={() =>
+                  router.push({ pathname: '/(app)/agendamentos/[id]', params: { id: item.id } })
+                }
               />
             ))
           )}
@@ -372,20 +362,6 @@ export default function CalendarioScreen() {
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);
-            void load();
-          }}
-        />
-      ) : null}
-
-      {detail ? (
-        <DetailModal
-          key={detail.id}
-          appointment={detail}
-          type={typeMap.get(detail.typeId)}
-          statusName={statusMap.get(detail.statusId)?.nome ?? detail.statusId}
-          onClose={() => setDetail(null)}
-          onChanged={() => {
-            setDetail(null);
             void load();
           }}
         />
@@ -486,7 +462,9 @@ function CreateModal({
         const clash = list.find(
           (a) => a.statusId !== 'cancelado' && overlaps(startISO, endISO, a.startAt, a.endAt),
         );
-        setConflict(clash ? `Já existe “${clash.title}” às ${formatTimeISO(clash.startAt)}.` : null);
+        setConflict(
+          clash ? `Já existe “${clash.title}” às ${formatTimeISO(clash.startAt)}.` : null,
+        );
       });
     return () => {
       active = false;
@@ -637,231 +615,6 @@ function CreateModal({
             />
 
             <Button label="Salvar agendamento" onPress={() => void onSave()} loading={saving} />
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function DetailModal({
-  appointment,
-  type,
-  statusName,
-  onClose,
-  onChanged,
-}: {
-  appointment: Appointment;
-  type: AppointmentType | undefined;
-  statusName: string;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const [pane, setPane] = useState<'none' | 'reagendar' | 'cancelar'>('none');
-  const [date, setDate] = useState<string | null>(ymdFromISO(appointment.startAt) || null);
-  const [startTime, setStartTime] = useState(formatTimeISO(appointment.startAt));
-  const [endTime, setEndTime] = useState(appointment.endAt ? formatTimeISO(appointment.endAt) : '');
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const late = isAppointmentLate(appointment);
-  const done = appointment.statusId === 'concluido';
-  const cancelled = appointment.statusId === 'cancelado';
-  const start = new Date(appointment.startAt);
-
-  async function onConclude() {
-    setError(null);
-    setBusy(true);
-    const res = await db.appointments.setStatus(appointment.id, 'concluido');
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    onChanged();
-  }
-
-  async function onReschedule() {
-    setError(null);
-    if (!date) return setError('Escolha a nova data.');
-    const startISO = localISO(date, startTime);
-    if (!startISO) return setError('Informe a nova hora inicial no formato HH:MM.');
-    let endISO: string | null = null;
-    if (endTime.trim()) {
-      endISO = localISO(date, endTime);
-      if (!endISO) return setError('Informe a hora final no formato HH:MM.');
-      if (new Date(endISO).getTime() <= new Date(startISO).getTime()) {
-        return setError('A hora final deve ser depois da hora inicial.');
-      }
-    }
-    setBusy(true);
-    const res = await db.appointments.reschedule(appointment.id, startISO, endISO);
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    onChanged();
-  }
-
-  async function onCancelAppointment() {
-    setError(null);
-    if (!reason.trim()) return setError('Informe o motivo do cancelamento.');
-    setBusy(true);
-    const res = await db.appointments.setStatus(appointment.id, 'cancelado', {
-      reason: reason.trim(),
-    });
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    onChanged();
-  }
-
-  function onDelete() {
-    confirmDelete(`Excluir o agendamento “${appointment.title}”?`, () => {
-      void (async () => {
-        setBusy(true);
-        const res = await db.appointments.remove(appointment.id);
-        setBusy(false);
-        if (!res.ok) {
-          setError(res.error);
-          return;
-        }
-        onChanged();
-      })();
-    });
-  }
-
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle} numberOfLines={2}>
-              {type?.icone ? `${type.icone} ` : ''}
-              {appointment.title}
-            </Text>
-            <Pressable onPress={onClose} accessibilityLabel="Fechar">
-              <Text style={styles.sheetClose}>✕</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            {late ? <Text style={styles.warn}>⚠️ Este compromisso está atrasado.</Text> : null}
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Quando</Text>
-              <Text style={[styles.detailValue, late && styles.lateText]}>
-                {formatDateBR(start)} às {formatTimeISO(appointment.startAt)}
-                {appointment.endAt ? ` – ${formatTimeISO(appointment.endAt)}` : ''}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Tipo</Text>
-              <Text style={styles.detailValue}>{type?.nome ?? appointment.typeId}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Situação</Text>
-              <Text style={styles.detailValue}>{statusName}</Text>
-            </View>
-            {appointment.leadName ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Lead</Text>
-                <Text style={styles.detailValue}>{appointment.leadName}</Text>
-              </View>
-            ) : null}
-            {appointment.location ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Local</Text>
-                <Text style={styles.detailValue}>{appointment.location}</Text>
-              </View>
-            ) : null}
-            {appointment.description ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Observações</Text>
-                <Text style={styles.detailValue}>{appointment.description}</Text>
-              </View>
-            ) : null}
-            {appointment.cancelReason ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Motivo do cancelamento</Text>
-                <Text style={styles.detailValue}>{appointment.cancelReason}</Text>
-              </View>
-            ) : null}
-
-            {pane === 'reagendar' ? (
-              <View style={styles.pane}>
-                <DayField label="Nova data" value={date} onChange={setDate} />
-                <Input
-                  label="Nova hora inicial"
-                  value={startTime}
-                  onChangeText={(t) => setStartTime(maskTime(t))}
-                  placeholder="HH:MM"
-                  keyboardType="number-pad"
-                  maxLength={5}
-                />
-                <Input
-                  label="Nova hora final (opcional)"
-                  value={endTime}
-                  onChangeText={(t) => setEndTime(maskTime(t))}
-                  placeholder="HH:MM"
-                  keyboardType="number-pad"
-                  maxLength={5}
-                />
-                <Button
-                  label="Salvar novo horário"
-                  onPress={() => void onReschedule()}
-                  loading={busy}
-                />
-              </View>
-            ) : null}
-
-            {pane === 'cancelar' ? (
-              <View style={styles.pane}>
-                <Input
-                  label="Motivo do cancelamento"
-                  value={reason}
-                  onChangeText={setReason}
-                  placeholder="Ex.: cliente pediu para remarcar"
-                  multiline
-                  numberOfLines={3}
-                  style={styles.textArea}
-                />
-                <Button
-                  label="Confirmar cancelamento"
-                  variant="danger"
-                  onPress={() => void onCancelAppointment()}
-                  loading={busy}
-                />
-              </View>
-            ) : null}
-
-            <View style={styles.actions}>
-              {!done && !cancelled ? (
-                <Button
-                  label="✓ Concluir"
-                  onPress={() => void onConclude()}
-                  loading={busy}
-                  style={styles.actionBtn}
-                />
-              ) : null}
-              <Button
-                label="Reagendar"
-                variant="secondary"
-                onPress={() => setPane(pane === 'reagendar' ? 'none' : 'reagendar')}
-                style={styles.actionBtn}
-              />
-              {!cancelled ? (
-                <Button
-                  label="Cancelar"
-                  variant="secondary"
-                  onPress={() => setPane(pane === 'cancelar' ? 'none' : 'cancelar')}
-                  style={styles.actionBtn}
-                />
-              ) : null}
-              <Button
-                label="Excluir"
-                variant="danger"
-                onPress={onDelete}
-                style={styles.actionBtn}
-              />
-            </View>
           </ScrollView>
         </View>
       </View>

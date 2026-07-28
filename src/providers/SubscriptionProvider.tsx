@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { db } from '@/data';
-import { type PlanTier, type Subscription, isSubscriptionActive } from '@/data';
+import {
+  type PlanTier,
+  type Subscription,
+  isSubscriptionActive,
+  isTrialExpired,
+  trialDaysRemaining,
+} from '@/data';
 import { getPlan, type PlanConfig } from '@/features/plans';
 import { useAuth } from './AuthProvider';
 
@@ -10,6 +16,10 @@ interface SubscriptionContextValue {
   isActive: boolean;
   tier: PlanTier | null;
   plan: PlanConfig | null;
+  /** Dias que ainda faltam do período de teste. `null` quando não está em teste válido. */
+  trialDaysLeft: number | null;
+  /** Estava em período de teste e o prazo venceu. */
+  trialExpired: boolean;
   loading: boolean;
   initialLoad: boolean;
   refresh: () => Promise<void>;
@@ -53,6 +63,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         isActive: isSubscriptionActive(subscription),
         tier,
         plan: getPlan(tier),
+        trialDaysLeft: trialDaysRemaining(subscription),
+        trialExpired: isTrialExpired(subscription),
         loading,
         initialLoad,
         refresh,

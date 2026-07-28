@@ -49,9 +49,64 @@ export interface StorageUsage {
   limitBytes: number;
 }
 
+/**
+ * Data em que o período de teste gratuito vence.
+ * `null` quando a assinatura não está em teste ou não tem vencimento gravado.
+ */
+export function trialEndsAt(sub: Subscription | null): Date | null {
+  if (!sub || sub.status !== 'trialing' || !sub.currentPeriodEnd) return null;
+  const end = new Date(sub.currentPeriodEnd);
+  return Number.isNaN(end.getTime()) ? null : end;
+}
+
+/** Teste gratuito ainda dentro do prazo. */
+export function isTrialActive(sub: Subscription | null, now: number = Date.now()): boolean {
+  const end = trialEndsAt(sub);
+  return end !== null && end.getTime() > now;
+}
+
+/** Teste gratuito que já venceu — o acesso fica travado até assinar. */
+export function isTrialExpired(sub: Subscription | null, now: number = Date.now()): boolean {
+  if (!sub || sub.status !== 'trialing') return false;
+  return !isTrialActive(sub, now);
+}
+
+/**
+ * Dias inteiros que ainda faltam do teste (arredondando para cima, mínimo 1
+ * enquanto o teste é válido). `null` quando não há teste válido.
+ */
+export function trialDaysRemaining(
+  sub: Subscription | null,
+  now: number = Date.now(),
+): number | null {
+  const end = trialEndsAt(sub);
+  if (!end || end.getTime() <= now) return null;
+  return Math.max(1, Math.ceil((end.getTime() - now) / 86_400_000));
+}
+
 export function isSubscriptionActive(sub: Subscription | null): boolean {
   if (!sub) return false;
-  return sub.status === 'active' || sub.status === 'trialing';
+  // Assinatura paga no Stripe: liberada.
+  if (sub.status === 'active') return true;
+  // Período de teste: liberado apenas enquanto não vence.
+  if (sub.status === 'trialing') return isTrialActive(sub);
+  return false;
+}
+
+/** Campanha global de período de teste gratuito (uma única configuração). */
+export interface TrialCampaign {
+  enabled: boolean;
+  trialDays: number;
+  updatedAt: string | null;
+}
+
+export type TrialCampaignInput = Pick<TrialCampaign, 'enabled' | 'trialDays'>;
+
+export const TRIAL_DAYS_MIN = 1;
+export const TRIAL_DAYS_MAX = 90;
+
+export function isValidTrialDays(days: number): boolean {
+  return Number.isInteger(days) && days >= TRIAL_DAYS_MIN && days <= TRIAL_DAYS_MAX;
 }
 
 export interface Company {
@@ -251,6 +306,10 @@ export interface Appointment {
   statusId: string;
   leadId: string | null;
   leadName?: string | null;
+  companyId: string | null;
+  companyName?: string | null;
+  developmentId: string | null;
+  developmentName?: string | null;
   startAt: string;
   endAt: string | null;
   location: string | null;
@@ -270,6 +329,8 @@ export interface AppointmentInput {
   description?: string | null;
   typeId: string;
   leadId?: string | null;
+  companyId?: string | null;
+  developmentId?: string | null;
   startAt: string;
   endAt?: string | null;
   location?: string | null;

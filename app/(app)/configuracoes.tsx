@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
+import { useIsAdmin } from '@/features/admin';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -28,6 +29,7 @@ export default function ConfiguracoesScreen() {
   const { user, signOut } = useAuth();
   const { profile } = useProfile();
   const { subscription, plan } = useSubscription();
+  const { isAdmin } = useIsAdmin();
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
 
@@ -90,6 +92,19 @@ export default function ConfiguracoesScreen() {
           onPress={() => router.push('/(app)/workflow')}
         />
       </View>
+
+      {isAdmin ? (
+        <>
+          <Text style={styles.sectionLabel}>Administração</Text>
+          <View style={styles.card}>
+            <NavRow
+              label="Período de teste"
+              subtitle="Ligar/desligar o teste gratuito e definir os dias"
+              onPress={() => router.push('/(app)/campanhas')}
+            />
+          </View>
+        </>
+      ) : null}
 
       <Text style={styles.sectionLabel}>Assinatura</Text>
       <View style={styles.card}>

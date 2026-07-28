@@ -48,6 +48,54 @@ const SHOW_CAPTACAO_CARD = false;
 const MEDIA_LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
 const MAX_WA_TEXT_LENGTH = 1800;
 
+interface ShareableFile {
+  name: string;
+  type: string;
+}
+
+interface WebNavigator {
+  share?: (data: { files?: ShareableFile[]; text?: string; title?: string }) => Promise<void>;
+  canShare?: (data: { files?: ShareableFile[] }) => boolean;
+}
+
+function webNavigator(): WebNavigator | null {
+  if (Platform.OS !== 'web') return null;
+  return (globalThis as unknown as { navigator?: WebNavigator }).navigator ?? null;
+}
+
+function blobToFile(blob: Blob, name: string): ShareableFile {
+  const FileCtor = (
+    globalThis as unknown as {
+      File?: new (parts: Blob[], name: string, opts: { type: string }) => ShareableFile;
+    }
+  ).File;
+  const type = (blob as unknown as { type?: string }).type || guessMime(name);
+  if (!FileCtor) return blob as unknown as ShareableFile;
+  return new FileCtor([blob], name, { type });
+}
+
+function guessMime(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'mp4') return 'video/mp4';
+  if (ext === 'pdf') return 'application/pdf';
+  return 'application/octet-stream';
+}
+
+function canShareFiles(files: ShareableFile[]): boolean {
+  const nav = webNavigator();
+  if (!nav?.share) return false;
+  if (!nav.canShare) return false;
+  try {
+    return nav.canShare({ files });
+  } catch {
+    return false;
+  }
+}
+
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
   whatsapp: 'WhatsApp',
@@ -453,6 +501,7 @@ function AtendimentoModal({
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [selected, setSelected] = useState<StorageEntry[]>([]);
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+  const [mediaFiles, setMediaFiles] = useState<Record<string, ShareableFile>>({});
   const [opening, setOpening] = useState(false);
 
   useEffect(() => {
@@ -481,6 +530,7 @@ function AtendimentoModal({
     setEntries([]);
     setSelected([]);
     setMediaUrls({});
+    setMediaFiles({});
   }, [visible]);
 
   const companyDevs = useMemo(
@@ -559,15 +609,38 @@ function AtendimentoModal({
     setSelected((prev) =>
       alreadySelected ? prev.filter((s) => s.path !== entry.path) : [...prev, entry],
     );
-    if (alreadySelected || mediaUrls[entry.path]) return;
+    if (alreadySelected || mediaFiles[entry.path]) return;
     setOpening(true);
-    void db.material
-      .signedUrl(entry.path, MEDIA_LINK_TTL_SECONDS)
-      .then((url) => {
+    void Promise.all([
+      db.material.download(entry.path),
+      db.material.signedUrl(entry.path, MEDIA_LINK_TTL_SECONDS),
+    ])
+      .then(([blob, url]) => {
+        if (blob) {
+          setMediaFiles((prev) => ({ ...prev, [entry.path]: blobToFile(blob, entry.name) }));
+        }
         if (url) setMediaUrls((prev) => ({ ...prev, [entry.path]: url }));
       })
       .catch(() => undefined)
       .finally(() => setOpening(false));
+  }
+
+  const prontos = selected
+    .map((f) => mediaFiles[f.path])
+    .filter((f): f is ShareableFile => Boolean(f));
+  const podeEnviarArquivos = prontos.length > 0 && canShareFiles(prontos);
+
+  function onEnviarMidia() {
+    const nav = webNavigator();
+    if (!nav?.share || prontos.length === 0) return;
+    setError(null);
+    void shareOrCopy(message);
+    nav
+      .share({ files: prontos, text: message })
+      .then(() => onClose())
+      .catch(() => {
+        setError('Envio cancelado. Você também pode usar “Abrir conversa” e mandar só o texto.');
+      });
   }
 
   function onAbrirConversa() {
@@ -720,17 +793,40 @@ function AtendimentoModal({
                   <Text style={styles.selectedCount}>
                     {selected.length} mídia(s) selecionada(s):{' '}
                     {selected.map((s) => s.name).join(', ')}
-                    {opening ? ' — preparando os links…' : ''}
+                    {opening ? ' — preparando os arquivos…' : ''}
                   </Text>
                 ) : null}
 
-                <Button
-                  label="Abrir conversa"
-                  onPress={onAbrirConversa}
-                  loading={opening}
-                  disabled={!message.trim() || generating || opening}
-                  style={styles.modalCta}
-                />
+                {podeEnviarArquivos ? (
+                  <>
+                    <Button
+                      label={`Enviar ${prontos.length > 1 ? 'arquivos' : 'arquivo'} no WhatsApp`}
+                      onPress={onEnviarMidia}
+                      disabled={!message.trim() || generating || opening}
+                      style={styles.modalCta}
+                    />
+                    <Text style={styles.shareHint}>
+                      O arquivo vai anexado de verdade — escolha {lead?.name ?? 'o contato'} na
+                      lista do WhatsApp. A mensagem também fica copiada, é só colar se ela não vier
+                      junto.
+                    </Text>
+                    <Button
+                      label="Abrir conversa (só o texto)"
+                      variant="secondary"
+                      onPress={onAbrirConversa}
+                      disabled={!message.trim() || generating}
+                      style={styles.modalCtaAlt}
+                    />
+                  </>
+                ) : (
+                  <Button
+                    label="Abrir conversa"
+                    onPress={onAbrirConversa}
+                    loading={opening}
+                    disabled={!message.trim() || generating || opening}
+                    style={styles.modalCta}
+                  />
+                )}
               </>
             ) : null}
           </ScrollView>
@@ -1169,6 +1265,13 @@ const makeStyles = (colors: AppColors) =>
 
     addToggle: { marginBottom: spacing.md },
     filterWrap: { marginBottom: spacing.md },
+    shareHint: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      marginTop: spacing.sm,
+      textAlign: 'center',
+    },
+    modalCtaAlt: { marginTop: spacing.md },
     filterToggle: {
       flexDirection: 'row',
       alignItems: 'center',

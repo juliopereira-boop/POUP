@@ -147,6 +147,12 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     return data.signedUrl;
   }
 
+  async download(path: string): Promise<Blob | null> {
+    const { data, error } = await supabase.storage.from(BUCKET).download(path);
+    if (error || !data) return null;
+    return data;
+  }
+
   async getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null> {
     const { data, error } = await supabase
       .from('company_materials')

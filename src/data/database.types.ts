@@ -52,6 +52,8 @@ export interface Database {
           stripe_subscription_id: string | null;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
+          trial_started_at: string | null;
+          trial_days: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -62,6 +64,8 @@ export interface Database {
           plan?: string | null;
           plan_tier?: string | null;
           storage_limit_bytes?: number;
+          trial_started_at?: string | null;
+          trial_days?: number | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           current_period_end?: string | null;
@@ -78,7 +82,36 @@ export interface Database {
           stripe_subscription_id?: string | null;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
+          trial_started_at?: string | null;
+          trial_days?: number | null;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      app_admins: {
+        Row: { user_id: string; note: string | null; created_at: string };
+        Insert: { user_id: string; note?: string | null; created_at?: string };
+        Update: { note?: string | null };
+        Relationships: [];
+      };
+      trial_campaign: {
+        Row: {
+          id: boolean;
+          enabled: boolean;
+          trial_days: number;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          enabled?: boolean;
+          trial_days?: number;
+          updated_by?: string | null;
+        };
+        Update: {
+          enabled?: boolean;
+          trial_days?: number;
         };
         Relationships: [];
       };
@@ -208,6 +241,8 @@ export interface Database {
           type_id: string;
           status_id: string;
           lead_id: string | null;
+          company_id: string | null;
+          development_id: string | null;
           start_at: string;
           end_at: string | null;
           location: string | null;
@@ -230,6 +265,8 @@ export interface Database {
           type_id: string;
           status_id?: string;
           lead_id?: string | null;
+          company_id?: string | null;
+          development_id?: string | null;
           start_at: string;
           end_at?: string | null;
           location?: string | null;
@@ -245,6 +282,8 @@ export interface Database {
           type_id?: string;
           status_id?: string;
           lead_id?: string | null;
+          company_id?: string | null;
+          development_id?: string | null;
           start_at?: string;
           end_at?: string | null;
           location?: string | null;
@@ -461,6 +500,14 @@ export interface Database {
       user_storage_used: {
         Args: { uid: string };
         Returns: number;
+      };
+      is_app_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      trial_active_count: {
+        Args: Record<string, never>;
+        Returns: number | null;
       };
     };
     Enums: Record<string, never>;

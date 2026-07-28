@@ -22,6 +22,8 @@ import type {
   SimulationInput,
   StorageEntry,
   Subscription,
+  TrialCampaign,
+  TrialCampaignInput,
   UserProfile,
 } from './types';
 
@@ -67,6 +69,22 @@ export interface BillingRepository {
   createBillingPortalSession(): Promise<Result<{ url: string }>>;
 }
 
+/**
+ * Configurações globais do app, mexidas apenas pelo dono (admin).
+ * A autorização de escrita é garantida por RLS no banco, não pela UI.
+ */
+export interface SettingsRepository {
+  /** O usuário logado é admin (está em `public.app_admins`). */
+  isAdmin(): Promise<boolean>;
+
+  getTrialCampaign(): Promise<TrialCampaign | null>;
+
+  saveTrialCampaign(input: TrialCampaignInput): Promise<Result<TrialCampaign>>;
+
+  /** Contas em período de teste válido agora. `null` quando não é admin. */
+  countActiveTrials(): Promise<number | null>;
+}
+
 export interface CompanyRepository {
   list(userId: string): Promise<Company[]>;
   create(userId: string, data: CompanyInput): Promise<Result<Company>>;
@@ -105,6 +123,7 @@ export interface MaterialRepository {
   ): Promise<Result<void>>;
   remove(path: string, isFolder: boolean): Promise<Result<void>>;
   signedUrl(path: string, expiresIn?: number): Promise<string | null>;
+  download(path: string): Promise<Blob | null>;
   getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null>;
   saveCompanyMaterial(
     userId: string,
@@ -114,6 +133,7 @@ export interface MaterialRepository {
 }
 
 export interface AppointmentRepository {
+  get(id: string): Promise<Appointment | null>;
   listRange(userId: string, startISO: string, endISO: string): Promise<Appointment[]>;
   listByLead(userId: string, leadId: string): Promise<Appointment[]>;
   create(userId: string, data: AppointmentInput): Promise<Result<Appointment>>;
