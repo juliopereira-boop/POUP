@@ -275,22 +275,6 @@ export const DEFAULT_LEAD_STAGES: LeadStageInput[] = [
   { nome: 'Perdido', cor: '#DC2626', ordem: 7 },
 ];
 
-/** Vitrine de mídia que o corretor envia ao lead pelo WhatsApp. */
-export interface MediaLinkInput {
-  leadId?: string | null;
-  developmentId?: string | null;
-  titulo?: string | null;
-  subtitulo?: string | null;
-  mensagem?: string | null;
-  paths: string[];
-}
-
-export interface MediaLink {
-  id: string;
-  url: string;
-  paths: string[];
-}
-
 export interface LeadCampaign {
   titulo: string;
   subtitulo: string;

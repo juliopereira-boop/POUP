@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { openGuide } from '@/features/guide';
+
 import { Button } from '@/components/Button';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
@@ -77,6 +79,15 @@ export default function ConfiguracoesScreen() {
           <Text style={styles.rowLabel}>Tema</Text>
           <ThemeToggle />
         </View>
+      </View>
+
+      <Text style={styles.sectionLabel}>Ajuda</Text>
+      <View style={styles.card}>
+        <NavRow
+          label="Guia do app"
+          subtitle="Rever o passo a passo de como usar o POUP"
+          onPress={openGuide}
+        />
       </View>
 
       <Text style={styles.sectionLabel}>Cadastros</Text>

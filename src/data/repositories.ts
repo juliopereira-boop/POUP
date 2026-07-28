@@ -17,8 +17,6 @@ import type {
   LeadStageFlag,
   LeadStageInput,
   LeadStatus,
-  MediaLink,
-  MediaLinkInput,
   Result,
   Simulation,
   SimulationInput,
@@ -143,7 +141,6 @@ export interface MaterialRepository {
   remove(path: string, isFolder: boolean): Promise<Result<void>>;
   signedUrl(path: string, expiresIn?: number): Promise<string | null>;
   download(path: string): Promise<Blob | null>;
-  createMediaLink(userId: string, data: MediaLinkInput): Promise<Result<MediaLink>>;
   getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null>;
   saveCompanyMaterial(
     userId: string,

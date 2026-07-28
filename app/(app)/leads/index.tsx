@@ -25,7 +25,6 @@ import {
   type Development,
   type Lead,
   type LeadStage,
-  type StorageEntry,
 } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
@@ -46,54 +45,6 @@ type Tab = 'gestao' | 'prospeccao';
 const SHOW_CAPTACAO_CARD = false;
 
 const MAX_WA_TEXT_LENGTH = 1800;
-
-interface ShareableFile {
-  name: string;
-  type: string;
-}
-
-interface WebNavigator {
-  share?: (data: { files?: ShareableFile[]; text?: string; title?: string }) => Promise<void>;
-  canShare?: (data: { files?: ShareableFile[] }) => boolean;
-}
-
-function webNavigator(): WebNavigator | null {
-  if (Platform.OS !== 'web') return null;
-  return (globalThis as unknown as { navigator?: WebNavigator }).navigator ?? null;
-}
-
-function blobToFile(blob: Blob, name: string): ShareableFile {
-  const FileCtor = (
-    globalThis as unknown as {
-      File?: new (parts: Blob[], name: string, opts: { type: string }) => ShareableFile;
-    }
-  ).File;
-  const type = (blob as unknown as { type?: string }).type || guessMime(name);
-  if (!FileCtor) return blob as unknown as ShareableFile;
-  return new FileCtor([blob], name, { type });
-}
-
-function guessMime(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (ext === 'png') return 'image/png';
-  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
-  if (ext === 'webp') return 'image/webp';
-  if (ext === 'gif') return 'image/gif';
-  if (ext === 'mp4') return 'video/mp4';
-  if (ext === 'pdf') return 'application/pdf';
-  return 'application/octet-stream';
-}
-
-function canShareFiles(files: ShareableFile[]): boolean {
-  const nav = webNavigator();
-  if (!nav?.share) return false;
-  if (!nav.canShare) return false;
-  try {
-    return nav.canShare({ files });
-  } catch {
-    return false;
-  }
-}
 
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
@@ -494,15 +445,6 @@ function AtendimentoModal({
   const [message, setMessage] = useState('');
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mediaOpen, setMediaOpen] = useState(false);
-  const [folderSegs, setFolderSegs] = useState<string[]>([]);
-  const [entries, setEntries] = useState<StorageEntry[]>([]);
-  const [loadingEntries, setLoadingEntries] = useState(false);
-  const [selected, setSelected] = useState<StorageEntry[]>([]);
-  const [mediaFiles, setMediaFiles] = useState<Record<string, ShareableFile>>({});
-  const [mediaLink, setMediaLink] = useState<string | null>(null);
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     if (!visible || !userId) return;
@@ -525,12 +467,6 @@ function AtendimentoModal({
     setDevelopmentId(null);
     setMessage('');
     setError(null);
-    setMediaOpen(false);
-    setFolderSegs([]);
-    setEntries([]);
-    setSelected([]);
-    setMediaFiles({});
-    setMediaLink(null);
   }, [visible]);
 
   const companyDevs = useMemo(
@@ -542,25 +478,6 @@ function AtendimentoModal({
     () => developments.find((d) => d.id === developmentId) ?? null,
     [developments, developmentId],
   );
-
-  const mediaPath = useMemo(() => {
-    if (!companyId || !developmentId) return null;
-    return ['material', companyId, developmentId, ...folderSegs].join('/');
-  }, [companyId, developmentId, folderSegs]);
-
-  useEffect(() => {
-    if (!mediaOpen || !userId || !mediaPath) return;
-    let active = true;
-    setLoadingEntries(true);
-    void db.material.list(userId, mediaPath).then((list) => {
-      if (!active) return;
-      setEntries(list);
-      setLoadingEntries(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [mediaOpen, userId, mediaPath]);
 
   const gerar = useCallback(
     async (dev: Development) => {
@@ -587,97 +504,13 @@ function AtendimentoModal({
     setCompanyId(v);
     setDevelopmentId(null);
     setMessage('');
-    setSelected([]);
-    setMediaLink(null);
-    setFolderSegs([]);
-    setMediaOpen(false);
     setError(null);
   }
 
   function onSelectDevelopment(v: string) {
     setDevelopmentId(v);
-    setSelected([]);
-    setMediaLink(null);
-    setFolderSegs([]);
-    setMediaOpen(false);
     const dev = developments.find((d) => d.id === v);
     if (dev) void gerar(dev);
-  }
-
-  function toggleFile(entry: StorageEntry) {
-    const alreadySelected = selected.some((s) => s.path === entry.path);
-    setSelected((prev) =>
-      alreadySelected ? prev.filter((s) => s.path !== entry.path) : [...prev, entry],
-    );
-    if (alreadySelected || mediaFiles[entry.path]) return;
-    setOpening(true);
-    void db.material
-      .download(entry.path)
-      .then((blob) => {
-        if (blob) {
-          setMediaFiles((prev) => ({ ...prev, [entry.path]: blobToFile(blob, entry.name) }));
-        }
-      })
-      .catch(() => undefined)
-      .finally(() => setOpening(false));
-  }
-
-  const selectedKey = selected.map((f) => f.path).join('|');
-
-  useEffect(() => {
-    if (!userId || selected.length === 0) {
-      setMediaLink(null);
-      setLinkLoading(false);
-      return;
-    }
-    let active = true;
-    setLinkLoading(true);
-    setMediaLink(null);
-    const timer = setTimeout(() => {
-      void db.material
-        .createMediaLink(userId, {
-          leadId: lead?.id ?? null,
-          developmentId: developmentId,
-          titulo: development?.name ?? 'Confira este imóvel',
-          subtitulo: development?.companyName ?? null,
-          mensagem: null,
-          paths: selected.map((f) => f.path),
-        })
-        .then((res) => {
-          if (!active) return;
-          if (res.ok) setMediaLink(res.data.url);
-          else setError(res.error);
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          if (active) setLinkLoading(false);
-        });
-    }, 450);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedKey, userId, lead?.id, developmentId, development?.name, development?.companyName]);
-
-  const prontos = selected
-    .map((f) => mediaFiles[f.path])
-    .filter((f): f is ShareableFile => Boolean(f));
-  const podeAnexarDireto = prontos.length > 0 && canShareFiles(prontos);
-
-  function onAnexarDireto() {
-    const nav = webNavigator();
-    if (!nav?.share || prontos.length === 0) return;
-    setError(null);
-    void shareOrCopy(message);
-    nav
-      .share({ files: prontos, text: message })
-      .then(() => onClose())
-      .catch(() => {
-        setError(
-          'Não deu pra anexar por aqui. Use “Enviar no WhatsApp” — funciona com qualquer número.',
-        );
-      });
   }
 
   function onEnviarNoWhatsApp() {
@@ -688,9 +521,8 @@ function AtendimentoModal({
       return;
     }
 
-    const texto = mediaLink ? `${message}\n\n${mediaLink}` : message;
     const url = `https://wa.me/55${digits}?text=${encodeURIComponent(
-      texto.slice(0, MAX_WA_TEXT_LENGTH),
+      message.slice(0, MAX_WA_TEXT_LENGTH),
     )}`;
     try {
       void Linking.openURL(url);
@@ -764,93 +596,14 @@ function AtendimentoModal({
                 {error ? <Text style={styles.subtleError}>{error}</Text> : null}
 
                 <Button
-                  label={mediaOpen ? '− Selecione sua mídia' : '📎 Selecione sua mídia'}
-                  variant="secondary"
-                  onPress={() => setMediaOpen((v) => !v)}
-                  style={styles.mediaToggle}
-                />
-                <Text style={styles.caption}>As mídias vão como links prontos na mensagem.</Text>
-
-                {mediaOpen ? (
-                  <View style={styles.mediaBox}>
-                    {folderSegs.length > 0 ? (
-                      <Pressable onPress={() => setFolderSegs(folderSegs.slice(0, -1))} hitSlop={6}>
-                        <Text style={styles.mediaBack}>‹ {folderSegs.join(' / ')}</Text>
-                      </Pressable>
-                    ) : null}
-                    {loadingEntries ? (
-                      <ActivityIndicator style={styles.loader} />
-                    ) : entries.length === 0 ? (
-                      <Text style={styles.caption}>
-                        Nenhum arquivo aqui. Suba os materiais em Material de Vendas.
-                      </Text>
-                    ) : (
-                      entries.map((e) => {
-                        const isSel = selected.some((s) => s.path === e.path);
-                        return (
-                          <Pressable
-                            key={e.path}
-                            onPress={() =>
-                              e.isFolder ? setFolderSegs([...folderSegs, e.name]) : toggleFile(e)
-                            }
-                            style={({ pressed }) => [
-                              styles.mediaRow,
-                              isSel && styles.mediaRowSelected,
-                              pressed && styles.pressed,
-                            ]}
-                          >
-                            <Text style={styles.mediaIcon}>
-                              {e.isFolder ? '📁' : isSel ? '☑️' : '⬜'}
-                            </Text>
-                            <Text style={styles.mediaName} numberOfLines={1}>
-                              {e.name}
-                            </Text>
-                            {e.isFolder ? <Text style={styles.mediaChevron}>›</Text> : null}
-                          </Pressable>
-                        );
-                      })
-                    )}
-                  </View>
-                ) : null}
-
-                {selected.length > 0 ? (
-                  <Text style={styles.selectedCount}>
-                    {selected.length} mídia(s): {selected.map((s) => s.name).join(', ')}
-                    {linkLoading ? ' — montando a vitrine…' : ''}
-                  </Text>
-                ) : null}
-
-                <Button
                   label="Enviar no WhatsApp"
                   onPress={onEnviarNoWhatsApp}
-                  loading={linkLoading}
-                  disabled={!message.trim() || generating || linkLoading}
+                  disabled={!message.trim() || generating}
                   style={styles.modalCta}
                 />
-
-                {selected.length > 0 ? (
-                  <Text style={styles.shareHint}>
-                    A conversa abre já no número de {lead?.name ?? 'o lead'}, com a mensagem e um
-                    link que mostra as fotos com prévia — funciona mesmo com quem você nunca
-                    conversou.
-                  </Text>
-                ) : null}
-
-                {podeAnexarDireto ? (
-                  <>
-                    <Button
-                      label={`Anexar ${prontos.length > 1 ? 'os arquivos' : 'o arquivo'} direto`}
-                      variant="secondary"
-                      onPress={onAnexarDireto}
-                      disabled={!message.trim() || generating || opening}
-                      style={styles.modalCtaAlt}
-                    />
-                    <Text style={styles.shareHint}>
-                      Manda a imagem em si, mas só aparece na lista do WhatsApp quem já é seu
-                      contato ou já conversou com você.
-                    </Text>
-                  </>
-                ) : null}
+                <Text style={styles.shareHint}>
+                  A conversa abre já no número de {lead?.name ?? 'o lead'} com a mensagem pronta.
+                </Text>
               </>
             ) : null}
           </ScrollView>
@@ -1295,7 +1048,6 @@ const makeStyles = (colors: AppColors) =>
       marginTop: spacing.sm,
       textAlign: 'center',
     },
-    modalCtaAlt: { marginTop: spacing.md },
     filterToggle: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1468,28 +1220,5 @@ const makeStyles = (colors: AppColors) =>
     },
     caption: { ...typography.caption, color: colors.inkSubtle, marginTop: spacing.sm },
     subtleError: { ...typography.caption, color: colors.warning, marginTop: spacing.sm },
-    mediaToggle: { marginTop: spacing.lg },
-    mediaBox: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      backgroundColor: colors.surface,
-      padding: spacing.md,
-      marginTop: spacing.md,
-    },
-    mediaBack: { ...typography.label, color: colors.primary, marginBottom: spacing.sm },
-    mediaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      paddingVertical: spacing.md,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.sm,
-    },
-    mediaRowSelected: { backgroundColor: colors.successSoft },
-    mediaIcon: { fontSize: 16 },
-    mediaName: { ...typography.body, color: colors.ink, flex: 1 },
-    mediaChevron: { ...typography.body, color: colors.inkSubtle },
     pressed: { opacity: 0.6 },
-    selectedCount: { ...typography.caption, color: colors.success, marginTop: spacing.md },
   });

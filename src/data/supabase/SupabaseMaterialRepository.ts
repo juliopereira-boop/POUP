@@ -1,10 +1,7 @@
-import { env } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import type { MaterialRepository } from '../repositories';
 import {
   type CompanyMaterial,
-  type MediaLink,
-  type MediaLinkInput,
   type Result,
   type StorageEntry,
   err,
@@ -16,10 +13,6 @@ type CompanyMaterialRow = Database['public']['Tables']['company_materials']['Row
 
 const BUCKET = 'uploads';
 const PLACEHOLDER = '.emptyFolderPlaceholder';
-
-function mediaLinkUrl(id: string): string {
-  return `${env.supabaseUrl.replace(/\/+$/, '')}/functions/v1/media-page?k=${id}`;
-}
 
 interface RawObject {
   name: string;
@@ -158,29 +151,6 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     const { data, error } = await supabase.storage.from(BUCKET).download(path);
     if (error || !data) return null;
     return data;
-  }
-
-  async createMediaLink(userId: string, data: MediaLinkInput): Promise<Result<MediaLink>> {
-    if (data.paths.length === 0) return err('Selecione pelo menos um arquivo.');
-    const { data: row, error } = await supabase
-      .from('media_links')
-      .insert({
-        user_id: userId,
-        lead_id: data.leadId ?? null,
-        development_id: data.developmentId ?? null,
-        titulo: data.titulo ?? null,
-        subtitulo: data.subtitulo ?? null,
-        mensagem: data.mensagem ?? null,
-        paths: data.paths,
-      })
-      .select('id, paths')
-      .single();
-    if (error || !row) return err(error?.message ?? 'Não foi possível gerar o link da mídia.');
-    return ok({
-      id: row.id as string,
-      url: mediaLinkUrl(row.id as string),
-      paths: (row.paths as string[] | null) ?? [],
-    });
   }
 
   async getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null> {

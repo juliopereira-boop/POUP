@@ -320,41 +320,6 @@ export interface Database {
         Update: { action?: string };
         Relationships: [];
       };
-      media_links: {
-        Row: {
-          id: string;
-          user_id: string;
-          lead_id: string | null;
-          development_id: string | null;
-          titulo: string | null;
-          subtitulo: string | null;
-          mensagem: string | null;
-          paths: string[];
-          views: number;
-          expires_at: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          lead_id?: string | null;
-          development_id?: string | null;
-          titulo?: string | null;
-          subtitulo?: string | null;
-          mensagem?: string | null;
-          paths: string[];
-          expires_at?: string;
-        };
-        Update: {
-          titulo?: string | null;
-          subtitulo?: string | null;
-          mensagem?: string | null;
-          paths?: string[];
-          expires_at?: string;
-        };
-        Relationships: [];
-      };
       lead_stages: {
         Row: {
           id: string;

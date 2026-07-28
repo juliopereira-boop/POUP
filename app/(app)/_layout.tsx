@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { LoadingScreen } from '@/components/Loading';
 import { OnboardingModal } from '@/components/OnboardingModal';
+import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -53,6 +54,7 @@ export default function AppLayout() {
       </Stack>
       <BottomTabBar />
       <OnboardingModal />
+      <WelcomeGuide />
     </View>
   );
 }
