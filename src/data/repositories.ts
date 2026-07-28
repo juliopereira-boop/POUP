@@ -17,6 +17,8 @@ import type {
   LeadStageFlag,
   LeadStageInput,
   LeadStatus,
+  MediaLink,
+  MediaLinkInput,
   Result,
   Simulation,
   SimulationInput,
@@ -83,6 +85,23 @@ export interface SettingsRepository {
 
   /** Contas em período de teste válido agora. `null` quando não é admin. */
   countActiveTrials(): Promise<number | null>;
+
+  /**
+   * Pede ao banco o período de teste para o PRÓPRIO usuário logado.
+   *
+   * Existe porque o trial só era concedido no gatilho de criação da conta em
+   * `auth.users`: quem já tinha conta quando a campanha foi ligada nunca
+   * recebia nada e caía no paywall. Aqui a concessão acontece de forma
+   * preguiçosa, no carregamento da assinatura.
+   *
+   * Todas as travas ficam no banco (campanha ligada, nunca conceder duas
+   * vezes, não mexer em quem já paga). O app não escolhe o alvo: é sempre a
+   * própria conta autenticada.
+   *
+   * @returns `true` apenas quando o teste foi concedido agora — nesse caso a
+   * assinatura precisa ser lida de novo. `false` quando nada mudou.
+   */
+  ensureMyTrial(): Promise<boolean>;
 }
 
 export interface CompanyRepository {
@@ -124,6 +143,7 @@ export interface MaterialRepository {
   remove(path: string, isFolder: boolean): Promise<Result<void>>;
   signedUrl(path: string, expiresIn?: number): Promise<string | null>;
   download(path: string): Promise<Blob | null>;
+  createMediaLink(userId: string, data: MediaLinkInput): Promise<Result<MediaLink>>;
   getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null>;
   saveCompanyMaterial(
     userId: string,

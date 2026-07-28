@@ -143,9 +143,10 @@ export default function CampanhasScreen() {
   return (
     <Screen>
       <Text style={styles.intro}>
-        Campanha de lançamento: enquanto ela estiver ativa, toda conta nova (inclusive login com
-        Google) ganha um período de teste gratuito, contado do primeiro acesso. Quando o prazo
-        termina, o acesso trava e o corretor vai para a tela de assinatura.
+        Campanha de lançamento: enquanto ela estiver ativa, toda conta que ainda não usou o teste
+        (inclusive login com Google) ganha um período de teste gratuito — as contas novas no
+        primeiro acesso, e as que já existiam assim que abrirem o app. Quando o prazo termina, o
+        acesso trava e o corretor vai para a tela de assinatura.
       </Text>
 
       <Text style={styles.sectionLabel}>Situação atual</Text>
@@ -158,10 +159,10 @@ export default function CampanhasScreen() {
         </View>
         <Text style={styles.cardText}>
           {enabled
-            ? `Contas novas recebem ${campaign?.trialDays} ${
+            ? `Quem ainda não usou o teste recebe ${campaign?.trialDays} ${
                 campaign?.trialDays === 1 ? 'dia' : 'dias'
               } de teste gratuito.`
-            : 'Contas novas não recebem teste: vão direto para a tela de pagamento.'}
+            : 'Ninguém recebe teste: contas sem assinatura vão direto para a tela de pagamento.'}
         </Text>
         <View style={styles.divider} />
         <View style={styles.metaRow}>
@@ -222,8 +223,10 @@ export default function CampanhasScreen() {
         <View style={styles.actions}>
           <Button label="Ativar campanha" onPress={activate} loading={saving} />
           <Text style={styles.hint}>
-            Ao ativar, a contagem começa no primeiro acesso de cada conta nova. Mudar a quantidade
-            de dias depois não altera o prazo de quem já está em teste.
+            Ao ativar, a contagem começa no primeiro acesso de cada conta — contas que já existiam
+            e nunca usaram o teste também recebem, assim que abrirem o app. Ninguém ganha um
+            segundo teste, e quem já assina não é afetado. Mudar a quantidade de dias depois não
+            altera o prazo de quem já está em teste.
           </Text>
         </View>
       )}

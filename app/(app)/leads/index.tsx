@@ -45,7 +45,6 @@ type Tab = 'gestao' | 'prospeccao';
 
 const SHOW_CAPTACAO_CARD = false;
 
-const MEDIA_LINK_TTL_SECONDS = 60 * 60 * 24 * 7;
 const MAX_WA_TEXT_LENGTH = 1800;
 
 interface ShareableFile {
@@ -500,8 +499,9 @@ function AtendimentoModal({
   const [entries, setEntries] = useState<StorageEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [selected, setSelected] = useState<StorageEntry[]>([]);
-  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [mediaFiles, setMediaFiles] = useState<Record<string, ShareableFile>>({});
+  const [mediaLink, setMediaLink] = useState<string | null>(null);
+  const [linkLoading, setLinkLoading] = useState(false);
   const [opening, setOpening] = useState(false);
 
   useEffect(() => {
@@ -529,8 +529,8 @@ function AtendimentoModal({
     setFolderSegs([]);
     setEntries([]);
     setSelected([]);
-    setMediaUrls({});
     setMediaFiles({});
+    setMediaLink(null);
   }, [visible]);
 
   const companyDevs = useMemo(
@@ -588,7 +588,7 @@ function AtendimentoModal({
     setDevelopmentId(null);
     setMessage('');
     setSelected([]);
-    setMediaUrls({});
+    setMediaLink(null);
     setFolderSegs([]);
     setMediaOpen(false);
     setError(null);
@@ -597,7 +597,7 @@ function AtendimentoModal({
   function onSelectDevelopment(v: string) {
     setDevelopmentId(v);
     setSelected([]);
-    setMediaUrls({});
+    setMediaLink(null);
     setFolderSegs([]);
     setMediaOpen(false);
     const dev = developments.find((d) => d.id === v);
@@ -611,26 +611,61 @@ function AtendimentoModal({
     );
     if (alreadySelected || mediaFiles[entry.path]) return;
     setOpening(true);
-    void Promise.all([
-      db.material.download(entry.path),
-      db.material.signedUrl(entry.path, MEDIA_LINK_TTL_SECONDS),
-    ])
-      .then(([blob, url]) => {
+    void db.material
+      .download(entry.path)
+      .then((blob) => {
         if (blob) {
           setMediaFiles((prev) => ({ ...prev, [entry.path]: blobToFile(blob, entry.name) }));
         }
-        if (url) setMediaUrls((prev) => ({ ...prev, [entry.path]: url }));
       })
       .catch(() => undefined)
       .finally(() => setOpening(false));
   }
 
+  const selectedKey = selected.map((f) => f.path).join('|');
+
+  useEffect(() => {
+    if (!userId || selected.length === 0) {
+      setMediaLink(null);
+      setLinkLoading(false);
+      return;
+    }
+    let active = true;
+    setLinkLoading(true);
+    setMediaLink(null);
+    const timer = setTimeout(() => {
+      void db.material
+        .createMediaLink(userId, {
+          leadId: lead?.id ?? null,
+          developmentId: developmentId,
+          titulo: development?.name ?? 'Confira este imóvel',
+          subtitulo: development?.companyName ?? null,
+          mensagem: null,
+          paths: selected.map((f) => f.path),
+        })
+        .then((res) => {
+          if (!active) return;
+          if (res.ok) setMediaLink(res.data.url);
+          else setError(res.error);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setLinkLoading(false);
+        });
+    }, 450);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, userId, lead?.id, developmentId, development?.name, development?.companyName]);
+
   const prontos = selected
     .map((f) => mediaFiles[f.path])
     .filter((f): f is ShareableFile => Boolean(f));
-  const podeEnviarArquivos = prontos.length > 0 && canShareFiles(prontos);
+  const podeAnexarDireto = prontos.length > 0 && canShareFiles(prontos);
 
-  function onEnviarMidia() {
+  function onAnexarDireto() {
     const nav = webNavigator();
     if (!nav?.share || prontos.length === 0) return;
     setError(null);
@@ -639,39 +674,28 @@ function AtendimentoModal({
       .share({ files: prontos, text: message })
       .then(() => onClose())
       .catch(() => {
-        setError('Envio cancelado. Você também pode usar “Abrir conversa” e mandar só o texto.');
+        setError(
+          'Não deu pra anexar por aqui. Use “Enviar no WhatsApp” — funciona com qualquer número.',
+        );
       });
   }
 
-  function onAbrirConversa() {
+  function onEnviarNoWhatsApp() {
     if (!lead) return;
-    const links = selected.map((f) => mediaUrls[f.path]).filter((u): u is string => Boolean(u));
     const digits = lead.phone.replace(/\D/g, '');
     if (!digits) {
       setError('Este lead não tem telefone cadastrado.');
       return;
     }
 
-    let texto = message;
-    const kept: string[] = [];
-    for (const link of links) {
-      const tentativa = [message, '', ...kept, link].join('\n');
-      if (encodeURIComponent(tentativa).length > MAX_WA_TEXT_LENGTH) break;
-      kept.push(link);
-      texto = tentativa;
-    }
-
-    const faltando = selected.length - kept.length;
+    const texto = mediaLink ? `${message}\n\n${mediaLink}` : message;
+    const url = `https://wa.me/55${digits}?text=${encodeURIComponent(
+      texto.slice(0, MAX_WA_TEXT_LENGTH),
+    )}`;
     try {
-      void Linking.openURL(`https://wa.me/55${digits}?text=${encodeURIComponent(texto)}`);
+      void Linking.openURL(url);
     } catch {
       setError('Não foi possível abrir o WhatsApp. Copie a mensagem e envie manualmente.');
-      return;
-    }
-    if (faltando > 0) {
-      setError(
-        `${faltando} arquivo(s) não entraram na mensagem (limite do WhatsApp). Envie em uma segunda mensagem.`,
-      );
       return;
     }
     onClose();
@@ -791,42 +815,42 @@ function AtendimentoModal({
 
                 {selected.length > 0 ? (
                   <Text style={styles.selectedCount}>
-                    {selected.length} mídia(s) selecionada(s):{' '}
-                    {selected.map((s) => s.name).join(', ')}
-                    {opening ? ' — preparando os arquivos…' : ''}
+                    {selected.length} mídia(s): {selected.map((s) => s.name).join(', ')}
+                    {linkLoading ? ' — montando a vitrine…' : ''}
                   </Text>
                 ) : null}
 
-                {podeEnviarArquivos ? (
+                <Button
+                  label="Enviar no WhatsApp"
+                  onPress={onEnviarNoWhatsApp}
+                  loading={linkLoading}
+                  disabled={!message.trim() || generating || linkLoading}
+                  style={styles.modalCta}
+                />
+
+                {selected.length > 0 ? (
+                  <Text style={styles.shareHint}>
+                    A conversa abre já no número de {lead?.name ?? 'o lead'}, com a mensagem e um
+                    link que mostra as fotos com prévia — funciona mesmo com quem você nunca
+                    conversou.
+                  </Text>
+                ) : null}
+
+                {podeAnexarDireto ? (
                   <>
                     <Button
-                      label={`Enviar ${prontos.length > 1 ? 'arquivos' : 'arquivo'} no WhatsApp`}
-                      onPress={onEnviarMidia}
-                      disabled={!message.trim() || generating || opening}
-                      style={styles.modalCta}
-                    />
-                    <Text style={styles.shareHint}>
-                      O arquivo vai anexado de verdade — escolha {lead?.name ?? 'o contato'} na
-                      lista do WhatsApp. A mensagem também fica copiada, é só colar se ela não vier
-                      junto.
-                    </Text>
-                    <Button
-                      label="Abrir conversa (só o texto)"
+                      label={`Anexar ${prontos.length > 1 ? 'os arquivos' : 'o arquivo'} direto`}
                       variant="secondary"
-                      onPress={onAbrirConversa}
-                      disabled={!message.trim() || generating}
+                      onPress={onAnexarDireto}
+                      disabled={!message.trim() || generating || opening}
                       style={styles.modalCtaAlt}
                     />
+                    <Text style={styles.shareHint}>
+                      Manda a imagem em si, mas só aparece na lista do WhatsApp quem já é seu
+                      contato ou já conversou com você.
+                    </Text>
                   </>
-                ) : (
-                  <Button
-                    label="Abrir conversa"
-                    onPress={onAbrirConversa}
-                    loading={opening}
-                    disabled={!message.trim() || generating || opening}
-                    style={styles.modalCta}
-                  />
-                )}
+                ) : null}
               </>
             ) : null}
           </ScrollView>

@@ -320,6 +320,41 @@ export interface Database {
         Update: { action?: string };
         Relationships: [];
       };
+      media_links: {
+        Row: {
+          id: string;
+          user_id: string;
+          lead_id: string | null;
+          development_id: string | null;
+          titulo: string | null;
+          subtitulo: string | null;
+          mensagem: string | null;
+          paths: string[];
+          views: number;
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          lead_id?: string | null;
+          development_id?: string | null;
+          titulo?: string | null;
+          subtitulo?: string | null;
+          mensagem?: string | null;
+          paths: string[];
+          expires_at?: string;
+        };
+        Update: {
+          titulo?: string | null;
+          subtitulo?: string | null;
+          mensagem?: string | null;
+          paths?: string[];
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
       lead_stages: {
         Row: {
           id: string;
@@ -508,6 +543,17 @@ export interface Database {
       trial_active_count: {
         Args: Record<string, never>;
         Returns: number | null;
+      };
+      /**
+       * Concede o período de teste ao PRÓPRIO usuário autenticado.
+       * Sem argumentos de propósito: o alvo é sempre `auth.uid()`, então um
+       * usuário não consegue conceder trial para outro.
+       * Retorna `true` somente quando concedeu agora (o app deve reconsultar
+       * a assinatura); `false` quando nada mudou.
+       */
+      ensure_my_trial: {
+        Args: Record<string, never>;
+        Returns: boolean;
       };
     };
     Enums: Record<string, never>;

@@ -37,6 +37,7 @@ function mapSubscription(row: SubscriptionRow): Subscription {
     storageLimitBytes: Number(row.storage_limit_bytes ?? 0),
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
+    trialStartedAt: row.trial_started_at ?? null,
   };
 }
 

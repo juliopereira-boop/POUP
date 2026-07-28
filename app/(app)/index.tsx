@@ -6,6 +6,8 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { db, isAppointmentLate, type Appointment, type AppointmentType } from '@/data';
+import type { PlanFeatureKey } from '@/features/plans';
+import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -17,6 +19,8 @@ interface ServiceItem {
   label: string;
   icon: IconName;
   route: Href;
+  /** Quando definido, o atalho ganha o selo "PRO" se o plano atual não liberar. */
+  feature?: PlanFeatureKey;
 }
 
 const SERVICES: ServiceItem[] = [
@@ -31,8 +35,14 @@ const SERVICES: ServiceItem[] = [
   },
   { key: 'calendario', label: 'Calendário', icon: 'calendar', route: '/(app)/calendario' },
   { key: 'cadastros', label: 'Cadastros', icon: 'building', route: '/(app)/cadastros' },
-  { key: 'comissao', label: 'Comissão', icon: 'coins', route: '/(app)/comissao' },
-  { key: 'vendas', label: 'Vendas', icon: 'handshake', route: '/(app)/vendas' },
+  {
+    key: 'comissao',
+    label: 'Comissão',
+    icon: 'coins',
+    route: '/(app)/comissao',
+    feature: 'comissao',
+  },
+  { key: 'vendas', label: 'Vendas', icon: 'handshake', route: '/(app)/vendas', feature: 'vendas' },
   { key: 'configuracoes', label: 'Ajustes', icon: 'gear', route: '/(app)/configuracoes' },
 ];
 
@@ -64,6 +74,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const { trialDaysLeft } = useSubscription();
+  const { canUse } = useFeatureAccess();
   const { width } = useWindowDimensions();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -204,6 +215,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             {SERVICES.map((s, i) => {
               const featured = i === 0;
+              const locked = s.feature ? !canUse(s.feature) : false;
               return (
                 <View key={s.key} style={[styles.cell, { width: `${100 / columns}%` }]}>
                   <Pressable
@@ -219,6 +231,11 @@ export default function HomeScreen() {
                     <Text style={[styles.tileLabel, featured && styles.tileLabelFeatured]}>
                       {s.label}
                     </Text>
+                    {locked ? (
+                      <View style={styles.proTag}>
+                        <Text style={styles.proTagText}>PRO</Text>
+                      </View>
+                    ) : null}
                   </Pressable>
                 </View>
               );
@@ -369,6 +386,23 @@ const makeStyles = (colors: AppColors) =>
     tilePressed: { opacity: 0.75 },
     tileLabel: { ...typography.caption, color: colors.ink, fontWeight: '700', fontSize: 12.5 },
     tileLabelFeatured: { color: colors.white },
+    proTag: {
+      position: 'absolute',
+      top: spacing.sm,
+      right: spacing.sm,
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+    },
+    proTagText: {
+      ...typography.caption,
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: colors.primary,
+    },
 
     todayBlock: { marginBottom: spacing.lg },
     sectionTitle: {

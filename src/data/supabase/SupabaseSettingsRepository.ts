@@ -58,4 +58,12 @@ export class SupabaseSettingsRepository implements SettingsRepository {
     if (error || data == null) return null;
     return Number(data);
   }
+
+  async ensureMyTrial(): Promise<boolean> {
+    const { data, error } = await supabase.rpc('ensure_my_trial');
+    // Qualquer falha aqui é tratada como "não concedeu": o usuário segue com a
+    // assinatura que já tinha em vez de travar o carregamento do app.
+    if (error || data == null) return false;
+    return data === true;
+  }
 }

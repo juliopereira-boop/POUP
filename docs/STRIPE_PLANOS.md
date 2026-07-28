@@ -1,14 +1,39 @@
 # Guia — Criar os planos Start e Pro no Stripe
 
-O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
-**limite de armazenamento** (uploads dos corretores):
+O POUP tem **dois planos** de assinatura mensal:
 
-| Plano  | Armazenamento | Sugestão de preço |
-| ------ | ------------- | ----------------- |
-| Start  | 5 GB          | R$ 59,90/mês       |
-| Pro    | 25 GB         | R$ 99,90/mês       |
+| Plano  | Armazenamento | Preço        |
+| ------ | ------------- | ------------ |
+| Start  | 5 GB          | R$ 59,90/mês |
+| Pro    | 25 GB         | R$ 89,90/mês |
 
-> Os limites vivem em `src/features/plans.ts` (app) e em
+### O que cada plano inclui
+
+O **Start** tem tudo, **menos três recursos**, que são exclusivos do **Pro**:
+
+- Vendas realizadas
+- Controle de comissão
+- Agente de IA de atendimento
+
+Incluído nos **dois** planos:
+
+- Prospecção de leads
+- Gestão de leads (funil configurável, ficha completa do cliente, filtros)
+- Simulador de financiamento
+- Proposta de compra e venda em PDF
+- Material de venda
+- Calendário e agendamentos
+- Cadastros de empresas e empreendimentos
+- Página de captação com QR Code do corretor
+- Acesso no celular e no computador
+- Armazenamento (5 GB no Start, 25 GB no Pro)
+
+> A lista completa de funcionalidades e a marcação de incluído/não incluído
+> ficam em `PLAN_FEATURES`, em `src/features/plans.ts`. O bloqueio em tela usa
+> a mesma lista pela função `canUse(feature, tier, isTrial)` — quem está em
+> **período de teste gratuito vê tudo liberado**, mesmo com `plan_tier = start`.
+
+> Os limites de armazenamento vivem em `src/features/plans.ts` (app) e em
 > `supabase/functions/stripe-webhook/index.ts` (`PLAN_LIMITS`). Se mudar um,
 > mude os dois. Os preços exibidos no app estão em `plans.ts` (`priceLabel`) e
 > devem bater com o que você configurar no Stripe abaixo.
@@ -37,7 +62,7 @@ O POUP tem **dois planos** de assinatura mensal. O diferencial principal é o
 
 Repita o passo 1 com:
 - **Name:** `POUP Pro`
-- **Amount:** `99,90` BRL, Monthly
+- **Amount:** `89,90` BRL, Monthly
 - Copie o `Price ID` → esse é o seu `STRIPE_PRICE_PRO`.
 
 > ⚠️ Copie o **Price ID** (`price_...`), NÃO o Product ID (`prod_...`).

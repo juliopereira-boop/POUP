@@ -42,6 +42,24 @@ export interface Subscription {
   storageLimitBytes: number;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  /**
+   * Quando o período de teste gratuito foi concedido a esta conta.
+   * `null` = a conta NUNCA usou o teste (é candidata a receber um, se a
+   * campanha estiver ligada). Preenchido = já usou, e nunca ganha outro.
+   */
+  trialStartedAt: string | null;
+}
+
+/**
+ * A conta ainda pode ganhar o teste gratuito: está sem acesso e nunca usou o
+ * teste. Só o banco decide de fato (a campanha precisa estar ligada) — isto é
+ * apenas o filtro barato do lado do app, para não chamar a RPC à toa.
+ */
+export function isTrialGrantCandidate(sub: Subscription | null): boolean {
+  if (isSubscriptionActive(sub)) return false;
+  // Sem linha de assinatura o app não sabe nada: vale tentar.
+  if (!sub) return true;
+  return sub.trialStartedAt === null;
 }
 
 export interface StorageUsage {
@@ -256,6 +274,22 @@ export const DEFAULT_LEAD_STAGES: LeadStageInput[] = [
   { nome: 'Convertido', cor: '#16A34A', ordem: 6 },
   { nome: 'Perdido', cor: '#DC2626', ordem: 7 },
 ];
+
+/** Vitrine de mídia que o corretor envia ao lead pelo WhatsApp. */
+export interface MediaLinkInput {
+  leadId?: string | null;
+  developmentId?: string | null;
+  titulo?: string | null;
+  subtitulo?: string | null;
+  mensagem?: string | null;
+  paths: string[];
+}
+
+export interface MediaLink {
+  id: string;
+  url: string;
+  paths: string[];
+}
 
 export interface LeadCampaign {
   titulo: string;
