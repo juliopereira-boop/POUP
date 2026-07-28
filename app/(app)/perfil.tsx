@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { formatCNPJ, formatPhone } from '@/lib/masks';
+import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -21,6 +21,7 @@ export default function PerfilScreen() {
   const [agency, setAgency] = useState('');
   const [agencyManager, setAgencyManager] = useState('');
   const [cnpj, setCnpj] = useState('');
+  const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [creci, setCreci] = useState('');
   const [saving, setSaving] = useState(false);
@@ -32,14 +33,19 @@ export default function PerfilScreen() {
     setAgency(profile.agency ?? '');
     setAgencyManager(profile.agencyManager ?? '');
     setCnpj(formatCNPJ(profile.cnpj ?? ''));
+    setCpf(formatCPF(profile.cpf ?? ''));
     setPhone(formatPhone(profile.phone ?? ''));
     setCreci(profile.creci ?? '');
   }, [profile]);
 
   async function save() {
     setError(null);
-    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !phone.trim()) {
-      setError('Nome, imobiliária, CNPJ e telefone são obrigatórios.');
+    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !cpf.trim() || !phone.trim()) {
+      setError('Nome, CPF, imobiliária, CNPJ e telefone são obrigatórios.');
+      return;
+    }
+    if (!isValidCPF(cpf)) {
+      setError('CPF inválido. Confira os números.');
       return;
     }
     setSaving(true);
@@ -48,6 +54,7 @@ export default function PerfilScreen() {
       agency: agency.trim(),
       agencyManager: agencyManager.trim() || null,
       cnpj: cnpj.trim(),
+      cpf: cpf.trim(),
       phone: phone.trim(),
       creci: creci.trim() || null,
     });
@@ -66,6 +73,13 @@ export default function PerfilScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
+      <Input
+        label="Seu CPF"
+        value={cpf}
+        onChangeText={(t) => setCpf(formatCPF(t))}
+        placeholder="000.000.000-00"
+        keyboardType="numbers-and-punctuation"
+      />
       <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
       <Input label="Gerente imob" value={agencyManager} onChangeText={setAgencyManager} placeholder="Nome do gerente da imobiliária" autoCapitalize="words" />
       <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />

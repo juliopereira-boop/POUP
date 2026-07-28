@@ -13,6 +13,7 @@ export interface UserProfile {
   agency: string | null;
   agencyManager: string | null;
   cnpj: string | null;
+  cpf: string | null;
   phone: string | null;
   avatarUrl: string | null;
   creci: string | null;
@@ -22,7 +23,13 @@ export interface UserProfile {
 
 export function isProfileComplete(p: UserProfile | null): boolean {
   if (!p) return false;
-  return Boolean(p.fullName?.trim() && p.agency?.trim() && p.cnpj?.trim() && p.phone?.trim());
+  return Boolean(
+    p.fullName?.trim() &&
+      p.agency?.trim() &&
+      p.cnpj?.trim() &&
+      p.cpf?.trim() &&
+      p.phone?.trim(),
+  );
 }
 
 export type SubscriptionStatus =

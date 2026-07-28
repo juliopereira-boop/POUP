@@ -10,6 +10,7 @@ export interface Database {
           agency: string | null;
           agency_manager: string | null;
           cnpj: string | null;
+          cpf: string | null;
           phone: string | null;
           avatar_url: string | null;
           creci: string | null;
@@ -22,6 +23,7 @@ export interface Database {
           agency?: string | null;
           agency_manager?: string | null;
           cnpj?: string | null;
+          cpf?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;
@@ -33,6 +35,7 @@ export interface Database {
           agency?: string | null;
           agency_manager?: string | null;
           cnpj?: string | null;
+          cpf?: string | null;
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;

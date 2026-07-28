@@ -3,7 +3,7 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
 import { Input } from './Input';
-import { formatCNPJ, formatPhone } from '@/lib/masks';
+import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -15,14 +15,19 @@ export function OnboardingModal() {
   const [fullName, setFullName] = useState(profile?.fullName ?? '');
   const [agency, setAgency] = useState(profile?.agency ?? '');
   const [cnpj, setCnpj] = useState(profile?.cnpj ?? '');
+  const [cpf, setCpf] = useState(profile?.cpf ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
     setError(null);
-    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !phone.trim()) {
+    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !cpf.trim() || !phone.trim()) {
       setError('Preencha todos os campos para continuar.');
+      return;
+    }
+    if (!isValidCPF(cpf)) {
+      setError('CPF inválido. Confira os números.');
       return;
     }
     setSaving(true);
@@ -30,6 +35,7 @@ export function OnboardingModal() {
       fullName: fullName.trim(),
       agency: agency.trim(),
       cnpj: cnpj.trim(),
+      cpf: cpf.trim(),
       phone: phone.trim(),
     });
     setSaving(false);
@@ -43,12 +49,19 @@ export function OnboardingModal() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>Complete seu cadastro</Text>
             <Text style={styles.subtitle}>
-              Precisamos de alguns dados para personalizar suas simulações e propostas.
+              Precisamos de alguns dados para personalizar suas simulações e propostas. Seu CPF identifica sua conta.
             </Text>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
+            <Input
+              label="Seu CPF"
+              value={cpf}
+              onChangeText={(t) => setCpf(formatCPF(t))}
+              placeholder="000.000.000-00"
+              keyboardType="numbers-and-punctuation"
+            />
             <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
             <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
             <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />

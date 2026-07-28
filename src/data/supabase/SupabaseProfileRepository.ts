@@ -12,6 +12,7 @@ function mapProfile(row: ProfileRow): UserProfile {
     agency: row.agency,
     agencyManager: row.agency_manager,
     cnpj: row.cnpj,
+    cpf: row.cpf,
     phone: row.phone,
     avatarUrl: row.avatar_url,
     creci: row.creci,
@@ -43,6 +44,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
         agency: patch.agency,
         agency_manager: patch.agencyManager,
         cnpj: patch.cnpj,
+        cpf: patch.cpf,
         phone: patch.phone,
         avatar_url: patch.avatarUrl,
         creci: patch.creci,
@@ -50,7 +52,15 @@ export class SupabaseProfileRepository implements ProfileRepository {
       })
       .select('*')
       .single();
-    if (error || !data) return err(error?.message ?? 'Falha ao salvar perfil.');
+    if (error || !data) {
+      if (error && /profiles_cpf_digits_unique/i.test(error.message)) {
+        return err('Este CPF já está cadastrado em outra conta.');
+      }
+      if (error && /profiles_cpf_11_digits/i.test(error.message)) {
+        return err('Informe um CPF com 11 dígitos.');
+      }
+      return err(error?.message ?? 'Falha ao salvar perfil.');
+    }
     return ok(mapProfile(data));
   }
 }
