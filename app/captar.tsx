@@ -102,7 +102,7 @@ export default function CaptarLeadScreen() {
   return (
     <Screen>
       <View style={styles.hero}>
-        <WordMark size={28} color="#FFFFFF" />
+        <WordMark size={28} color="#FFFFFF" onDark />
         <Text style={styles.heroTitle}>{title}</Text>
         <Text style={styles.heroSubtitle}>{subtitle}</Text>
       </View>

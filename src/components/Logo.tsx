@@ -7,13 +7,15 @@ const DARK = require('../../assets/logo-dark.png');
 
 interface LogoProps {
   size?: number;
+  /** Força a versão clara da marca, para uso sobre fundo colorido/escuro. */
+  onDark?: boolean;
 }
 
-export function Logo({ size = 34 }: LogoProps) {
+export function Logo({ size = 34, onDark }: LogoProps) {
   const { isDark } = useTheme();
   return (
     <Image
-      source={isDark ? DARK : LIGHT}
+      source={onDark || isDark ? DARK : LIGHT}
       style={[styles.img, { width: size, height: size }]}
       resizeMode="contain"
       accessibilityIgnoresInvertColors
