@@ -26,9 +26,8 @@ export default function PaywallScreen() {
   // (é para onde os módulos exclusivos do Pro mandam o usuário do Start).
   const upgradeMode = upgrade === '1';
 
-  // SCREENSHOT-NEUTRALIZED
-  if (false && user && isActive && !upgradeMode) return <Redirect href="/(app)" />;
-  if (false && !user) return <Redirect href="/(auth)/login" />;
+  if (user && isActive && !upgradeMode) return <Redirect href="/(app)" />;
+  if (!user) return <Redirect href="/(auth)/login" />;
 
   async function checkAgain() {
     setCheckingAgain(true);
