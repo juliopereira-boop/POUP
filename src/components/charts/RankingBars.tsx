@@ -82,7 +82,7 @@ const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     wrapper: { width: '100%', gap: spacing.md },
     row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    nameCol: { width: '32%', minWidth: 80 },
+    nameCol: { width: '38%', minWidth: 84, maxWidth: 260 },
     name: { ...typography.caption, fontWeight: '600', color: colors.ink },
     caption: { fontSize: 11, lineHeight: 14, color: colors.inkSubtle },
     track: {

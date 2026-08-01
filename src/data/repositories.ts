@@ -24,6 +24,7 @@ import type {
   SaleStatus,
   Simulation,
   SimulationInput,
+  SimulationStatus,
   StorageEntry,
   Subscription,
   TrialCampaign,
@@ -130,6 +131,11 @@ export interface SimulationRepository {
   create(userId: string, data: SimulationInput): Promise<Result<Simulation>>;
   update(id: string, data: SimulationInput): Promise<Result<Simulation>>;
   remove(id: string): Promise<Result<void>>;
+  /**
+   * Marca o ciclo de vida da simulação. Usado pelo módulo de vendas para
+   * sinalizar `venda_realizada` sem reescrever o resto da simulação.
+   */
+  setStatus(id: string, status: SimulationStatus): Promise<Result<void>>;
 }
 
 export interface MaterialRepository {

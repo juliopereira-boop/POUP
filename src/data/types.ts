@@ -206,6 +206,9 @@ export interface Simulation {
   updatedAt: string;
 }
 
+/** Ciclo de vida da simulação. `venda_realizada` é gravado pelo módulo de vendas. */
+export type SimulationStatus = 'simulacao' | 'venda_realizada';
+
 export type SimulationInput = Omit<
   Simulation,
   'id' | 'status' | 'createdAt' | 'updatedAt'

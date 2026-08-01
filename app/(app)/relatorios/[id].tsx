@@ -106,28 +106,14 @@ function isDuplicateSaleError(message: string): boolean {
   return /já (foi )?registrada|duplicate key|duplicada|unique|23505|already exists/i.test(message);
 }
 
-type SimulationStatusWriter = {
-  setStatus?: (id: string, status: string) => Promise<unknown>;
-};
-
 /**
  * Marca a simulação como convertida (`status = 'venda_realizada'`).
  *
- * A coluna existe desde a migração 0006, mas `SimulationRepository` ainda não
- * expõe como escrevê-la (`SimulationInput` omite `status` de propósito). Enquanto
- * o método não existir isto é um no-op silencioso, e nada quebra: quem manda em
- * "esta simulação já virou venda" é a própria venda
- * (`db.sales.getBySimulation`), consultada a cada abertura desta tela. O sync é
- * sempre best-effort — a venda já está salva quando ele roda.
+ * É best-effort de propósito: a venda já está salva e é ela a fonte da verdade.
+ * Se o sync falhar, a tela tenta de novo no próximo carregamento.
  */
 async function syncSimulationSold(simulationId: string): Promise<void> {
-  const repo = db.simulations as typeof db.simulations & SimulationStatusWriter;
-  if (typeof repo.setStatus !== 'function') return;
-  try {
-    await repo.setStatus(simulationId, 'venda_realizada');
-  } catch {
-    // Falha de sync não pode derrubar o fluxo: a venda continua salva.
-  }
+  await db.simulations.setStatus(simulationId, 'venda_realizada');
 }
 
 export default function SimulationDetailScreen() {

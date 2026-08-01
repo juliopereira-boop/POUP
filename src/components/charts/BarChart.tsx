@@ -55,7 +55,7 @@ export function BarChart({ data, height = 180, formatValue }: BarChartProps) {
   const boxWidth = available > 0 ? available : fallbackWidth;
   const chartWidth = scrolls ? Math.max(boxWidth, fallbackWidth) : boxWidth;
   const slot = data.length > 0 ? chartWidth / data.length : chartWidth;
-  const barWidth = Math.max(6, Math.min(28, slot * 0.56));
+  const barWidth = Math.max(6, Math.min(40, slot * 0.58));
 
   const plotTop = VALUE_ROW;
   const plotHeight = Math.max(24, height - VALUE_ROW - LABEL_ROW);
@@ -81,6 +81,18 @@ export function BarChart({ data, height = 180, formatValue }: BarChartProps) {
 
   const chart = (
     <Svg width={chartWidth} height={height}>
+      {/* Teto da escala: dá referência de leitura mesmo com a série rolada. */}
+      {maxValue > 0 ? (
+        <Line
+          x1={0}
+          y1={plotTop + 0.5}
+          x2={chartWidth}
+          y2={plotTop + 0.5}
+          stroke={colors.border}
+          strokeWidth={1}
+          strokeDasharray="3 4"
+        />
+      ) : null}
       <Line
         x1={0}
         y1={baseline + 0.5}
@@ -119,12 +131,23 @@ export function BarChart({ data, height = 180, formatValue }: BarChartProps) {
           {format(maxValue)}
         </SvgText>
       ) : null}
+      {maxValue === 0 ? (
+        <SvgText
+          x={chartWidth / 2}
+          y={plotTop + plotHeight / 2}
+          fill={colors.inkSubtle}
+          fontSize={12}
+          textAnchor="middle"
+        >
+          Nenhum valor no período
+        </SvgText>
+      ) : null}
       {data.map((item, index) => (
         <SvgText
           key={`label-${item.label}-${index}`}
           x={index * slot + slot / 2}
           y={height - 5}
-          fill={colors.inkSubtle}
+          fill={colors.inkMuted}
           fontSize={10}
           textAnchor="middle"
         >

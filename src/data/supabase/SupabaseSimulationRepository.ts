@@ -5,7 +5,14 @@ import {
   type SimuladorState,
 } from '@/features/simulador/SimuladorProvider';
 import type { SimulationRepository } from '../repositories';
-import { type Result, type Simulation, type SimulationInput, err, ok } from '../types';
+import {
+  type Result,
+  type Simulation,
+  type SimulationInput,
+  type SimulationStatus,
+  err,
+  ok,
+} from '../types';
 
 const SELECT =
   'id, client_name, company_id, company_name, development_id, development_name, monthly_value, risk_pct, within_risk, unit_value, delivery_date, manager_name, proposal_date, state, status, created_at, updated_at';
@@ -110,6 +117,15 @@ export class SupabaseSimulationRepository implements SimulationRepository {
       .single();
     if (error || !row) return err(error?.message ?? 'Falha ao atualizar a simulação.');
     return ok(mapSimulation(row as unknown as SimulationRow));
+  }
+
+  async setStatus(id: string, status: SimulationStatus): Promise<Result<void>> {
+    const { error } = await supabase
+      .from('simulations')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return err(error.message);
+    return ok(undefined);
   }
 
   async remove(id: string): Promise<Result<void>> {

@@ -1,9 +1,17 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { BarChart } from '@/components/charts/BarChart';
 import { abbreviateBRL } from '@/components/charts/format';
+import { categoryColor, useCategoricalPalette } from '@/components/charts/palette';
 import { RankingBars } from '@/components/charts/RankingBars';
 import { StackedShare } from '@/components/charts/StackedShare';
 import { Button } from '@/components/Button';
@@ -28,7 +36,7 @@ import { computeSaleKpis, type SaleKpis } from '@/features/vendas/kpis';
 import { resolvePeriod } from '@/features/vendas/period';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
-import { radius, spacing, typography, type AppColors } from '@/theme';
+import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
 const feature = FEATURES.find((f) => f.key === 'vendas')!;
 
@@ -160,8 +168,6 @@ function VendasContent() {
 
   return (
     <Screen>
-      <Text style={styles.title}>Vendas Realizadas</Text>
-
       <View style={styles.segment}>
         <Pressable
           style={[styles.segmentItem, tab === 'painel' && styles.segmentItemActive]}
@@ -270,7 +276,7 @@ function VendasContent() {
       {loading ? (
         <ActivityIndicator style={styles.loader} color={colors.primary} />
       ) : tab === 'painel' ? (
-        <Painel kpis={kpis} styles={styles} colors={colors} />
+        <Painel kpis={kpis} styles={styles} />
       ) : (
         <Lista
           sales={sales}
@@ -286,15 +292,12 @@ function VendasContent() {
  * Aba 1 — Painel de indicadores
  * ------------------------------------------------------------------------- */
 
-function Painel({
-  kpis,
-  styles,
-  colors,
-}: {
-  kpis: SaleKpis;
-  styles: Styles;
-  colors: AppColors;
-}) {
+function Painel({ kpis, styles }: { kpis: SaleKpis; styles: Styles }) {
+  const palette = useCategoricalPalette();
+  const { width } = useWindowDimensions();
+  // No desktop as duas colunas ficam largas demais para um número curto.
+  const kpiWidth = width >= layout.desktopBreakpoint ? '33.3333%' : '50%';
+
   if (kpis.totalVendas === 0 && kpis.totalDistratos === 0) {
     return (
       <View style={styles.empty}>
@@ -308,7 +311,6 @@ function Painel({
   }
 
   const composicao = kpis.composicao.filter((c) => c.value > 0);
-  const paleta = [colors.primary, colors.success, colors.warning, colors.inkSubtle];
 
   return (
     <View>
@@ -324,15 +326,22 @@ function Painel({
       </View>
 
       <View style={styles.kpiGrid}>
-        <KpiCard styles={styles} label="Ticket médio" value={brl(kpis.ticketMedio ?? 0)} />
         <KpiCard
           styles={styles}
+          width={kpiWidth}
+          label="Ticket médio"
+          value={brl(kpis.ticketMedio ?? 0)}
+        />
+        <KpiCard
+          styles={styles}
+          width={kpiWidth}
           label="Comissão estimada"
           value={brl(kpis.comissaoTotal)}
           tone="success"
         />
         <KpiCard
           styles={styles}
+          width={kpiWidth}
           label="Ciclo médio de venda"
           value={dias(kpis.cicloMedioDias)}
           caption={
@@ -343,18 +352,21 @@ function Painel({
         />
         <KpiCard
           styles={styles}
+          width={kpiWidth}
           label="Taxa de conversão"
           value={pct(kpis.taxaConversao)}
           caption={`${kpis.leadsNoPeriodo} lead(s) no período`}
         />
         <KpiCard
           styles={styles}
+          width={kpiWidth}
           label="Taxa de distrato"
           value={pct(kpis.taxaDistrato)}
           tone={kpis.taxaDistrato !== null && kpis.taxaDistrato > 10 ? 'danger' : 'neutral'}
         />
         <KpiCard
           styles={styles}
+          width={kpiWidth}
           label="Vendas no total"
           value={String(kpis.totalVendas + kpis.totalDistratos)}
           caption="ativas + distratadas"
@@ -396,7 +408,7 @@ function Painel({
             data={composicao.map((c, i) => ({
               label: c.label,
               value: c.value,
-              color: paleta[i % paleta.length],
+              color: categoryColor(palette, i),
             }))}
             formatValue={brl}
           />
@@ -411,16 +423,18 @@ function KpiCard({
   label,
   value,
   caption,
+  width,
   tone = 'neutral',
 }: {
   styles: Styles;
   label: string;
   value: string;
   caption?: string;
+  width: string;
   tone?: 'neutral' | 'success' | 'danger';
 }) {
   return (
-    <View style={styles.kpiCell}>
+    <View style={[styles.kpiCell, { width: width as `${number}%` }]}>
       <View style={styles.kpiCard}>
         <Text style={styles.kpiLabel} numberOfLines={2}>
           {label}
@@ -522,7 +536,6 @@ function Lista({
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
     loader: { marginTop: spacing.xl },
 
     segment: {
@@ -590,7 +603,7 @@ const makeStyles = (colors: AppColors) =>
       marginHorizontal: -spacing.xs,
       marginBottom: spacing.lg,
     },
-    kpiCell: { width: '50%', padding: spacing.xs },
+    kpiCell: { padding: spacing.xs },
     kpiCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
