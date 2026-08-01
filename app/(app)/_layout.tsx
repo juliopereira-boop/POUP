@@ -50,7 +50,8 @@ export default function AppLayout() {
         />
         <Stack.Screen name="material-venda" options={{ title: 'Material de Venda' }} />
         <Stack.Screen name="comissao" options={{ title: 'Controle de Comissão' }} />
-        <Stack.Screen name="vendas" options={{ title: 'Vendas Realizadas' }} />
+        <Stack.Screen name="vendas/index" options={{ title: 'Vendas Realizadas' }} />
+        <Stack.Screen name="vendas/[id]" options={{ title: 'Venda' }} />
       </Stack>
       <BottomTabBar />
       <OnboardingModal />

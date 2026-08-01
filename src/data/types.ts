@@ -211,6 +211,96 @@ export type SimulationInput = Omit<
   'id' | 'status' | 'createdAt' | 'updatedAt'
 >;
 
+/* ------------------------------------------------------------------------- *
+ * Vendas realizadas
+ * ------------------------------------------------------------------------- */
+
+export type SaleStatus = 'ativa' | 'distratada';
+
+/**
+ * Uma venda fechada. Nasce de uma simulação (botão "Venda realizada" no
+ * relatório) ou de um cadastro manual. Os nomes de empresa/empreendimento são
+ * gravados junto (snapshot) para o histórico não mudar se o cadastro for
+ * editado ou apagado depois.
+ */
+export interface Sale {
+  id: string;
+  simulationId: string | null;
+  leadId: string | null;
+
+  clientName: string;
+  clientCpf: string | null;
+  clientPhone: string | null;
+  clientEmail: string | null;
+
+  companyId: string | null;
+  companyName: string | null;
+  developmentId: string | null;
+  developmentName: string | null;
+  block: number | null;
+  unit: string | null;
+
+  /** Valor total da venda (VGV desta unidade). */
+  saleValue: number;
+  financedValue: number | null;
+  subsidyValue: number | null;
+  fgtsValue: number | null;
+  /** Ato + parcelas pagas direto à construtora. */
+  ownResourcesValue: number | null;
+
+  commissionPct: number | null;
+  commissionValue: number | null;
+
+  /** Data do fechamento (YYYY-MM-DD, sempre em partes locais). */
+  saleDate: string;
+  status: SaleStatus;
+  distratoDate: string | null;
+  distratoReason: string | null;
+
+  /**
+   * Quando o atendimento começou (criação do lead ou da simulação).
+   * Guardado junto para o ciclo médio de venda não depender de o lead existir.
+   */
+  originStartedAt: string | null;
+
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>;
+
+export type SalePeriodPreset =
+  | 'mes_atual'
+  | 'mes_passado'
+  | 'ultimos_3_meses'
+  | 'ultimos_12_meses'
+  | 'ano_atual'
+  | 'tudo'
+  | 'personalizado';
+
+export interface SaleFilters {
+  preset: SalePeriodPreset;
+  /** YYYY-MM-DD inclusivo. `null` = sem limite. */
+  from: string | null;
+  to: string | null;
+  companyId: string | null;
+  developmentId: string | null;
+  status: SaleStatus | 'todas';
+  /** Busca livre por nome do cliente, CPF ou unidade. */
+  query: string;
+}
+
+export const EMPTY_SALE_FILTERS: SaleFilters = {
+  preset: 'ultimos_12_meses',
+  from: null,
+  to: null,
+  companyId: null,
+  developmentId: null,
+  status: 'ativa',
+  query: '',
+};
+
 export type LeadSource = 'landing' | 'whatsapp' | 'prospeccao' | 'meta' | 'manual';
 export type LeadStatus = 'novo' | 'em_contato' | 'convertido' | 'perdido';
 

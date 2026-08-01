@@ -14,7 +14,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     icon: 'house',
     title: 'Bem-vindo ao POUP',
     description:
-      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 10 passos rápidos — leva menos de dois minutos.',
+      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 11 passos rápidos — leva menos de dois minutos.',
     bullets: [
       'Você pode sair do guia quando quiser',
       'Para rever depois: Ajustes › Guia do app',
@@ -108,6 +108,19 @@ export const GUIDE_STEPS: GuideStep[] = [
     ],
   },
   {
+    icon: 'handshake',
+    where: 'Início › Vendas Realizadas',
+    title: 'Acompanhe suas vendas',
+    description:
+      'Fechou? Abra o relatório da simulação e toque em “Registrar venda realizada”. A venda entra aqui com todos os dados do cliente e do negócio.',
+    bullets: [
+      'A aba Painel mostra seus indicadores: VGV, ticket médio, comissão, ciclo de venda, conversão e distrato',
+      'Filtre por período, construtora, empreendimento ou situação — os indicadores recalculam na hora',
+      'A aba Vendas lista tudo, com busca por cliente, CPF ou unidade',
+      'Se um negócio cair, registre o distrato sem perder o histórico',
+    ],
+  },
+  {
     icon: 'gear',
     where: 'Início › Ajustes',
     title: 'Deixe do seu jeito',
@@ -120,7 +133,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     ],
   },
   {
-    icon: 'handshake',
+    icon: 'home',
     title: 'Pronto para vender',
     description: 'Se quiser um roteiro para hoje, é este:',
     bullets: [

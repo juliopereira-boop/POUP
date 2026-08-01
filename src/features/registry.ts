@@ -71,7 +71,7 @@ export const FEATURES: Feature[] = [
     title: 'Vendas Realizadas',
     emoji: '🤝',
     route: '/(app)/vendas',
-    description: 'Histórico e gestão das vendas fechadas.',
-    ready: false,
+    description: 'Painel de indicadores e histórico das vendas fechadas.',
+    ready: true,
   },
 ];

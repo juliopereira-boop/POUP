@@ -18,6 +18,10 @@ import type {
   LeadStageInput,
   LeadStatus,
   Result,
+  Sale,
+  SaleFilters,
+  SaleInput,
+  SaleStatus,
   Simulation,
   SimulationInput,
   StorageEntry,
@@ -164,6 +168,30 @@ export interface AppointmentRepository {
   remove(id: string): Promise<Result<void>>;
   listTypes(): Promise<AppointmentType[]>;
   listStatuses(): Promise<AppointmentStatusInfo[]>;
+}
+
+/**
+ * Vendas realizadas.
+ *
+ * Os KPIs NÃO são calculados aqui: `list` devolve as vendas já filtradas e
+ * `computeSaleKpis` (em `@/features/vendas/kpis`) faz as contas. Assim os
+ * números do painel e a listagem nunca divergem, e as contas ficam testáveis.
+ */
+export interface SaleRepository {
+  list(userId: string, filters: SaleFilters): Promise<Sale[]>;
+  get(id: string): Promise<Sale | null>;
+  /** A venda gerada por uma simulação, se já existir. */
+  getBySimulation(simulationId: string): Promise<Sale | null>;
+  create(userId: string, data: SaleInput): Promise<Result<Sale>>;
+  update(id: string, data: Partial<SaleInput>): Promise<Result<Sale>>;
+  setStatus(
+    id: string,
+    status: SaleStatus,
+    extra?: { distratoDate?: string | null; distratoReason?: string | null },
+  ): Promise<Result<Sale>>;
+  remove(id: string): Promise<Result<void>>;
+  /** Leads criados no período — base da taxa de conversão. */
+  countLeadsInRange(userId: string, from: string | null, to: string | null): Promise<number>;
 }
 
 export interface LeadRepository {
