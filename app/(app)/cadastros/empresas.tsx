@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import {
   CommissionRuleForm,
   describeCommissionRule,
+  parseDecimalBR,
   useCommissionRuleForm,
 } from '@/components/CommissionRuleForm';
 import { Input } from '@/components/Input';
@@ -26,6 +27,7 @@ export default function EmpresasScreen() {
   const { user } = useAuth();
 
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [rules, setRules] = useState<Record<string, CommissionRule | null>>({});
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -39,6 +41,8 @@ export default function EmpresasScreen() {
   const [correspondents, setCorrespondents] = useState<Correspondent[]>([]);
   const [newCorrespondent, setNewCorrespondent] = useState('');
 
+  const commission = useCommissionRuleForm();
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +51,10 @@ export default function EmpresasScreen() {
     setLoading(true);
     const list = await db.companies.list(user.id);
     setCompanies(list);
+    const loaded = await Promise.all(
+      list.map(async (c) => [c.id, await db.commissions.getRule(c.id)] as const),
+    );
+    setRules(Object.fromEntries(loaded));
     setLoading(false);
   }, [user]);
 
@@ -64,6 +72,7 @@ export default function EmpresasScreen() {
     setCoincide(true);
     setCorrespondents([]);
     setNewCorrespondent('');
+    commission.reset();
     setError(null);
   }
 
