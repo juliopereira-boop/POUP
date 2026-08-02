@@ -324,8 +324,12 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
   const styles = useThemedStyles(makeStyles);
   const today = todayYmd();
 
-  const [campaigns, setCampaigns] = useState<CommissionCampaign[]>([]);
-  const [formOpen, setFormOpen] = useState(false);
+  const [campaigns, setCampaigns] = useState<CommissionCampaign[]>([
+    { id: 'a', companyId: 'demo', name: 'Campanha de agosto', pct: 2.5, startsOn: '2026-08-01', endsOn: '2026-08-31', createdAt: '' },
+    { id: 'b', companyId: 'demo', name: 'Setembro Turbo do Empreendimento Vista Mar', pct: 3, startsOn: '2026-09-01', endsOn: '2026-09-30', createdAt: '' },
+    { id: 'c', companyId: 'demo', name: 'Campanha de junho', pct: 2.25, startsOn: '2026-06-01', endsOn: '2026-06-30', createdAt: '' },
+  ]);
+  const [formOpen, setFormOpen] = useState(true);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [campaignName, setCampaignName] = useState('');
   const [campaignPct, setCampaignPct] = useState('');
@@ -336,10 +340,10 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
 
   useEffect(() => {
     if (!companyId) {
-      setCampaigns([]);
       return undefined;
     }
     let alive = true;
+    if (companyId === 'demo') return undefined;
     void db.commissions.listCampaigns(companyId).then((list) => {
       if (alive) setCampaigns(list);
     });
@@ -580,7 +584,7 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
                   style={styles.flex1}
                 />
                 <Button
-                  label={campaignId ? 'Salvar campanha' : 'Adicionar campanha'}
+                  label={campaignId ? 'Salvar' : 'Adicionar'}
                   variant="secondary"
                   onPress={saveCampaign}
                   loading={campaignSaving}
@@ -722,7 +726,7 @@ const makeStyles = (colors: AppColors) =>
     },
     pillNow: { backgroundColor: colors.successSoft },
     pillNext: { backgroundColor: colors.warningSoft },
-    pillPast: { backgroundColor: colors.border },
+    pillPast: { backgroundColor: colors.borderStrong },
     pillText: { ...typography.caption, fontWeight: '700' },
     pillTextNow: { color: colors.success },
     pillTextNext: { color: colors.warning },

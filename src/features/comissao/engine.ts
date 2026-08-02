@@ -278,9 +278,9 @@ function betterCampaign(candidate: CommissionCampaign, current: CommissionCampai
  * Quebra `totalValue` nas parcelas da regra, com vencimentos.
  *
  * Valores:
- * - Rateio em centavos inteiros pelo método cumulativo, então
- *   `soma(parcelas) === totalValue` SEMPRE (ver cabeçalho do arquivo). A sobra
- *   fica na última parcela e nenhuma parcela é negativa.
+ * - Rateio em centavos inteiros (piso em todas, sobra na última), então
+ *   `soma(parcelas) === totalValue` SEMPRE (ver cabeçalho do arquivo) e
+ *   nenhuma parcela é negativa.
  * - `installmentsSplit` define o peso de cada parcela; `null`, vazio ou
  *   inválido => divisão igualitária (ver `resolveWeights`).
  *

@@ -775,7 +775,9 @@ function Parcelas({
                   ]}
                   numberOfLines={1}
                 >
-                  {inst.invoiceStatus === 'emitida' ? 'Nota fiscal emitida' : 'Nota fiscal cancelada'}
+                  {inst.invoiceStatus === 'emitida'
+                    ? 'Nota fiscal emitida'
+                    : 'Nota fiscal cancelada'}
                   {inst.invoiceNumber ? ` · nº ${inst.invoiceNumber}` : ''}
                 </Text>
               </View>
@@ -935,7 +937,12 @@ const makeStyles = (colors: AppColors) =>
     },
     instRowLate: { borderColor: colors.danger },
     instRowOff: { opacity: 0.62 },
-    instMain: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.lg },
+    instMain: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      padding: spacing.lg,
+    },
     instLeft: { flex: 1, gap: 2 },
     instClient: { ...typography.body, color: colors.ink, fontWeight: '700' },
     instMeta: { ...typography.caption, color: colors.inkMuted },

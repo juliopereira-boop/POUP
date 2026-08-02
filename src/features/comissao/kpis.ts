@@ -29,7 +29,11 @@
  * inteiro — e o Supabase com ele — para dentro de um módulo puro).
  */
 
-import { isInstallmentLate, type CommissionInstallment, type CommissionWithInstallments } from '@/data/types';
+import {
+  isInstallmentLate,
+  type CommissionInstallment,
+  type CommissionWithInstallments,
+} from '@/data/types';
 
 /* ------------------------------------------------------------------------- *
  * Tipos públicos

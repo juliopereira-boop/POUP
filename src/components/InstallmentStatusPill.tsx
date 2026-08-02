@@ -23,13 +23,7 @@ export function InstallmentStatusPill({ status, late = false }: InstallmentStatu
   const styles = useThemedStyles(makeStyles);
 
   const tone =
-    status === 'recebida'
-      ? 'ok'
-      : status === 'cancelada'
-        ? 'off'
-        : late
-          ? 'bad'
-          : 'warn';
+    status === 'recebida' ? 'ok' : status === 'cancelada' ? 'off' : late ? 'bad' : 'warn';
 
   const label =
     status === 'recebida'
