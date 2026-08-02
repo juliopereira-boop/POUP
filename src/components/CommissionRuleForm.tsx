@@ -316,7 +316,8 @@ interface CommissionRuleFormProps {
   controller: CommissionRuleController;
   /** null enquanto a empresa não existir: campanhas só depois de salvar. */
   companyId: string | null;
-  userId: string;
+  /** null enquanto a sessão não carregou. */
+  userId: string | null;
 }
 
 export function CommissionRuleForm({ controller, companyId, userId }: CommissionRuleFormProps) {
@@ -411,7 +412,7 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
   }
 
   async function saveCampaign() {
-    if (!companyId) return;
+    if (!companyId || !userId) return;
     const invalid = validateCampaign();
     if (invalid) return setCampaignError(invalid);
     if (!startsOn || !endsOn) return;
@@ -712,6 +713,8 @@ const makeStyles = (colors: AppColors) =>
     campaignName: { ...typography.body, color: colors.ink, fontWeight: '600', flexShrink: 1 },
     campaignMeta: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.xs },
     campaignActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
+    editLink: { ...typography.label, color: colors.primary },
+    deleteLink: { ...typography.label, color: colors.danger },
     pill: {
       borderRadius: radius.pill,
       paddingHorizontal: spacing.md,

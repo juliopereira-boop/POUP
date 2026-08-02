@@ -2,6 +2,7 @@ import type {
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
+  CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
   LeadRepository,
@@ -22,6 +23,7 @@ import { SupabaseLeadRepository } from './supabase/SupabaseLeadRepository';
 import { SupabaseAppointmentRepository } from './supabase/SupabaseAppointmentRepository';
 import { SupabaseSettingsRepository } from './supabase/SupabaseSettingsRepository';
 import { SupabaseSaleRepository } from './supabase/SupabaseSaleRepository';
+import { SupabaseCommissionRepository } from './supabase/SupabaseCommissionRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -35,6 +37,7 @@ export interface DataLayer {
   appointments: AppointmentRepository;
   settings: SettingsRepository;
   sales: SaleRepository;
+  commissions: CommissionRepository;
 }
 
 type Provider = 'supabase';
@@ -56,6 +59,7 @@ function createDataLayer(provider: Provider): DataLayer {
         appointments: new SupabaseAppointmentRepository(),
         settings: new SupabaseSettingsRepository(),
         sales: new SupabaseSaleRepository(),
+        commissions: new SupabaseCommissionRepository(),
       };
   }
 }
@@ -67,6 +71,7 @@ export type {
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
+  CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
   LeadRepository,

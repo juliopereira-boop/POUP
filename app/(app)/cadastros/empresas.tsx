@@ -86,11 +86,7 @@ export default function EmpresasScreen() {
     setCoincide(company.coincideInstallments);
     setError(null);
     setCorrespondents(await db.companies.listCorrespondents(company.id));
-  }
-
-  function num(input: string): number | null {
-    const n = Number(input.trim().replace(',', '.'));
-    return input.trim() && Number.isFinite(n) ? n : null;
+    await commission.loadFor(company.id);
   }
 
   async function save() {
@@ -98,20 +94,42 @@ export default function EmpresasScreen() {
     setError(null);
     if (!name.trim()) return setError('Informe o nome da empresa.');
 
+    // A regra de comissão é validada ANTES de tocar no banco: nada de criar a
+    // empresa e depois descobrir que o percentual estava errado.
+    const ruleError = commission.validate();
+    if (ruleError) return setError(ruleError);
+
     const payload: CompanyInput = {
       name: name.trim(),
-      risk: num(risk),
-      maxInstallments: num(maxInstallments),
-      maxSemiannual: num(maxSemiannual),
-      maxAnnual: num(maxAnnual),
+      risk: parseDecimalBR(risk),
+      maxInstallments: parseDecimalBR(maxInstallments),
+      maxSemiannual: parseDecimalBR(maxSemiannual),
+      maxAnnual: parseDecimalBR(maxAnnual),
       coincideInstallments: coincide,
     };
     setSaving(true);
     const result = editingId
       ? await db.companies.update(editingId, payload)
       : await db.companies.create(user.id, payload);
+    if (!result.ok) {
+      setSaving(false);
+      return setError(result.error);
+    }
+
+    // A regra depende do id da empresa: ao criar, salva logo depois que a
+    // empresa nasce; ao editar, usa o id que já existe.
+    const companyId = result.data.id;
+    const ruleFailure = await commission.persist(user.id, companyId);
     setSaving(false);
-    if (!result.ok) return setError(result.error);
+    if (ruleFailure) {
+      // A empresa está salva; só a regra falhou. Passa para o modo de edição
+      // dela para o corretor tentar de novo sem perder o que digitou.
+      setEditingId(companyId);
+      setCorrespondents(await db.companies.listCorrespondents(companyId));
+      void load();
+      return setError(`Empresa salva, mas a regra de comissão não foi: ${ruleFailure}`);
+    }
+
     resetForm();
     void load();
   }
@@ -187,6 +205,12 @@ export default function EmpresasScreen() {
         />
         <ToggleField label="Coincidir parcelas" value={coincide} onChange={setCoincide} />
 
+        <CommissionRuleForm
+          controller={commission}
+          companyId={editingId}
+          userId={user?.id ?? null}
+        />
+
         <Text style={styles.sectionTitle}>Correspondentes</Text>
         {editingId ? (
           <>
@@ -237,6 +261,9 @@ export default function EmpresasScreen() {
             <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{c.name}</Text>
               <Text style={styles.itemMeta}>Risco: {c.risk != null ? `${c.risk}%` : '—'}</Text>
+              <Text style={styles.itemMeta}>
+                Comissão: {describeCommissionRule(rules[c.id] ?? null)}
+              </Text>
             </View>
             <View style={styles.itemActions}>
               <Pressable onPress={() => startEdit(c)} hitSlop={8}>
