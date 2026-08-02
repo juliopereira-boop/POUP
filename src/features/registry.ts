@@ -63,8 +63,8 @@ export const FEATURES: Feature[] = [
     title: 'Controle de Comissão',
     emoji: '🪙',
     route: '/(app)/comissao',
-    description: 'Calcule e acompanhe suas comissões por venda.',
-    ready: false,
+    description: 'Parcelas, recebimentos e o que ainda falta entrar.',
+    ready: true,
   },
   {
     key: 'vendas',

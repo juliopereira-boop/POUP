@@ -6,8 +6,18 @@ import type {
   AuthUser,
   Company,
   CompanyInput,
+  Commission,
+  CommissionCampaign,
+  CommissionCampaignInput,
+  CommissionFilters,
+  CommissionInstallment,
+  CommissionInstallmentStatus,
+  CommissionRule,
+  CommissionRuleInput,
+  CommissionWithInstallments,
   CompanyMaterial,
   Correspondent,
+  InvoiceStatus,
   Development,
   DevelopmentInput,
   Lead,
@@ -198,6 +208,88 @@ export interface SaleRepository {
   remove(id: string): Promise<Result<void>>;
   /** Leads criados no período — base da taxa de conversão. */
   countLeadsInRange(userId: string, from: string | null, to: string | null): Promise<number>;
+}
+
+/**
+ * Comissões.
+ *
+ * As regras (percentual, campanhas, parcelamento) ficam na construtora. As
+ * parcelas são geradas quando a venda é registrada, aplicando a regra vigente
+ * na DATA DA VENDA — e ficam congeladas: mudar a regra depois não reescreve
+ * comissão já lançada.
+ *
+ * Os KPIs não são calculados aqui: `list` devolve o que passou pelos filtros e
+ * `computeCommissionKpis` (em `@/features/comissao/kpis`) faz as contas.
+ */
+export interface CommissionRepository {
+  /* --- regras, no cadastro da construtora --- */
+  getRule(companyId: string): Promise<CommissionRule | null>;
+  saveRule(userId: string, companyId: string, input: CommissionRuleInput): Promise<Result<CommissionRule>>;
+  listCampaigns(companyId: string): Promise<CommissionCampaign[]>;
+  addCampaign(
+    userId: string,
+    companyId: string,
+    input: CommissionCampaignInput,
+  ): Promise<Result<CommissionCampaign>>;
+  updateCampaign(id: string, input: CommissionCampaignInput): Promise<Result<CommissionCampaign>>;
+  removeCampaign(id: string): Promise<Result<void>>;
+
+  /* --- comissões e parcelas --- */
+  list(userId: string, filters: CommissionFilters): Promise<CommissionWithInstallments[]>;
+  get(id: string): Promise<CommissionWithInstallments | null>;
+  getBySale(saleId: string): Promise<CommissionWithInstallments | null>;
+
+  /**
+   * Cria a comissão de uma venda com as parcelas já calculadas.
+   * Idempotente por venda: se já existir, devolve a existente sem duplicar.
+   */
+  createForSale(
+    userId: string,
+    data: {
+      commission: Omit<Commission, 'id' | 'createdAt' | 'updatedAt'>;
+      installments: Omit<CommissionInstallment, 'id' | 'commissionId'>[];
+    },
+  ): Promise<Result<CommissionWithInstallments>>;
+
+  /** Regera as parcelas de uma comissão (ex.: o corretor renegociou o parcelamento). */
+  replaceInstallments(
+    commissionId: string,
+    installments: Omit<CommissionInstallment, 'id' | 'commissionId'>[],
+  ): Promise<Result<CommissionWithInstallments>>;
+
+  updateCommission(
+    id: string,
+    patch: Partial<Pick<Commission, 'pct' | 'totalValue' | 'source' | 'campaignName' | 'notes'>>,
+  ): Promise<Result<Commission>>;
+
+  updateInstallment(
+    id: string,
+    patch: Partial<
+      Pick<
+        CommissionInstallment,
+        'dueDate' | 'value' | 'status' | 'paidDate' | 'paidValue' | 'notes'
+      >
+    >,
+  ): Promise<Result<CommissionInstallment>>;
+
+  setInstallmentStatus(
+    id: string,
+    status: CommissionInstallmentStatus,
+    extra?: { paidDate?: string | null; paidValue?: number | null },
+  ): Promise<Result<CommissionInstallment>>;
+
+  /** Registra a nota fiscal da parcela. A emissão automática entra depois. */
+  setInvoice(
+    id: string,
+    data: {
+      invoiceStatus: InvoiceStatus;
+      invoiceNumber?: string | null;
+      invoiceUrl?: string | null;
+      invoiceIssuedAt?: string | null;
+    },
+  ): Promise<Result<CommissionInstallment>>;
+
+  removeCommission(id: string): Promise<Result<void>>;
 }
 
 export interface LeadRepository {

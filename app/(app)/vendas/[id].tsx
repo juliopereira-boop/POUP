@@ -27,9 +27,15 @@ import { SaleStatusPill } from '@/components/SaleStatusPill';
 import { Screen } from '@/components/Screen';
 import { db, type Sale, type SaleInput } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
+import {
+  cancelCommissionForDistrato,
+  ensureCommissionForSale,
+  revertCommissionCancellation,
+} from '@/features/comissao/link';
 import { FEATURES } from '@/features/registry';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { currencyToNumber, formatCPF, formatCurrencyBRL, formatPhone } from '@/lib/masks';
+import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -86,6 +92,8 @@ export default function VendaDetailScreen() {
 
 function VendaContent() {
   const styles = useThemedStyles(makeStyles);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -100,9 +108,16 @@ function VendaContent() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setSale(await db.sales.get(id));
+    const found = await db.sales.get(id);
+    setSale(found);
     setLoading(false);
-  }, [id]);
+    // Rede de segurança: se o lançamento da comissão falhou no momento do
+    // registro da venda, é aqui que ele acontece. `ensureCommissionForSale` é
+    // idempotente, então abrir a tela várias vezes não duplica nada.
+    if (found && userId && found.status === 'ativa') {
+      void ensureCommissionForSale(userId, found);
+    }
+  }, [id, userId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -131,6 +146,7 @@ function VendaContent() {
       return;
     }
     setSale(res.data);
+    void revertCommissionCancellation(sale.id);
     setNotice('Distrato revertido: a venda voltou a contar como ativa.');
   }
 
@@ -550,6 +566,9 @@ function DistratoModal({
       setError(res.error);
       return;
     }
+    // A comissão acompanha: parcelas pendentes viram canceladas. O que já foi
+    // recebido não é mexido — quem decide sobre devolução é o corretor.
+    void cancelCommissionForDistrato(sale.id);
     onSaved(res.data);
   }
 

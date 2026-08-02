@@ -29,6 +29,7 @@ import {
   formatMonthYearBR,
   monthsBetween,
 } from '@/features/simulador/calc';
+import { ensureCommissionForSale } from '@/features/comissao/link';
 import { generateProposal } from '@/features/simulador/proposal';
 import {
   ASSOCIATION_OPTIONS,
@@ -200,6 +201,9 @@ export default function SimulationDetailScreen() {
     setSaleModal(false);
     setSale(created);
     setNotice(null);
+    // A comissão nasce junto com a venda, com as parcelas já calculadas pela
+    // regra da construtora. Best-effort: se falhar, a tela da venda tenta de novo.
+    if (userId) void ensureCommissionForSale(userId, created);
     // ORDEM: a venda já está gravada (o índice único do banco garante que não
     // existe outra para esta simulação). Só depois o status da simulação é
     // atualizado — e sem bloquear a navegação, porque é um espelho do que a

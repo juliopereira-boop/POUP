@@ -215,6 +215,154 @@ export type SimulationInput = Omit<
 >;
 
 /* ------------------------------------------------------------------------- *
+ * Comissão — regras (ficam no cadastro da construtora)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Como a comissão de uma construtora é calculada e paga.
+ *
+ * Uma regra por empresa. O percentual padrão vale sempre; campanhas
+ * (`CommissionCampaign`) sobrepõem o padrão dentro do período delas.
+ */
+export interface CommissionRule {
+  companyId: string;
+  /** % sobre o valor da unidade. Ex.: 2 = 2%. */
+  defaultPct: number;
+  /** Em quantas parcelas a comissão é paga. 1 = pagamento único. */
+  installmentsCount: number;
+  /**
+   * Percentual de cada parcela, na ordem. Ex.: `[60, 40]`.
+   * `null` ou vazio = divide igualmente entre as parcelas.
+   * Quando informado, precisa ter `installmentsCount` itens e somar 100.
+   */
+  installmentsSplit: number[] | null;
+  /** Dias após a data da venda para a 1ª parcela vencer. */
+  firstPaymentDays: number;
+  /** Dias entre uma parcela e a seguinte. */
+  intervalDays: number;
+  notes: string | null;
+  updatedAt: string;
+}
+
+export type CommissionRuleInput = Omit<CommissionRule, 'companyId' | 'updatedAt'>;
+
+/** Percentual promocional com prazo, que ganha do padrão enquanto estiver valendo. */
+export interface CommissionCampaign {
+  id: string;
+  companyId: string;
+  name: string;
+  pct: number;
+  /** YYYY-MM-DD, inclusivo nas duas pontas. */
+  startsOn: string;
+  endsOn: string;
+  createdAt: string;
+}
+
+export type CommissionCampaignInput = Omit<CommissionCampaign, 'id' | 'companyId' | 'createdAt'>;
+
+export const DEFAULT_COMMISSION_RULE: CommissionRuleInput = {
+  defaultPct: 2,
+  installmentsCount: 1,
+  installmentsSplit: null,
+  firstPaymentDays: 30,
+  intervalDays: 30,
+  notes: null,
+};
+
+/* ------------------------------------------------------------------------- *
+ * Comissão — a comissão de uma venda e suas parcelas
+ * ------------------------------------------------------------------------- */
+
+/** De onde saiu o percentual aplicado. Fica gravado para o histórico não mudar. */
+export type CommissionSource = 'padrao' | 'campanha' | 'manual';
+
+export type CommissionInstallmentStatus = 'pendente' | 'recebida' | 'cancelada';
+
+/** Situação da nota fiscal da parcela. A emissão automática entra depois. */
+export type InvoiceStatus = 'nao_emitida' | 'emitida' | 'cancelada';
+
+/**
+ * A comissão de uma venda. Criada automaticamente quando a venda é
+ * registrada, aplicando a regra da construtora vigente na data da venda.
+ */
+export interface Commission {
+  id: string;
+  saleId: string;
+  companyId: string | null;
+  /** Snapshots: o histórico não pode mudar se o cadastro for editado depois. */
+  companyName: string | null;
+  developmentName: string | null;
+  clientName: string;
+  saleValue: number;
+  saleDate: string;
+  pct: number;
+  source: CommissionSource;
+  /** Nome da campanha, quando `source = 'campanha'`. */
+  campaignName: string | null;
+  totalValue: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommissionInstallment {
+  id: string;
+  commissionId: string;
+  /** 1, 2, 3… na ordem de vencimento. */
+  number: number;
+  dueDate: string;
+  value: number;
+  status: CommissionInstallmentStatus;
+  paidDate: string | null;
+  /** O que entrou de fato. Pode divergir do previsto. */
+  paidValue: number | null;
+  invoiceStatus: InvoiceStatus;
+  invoiceNumber: string | null;
+  invoiceUrl: string | null;
+  invoiceIssuedAt: string | null;
+  notes: string | null;
+}
+
+/** Uma comissão junto com suas parcelas — é assim que a tela consome. */
+export interface CommissionWithInstallments {
+  commission: Commission;
+  installments: CommissionInstallment[];
+}
+
+export type CommissionPeriodPreset = SalePeriodPreset;
+
+export type CommissionDateBasis = 'vencimento' | 'venda' | 'recebimento';
+
+export interface CommissionFilters {
+  preset: CommissionPeriodPreset;
+  from: string | null;
+  to: string | null;
+  /** Qual data o período filtra. Trocar isso muda a leitura do painel. */
+  basis: CommissionDateBasis;
+  companyId: string | null;
+  status: CommissionInstallmentStatus | 'todas';
+  /** `true` = só parcelas vencidas e não recebidas. */
+  onlyLate: boolean;
+  query: string;
+}
+
+export const EMPTY_COMMISSION_FILTERS: CommissionFilters = {
+  preset: 'ultimos_12_meses',
+  from: null,
+  to: null,
+  basis: 'vencimento',
+  companyId: null,
+  status: 'todas',
+  onlyLate: false,
+  query: '',
+};
+
+/** Parcela atrasada: venceu, não foi recebida e não foi cancelada. */
+export function isInstallmentLate(inst: CommissionInstallment, todayYmd: string): boolean {
+  return inst.status === 'pendente' && inst.dueDate < todayYmd;
+}
+
+/* ------------------------------------------------------------------------- *
  * Vendas realizadas
  * ------------------------------------------------------------------------- */
 

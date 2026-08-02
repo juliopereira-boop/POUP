@@ -14,7 +14,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     icon: 'house',
     title: 'Bem-vindo ao POUP',
     description:
-      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 11 passos rápidos — leva menos de dois minutos.',
+      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 12 passos rápidos — leva menos de dois minutos.',
     bullets: [
       'Você pode sair do guia quando quiser',
       'Para rever depois: Ajustes › Guia do app',
@@ -118,6 +118,19 @@ export const GUIDE_STEPS: GuideStep[] = [
       'Filtre por período, construtora, empreendimento ou situação — os indicadores recalculam na hora',
       'A aba Vendas lista tudo, com busca por cliente, CPF ou unidade',
       'Se um negócio cair, registre o distrato sem perder o histórico',
+    ],
+  },
+  {
+    icon: 'coins',
+    where: 'Início › Controle de Comissão',
+    title: 'Receba o que é seu',
+    description:
+      'Cada venda registrada já lança a comissão calculada pela regra da construtora, dividida nas parcelas combinadas. Você só acompanha o que entra.',
+    bullets: [
+      'Cadastre a regra em Ajustes › Empresas: percentual, campanhas promocionais e em quantas vezes recebe',
+      'A parcela vencida aparece em vermelho — nada passa batido',
+      'Marque como recebida direto na lista, com um toque',
+      'Registre a nota fiscal de cada parcela',
     ],
   },
   {

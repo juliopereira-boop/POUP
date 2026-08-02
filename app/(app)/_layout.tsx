@@ -49,7 +49,8 @@ export default function AppLayout() {
           options={{ title: 'Cadastro de Empreendimentos' }}
         />
         <Stack.Screen name="material-venda" options={{ title: 'Material de Venda' }} />
-        <Stack.Screen name="comissao" options={{ title: 'Controle de Comissão' }} />
+        <Stack.Screen name="comissao/index" options={{ title: 'Controle de Comissão' }} />
+        <Stack.Screen name="comissao/[id]" options={{ title: 'Comissão' }} />
         <Stack.Screen name="vendas/index" options={{ title: 'Vendas Realizadas' }} />
         <Stack.Screen name="vendas/[id]" options={{ title: 'Venda' }} />
       </Stack>

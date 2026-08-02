@@ -2,10 +2,21 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
+import {
+  CommissionRuleForm,
+  describeCommissionRule,
+  useCommissionRuleForm,
+} from '@/components/CommissionRuleForm';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { ToggleField } from '@/components/ToggleField';
-import { db, type Company, type CompanyInput, type Correspondent } from '@/data';
+import {
+  db,
+  type Company,
+  type CommissionRule,
+  type CompanyInput,
+  type Correspondent,
+} from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';

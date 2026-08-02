@@ -532,6 +532,184 @@ export interface Database {
         };
         Relationships: [];
       };
+      commission_rules: {
+        Row: {
+          id: string;
+          user_id: string;
+          company_id: string;
+          default_pct: number;
+          installments_count: number;
+          /** Percentual de cada parcela, na ordem (ex.: `[60, 40]`). Nulo = divide igual. */
+          installments_split: Json | null;
+          first_payment_days: number;
+          interval_days: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          company_id: string;
+          default_pct: number;
+          installments_count?: number;
+          installments_split?: Json | null;
+          first_payment_days?: number;
+          interval_days?: number;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          company_id?: string;
+          default_pct?: number;
+          installments_count?: number;
+          installments_split?: Json | null;
+          first_payment_days?: number;
+          interval_days?: number;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      commission_campaigns: {
+        Row: {
+          id: string;
+          user_id: string;
+          company_id: string;
+          name: string;
+          pct: number;
+          starts_on: string;
+          ends_on: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          company_id: string;
+          name: string;
+          pct: number;
+          starts_on: string;
+          ends_on: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          pct?: number;
+          starts_on?: string;
+          ends_on?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      commissions: {
+        Row: {
+          id: string;
+          user_id: string;
+          sale_id: string;
+          company_id: string | null;
+          company_name: string | null;
+          development_name: string | null;
+          client_name: string;
+          sale_value: number;
+          sale_date: string;
+          pct: number;
+          source: string;
+          campaign_name: string | null;
+          total_value: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          sale_id: string;
+          company_id?: string | null;
+          company_name?: string | null;
+          development_name?: string | null;
+          client_name: string;
+          sale_value: number;
+          sale_date: string;
+          pct: number;
+          source: string;
+          campaign_name?: string | null;
+          total_value: number;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          company_id?: string | null;
+          company_name?: string | null;
+          development_name?: string | null;
+          client_name?: string;
+          sale_value?: number;
+          sale_date?: string;
+          pct?: number;
+          source?: string;
+          campaign_name?: string | null;
+          total_value?: number;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      commission_installments: {
+        Row: {
+          id: string;
+          user_id: string;
+          commission_id: string;
+          number: number;
+          due_date: string;
+          value: number;
+          status: string;
+          paid_date: string | null;
+          paid_value: number | null;
+          invoice_status: string;
+          invoice_number: string | null;
+          invoice_url: string | null;
+          invoice_issued_at: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          commission_id: string;
+          number: number;
+          due_date: string;
+          value: number;
+          status?: string;
+          paid_date?: string | null;
+          paid_value?: number | null;
+          invoice_status?: string;
+          invoice_number?: string | null;
+          invoice_url?: string | null;
+          invoice_issued_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          number?: number;
+          due_date?: string;
+          value?: number;
+          status?: string;
+          paid_date?: string | null;
+          paid_value?: number | null;
+          invoice_status?: string;
+          invoice_number?: string | null;
+          invoice_url?: string | null;
+          invoice_issued_at?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       simulations: {
         Row: {
           id: string;
