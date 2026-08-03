@@ -207,7 +207,7 @@ export default function EmpresasScreen() {
 
         <CommissionRuleForm
           controller={commission}
-          companyId={editingId ?? 'demo'}
+          companyId={editingId}
           userId={user?.id ?? null}
         />
 

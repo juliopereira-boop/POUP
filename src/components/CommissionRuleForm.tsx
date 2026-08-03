@@ -324,12 +324,8 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
   const styles = useThemedStyles(makeStyles);
   const today = todayYmd();
 
-  const [campaigns, setCampaigns] = useState<CommissionCampaign[]>([
-    { id: 'a', companyId: 'demo', name: 'Campanha de agosto', pct: 2.5, startsOn: '2026-08-01', endsOn: '2026-08-31', createdAt: '' },
-    { id: 'b', companyId: 'demo', name: 'Setembro Turbo do Empreendimento Vista Mar', pct: 3, startsOn: '2026-09-01', endsOn: '2026-09-30', createdAt: '' },
-    { id: 'c', companyId: 'demo', name: 'Campanha de junho', pct: 2.25, startsOn: '2026-06-01', endsOn: '2026-06-30', createdAt: '' },
-  ]);
-  const [formOpen, setFormOpen] = useState(true);
+  const [campaigns, setCampaigns] = useState<CommissionCampaign[]>([]);
+  const [formOpen, setFormOpen] = useState(false);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [campaignName, setCampaignName] = useState('');
   const [campaignPct, setCampaignPct] = useState('');
@@ -340,10 +336,10 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
 
   useEffect(() => {
     if (!companyId) {
+      setCampaigns([]);
       return undefined;
     }
     let alive = true;
-    if (companyId === 'demo') return undefined;
     void db.commissions.listCampaigns(companyId).then((list) => {
       if (alive) setCampaigns(list);
     });
@@ -464,6 +460,8 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
 
   const count = controller.parsedCount;
   const sumOk = Math.abs(controller.splitSum - 100) <= 0.01;
+  // Campanhas são CRUD de lista: só depois de a empresa existir (e com sessão).
+  const canManageCampaigns = !!companyId && !!userId;
 
   return (
     <View>
@@ -498,7 +496,7 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
         percentual padrão.
       </Text>
 
-      {!companyId ? (
+      {!canManageCampaigns ? (
         <Text style={styles.hint}>
           Salve a empresa primeiro para cadastrar campanhas de comissão. O percentual padrão e a
           forma de pagamento já são salvos junto com a empresa.
