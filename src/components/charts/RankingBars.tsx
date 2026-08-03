@@ -23,7 +23,8 @@ const MIN_FILL_PCT = 3;
 
 /**
  * Ranking em barras horizontais: nome à esquerda, barra proporcional no meio,
- * valor à direita. Nomes longos são truncados com `numberOfLines={1}`.
+ * valor à direita. Nomes longos são truncados com `numberOfLines={1}`; a
+ * legenda pode ocupar duas linhas.
  */
 export function RankingBars({ data, max, formatValue }: RankingBarsProps) {
   const styles = useThemedStyles(makeStyles);
@@ -54,8 +55,13 @@ export function RankingBars({ data, max, formatValue }: RankingBarsProps) {
               <Text style={styles.name} numberOfLines={1}>
                 {item.label}
               </Text>
+              {/*
+                Duas linhas: a coluna do nome tem 38% da largura e legenda com
+                valor ("R$ 5,1 mil recebido · 2 venda(s)") não cabe em uma só.
+                Legenda curta continua ocupando uma linha.
+              */}
               {item.caption ? (
-                <Text style={styles.caption} numberOfLines={1}>
+                <Text style={styles.caption} numberOfLines={2}>
                   {item.caption}
                 </Text>
               ) : null}
