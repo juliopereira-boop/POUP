@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { CompanyRepository } from '../repositories';
+import { fetchAdoptedCompanyIds } from './SupabaseCatalogRepository';
 import {
   type Company,
   type CompanyInput,
@@ -22,6 +23,8 @@ function mapCompany(row: CompanyRow): Company {
     maxSemiannual: row.max_semiannual,
     maxAnnual: row.max_annual,
     coincideInstallments: row.coincide_installments,
+    photoUrl: row.photo_url,
+    isCatalog: row.is_catalog,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -39,14 +42,41 @@ function companyPayload(data: CompanyInput) {
 }
 
 export class SupabaseCompanyRepository implements CompanyRepository {
+  /**
+   * A UNIÃO de duas coisas diferentes: o que o corretor cadastrou e o que ele
+   * adotou do catálogo.
+   *
+   * São duas consultas de propósito. Não dá para resolver com um `or` só, porque
+   * as condições são de tabelas diferentes (`companies.user_id` e
+   * `company_adoptions.user_id`), e um filtro em tabela embutida NÃO restringe a
+   * linha pai no PostgREST — voltariam empresas do catálogo que ninguém adotou.
+   *
+   * `is_catalog = false` nas próprias: mesmo o admin (dono da linha do catálogo)
+   * precisa adotar para usar no simulador, senão o catálogo entraria na conta
+   * dele sem consentimento — e apareceria duplicado depois de adotar.
+   */
   async list(userId: string): Promise<Company[]> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name', { ascending: true });
-    if (error || !data) return [];
-    return data.map(mapCompany);
+    const adoptedIds = await fetchAdoptedCompanyIds(userId);
+
+    const [own, adopted] = await Promise.all([
+      supabase
+        .from('companies')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_catalog', false)
+        .order('name', { ascending: true }),
+      adoptedIds.length > 0
+        ? supabase.from('companies').select('*').in('id', adoptedIds)
+        : Promise.resolve({ data: [] as CompanyRow[], error: null }),
+    ]);
+
+    // Deduplica por id: o admin pode ter adotado a própria empresa do catálogo,
+    // e uma empresa não pode aparecer duas vezes na lista dele.
+    const byId = new Map<string, Company>();
+    for (const row of own.data ?? []) byId.set(row.id, mapCompany(row));
+    for (const row of adopted.data ?? []) byId.set(row.id, mapCompany(row));
+
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
   async create(userId: string, data: CompanyInput): Promise<Result<Company>> {

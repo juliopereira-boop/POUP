@@ -1,9 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import type { DevelopmentRepository } from '../repositories';
 import { type Development, type DevelopmentInput, type Result, err, ok } from '../types';
+import { fetchAdoptedCompanyIds } from './SupabaseCatalogRepository';
 
+// `companies(name, is_catalog)` vem embutido porque `isCatalog` do
+// empreendimento é DERIVADO da empresa: não existe coluna própria no banco.
 const SELECT =
-  'id, company_id, name, description, delivery_date, manager_name, created_at, updated_at, companies(name)';
+  'id, company_id, name, description, delivery_date, manager_name, photo_url, ' +
+  'created_at, updated_at, companies(name, is_catalog)';
 
 interface DevelopmentJoinRow {
   id: string;
@@ -12,9 +16,10 @@ interface DevelopmentJoinRow {
   description: string | null;
   delivery_date: string | null;
   manager_name: string | null;
+  photo_url: string | null;
   created_at: string;
   updated_at: string;
-  companies: { name: string } | null;
+  companies: { name: string; is_catalog: boolean } | null;
 }
 
 function mapDevelopment(row: DevelopmentJoinRow): Development {
@@ -26,6 +31,9 @@ function mapDevelopment(row: DevelopmentJoinRow): Development {
     description: row.description ?? null,
     deliveryDate: row.delivery_date,
     managerName: row.manager_name,
+    photoUrl: row.photo_url,
+    // Empresa do catálogo => empreendimento somente leitura para o corretor.
+    isCatalog: row.companies?.is_catalog ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -42,14 +50,37 @@ function payload(data: DevelopmentInput) {
 }
 
 export class SupabaseDevelopmentRepository implements DevelopmentRepository {
+  /**
+   * Mesma união da `CompanyRepository.list`: os empreendimentos do corretor mais
+   * TODOS os das empresas do catálogo que ele adotou — sem cópia, são as mesmas
+   * linhas do admin, então empreendimento novo no catálogo aparece sozinho aqui.
+   */
   async list(userId: string): Promise<Development[]> {
-    const { data, error } = await supabase
-      .from('developments')
-      .select(SELECT)
-      .eq('user_id', userId)
-      .order('name', { ascending: true });
-    if (error || !data) return [];
-    return (data as unknown as DevelopmentJoinRow[]).map(mapDevelopment);
+    const adoptedIds = await fetchAdoptedCompanyIds(userId);
+
+    const [own, adopted] = await Promise.all([
+      supabase.from('developments').select(SELECT).eq('user_id', userId),
+      adoptedIds.length > 0
+        ? supabase.from('developments').select(SELECT).in('company_id', adoptedIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const ownRows = (own.data ?? []) as unknown as DevelopmentJoinRow[];
+    const adoptedRows = (adopted.data ?? []) as unknown as DevelopmentJoinRow[];
+
+    // O filtro de empresa-não-catálogo é feito AQUI, no cliente: no PostgREST um
+    // filtro em tabela embutida (`companies.is_catalog`) não descarta a linha
+    // pai, então o empreendimento continuaria vindo — só sem a empresa embutida.
+    const byId = new Map<string, Development>();
+    for (const row of ownRows) {
+      if (row.companies?.is_catalog) continue;
+      byId.set(row.id, mapDevelopment(row));
+    }
+    // Depois das próprias: se o admin adotou a própria empresa do catálogo, a
+    // linha é a mesma e não pode duplicar.
+    for (const row of adoptedRows) byId.set(row.id, mapDevelopment(row));
+
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }
 
   async create(userId: string, data: DevelopmentInput): Promise<Result<Development>> {

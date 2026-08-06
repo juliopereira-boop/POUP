@@ -23,9 +23,16 @@ interface RawObject {
 
 const MAX_SEGMENT = 120;
 
-function joinRel(userId: string, relPath: string): string {
+/**
+ * Monta o caminho completo no bucket a partir da RAIZ.
+ *
+ * A raiz é o `userId` (material do corretor) ou `CATALOG_MATERIAL_ROOT`
+ * (material do catálogo, escrito pelo admin e lido por quem adotou). Quem
+ * escolhe é `materialRoot()` em `@/features/catalog/material`.
+ */
+function joinRel(root: string, relPath: string): string {
   const rel = relPath.replace(/^\/+|\/+$/g, '');
-  return rel ? `${userId}/${rel}` : userId;
+  return rel ? `${root}/${rel}` : root;
 }
 
 function stripUnsafe(raw: string): string {
@@ -64,8 +71,8 @@ function friendly(message: string): string {
 }
 
 export class SupabaseMaterialRepository implements MaterialRepository {
-  async list(userId: string, relPath: string): Promise<StorageEntry[]> {
-    const base = joinRel(userId, relPath);
+  async list(root: string, relPath: string): Promise<StorageEntry[]> {
+    const base = joinRel(root, relPath);
     const { data, error } = await supabase.storage
       .from(BUCKET)
       .list(base, { limit: 1000, sortBy: { column: 'name', order: 'asc' } });
@@ -86,10 +93,10 @@ export class SupabaseMaterialRepository implements MaterialRepository {
       .sort((a, b) => (a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1));
   }
 
-  async createFolder(userId: string, relPath: string, name: string): Promise<Result<void>> {
+  async createFolder(root: string, relPath: string, name: string): Promise<Result<void>> {
     const clean = sanitizeSegment(name);
     if (!clean) return err('Informe um nome válido para a pasta.');
-    const path = `${joinRel(userId, relPath)}/${clean}/${PLACEHOLDER}`;
+    const path = `${joinRel(root, relPath)}/${clean}/${PLACEHOLDER}`;
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, new Blob([''], { type: 'text/plain' }), { upsert: false });
@@ -98,14 +105,14 @@ export class SupabaseMaterialRepository implements MaterialRepository {
   }
 
   async upload(
-    userId: string,
+    root: string,
     relPath: string,
     fileName: string,
     data: Blob,
     contentType: string,
   ): Promise<Result<void>> {
     const clean = sanitizeFileName(fileName) || `arquivo-${Date.now()}`;
-    const path = `${joinRel(userId, relPath)}/${clean}`;
+    const path = `${joinRel(root, relPath)}/${clean}`;
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, data, { contentType, upsert: false });
@@ -153,17 +160,38 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     return data;
   }
 
+  /**
+   * O link do material da empresa.
+   *
+   * Filtra só por `company_id` — sem `user_id` — porque na empresa do CATÁLOGO o
+   * registro é do ADMIN, não do corretor logado: exigir `user_id = eu` fazia o
+   * link cadastrado pelo POUP simplesmente não aparecer para quem adotou. Quem
+   * decide o que este usuário pode ver é o RLS; aqui só se escolhe entre as
+   * linhas que ele já pode ler.
+   *
+   * A escolha respeita a precedência: o registro do próprio corretor ganha
+   * (empresa dele, ou link próprio que ele tenha salvo), e só quando não há link
+   * dele é que vale o do catálogo — assim uma linha antiga com `drive_url` nulo
+   * não esconde o link do admin.
+   */
   async getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null> {
     const { data, error } = await supabase
       .from('company_materials')
       .select('*')
-      .eq('user_id', userId)
-      .eq('company_id', companyId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return mapCompanyMaterial(data);
+      .eq('company_id', companyId);
+    if (error || !data || data.length === 0) return null;
+    const mine = data.find((r) => r.user_id === userId);
+    if (mine?.drive_url) return mapCompanyMaterial(mine);
+    const withLink = data.find((r) => r.drive_url);
+    return mapCompanyMaterial(withLink ?? mine ?? data[0]);
   }
 
+  /**
+   * Grava o link SEMPRE na linha do usuário que está salvando. No catálogo isso
+   * significa a linha do admin — que é exatamente a que os adotantes leem em
+   * `getCompanyMaterial`. Quem não é admin não passa pelo RLS ao tentar escrever
+   * na empresa do catálogo.
+   */
   async saveCompanyMaterial(
     userId: string,
     companyId: string,

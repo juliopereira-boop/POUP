@@ -17,6 +17,12 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { db, type Company, type Development, type StorageEntry } from '@/data';
+import { useIsAdmin } from '@/features/admin';
+import {
+  CATALOG_MATERIAL_ROOT,
+  canEditMaterial,
+  materialRoot,
+} from '@/features/catalog/material';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -100,6 +106,7 @@ export default function MaterialVendaScreen() {
   const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const { subscription, plan } = useSubscription();
+  const { isAdmin } = useIsAdmin();
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
@@ -136,10 +143,14 @@ export default function MaterialVendaScreen() {
     let mounted = true;
     setLoadingCadastros(true);
     void (async () => {
-      const [comps, devs, roots] = await Promise.all([
+      const [comps, devs, roots, catalogRoots] = await Promise.all([
         db.companies.list(user.id),
         db.developments.list(user.id),
         db.material.list(user.id, ROOT),
+        // O material das empresas do catálogo mora na raiz do POUP
+        // (`catalog/material/<empresa>`), não na do corretor: sem olhar as duas
+        // raízes, a empresa adotada apareceria sempre "sem material".
+        db.material.list(CATALOG_MATERIAL_ROOT, ROOT),
       ]);
       const mats = await Promise.all(
         comps.map((c) => db.material.getCompanyMaterial(user.id, c.id)),
@@ -150,10 +161,18 @@ export default function MaterialVendaScreen() {
         if (m) links[m.companyId] = m.driveUrl;
       }
       const folderIds = new Set(roots.filter((e) => e.isFolder).map((e) => e.name));
+      const catalogFolderIds = new Set(catalogRoots.filter((e) => e.isFolder).map((e) => e.name));
       setCompanies(comps);
       setDevelopments(devs);
       setDriveUrls(links);
-      setAddedIds(comps.filter((c) => folderIds.has(c.id) || c.id in links).map((c) => c.id));
+      setAddedIds(
+        comps
+          .filter((c) => {
+            const hasFolder = c.isCatalog ? catalogFolderIds.has(c.id) : folderIds.has(c.id);
+            return hasFolder || c.id in links;
+          })
+          .map((c) => c.id),
+      );
       setLoadingCadastros(false);
     })();
     db.billing.getStorageUsedBytes(user.id).then((b) => {
@@ -182,6 +201,15 @@ export default function MaterialVendaScreen() {
   );
   const driveUrl = company ? (driveUrls[company.id] ?? null) : null;
 
+  /**
+   * A raiz do material da empresa aberta: a pasta do corretor, ou a do catálogo
+   * quando a empresa vem do POUP. Nunca montar esse caminho na mão.
+   */
+  const root = useMemo(() => materialRoot(company, user?.id ?? ''), [company, user]);
+  /** Material do catálogo é mantido pelo POUP: para os outros, só leitura. */
+  const canEdit = canEditMaterial(company, isAdmin);
+  const readOnlyCatalog = !!company?.isCatalog && !isAdmin;
+
   useEffect(() => {
     if (!user || !company) {
       setGeneralFiles([]);
@@ -189,7 +217,7 @@ export default function MaterialVendaScreen() {
     }
     let mounted = true;
     setLoadingGeneral(true);
-    db.material.list(user.id, `${ROOT}/${company.id}`).then((list) => {
+    db.material.list(materialRoot(company, user.id), `${ROOT}/${company.id}`).then((list) => {
       if (!mounted) return;
       const files = list.filter((e) => !e.isFolder);
       setGeneralFiles(files);
@@ -208,9 +236,9 @@ export default function MaterialVendaScreen() {
   const loadEntries = useCallback(async () => {
     if (!user || !relPath) return;
     setLoadingEntries(true);
-    setEntries(await db.material.list(user.id, relPath));
+    setEntries(await db.material.list(root, relPath));
     setLoadingEntries(false);
-  }, [user, relPath]);
+  }, [user, relPath, root]);
 
   useEffect(() => {
     void loadEntries();
@@ -220,8 +248,14 @@ export default function MaterialVendaScreen() {
     if (!user) return;
     setError(null);
     setPickerOpen(false);
+    // Empresa do catálogo: quem não é admin não escreve nada na pasta do POUP
+    // (a policy do Storage recusaria). Só entra na lista para consultar.
+    if (!canEditMaterial(c, isAdmin)) {
+      setAddedIds((prev) => (prev.includes(c.id) ? prev : [...prev, c.id]));
+      return;
+    }
     setBusy(true);
-    const folder = await db.material.createFolder(user.id, ROOT, c.id);
+    const folder = await db.material.createFolder(materialRoot(c, user.id), ROOT, c.id);
     if (!folder.ok && !/já existe/i.test(folder.error)) {
       setBusy(false);
       setError(folder.error);
@@ -297,7 +331,7 @@ export default function MaterialVendaScreen() {
     setBusy(true);
     let firstErr: string | null = null;
     for (const f of okFiles) {
-      const res = await db.material.upload(user.id, path, f.name, f.blob, f.contentType);
+      const res = await db.material.upload(root, path, f.name, f.blob, f.contentType);
       if (!res.ok && !firstErr) firstErr = res.error;
     }
     setBusy(false);
@@ -322,7 +356,7 @@ export default function MaterialVendaScreen() {
     if (!user || !relPath) return;
     if (!newFolderName.trim()) return;
     setBusy(true);
-    const res = await db.material.createFolder(user.id, relPath, newFolderName);
+    const res = await db.material.createFolder(root, relPath, newFolderName);
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -449,6 +483,8 @@ export default function MaterialVendaScreen() {
 
       {company && !development ? (
         <View>
+          {readOnlyCatalog ? <CatalogNotice /> : null}
+
           {driveUrl ? (
             <Button
               label="🔗 Abrir material online"
@@ -456,17 +492,23 @@ export default function MaterialVendaScreen() {
               style={styles.topAction}
             />
           ) : null}
-          <Button
-            label="⚙️ Configurar material da empresa"
-            variant="secondary"
-            onPress={openConfig}
-          />
+          {canEdit ? (
+            <Button
+              label="⚙️ Configurar material da empresa"
+              variant="secondary"
+              onPress={openConfig}
+            />
+          ) : null}
 
-          <Text style={styles.usage}>
-            {usedBytes == null ? '' : formatBytes(usedBytes)}
-            {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
-            máx. {MAX_FILE_MB} MB por arquivo
-          </Text>
+          {/* A cota de armazenamento só vale para o material do próprio corretor:
+              o do catálogo ocupa espaço na conta do POUP. */}
+          {canEdit ? (
+            <Text style={styles.usage}>
+              {usedBytes == null ? '' : formatBytes(usedBytes)}
+              {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
+              máx. {MAX_FILE_MB} MB por arquivo
+            </Text>
+          ) : null}
 
           <Text style={styles.sectionTitle}>Empreendimentos</Text>
           {companyDevs.length === 0 ? (
@@ -492,7 +534,9 @@ export default function MaterialVendaScreen() {
             <ActivityIndicator style={styles.loader} />
           ) : generalFiles.length === 0 ? (
             <Text style={styles.hint}>
-              Nenhum arquivo geral. Adicione em “Configurar material da empresa”.
+              {canEdit
+                ? 'Nenhum arquivo geral. Adicione em “Configurar material da empresa”.'
+                : 'Nenhum arquivo geral publicado pelo POUP nesta empresa.'}
             </Text>
           ) : (
             <View style={styles.list}>
@@ -500,6 +544,7 @@ export default function MaterialVendaScreen() {
                 <EntryRow
                   key={e.path}
                   entry={e}
+                  canDelete={canEdit}
                   onOpen={() => void onOpenFile(e)}
                   onDelete={() => onDelete(e, () => setGeneralNonce((n) => n + 1))}
                 />
@@ -511,41 +556,49 @@ export default function MaterialVendaScreen() {
 
       {company && development ? (
         <View>
-          <View style={styles.toolbar}>
-            <Pressable
-              style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
-              onPress={onUpload}
-              disabled={busy}
-              accessibilityLabel="Fazer upload"
-            >
-              <Text style={styles.toolIcon}>⬆️</Text>
-              <Text style={styles.toolLabel}>Fazer Upload</Text>
-            </Pressable>
-            {atMaxDepth ? null : (
+          {/* Subir, criar pasta e apagar só existem para quem pode escrever
+              nesta raiz. A trava real é a policy do Storage — esconder o botão
+              serve para não oferecer uma ação que ia falhar. */}
+          {canEdit ? (
+            <View style={styles.toolbar}>
               <Pressable
                 style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setNewFolderName('');
-                  setFolderModalOpen(true);
-                }}
+                onPress={onUpload}
                 disabled={busy}
-                accessibilityLabel="Adicionar pasta"
+                accessibilityLabel="Fazer upload"
               >
-                <Text style={styles.toolIcon}>📁</Text>
-                <Text style={styles.toolLabel}>Adicionar Pasta</Text>
+                <Text style={styles.toolIcon}>⬆️</Text>
+                <Text style={styles.toolLabel}>Fazer Upload</Text>
               </Pressable>
-            )}
-            {busy ? <ActivityIndicator style={styles.toolLoader} /> : null}
-          </View>
+              {atMaxDepth ? null : (
+                <Pressable
+                  style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    setNewFolderName('');
+                    setFolderModalOpen(true);
+                  }}
+                  disabled={busy}
+                  accessibilityLabel="Adicionar pasta"
+                >
+                  <Text style={styles.toolIcon}>📁</Text>
+                  <Text style={styles.toolLabel}>Adicionar Pasta</Text>
+                </Pressable>
+              )}
+              {busy ? <ActivityIndicator style={styles.toolLoader} /> : null}
+            </View>
+          ) : (
+            <CatalogNotice />
+          )}
 
+          {canEdit ? (
+            <Text style={styles.usage}>
+              {usedBytes == null ? '' : formatBytes(usedBytes)}
+              {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
+              máx. {MAX_FILE_MB} MB por arquivo
+            </Text>
+          ) : null}
 
-          <Text style={styles.usage}>
-            {usedBytes == null ? '' : formatBytes(usedBytes)}
-            {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
-            máx. {MAX_FILE_MB} MB por arquivo
-          </Text>
-
-          {atMaxDepth ? (
+          {atMaxDepth && canEdit ? (
             <Text style={styles.notice}>
               Limite de {MAX_DEPTH} níveis de pastas atingido. Aqui só é possível enviar arquivos.
             </Text>
@@ -565,8 +618,11 @@ export default function MaterialVendaScreen() {
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>📂</Text>
               <Text style={styles.emptyText}>
-                Pasta vazia. Use “Fazer Upload” para adicionar arquivos
-                {atMaxDepth ? '.' : ' ou “Adicionar Pasta” para organizar.'}
+                {canEdit
+                  ? `Pasta vazia. Use “Fazer Upload” para adicionar arquivos${
+                      atMaxDepth ? '.' : ' ou “Adicionar Pasta” para organizar.'
+                    }`
+                  : 'O POUP ainda não publicou material para este empreendimento.'}
               </Text>
             </View>
           ) : (
@@ -575,6 +631,7 @@ export default function MaterialVendaScreen() {
                 <EntryRow
                   key={e.path}
                   entry={e}
+                  canDelete={canEdit}
                   onOpen={() =>
                     e.isFolder ? setFolderSegs([...folderSegs, e.name]) : void onOpenFile(e)
                   }
@@ -712,6 +769,20 @@ export default function MaterialVendaScreen() {
   );
 }
 
+/**
+ * Deixa explícito de quem é o material quando ele vem do catálogo: sem isso o
+ * corretor só vê os botões de subir/apagar desaparecerem e acha que quebrou.
+ */
+function CatalogNotice() {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <Text style={styles.catalogNotice}>
+      📚 Material mantido pelo POUP. Esta empresa vem do catálogo do sistema: os arquivos são
+      atualizados pela equipe e ficam disponíveis apenas para consulta.
+    </Text>
+  );
+}
+
 function Crumb({ label, onPress, active }: { label: string; onPress: () => void; active: boolean }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -766,10 +837,13 @@ function EntryRow({
   entry,
   onOpen,
   onDelete,
+  canDelete,
 }: {
   entry: StorageEntry;
   onOpen: () => void;
   onDelete: () => void;
+  /** `false` no material do catálogo: só o POUP apaga o que o POUP publicou. */
+  canDelete: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -783,9 +857,11 @@ function EntryRow({
           <Text style={styles.rowMeta}>{entry.isFolder ? 'Pasta' : formatSize(entry.size)}</Text>
         </View>
       </Pressable>
-      <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel="Excluir">
-        <Text style={styles.rowDelete}>🗑️</Text>
-      </Pressable>
+      {canDelete ? (
+        <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel="Excluir">
+          <Text style={styles.rowDelete}>🗑️</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -113,6 +113,12 @@ export default function ConfiguracoesScreen() {
               subtitle="Ligar/desligar o teste gratuito e definir os dias"
               onPress={() => router.push('/(app)/campanhas')}
             />
+            <Divider />
+            <NavRow
+              label="Catálogo do sistema"
+              subtitle="Construtoras prontas para os corretores adotarem"
+              onPress={() => router.push('/(app)/admin/catalogo')}
+            />
           </View>
         </>
       ) : null}

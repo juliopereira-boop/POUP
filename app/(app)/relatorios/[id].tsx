@@ -169,6 +169,18 @@ export default function SimulationDetailScreen() {
     setNotice(null);
     setGenerating(true);
     try {
+      // A foto da construtora sai no topo do PDF. A simulação guarda só o id da
+      // empresa, então buscamos aqui. Em try/catch próprio: se a consulta
+      // falhar, a proposta sai sem a foto — nunca deixa de sair.
+      let companyPhotoUrl: string | null = null;
+      try {
+        if (userId && sim.companyId) {
+          const companies = await db.companies.list(userId);
+          companyPhotoUrl = companies.find((c) => c.id === sim.companyId)?.photoUrl ?? null;
+        }
+      } catch {
+        companyPhotoUrl = null;
+      }
       await generateProposal({
         sim: sim.state,
         profile,
@@ -177,6 +189,7 @@ export default function SimulationDetailScreen() {
         deliveryDate: sim.deliveryDate,
         gerente: sim.managerName,
         todayISO: sim.proposalDate ?? new Date().toISOString().slice(0, 10),
+        companyPhotoUrl,
       });
     } finally {
       setGenerating(false);

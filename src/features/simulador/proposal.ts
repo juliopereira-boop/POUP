@@ -12,6 +12,7 @@ import {
   monthsBetween,
 } from './calc';
 import { LOGO_DATA_URI } from './logoDataUri';
+import { fetchImageAsDataUri } from './remoteImage';
 import type { SimuladorState } from './SimuladorProvider';
 
 export interface ProposalContext {
@@ -22,6 +23,13 @@ export interface ProposalContext {
   deliveryDate: string | null;
   gerente: string | null;
   todayISO: string;
+  /**
+   * Foto redonda da construtora (URL pública do bucket `catalog`).
+   *
+   * Opcional de propósito: sem ela a proposta sai exatamente como antes, só com
+   * a logo do POUP. Quem chama passa `company.photoUrl`.
+   */
+  companyPhotoUrl?: string | null;
 }
 
 const ORANGE = '#E2621B';
@@ -39,8 +47,16 @@ function pctOf(n: number, total: number): string {
   return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
 }
 
-function brandHtml(): string {
-  return `<img class="brand" src="${LOGO_DATA_URI}" alt=""/>`;
+/**
+ * Marca do topo: logo do POUP e, ao lado, a foto redonda da construtora.
+ *
+ * `photoDataUri` já vem embutido (data URI) ou `null`. Nunca uma URL remota:
+ * a impressão acontece no dispositivo e não espera download nenhum.
+ */
+function brandHtml(photoDataUri: string | null): string {
+  const logo = `<img class="brand" src="${LOGO_DATA_URI}" alt=""/>`;
+  if (!photoDataUri) return `<div class="brandWrap">${logo}</div>`;
+  return `<div class="brandWrap">${logo}<span class="brandSep"></span><img class="coPhoto" src="${photoDataUri}" alt=""/></div>`;
 }
 
 const J_GRAY = '#A3A3A3';
@@ -179,7 +195,7 @@ interface ProposalParts {
   fileName: string;
 }
 
-function buildProposalParts(ctx: ProposalContext): ProposalParts {
+function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): ProposalParts {
   const { sim, profile } = ctx;
   const flow = buildFlow(sim);
   const unitValue = currencyToNumber(sim.unitValue);
@@ -272,6 +288,23 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
     .top { display: flex; justify-content: space-between; align-items: center; background: ${GRAYHDR}; padding: 5px 12px; }
     .top .date { font-weight: 700; }
     .top .brand { display: block; height: 30px; width: auto; flex: 0 0 auto; }
+    /* Logo + foto da construtora lado a lado, na mesma linha da data. */
+    .brandWrap { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+    .brandSep { display: block; width: 1px; height: 22px; background: #9a9a9a; flex: 0 0 auto; }
+    /*
+     * ALTURA: 32px conversa com os 30px da logo e mantém o cabeçalho no mesmo
+     * patamar de antes — a proposta tem que continuar caindo em UMA página.
+     */
+    .coPhoto {
+      display: block;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #fff;
+      border: 1px solid #fff;
+      flex: 0 0 auto;
+    }
     .resumoWrap { display: flex; gap: 8px; align-items: flex-start; }
     .resumo.main { flex: 2; }
     .resumo.side { flex: 1; font-size: 9px; }
@@ -314,7 +347,7 @@ function buildProposalParts(ctx: ProposalContext): ProposalParts {
 
   const bodyHtml = `<div class="fit"><div class="sheet">
     <div class="top">
-      ${brandHtml()}
+      ${brandHtml(photoDataUri)}
       <div class="date">${formatDateBR(ctx.todayISO)}</div>
     </div>
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
@@ -435,11 +468,29 @@ const AUTO_FIT_SCRIPT = `<script>
 })();
 </script>`;
 
-export function generateProposalHtml(ctx: ProposalContext): string {
-  const { style, bodyHtml, fileName } = buildProposalParts(ctx);
+export function generateProposalHtml(
+  ctx: ProposalContext,
+  photoDataUri: string | null = null,
+): string {
+  const { style, bodyHtml, fileName } = buildProposalParts(ctx, photoDataUri);
   return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(fileName)}</title>
   <style>${style}</style></head>
   <body>${bodyHtml}${AUTO_FIT_SCRIPT}</body></html>`;
+}
+
+/**
+ * Resolve a foto da construtora para data URI.
+ *
+ * A PROPOSTA NUNCA PODE DEIXAR DE SAIR POR CAUSA DA FOTO: qualquer erro (rede
+ * fora, URL quebrada, timeout, empresa sem foto) devolve `null` e o cabeçalho
+ * fica só com a logo do POUP, como era antes.
+ */
+async function resolveCompanyPhoto(ctx: ProposalContext): Promise<string | null> {
+  try {
+    return await fetchImageAsDataUri(ctx.companyPhotoUrl);
+  } catch {
+    return null;
+  }
 }
 
 interface PrintIframeDoc {
@@ -471,11 +522,11 @@ interface PrintGlobal {
   setTimeout: (cb: () => void, ms: number) => void;
 }
 
-function printHtmlWeb(ctx: ProposalContext): Promise<void> {
+function printHtmlWeb(ctx: ProposalContext, photoDataUri: string | null): Promise<void> {
   const g = globalThis as unknown as PrintGlobal;
   const doc = g.document;
   if (!doc) return Promise.resolve();
-  const html = generateProposalHtml(ctx);
+  const html = generateProposalHtml(ctx, photoDataUri);
   const originalTitle = doc.title;
   doc.title = proposalFileName(ctx);
 
@@ -551,11 +602,14 @@ function printHtmlWeb(ctx: ProposalContext): Promise<void> {
 }
 
 export async function generateProposal(ctx: ProposalContext): Promise<void> {
+  // A foto é baixada ANTES de montar o HTML: na hora da impressão não dá para
+  // esperar download nenhum.
+  const photoDataUri = await resolveCompanyPhoto(ctx);
   if (Platform.OS === 'web') {
-    await printHtmlWeb(ctx);
+    await printHtmlWeb(ctx, photoDataUri);
     return;
   }
-  const html = generateProposalHtml(ctx);
+  const html = generateProposalHtml(ctx, photoDataUri);
   const { uri } = await Print.printToFileAsync({ html });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {

@@ -32,6 +32,8 @@ export default function SimuladorFluxo() {
   const [developmentName, setDevelopmentName] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
   const [gerente, setGerente] = useState<string | null>(null);
+  // Foto da construtora: sai no topo do PDF, ao lado da logo do POUP.
+  const [companyPhotoUrl, setCompanyPhotoUrl] = useState<string | null>(null);
   const [stored, setStored] = useState<Simulation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -47,6 +49,7 @@ export default function SimuladorFluxo() {
     const comp = comps.find((c) => c.id === sim.companyId);
     const dev = devs.find((d) => d.id === sim.developmentId);
     setCompanyName(comp?.name ?? existing?.companyName ?? null);
+    setCompanyPhotoUrl(comp?.photoUrl ?? null);
     setDevelopmentName(dev?.name ?? existing?.developmentName ?? null);
     setDeliveryDate(dev?.deliveryDate ?? existing?.deliveryDate ?? null);
     setGerente(dev?.managerName ?? existing?.managerName ?? null);
@@ -86,6 +89,7 @@ export default function SimuladorFluxo() {
         deliveryDate,
         gerente,
         todayISO: genDate,
+        companyPhotoUrl,
       });
 
       const unitValue = currencyToNumber(sim.unitValue);

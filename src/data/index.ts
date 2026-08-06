@@ -2,6 +2,7 @@ import type {
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
+  CatalogRepository,
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
@@ -16,6 +17,7 @@ import { SupabaseAuthRepository } from './supabase/SupabaseAuthRepository';
 import { SupabaseProfileRepository } from './supabase/SupabaseProfileRepository';
 import { SupabaseBillingRepository } from './supabase/SupabaseBillingRepository';
 import { SupabaseCompanyRepository } from './supabase/SupabaseCompanyRepository';
+import { SupabaseCatalogRepository } from './supabase/SupabaseCatalogRepository';
 import { SupabaseDevelopmentRepository } from './supabase/SupabaseDevelopmentRepository';
 import { SupabaseSimulationRepository } from './supabase/SupabaseSimulationRepository';
 import { SupabaseMaterialRepository } from './supabase/SupabaseMaterialRepository';
@@ -31,6 +33,8 @@ export interface DataLayer {
   billing: BillingRepository;
   companies: CompanyRepository;
   developments: DevelopmentRepository;
+  /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
+  catalog: CatalogRepository;
   simulations: SimulationRepository;
   material: MaterialRepository;
   leads: LeadRepository;
@@ -53,6 +57,7 @@ function createDataLayer(provider: Provider): DataLayer {
         billing: new SupabaseBillingRepository(),
         companies: new SupabaseCompanyRepository(),
         developments: new SupabaseDevelopmentRepository(),
+        catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
         material: new SupabaseMaterialRepository(),
         leads: new SupabaseLeadRepository(),
@@ -71,6 +76,7 @@ export type {
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
+  CatalogRepository,
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
+import { EntityAvatar } from '@/components/EntityAvatar';
 import { Input } from '@/components/Input';
 import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
@@ -45,6 +46,13 @@ export default function EmpreendimentosScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Só nas empresas PRÓPRIAS o corretor pode criar empreendimento: as do
+   * catálogo são mantidas pelo admin do POUP e o banco recusa a escrita. Oferecer
+   * a opção no seletor só renderia um erro sem explicação depois de digitar tudo.
+   */
+  const ownCompanies = useMemo(() => companies.filter((c) => !c.isCatalog), [companies]);
 
   function resetForm() {
     setEditingId(null);
@@ -116,14 +124,15 @@ export default function EmpreendimentosScreen() {
     }
   }
 
-  const companyOptions = companies.map((c) => ({ value: c.id, label: c.name }));
+  const companyOptions = ownCompanies.map((c) => ({ value: c.id, label: c.name }));
 
   return (
     <Screen>
-      {!loading && companies.length === 0 ? (
+      {!loading && ownCompanies.length === 0 ? (
         <View style={styles.warnCard}>
           <Text style={styles.warnText}>
-            Você precisa cadastrar uma empresa antes de criar um empreendimento.
+            Para criar um empreendimento seu, cadastre primeiro uma empresa sua. Os empreendimentos
+            das construtoras do catálogo do sistema já vêm prontos quando você adota a construtora.
           </Text>
           <Button
             label="Cadastrar empresa"
@@ -144,7 +153,7 @@ export default function EmpreendimentosScreen() {
           value={companyId}
           options={companyOptions}
           onChange={setCompanyId}
-          emptyHint="Cadastre uma empresa primeiro."
+          emptyHint="Cadastre uma empresa sua primeiro."
         />
         <Input
           label="Nome do empreendimento"
@@ -185,7 +194,7 @@ export default function EmpreendimentosScreen() {
             label={editingId ? 'Salvar' : 'Adicionar'}
             onPress={save}
             loading={saving}
-            disabled={companies.length === 0}
+            disabled={ownCompanies.length === 0}
             style={styles.flex1}
           />
         </View>
@@ -199,18 +208,35 @@ export default function EmpreendimentosScreen() {
       ) : (
         developments.map((d) => (
           <View key={d.id} style={styles.item}>
+            <EntityAvatar photoUrl={d.photoUrl} name={d.name} size={44} />
             <View style={styles.itemInfo}>
-              <Text style={styles.itemName}>{d.name}</Text>
+              <View style={styles.itemTitleRow}>
+                <Text style={styles.itemName}>{d.name}</Text>
+                {/* Do catálogo: o corretor usa, o POUP mantém. */}
+                {d.isCatalog ? (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>Do sistema</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={styles.itemMeta}>{d.companyName ?? '—'}</Text>
+              {d.isCatalog ? (
+                <Text style={styles.itemNote}>Mantido pelo POUP. As atualizações chegam sozinhas.</Text>
+              ) : null}
             </View>
-            <View style={styles.itemActions}>
-              <Pressable onPress={() => startEdit(d)} hitSlop={8}>
-                <Text style={styles.editLink}>Editar</Text>
-              </Pressable>
-              <Pressable onPress={() => confirmDelete(d)} hitSlop={8}>
-                <Text style={styles.deleteLink}>Excluir</Text>
-              </Pressable>
-            </View>
+            {/* Empreendimento do catálogo é somente leitura: sem editar nem excluir.
+                Para deixar de usar, o caminho é remover a construtora da lista, em
+                "Cadastro de empresas". */}
+            {d.isCatalog ? null : (
+              <View style={styles.itemActions}>
+                <Pressable onPress={() => startEdit(d)} hitSlop={8}>
+                  <Text style={styles.editLink}>Editar</Text>
+                </Pressable>
+                <Pressable onPress={() => confirmDelete(d)} hitSlop={8}>
+                  <Text style={styles.deleteLink}>Excluir</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         ))
       )}
@@ -269,11 +295,25 @@ const makeStyles = (colors: AppColors) =>
       gap: spacing.md,
     },
     itemInfo: { flex: 1 },
+    itemTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
     itemName: { ...typography.body, color: colors.ink, fontWeight: '600' },
     itemMeta: { ...typography.caption, color: colors.inkMuted, marginTop: 2 },
+    itemNote: { ...typography.caption, color: colors.inkSubtle, marginTop: 2 },
     itemActions: { flexDirection: 'row', gap: spacing.lg },
     editLink: { ...typography.label, color: colors.primary },
     deleteLink: { ...typography.label, color: colors.danger },
+    badge: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+    },
+    badgeText: { ...typography.caption, fontSize: 11, fontWeight: '700', color: colors.primary },
     error: {
       ...typography.caption,
       color: colors.danger,

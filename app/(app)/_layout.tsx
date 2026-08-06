@@ -36,6 +36,7 @@ export default function AppLayout() {
         <Stack.Screen name="calendario" options={{ title: 'Calendário' }} />
         <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} />
         <Stack.Screen name="campanhas" options={{ title: 'Período de teste' }} />
+        <Stack.Screen name="admin/catalogo" options={{ title: 'Catálogo do sistema' }} />
         <Stack.Screen name="simulador" options={{ headerShown: false }} />
         <Stack.Screen name="relatorios/index" options={{ title: 'Relatórios' }} />
         <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} />

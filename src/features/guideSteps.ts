@@ -14,7 +14,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     icon: 'house',
     title: 'Bem-vindo ao POUP',
     description:
-      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 12 passos rápidos — leva menos de dois minutos.',
+      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 13 passos rápidos — leva menos de dois minutos.',
     bullets: [
       'Você pode sair do guia quando quiser',
       'Para rever depois: Ajustes › Guia do app',
@@ -22,14 +22,28 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     icon: 'building',
-    where: 'Ajustes › Empresas e empreendimentos',
-    title: 'Comece pelos cadastros',
+    where: 'Início › Cadastros › Empresas',
+    title: 'Comece pelos cadastros — se houver o que cadastrar',
     description:
-      'É a base de tudo. O simulador e a proposta usam as regras que você cadastra aqui, então esse é o primeiro passo.',
+      'O simulador, a proposta e a comissão trabalham com as regras da construtora. Antes de digitar qualquer coisa, abra a aba “Catálogo do sistema”: se a sua construtora já estiver lá, é só aceitar e tudo entra pronto.',
     bullets: [
-      'Cadastre a construtora com as regras dela: risco máximo, número de parcelas, semestrais e anuais',
-      'Cadastre os empreendimentos de cada empresa, com data de entrega e descrição',
+      'Do catálogo vêm prontos a regra de comissão, os empreendimentos e o material de venda',
+      'Se ela não estiver no catálogo, cadastre você: risco máximo, número de parcelas, semestrais e anuais',
+      'Depois cadastre os empreendimentos da empresa, com data de entrega e descrição',
       'A descrição é o que a IA usa para escrever suas mensagens',
+    ],
+  },
+  {
+    icon: 'handshake',
+    where: 'Início › Cadastros › Empresas › aba “Catálogo do sistema”',
+    title: 'Catálogo do sistema: aceitar e usar',
+    description:
+      'São construtoras que o POUP já cadastrou, com regra de comissão, empreendimentos e material de venda. Toque na construtora, leia o aviso e aceite: na hora tudo passa a valer na sua conta.',
+    bullets: [
+      'As atualizações do POUP chegam sozinhas: regra ajustada ou empreendimento novo aparece na sua conta',
+      'Por isso a empresa do catálogo é somente leitura — você não edita os dados dela',
+      'Suas simulações, vendas e comissões já lançadas não mudam: elas guardam os valores do dia',
+      'Pode remover da sua lista quando quiser, sem perder histórico',
     ],
   },
   {
@@ -127,7 +141,8 @@ export const GUIDE_STEPS: GuideStep[] = [
     description:
       'Cada venda registrada já lança a comissão calculada pela regra da construtora, dividida nas parcelas combinadas. Você só acompanha o que entra.',
     bullets: [
-      'Cadastre a regra em Ajustes › Empresas: percentual, campanhas promocionais e em quantas vezes recebe',
+      'A regra fica em Cadastros › Empresas: percentual, campanhas promocionais e em quantas vezes recebe',
+      'Se a construtora veio do catálogo do sistema, a regra já vem pronta',
       'A parcela vencida aparece em vermelho — nada passa batido',
       'Marque como recebida direto na lista, com um toque',
       'Registre a nota fiscal de cada parcela',
@@ -150,7 +165,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     title: 'Pronto para vender',
     description: 'Se quiser um roteiro para hoje, é este:',
     bullets: [
-      '1. Cadastre uma empresa e um empreendimento',
+      '1. Aceite sua construtora no catálogo do sistema — ou cadastre empresa e empreendimento',
       '2. Suba um material de venda desse empreendimento',
       '3. Prospecte cinco leads na sua cidade',
       '4. Faça a primeira simulação e gere a proposta',
