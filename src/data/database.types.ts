@@ -128,6 +128,10 @@ export interface Database {
           max_semiannual: number | null;
           max_annual: number | null;
           coincide_installments: boolean;
+          /** Empresa do CATÁLOGO DO SISTEMA (cadastrada pelo admin do POUP). */
+          is_catalog: boolean;
+          /** URL pública da foto redonda, no bucket `catalog`. */
+          photo_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -140,6 +144,8 @@ export interface Database {
           max_semiannual?: number | null;
           max_annual?: number | null;
           coincide_installments?: boolean;
+          is_catalog?: boolean;
+          photo_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -150,8 +156,34 @@ export interface Database {
           max_semiannual?: number | null;
           max_annual?: number | null;
           coincide_installments?: boolean;
+          is_catalog?: boolean;
+          photo_url?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      /**
+       * Quem adotou qual empresa do catálogo.
+       *
+       * É o VÍNCULO que faz a empresa do admin aparecer nas listas do corretor —
+       * não há cópia de dados, então tudo que o admin corrige reflete na hora.
+       * `unique(user_id, company_id)` deixa a adoção idempotente.
+       */
+      company_adoptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          company_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          company_id: string;
+          created_at?: string;
+        };
+        // Nada é editável: adotar/desadotar é insert/delete.
+        Update: Record<string, never>;
         Relationships: [];
       };
       correspondents: {
@@ -181,6 +213,8 @@ export interface Database {
           description: string | null;
           delivery_date: string | null;
           manager_name: string | null;
+          /** URL pública da foto redonda, no bucket `catalog`. */
+          photo_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -192,6 +226,7 @@ export interface Database {
           description?: string | null;
           delivery_date?: string | null;
           manager_name?: string | null;
+          photo_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -201,6 +236,7 @@ export interface Database {
           description?: string | null;
           delivery_date?: string | null;
           manager_name?: string | null;
+          photo_url?: string | null;
           updated_at?: string;
         };
         Relationships: [];

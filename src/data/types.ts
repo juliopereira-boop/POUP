@@ -142,9 +142,43 @@ export interface Company {
   maxSemiannual: number | null;
   maxAnnual: number | null;
   coincideInstallments: boolean;
+  /**
+   * Foto redonda da construtora (URL pública do bucket `catalog`).
+   * Aparece na listagem, no seletor do simulador e no topo do PDF da proposta.
+   */
+  photoUrl: string | null;
+  /**
+   * Veio do CATÁLOGO DO SISTEMA, mantido pelo admin do POUP.
+   *
+   * O corretor não edita nem apaga: ele **adota** a empresa e passa a usar as
+   * regras, os empreendimentos e o material que o admin cadastrou — e continua
+   * recebendo as atualizações, porque a adoção é um VÍNCULO, não uma cópia.
+   * Para deixar de usar, ele remove a adoção (`db.catalog.unadopt`).
+   */
+  isCatalog: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Uma empresa do catálogo do sistema, do ponto de vista de quem vai adotar.
+ *
+ * `developmentNames` é só a prévia mostrada no aviso de aceite — o corretor
+ * precisa ver o que vai entrar na conta dele ANTES de confirmar.
+ */
+export interface CatalogCompany {
+  company: Company;
+  developmentCount: number;
+  /** Primeiros nomes, para a prévia. Não é a lista completa. */
+  developmentNames: string[];
+  /** Resumo da regra de comissão em uma linha, ou `null` se não houver regra. */
+  commissionSummary: string | null;
+  /** O corretor logado já adotou esta empresa. */
+  adopted: boolean;
+}
+
+/** O que o admin pode fotografar. Define a pasta no bucket `catalog`. */
+export type CatalogPhotoKind = 'company' | 'development';
 
 export interface Correspondent {
   id: string;
@@ -160,6 +194,13 @@ export interface Development {
   description: string | null;
   deliveryDate: string | null;
   managerName: string | null;
+  /** Foto redonda do empreendimento (URL pública do bucket `catalog`). */
+  photoUrl: string | null;
+  /**
+   * Pertence a uma empresa do catálogo do sistema — logo, é somente leitura
+   * para o corretor. Derivado da empresa, não é coluna própria no banco.
+   */
+  isCatalog: boolean;
   createdAt: string;
   updatedAt: string;
 }

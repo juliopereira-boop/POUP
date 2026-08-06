@@ -4,6 +4,8 @@ import type {
   AppointmentStatusInfo,
   AppointmentType,
   AuthUser,
+  CatalogCompany,
+  CatalogPhotoKind,
   Company,
   CompanyInput,
   Commission,
@@ -118,6 +120,18 @@ export interface SettingsRepository {
 }
 
 export interface CompanyRepository {
+  /**
+   * As empresas que o corretor USA: as que ele cadastrou + as que ele ADOTOU do
+   * catálogo do sistema.
+   *
+   * As adotadas vêm com `isCatalog: true` e são somente leitura — a tela deve
+   * esconder editar/excluir e oferecer "remover da minha lista"
+   * (`db.catalog.unadopt`) no lugar.
+   *
+   * As próprias empresas do catálogo NÃO entram só por serem do admin: mesmo o
+   * admin precisa adotar para usar no simulador. Assim o catálogo não polui a
+   * conta de ninguém sem consentimento.
+   */
   list(userId: string): Promise<Company[]>;
   create(userId: string, data: CompanyInput): Promise<Result<Company>>;
   update(id: string, data: CompanyInput): Promise<Result<Company>>;
@@ -129,10 +143,70 @@ export interface CompanyRepository {
 }
 
 export interface DevelopmentRepository {
+  /**
+   * Os empreendimentos que o corretor USA: os dele + todos os das empresas do
+   * catálogo que ele adotou (com `isCatalog: true`, somente leitura).
+   *
+   * Mesma regra da `CompanyRepository.list`: empreendimento de empresa do
+   * catálogo só aparece via adoção, nunca por ser do admin que o cadastrou.
+   */
   list(userId: string): Promise<Development[]>;
   create(userId: string, data: DevelopmentInput): Promise<Result<Development>>;
   update(id: string, data: DevelopmentInput): Promise<Result<Development>>;
   remove(id: string): Promise<Result<void>>;
+}
+
+/**
+ * O catálogo do sistema: empresas pré-configuradas pelo admin do POUP, com
+ * regra de comissão, empreendimentos, material de venda e foto já prontos.
+ *
+ * ------------------------------------------------------------------
+ * VÍNCULO, NÃO CÓPIA — a decisão de arquitetura mais importante daqui
+ * ------------------------------------------------------------------
+ * Adotar NÃO duplica os dados na conta do corretor: cria uma linha em
+ * `company_adoptions` e a leitura passa a alcançar a MESMA empresa. Por isso
+ * toda correção que o admin faz (regra mudou, empreendimento novo, material
+ * atualizado) aparece automaticamente para quem adotou, sem reimportar nada.
+ *
+ * O que é do corretor continua dele: simulações, vendas e comissões já lançadas
+ * guardam os valores em snapshot e não mudam quando a regra muda depois.
+ *
+ * Os métodos de escrita do catálogo são para o ADMIN. A autorização é do banco
+ * (`is_app_admin()` nas policies), nunca da UI: esconder o botão não protege
+ * nada.
+ */
+export interface CatalogRepository {
+  /** O catálogo inteiro, com prévia e marcação de já adotada. */
+  list(userId: string): Promise<CatalogCompany[]>;
+
+  /** Passa a usar a empresa do catálogo. Idempotente. */
+  adopt(userId: string, companyId: string): Promise<Result<void>>;
+
+  /**
+   * Deixa de usar. Não apaga nada do catálogo nem o histórico do corretor —
+   * só remove o vínculo, então a empresa sai das listas dele.
+   */
+  unadopt(userId: string, companyId: string): Promise<Result<void>>;
+
+  /* --- administração do catálogo (admin) --- */
+
+  /** Só as empresas do catálogo, para o painel do admin. */
+  listCompanies(): Promise<Company[]>;
+
+  createCompany(userId: string, data: CompanyInput): Promise<Result<Company>>;
+
+  /**
+   * Sobe a foto redonda e devolve a URL pública já gravada na linha.
+   * Substituir a foto sobrescreve o arquivo anterior.
+   */
+  uploadPhoto(
+    kind: CatalogPhotoKind,
+    id: string,
+    data: Blob,
+    contentType: string,
+  ): Promise<Result<string>>;
+
+  removePhoto(kind: CatalogPhotoKind, id: string): Promise<Result<void>>;
 }
 
 export interface SimulationRepository {
@@ -148,11 +222,23 @@ export interface SimulationRepository {
   setStatus(id: string, status: SimulationStatus): Promise<Result<void>>;
 }
 
+/**
+ * Material de venda no Storage.
+ *
+ * `root` é a primeira pasta do caminho e define de quem é o material:
+ * - o `userId` do corretor, para o material que ele mesmo subiu;
+ * - `CATALOG_MATERIAL_ROOT` (`'catalog'`), para o material que o admin
+ *   pré-cadastrou. Quem adotou a empresa LÊ dessa pasta; só admin escreve
+ *   (garantido por policy no Storage, não pela UI).
+ *
+ * Use `materialRoot()` de `@/features/catalog/material` para escolher — nunca
+ * monte a string na tela.
+ */
 export interface MaterialRepository {
-  list(userId: string, relPath: string): Promise<StorageEntry[]>;
-  createFolder(userId: string, relPath: string, name: string): Promise<Result<void>>;
+  list(root: string, relPath: string): Promise<StorageEntry[]>;
+  createFolder(root: string, relPath: string, name: string): Promise<Result<void>>;
   upload(
-    userId: string,
+    root: string,
     relPath: string,
     fileName: string,
     data: Blob,

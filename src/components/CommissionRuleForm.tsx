@@ -14,6 +14,12 @@ import {
   type CommissionRuleInput,
 } from '@/data';
 import { resolveRate } from '@/features/comissao/engine';
+import {
+  describeCommissionRule,
+  formatDecimalBR,
+  formatPct,
+  parseDecimalBR,
+} from '@/features/comissao/summary';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -21,23 +27,10 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
  * Números e datas em PT-BR
  * ------------------------------------------------------------------------- */
 
-/** Lê número digitado em PT-BR (aceita vírgula e ponto). Vazio/invalido = null. */
-export function parseDecimalBR(input: string): number | null {
-  const raw = input.trim().replace(/\s/g, '').replace(',', '.');
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
-}
-
-/** Mostra número com vírgula decimal e sem zeros à direita. Ex.: 2.5 -> "2,5". */
-export function formatDecimalBR(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '';
-  return String(Math.round(value * 100) / 100).replace('.', ',');
-}
-
-function formatPct(value: number | null | undefined): string {
-  return value == null ? '—' : `${formatDecimalBR(value)}%`;
-}
+// Os helpers de número em PT-BR e o resumo da regra saíram para
+// `@/features/comissao/summary` (módulo puro) porque a camada de dados também
+// precisa do resumo. Reexportados aqui para as telas que já importavam daqui.
+export { describeCommissionRule, formatDecimalBR, parseDecimalBR };
 
 /** Data de hoje em YYYY-MM-DD pelas partes LOCAIS (nunca via toISOString). */
 function todayYmd(): string {
@@ -82,13 +75,6 @@ const ORDINALS = [
 
 function ordinal(index: number): string {
   return ORDINALS[index] ?? `${index + 1}ª`;
-}
-
-/** Resumo curto para a listagem de empresas. Ex.: "2% · 2x". */
-export function describeCommissionRule(rule: CommissionRule | null): string {
-  if (!rule) return '—';
-  const parcelas = rule.installmentsCount <= 1 ? 'pagamento único' : `${rule.installmentsCount}x`;
-  return `${formatPct(rule.defaultPct)} · ${parcelas}`;
 }
 
 /* ------------------------------------------------------------------------- *
