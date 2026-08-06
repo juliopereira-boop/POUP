@@ -191,6 +191,14 @@ export default function SimulationDetailScreen() {
         todayISO: sim.proposalDate ?? new Date().toISOString().slice(0, 10),
         companyPhotoUrl,
       });
+    } catch (e) {
+      // A impressão agora RECUSA imprimir uma folha vazia e lança. Antes,
+      // qualquer falha nesse caminho virava um PDF em branco, sem explicação.
+      setNotice(
+        e instanceof Error && e.message
+          ? e.message
+          : 'Não foi possível gerar a proposta. Tente de novo.',
+      );
     } finally {
       setGenerating(false);
     }

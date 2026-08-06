@@ -81,16 +81,27 @@ export default function SimuladorFluxo() {
         sim.editId && stored?.proposalDate
           ? stored.proposalDate
           : new Date().toISOString().slice(0, 10);
-      await generateProposal({
-        sim,
-        profile,
-        companyName,
-        developmentName,
-        deliveryDate,
-        gerente,
-        todayISO: genDate,
-        companyPhotoUrl,
-      });
+      // A impressão agora RECUSA imprimir uma folha vazia e lança. Só que perder
+      // a simulação por causa disso seria pior que não gerar o PDF: salvamos em
+      // Relatórios de qualquer jeito e avisamos no fim.
+      let printError: string | null = null;
+      try {
+        await generateProposal({
+          sim,
+          profile,
+          companyName,
+          developmentName,
+          deliveryDate,
+          gerente,
+          todayISO: genDate,
+          companyPhotoUrl,
+        });
+      } catch (e) {
+        printError =
+          e instanceof Error && e.message
+            ? e.message
+            : 'Não foi possível gerar a proposta em PDF.';
+      }
 
       const unitValue = currencyToNumber(sim.unitValue);
       const riskPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
@@ -114,6 +125,11 @@ export default function SimuladorFluxo() {
         : await db.simulations.create(user.id, input);
       if (!result.ok) {
         setError(`Proposta gerada, mas falha ao salvar em Relatórios: ${result.error}`);
+        return;
+      }
+
+      if (printError) {
+        setError(`${printError} A simulação foi salva em Relatórios — dá para gerar o PDF por lá.`);
         return;
       }
 
