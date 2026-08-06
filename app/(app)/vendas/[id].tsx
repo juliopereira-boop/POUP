@@ -25,7 +25,7 @@ import { Input } from '@/components/Input';
 import { ProFeatureLock } from '@/components/ProFeatureLock';
 import { SaleStatusPill } from '@/components/SaleStatusPill';
 import { Screen } from '@/components/Screen';
-import { db, type Sale, type SaleInput } from '@/data';
+import { db, type CommissionWithInstallments, type Sale, type SaleInput } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
 import {
   cancelCommissionForDistrato,
@@ -104,6 +104,37 @@ function VendaContent() {
   const [busy, setBusy] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [distratoOpen, setDistratoOpen] = useState(false);
+  /** A comissão desta venda: `null` enquanto carrega, `false` quando não existe. */
+  const [commission, setCommission] = useState<CommissionWithInstallments | null | false>(null);
+  const [commissionError, setCommissionError] = useState<string | null>(null);
+  const [commissionBusy, setCommissionBusy] = useState(false);
+
+  /**
+   * Lança a comissão se ainda não existir e guarda o que aconteceu.
+   *
+   * É a rede de segurança do registro da venda: se o lançamento falhou lá
+   * (banco fora, migration não rodada), é aqui que ele acontece de novo — e,
+   * falhando outra vez, o motivo aparece na tela em vez de sumir.
+   */
+  const syncCommission = useCallback(
+    async (target: Sale) => {
+      if (!userId) return;
+      setCommissionBusy(true);
+      setCommissionError(null);
+      if (target.status === 'ativa') {
+        const res = await ensureCommissionForSale(userId, target);
+        if (res.status === 'erro') {
+          setCommissionError(res.message);
+          setCommission(false);
+          setCommissionBusy(false);
+          return;
+        }
+      }
+      setCommission((await db.commissions.getBySale(target.id)) ?? false);
+      setCommissionBusy(false);
+    },
+    [userId],
+  );
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -111,13 +142,8 @@ function VendaContent() {
     const found = await db.sales.get(id);
     setSale(found);
     setLoading(false);
-    // Rede de segurança: se o lançamento da comissão falhou no momento do
-    // registro da venda, é aqui que ele acontece. `ensureCommissionForSale` é
-    // idempotente, então abrir a tela várias vezes não duplica nada.
-    if (found && userId && found.status === 'ativa') {
-      void ensureCommissionForSale(userId, found);
-    }
-  }, [id, userId]);
+    if (found) void syncCommission(found);
+  }, [id, syncCommission]);
 
   useFocusEffect(
     useCallback(() => {
@@ -253,6 +279,57 @@ function VendaContent() {
           <Text style={styles.distratoMeta}>Data do distrato: {dateBR(sale.distratoDate)}</Text>
           <Text style={styles.distratoMeta}>Motivo: {sale.distratoReason?.trim() || '—'}</Text>
         </View>
+      ) : null}
+
+      {/*
+        A comissão nasce junto com a venda. Mostrar aqui o que foi lançado
+        (e o motivo quando não deu) é o que fecha o ciclo para o corretor:
+        ele registra a venda, cai nesta tela e vê o dinheiro dele já dividido.
+      */}
+      {commissionError ? (
+        <View style={styles.commissionCardBad}>
+          <Text style={styles.commissionTitleBad}>Comissão não lançada</Text>
+          <Text style={styles.commissionMeta}>{commissionError}</Text>
+          <Pressable
+            onPress={() => void syncCommission(sale)}
+            disabled={commissionBusy}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.commissionLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.commissionLinkTextBad}>
+              {commissionBusy ? 'Tentando…' : 'Tentar de novo'}
+            </Text>
+          </Pressable>
+        </View>
+      ) : commission ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/comissao/[id]',
+              params: { id: commission.commission.id },
+            })
+          }
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.commissionCard, pressed && styles.pressed]}
+        >
+          <Text style={styles.commissionTitle}>Comissão desta venda</Text>
+          <Text style={styles.commissionValue} numberOfLines={1} adjustsFontSizeToFit>
+            {brl(commission.commission.totalValue)}
+          </Text>
+          <Text style={styles.commissionMeta}>
+            {commission.commission.pct.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%
+            {commission.commission.source === 'campanha'
+              ? ` · campanha ${commission.commission.campaignName?.trim() || 'promocional'}`
+              : commission.commission.source === 'manual'
+                ? ' · definida manualmente'
+                : ' · percentual padrão'}
+            {' · '}
+            {commission.installments.length === 1
+              ? 'pagamento único'
+              : `${commission.installments.length}x`}
+          </Text>
+          <Text style={styles.commissionLinkText}>Abrir controle de comissão ›</Text>
+        </Pressable>
       ) : null}
 
       <View style={styles.actions}>
@@ -662,6 +739,45 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
     },
     distratoTitle: { ...typography.label, color: colors.danger },
+    commissionCard: {
+      backgroundColor: colors.primarySoft,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      gap: 2,
+    },
+    commissionCardBad: {
+      backgroundColor: colors.dangerSoft,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    commissionTitle: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+    commissionTitleBad: { ...typography.label, color: colors.danger },
+    commissionValue: { ...typography.title, color: colors.ink },
+    commissionMeta: { ...typography.caption, color: colors.inkMuted },
+    commissionLink: { alignSelf: 'flex-start', paddingVertical: spacing.xs },
+    commissionLinkText: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '700',
+      marginTop: spacing.xs,
+    },
+    commissionLinkTextBad: { ...typography.caption, color: colors.danger, fontWeight: '700' },
+
+    pressed: { opacity: 0.6 },
+
     distratoMeta: { ...typography.caption, color: colors.inkMuted, marginTop: 2 },
 
     actions: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },

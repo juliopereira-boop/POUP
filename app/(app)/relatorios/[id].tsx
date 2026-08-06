@@ -202,7 +202,9 @@ export default function SimulationDetailScreen() {
     setSale(created);
     setNotice(null);
     // A comissão nasce junto com a venda, com as parcelas já calculadas pela
-    // regra da construtora. Best-effort: se falhar, a tela da venda tenta de novo.
+    // regra da construtora. Adiantar aqui é só ganho de tempo: a tela da venda,
+    // para onde o app navega em seguida, tenta de novo e MOSTRA o motivo se
+    // falhar — o lançamento nunca fracassa em silêncio.
     if (userId) void ensureCommissionForSale(userId, created);
     // ORDEM: a venda já está gravada (o índice único do banco garante que não
     // existe outra para esta simulação). Só depois o status da simulação é
@@ -601,6 +603,16 @@ function RegistrarVendaModal({
                 setCommission(next.commission);
               }}
             />
+            {/*
+              Sem isso o corretor não tem como saber que preencher a comissão
+              aqui SOBRESCREVE a regra que ele cadastrou na construtora — e
+              acharia que a campanha promocional simplesmente não funcionou.
+            */}
+            <Text style={styles.commissionHint}>
+              {commission.trim() || percent.trim()
+                ? 'Este valor manda: a comissão será lançada exatamente assim, ignorando o percentual e as campanhas da construtora.'
+                : 'Deixe em branco para o app aplicar sozinho a regra da construtora (percentual padrão, campanha vigente e o parcelamento cadastrado).'}
+            </Text>
             <Input
               label="Observações"
               value={notes}
@@ -801,5 +813,15 @@ const makeStyles = (colors: AppColors) =>
     sheetTitle: { ...typography.heading, color: colors.ink, flex: 1 },
     sheetClose: { ...typography.heading, color: colors.inkMuted },
     sheetHint: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
+    commissionHint: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.sm,
+      padding: spacing.md,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+    },
     sheetCancel: { marginTop: spacing.sm },
   });

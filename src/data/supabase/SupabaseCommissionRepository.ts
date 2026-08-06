@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dateKey } from '@/features/agenda/dates';
-import { resolvePeriod } from '@/features/vendas/period';
+import { resolveCommissionPeriod } from '@/features/comissao/period';
 import type { CommissionRepository } from '../repositories';
 import {
   type Commission,
@@ -15,7 +15,6 @@ import {
   type CommissionWithInstallments,
   type InvoiceStatus,
   type Result,
-  type SaleFilters,
   err,
   ok,
 } from '../types';
@@ -284,26 +283,6 @@ function buildInstallmentPatch(patch: Partial<NewInstallment>): InstallmentWrite
  */
 function todayYmd(): string {
   return dateKey(new Date());
-}
-
-/**
- * `resolvePeriod` recebe `SaleFilters`, mas usa apenas `preset`/`from`/`to` —
- * exatamente os campos que `CommissionFilters` também tem (e
- * `CommissionPeriodPreset` é o mesmo tipo de `SalePeriodPreset`). A ponte é
- * feita com um objeto `SaleFilters` completo e tipado, para não duplicar a
- * lógica de período nem recorrer a `as any`.
- */
-function resolveCommissionPeriod(filters: CommissionFilters): { from: string | null; to: string | null } {
-  const asSaleFilters: SaleFilters = {
-    preset: filters.preset,
-    from: filters.from,
-    to: filters.to,
-    companyId: filters.companyId,
-    developmentId: null,
-    status: 'todas',
-    query: '',
-  };
-  return resolvePeriod(asSaleFilters);
 }
 
 /**

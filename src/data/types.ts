@@ -329,7 +329,26 @@ export interface CommissionWithInstallments {
   installments: CommissionInstallment[];
 }
 
-export type CommissionPeriodPreset = SalePeriodPreset;
+/**
+ * Períodos do módulo de comissão.
+ *
+ * NÃO é o mesmo conjunto de vendas, e a diferença é o coração do módulo: venda
+ * é fato consumado (olha para trás), comissão a receber é PREVISÃO (olha para
+ * frente). Uma venda registrada hoje tem a 1ª parcela vencendo daqui a 30 dias
+ * — com uma janela que termina hoje, ela sumiria da tela no instante em que foi
+ * criada. Por isso o padrão é `tudo` e existem os presets prospectivos.
+ */
+export type CommissionPeriodPreset =
+  | 'tudo'
+  | 'proximos_30_dias'
+  | 'proximos_3_meses'
+  | 'proximos_12_meses'
+  | 'mes_atual'
+  | 'mes_passado'
+  | 'ultimos_3_meses'
+  | 'ultimos_12_meses'
+  | 'ano_atual'
+  | 'personalizado';
 
 export type CommissionDateBasis = 'vencimento' | 'venda' | 'recebimento';
 
@@ -347,7 +366,9 @@ export interface CommissionFilters {
 }
 
 export const EMPTY_COMMISSION_FILTERS: CommissionFilters = {
-  preset: 'ultimos_12_meses',
+  // `tudo` de propósito: o corretor precisa ENXERGAR a comissão que acabou de
+  // nascer, e ela vence no futuro. Nenhum filtro de data vem ligado por padrão.
+  preset: 'tudo',
   from: null,
   to: null,
   basis: 'vencimento',

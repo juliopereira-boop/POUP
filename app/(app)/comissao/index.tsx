@@ -23,7 +23,6 @@ import { ToggleField } from '@/components/ToggleField';
 import {
   db,
   EMPTY_COMMISSION_FILTERS,
-  EMPTY_SALE_FILTERS,
   isInstallmentLate,
   type CommissionDateBasis,
   type CommissionFilters,
@@ -35,9 +34,9 @@ import {
 } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
 import { computeCommissionKpis, type CommissionKpis } from '@/features/comissao/kpis';
+import { COMMISSION_PRESETS, resolveCommissionPeriod } from '@/features/comissao/period';
 import { FEATURES } from '@/features/registry';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
-import { resolvePeriod } from '@/features/vendas/period';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -46,16 +45,6 @@ const feature = FEATURES.find((f) => f.key === 'comissao')!;
 
 type Tab = 'painel' | 'parcelas';
 type Styles = ReturnType<typeof makeStyles>;
-
-const PRESETS: { value: CommissionPeriodPreset; label: string }[] = [
-  { value: 'mes_atual', label: 'Este mês' },
-  { value: 'mes_passado', label: 'Mês passado' },
-  { value: 'ultimos_3_meses', label: 'Últimos 3 meses' },
-  { value: 'ultimos_12_meses', label: 'Últimos 12 meses' },
-  { value: 'ano_atual', label: 'Este ano' },
-  { value: 'tudo', label: 'Todo o histórico' },
-  { value: 'personalizado', label: 'Período personalizado' },
-];
 
 const BASIS_OPTIONS: { value: CommissionDateBasis; label: string }[] = [
   { value: 'vencimento', label: 'Vencimento da parcela' },
@@ -153,20 +142,11 @@ function ComissaoContent() {
 
   const today = dateKey(new Date());
 
-  /**
-   * `resolvePeriod` é o mesmo tradutor de preset das vendas (uma regra só para
-   * os dois módulos). Ele lê apenas `preset`/`from`/`to`, então monto um
-   * `SaleFilters` com esses três campos em vez de duplicar a função.
-   */
+  // Mesma função que o repositório usa para recortar as parcelas: o rótulo do
+  // filtro e o que a lista devolve nunca podem divergir.
   const period = useMemo(
-    () =>
-      resolvePeriod({
-        ...EMPTY_SALE_FILTERS,
-        preset: filters.preset,
-        from: filters.from,
-        to: filters.to,
-      }),
-    [filters.preset, filters.from, filters.to],
+    () => resolveCommissionPeriod(filters),
+    [filters],
   );
 
   const load = useCallback(async () => {
@@ -205,7 +185,7 @@ function ComissaoContent() {
 
   /** Resumo do filtro fechado: sempre diz qual data está mandando no período. */
   const filterSummary = useMemo(() => {
-    const presetLabel = PRESETS.find((x) => x.value === filters.preset)?.label ?? '';
+    const presetLabel = COMMISSION_PRESETS.find((x) => x.value === filters.preset)?.label ?? '';
     const janela =
       filters.preset === 'tudo'
         ? presetLabel
@@ -258,7 +238,7 @@ function ComissaoContent() {
               label="Período"
               placeholder="Escolha o período"
               value={filters.preset}
-              options={PRESETS}
+              options={COMMISSION_PRESETS}
               onChange={(v) => patch({ preset: v as CommissionPeriodPreset })}
             />
 

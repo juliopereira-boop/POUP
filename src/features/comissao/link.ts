@@ -5,22 +5,37 @@
  * calculadas pela regra da construtora vigente **na data da venda**. O corretor
  * não precisa cadastrar nada duas vezes.
  *
- * Tudo aqui é best-effort e idempotente: a venda é a fonte da verdade e não
- * pode ser perdida nem bloqueada porque a comissão falhou. Se o lançamento não
- * acontecer na hora, a próxima abertura da venda tenta de novo.
+ * A venda é a fonte da verdade e não pode ser perdida nem bloqueada porque a
+ * comissão falhou — por isso nada aqui lança exceção. Mas falhar em SILÊNCIO é
+ * pior: o corretor fica sem saber que o dinheiro dele não entrou no controle.
+ * Então o resultado sempre diz o que aconteceu, e a tela da venda mostra o
+ * motivo com um botão para tentar de novo.
  */
 import { db, type Sale } from '@/data';
 import { buildCommissionForSale } from './engine';
 
+export type EnsureCommissionResult =
+  /** Lançada agora. */
+  | { status: 'criada' }
+  /** Já existia — esta função é idempotente por venda. */
+  | { status: 'ja_existia' }
+  /** Não deu: `message` é o texto pronto para a tela. */
+  | { status: 'erro'; message: string };
+
 /**
  * Garante que a venda tenha comissão lançada.
  *
- * @returns `true` quando lançou agora, `false` quando já existia ou não deu.
+ * Idempotente: pode ser chamada quantas vezes for (no registro da venda e a
+ * cada abertura da tela dela) sem duplicar nada — o índice único em `sale_id` é
+ * a trava final, no banco.
  */
-export async function ensureCommissionForSale(userId: string, sale: Sale): Promise<boolean> {
+export async function ensureCommissionForSale(
+  userId: string,
+  sale: Sale,
+): Promise<EnsureCommissionResult> {
   try {
     const existing = await db.commissions.getBySale(sale.id);
-    if (existing) return false;
+    if (existing) return { status: 'ja_existia' };
 
     const [rule, campaigns] = sale.companyId
       ? await Promise.all([
@@ -31,10 +46,30 @@ export async function ensureCommissionForSale(userId: string, sale: Sale): Promi
 
     const payload = buildCommissionForSale(sale, rule, campaigns);
     const res = await db.commissions.createForSale(userId, payload);
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { status: 'criada' };
+    return { status: 'erro', message: describe(res.error) };
+  } catch (e) {
+    return { status: 'erro', message: describe(e instanceof Error ? e.message : '') };
   }
+}
+
+/**
+ * Traduz a mensagem crua do banco.
+ *
+ * O caso que mais aparece na estreia do módulo é a migration
+ * `0023_commissions.sql` não ter sido rodada: o PostgREST responde que a tabela
+ * não existe, o que não diz nada ao corretor. A mensagem tem que apontar o que
+ * fazer.
+ */
+function describe(raw: string): string {
+  const text = (raw ?? '').trim();
+  if (/does not exist|could not find the table|schema cache|PGRST205|42P01/i.test(text)) {
+    return 'O módulo de comissão ainda não foi instalado no banco de dados (falta rodar a migration 0023_commissions.sql no Supabase).';
+  }
+  if (/row-level security|permission denied|42501/i.test(text)) {
+    return 'Sem permissão para gravar a comissão. Confira se a migration 0023_commissions.sql rodou por inteiro, incluindo as políticas de acesso.';
+  }
+  return text || 'Não foi possível lançar a comissão desta venda.';
 }
 
 /**
