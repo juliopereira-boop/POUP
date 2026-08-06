@@ -21,6 +21,15 @@
  */
 export const REMOTE_IMAGE_TIMEOUT_MS = 4000;
 
+/**
+ * Tamanho máximo da imagem embutida.
+ *
+ * POR QUE LIMITAR: o data URI vai inteiro dentro do HTML da proposta. Uma foto
+ * gigante engorda o documento e deixa a impressão lenta — sem melhorar nada num
+ * avatar de 32px. Acima disso, sai sem foto.
+ */
+export const REMOTE_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+
 interface BlobReader {
   readAsDataURL: (blob: Blob) => void;
   onload: (() => void) | null;
@@ -93,7 +102,7 @@ export async function fetchImageAsDataUri(
       const res = await fetch(clean, controller ? { signal: controller.signal } : undefined);
       if (!res.ok) return null;
       const blob = await res.blob();
-      if (!blob || blob.size === 0) return null;
+      if (!blob || blob.size === 0 || blob.size > REMOTE_IMAGE_MAX_BYTES) return null;
       return await blobToDataUri(blob);
     } catch {
       // Rede fora, CORS, abort do timeout: tudo cai aqui e vira "sem foto".

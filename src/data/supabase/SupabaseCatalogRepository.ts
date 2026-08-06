@@ -24,11 +24,13 @@ const PREVIEW_NAMES = 4;
 const PHOTO_EXTS = ['jpg', 'png', 'webp'] as const;
 
 /** Pasta no bucket e tabela do banco, por tipo de foto. */
-const PHOTO_TARGET: Record<CatalogPhotoKind, { folder: string; table: 'companies' | 'developments' }> =
-  {
-    company: { folder: 'companies', table: 'companies' },
-    development: { folder: 'developments', table: 'developments' },
-  };
+const PHOTO_TARGET: Record<
+  CatalogPhotoKind,
+  { folder: string; table: 'companies' | 'developments' }
+> = {
+  company: { folder: 'companies', table: 'companies' },
+  development: { folder: 'developments', table: 'developments' },
+};
 
 function photoExt(contentType: string): string {
   const type = contentType.toLowerCase();
@@ -228,9 +230,7 @@ export class SupabaseCatalogRepository implements CatalogRepository {
 
   async removePhoto(kind: CatalogPhotoKind, id: string): Promise<Result<void>> {
     // Remove todas as extensões possíveis: não se sabe com qual a foto subiu.
-    await supabase.storage
-      .from(PHOTO_BUCKET)
-      .remove(PHOTO_EXTS.map((e) => photoPath(kind, id, e)));
+    await supabase.storage.from(PHOTO_BUCKET).remove(PHOTO_EXTS.map((e) => photoPath(kind, id, e)));
 
     const { error } = await supabase
       .from(PHOTO_TARGET[kind].table)

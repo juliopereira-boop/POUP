@@ -18,11 +18,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { db, type Company, type Development, type StorageEntry } from '@/data';
 import { useIsAdmin } from '@/features/admin';
-import {
-  CATALOG_MATERIAL_ROOT,
-  canEditMaterial,
-  materialRoot,
-} from '@/features/catalog/material';
+import { CATALOG_MATERIAL_ROOT, canEditMaterial, materialRoot } from '@/features/catalog/material';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -472,7 +468,13 @@ export default function MaterialVendaScreen() {
                   key={c.id}
                   icon="🏢"
                   label={c.name}
-                  meta={driveUrls[c.id] ? 'Material online configurado' : 'Toque para configurar'}
+                  meta={
+                    c.isCatalog
+                      ? 'Material mantido pelo POUP'
+                      : driveUrls[c.id]
+                        ? 'Material online configurado'
+                        : 'Toque para configurar'
+                  }
                   onPress={() => onOpenCompany(c)}
                 />
               ))}
@@ -898,6 +900,15 @@ const makeStyles = (colors: AppColors) =>
       overflow: 'hidden',
     },
     hint: { ...typography.caption, color: colors.inkSubtle, marginTop: spacing.md },
+    catalogNotice: {
+      ...typography.caption,
+      color: colors.primary,
+      backgroundColor: colors.primarySoft,
+      padding: spacing.md,
+      borderRadius: 8,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+    },
     loader: { marginTop: spacing.lg },
     list: { marginTop: spacing.lg },
     sectionTitle: { ...typography.heading, color: colors.ink, marginTop: spacing.xl },

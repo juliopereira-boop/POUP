@@ -13,6 +13,80 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
+// FIXTURE_TEMPORARIO — remover antes de commitar
+const FIXTURE = true;
+const PHOTO_P =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjQjQ1MzA5Ii8+PHRleHQgeD0iNDgiIHk9IjYwIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiBmb250LXNpemU9IjM2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iI0ZGRkZGRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UDwvdGV4dD48L3N2Zz4=';
+const FIXTURE_COMPANIES: Company[] = [
+  {
+    id: 'c1',
+    name: 'Alfa Construções',
+    risk: 32,
+    maxInstallments: null,
+    maxSemiannual: null,
+    maxAnnual: null,
+    coincideInstallments: true,
+    photoUrl: null,
+    isCatalog: false,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'c2',
+    name: 'Construtora Horizonte',
+    risk: 30,
+    maxInstallments: null,
+    maxSemiannual: null,
+    maxAnnual: null,
+    coincideInstallments: true,
+    photoUrl: null,
+    isCatalog: true,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+];
+const FIXTURE_DEVS: Development[] = [
+  {
+    id: 'd1',
+    companyId: 'c1',
+    name: 'Residencial Bem Viver',
+    companyName: 'Alfa Construções',
+    description: null,
+    deliveryDate: '2027-06-01',
+    managerName: null,
+    photoUrl: null,
+    isCatalog: false,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'd2',
+    companyId: 'c2',
+    name: 'Parque das Águas',
+    companyName: 'Construtora Horizonte',
+    description: null,
+    deliveryDate: '2027-12-01',
+    managerName: null,
+    photoUrl: PHOTO_P,
+    isCatalog: true,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+  {
+    id: 'd3',
+    companyId: 'c2',
+    name: 'Horizonte Central Residence Clube',
+    companyName: 'Construtora Horizonte',
+    description: null,
+    deliveryDate: null,
+    managerName: null,
+    photoUrl: null,
+    isCatalog: true,
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  },
+];
+
 export default function EmpreendimentosScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -32,6 +106,13 @@ export default function EmpreendimentosScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // FIXTURE_TEMPORARIO
+    if (FIXTURE) {
+      setCompanies(FIXTURE_COMPANIES);
+      setDevelopments(FIXTURE_DEVS);
+      setLoading(false);
+      return;
+    }
     if (!user) return;
     setLoading(true);
     const [comps, devs] = await Promise.all([

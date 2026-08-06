@@ -18,15 +18,16 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 6. [Assinatura / Paywall / Stripe](#💳-assinatura--paywall--stripe)
 7. [Perfil do corretor e onboarding](#🪪-perfil-do-corretor-e-onboarding)
 8. [Cadastros: Empresas, Empreendimentos e Correspondentes](#🏢-cadastros-empresas-empreendimentos-e-correspondentes)
-9. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
-10. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
-11. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
-12. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
-13. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
-14. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
-15. [Deploy na Vercel](#▲-deploy-na-vercel)
-16. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store-depois)
-17. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
+10. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
+11. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
+12. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
+13. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
+14. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
+15. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
+16. [Deploy na Vercel](#▲-deploy-na-vercel)
+17. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store-depois)
+18. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -314,6 +315,53 @@ Sempre vinculado a uma empresa (`companyId`). Campos de "Regras de Negócio":
 
 - **Data de entrega** — escolhida via `MonthYearField` (seletor **só de mês/ano**; internamente é guardada como uma data ISO no dia 1º do mês, ex.: `2028-03-01`, porque a coluna do banco é `date`). No PDF da proposta, essa data aparece só como `Mar/2028`, nunca com o dia.
 - **Gerente responsável** (opcional, texto livre) — este é o "Gerente" (do empreendimento/construtora) que aparece na Etapa 2 do Simulador e no PDF, distinto do "Gerente Imob." (que vem do perfil do corretor, é o gerente da imobiliária).
+
+---
+
+## 🗂️ Catálogo do sistema (empresas pré-cadastradas pelo admin)
+
+O admin do POUP pré-configura construtoras — regra de comissão, campanhas, empreendimentos, material de venda e foto redonda — e o corretor **adota** com um toque, em vez de cadastrar tudo do zero. Fica em **Cadastros → Empresas → aba "Catálogo do sistema"**; o painel do admin fica em **Configurações → Administração → Catálogo do sistema**.
+
+### A decisão que sustenta tudo: vínculo, não cópia
+
+Adotar **não duplica dados** na conta do corretor. Cria uma linha em `company_adoptions` e a leitura dele passa a alcançar a **mesma** linha da empresa do admin.
+
+É isso — e só isso — que faz toda atualização do admin refletir automaticamente em quem já adotou: regra de comissão corrigida, empreendimento novo, material atualizado. Se fosse cópia, cada correção exigiria reimportar em N contas, e as contas divergiriam com o tempo.
+
+O que é do corretor continua dele: **simulações, vendas e comissões já lançadas guardam os valores em snapshot** e não são reescritas quando a regra muda depois. Mudar a regra afeta o que vier a partir dali, nunca o histórico.
+
+### Modelo
+
+| Coisa | Onde |
+| --- | --- |
+| A empresa é do catálogo | `companies.is_catalog = true`, `user_id` = o admin que criou |
+| Foto redonda | `companies.photo_url` / `developments.photo_url` → bucket **público** `catalog` |
+| O vínculo | `company_adoptions (user_id, company_id)`, único no par |
+| "É do catálogo?" nas tabelas filhas | derivado da empresa pelas funções `is_catalog_company()` / `is_own_private_company()` — não há coluna repetida |
+
+`Company.isCatalog` e `Development.isCatalog` chegam à UI para ela tratar o registro como **somente leitura** (sem editar/excluir, com "remover da minha lista" no lugar).
+
+### Como as listas ficam
+
+`db.companies.list()` e `db.developments.list()` devolvem a **união**: o que o corretor cadastrou + o que ele adotou. São duas consultas de propósito — as condições vivem em tabelas diferentes e, no PostgREST, **filtro em tabela embutida não restringe a linha pai** (viria o catálogo inteiro).
+
+Empresa do catálogo **não** entra na lista de ninguém só por ser do admin: mesmo o admin precisa adotar para usar no Simulador. Sem isso o catálogo invadiria a conta dele sem consentimento e apareceria duplicado depois de adotar.
+
+### Segurança (RLS, migration `0024_catalog.sql`)
+
+- **Vitrine navegável**: qualquer autenticado *lê* as empresas do catálogo antes de adotar; escrever nelas exige `is_app_admin()`.
+- **Trava anti-escalação**: um corretor comum não pode marcar `is_catalog = true` na empresa dele e publicá-la para toda a base. Duas coisas garantem isso: a policy antiga `companies_all_own` foi **removida** (policies permissivas se somam com `OR` — enquanto ela existisse, a trava seria decoração), e o `UPDATE` repete a condição em `using` **e** `with check`, para o estado final da linha também ser barrado.
+- **Brecha antiga fechada de carona**: as tabelas filhas exigiam apenas que a *linha* fosse sua, não que a *empresa* fosse — dava para pendurar empreendimento ou regra de comissão na empresa privada de outro corretor. Agora a escrita exige `is_own_private_company(company_id)`.
+
+### Material de venda e cota
+
+Material do catálogo mora no bucket `uploads` sob a raiz **`catalog/`** (em vez de `<userId>/`): admin escreve, qualquer autenticado lê. A raiz é escolhida por `materialRoot()` (`src/features/catalog/material.ts`) — nunca monte esse caminho na tela.
+
+O trigger `enforce_storage_quota()` **não cobra** upload em `catalog/` de ninguém: cobrar do admin faria o catálogo crescer às custas do plano de uma pessoa e travaria a publicação quando ele estourasse.
+
+### Foto no PDF
+
+A foto da construtora sai no topo da proposta, ao lado da logo do POUP. O bucket é público porque o PDF é montado **no cliente**: a imagem é buscada e convertida em data URI antes de imprimir. Com timeout curto e `try/catch` — proposta sem foto é aceitável, proposta que não gera não é.
 
 ---
 

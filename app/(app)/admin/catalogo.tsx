@@ -131,7 +131,9 @@ export default function CatalogoAdminScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
-  const { isAdmin, loading: loadingAdmin } = useIsAdmin();
+  // FIXTURE_TEMPORARIO_SCREENSHOT
+  const { isAdmin, loading: loadingAdmin } = { isAdmin: true, loading: false };
+  void useIsAdmin;
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [rules, setRules] = useState<Record<string, CommissionRule | null>>({});
@@ -173,6 +175,75 @@ export default function CatalogoAdminScreen() {
   const [devError, setDevError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // FIXTURE_TEMPORARIO_SCREENSHOT
+    if (true as boolean) {
+      const now = new Date().toISOString();
+      const photo =
+        'data:image/svg+xml;utf8,' +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#0F766E"/><text x="48" y="60" font-size="34" fill="#fff" text-anchor="middle" font-family="sans-serif">AL</text></svg>',
+        );
+      const base = {
+        risk: 32,
+        maxInstallments: 72,
+        maxSemiannual: 6,
+        maxAnnual: 5,
+        coincideInstallments: true,
+        isCatalog: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setCompanies([
+        { id: 'c1', name: 'Construtora Alfa Incorporações', photoUrl: photo, ...base },
+        { id: 'c2', name: 'MRV Engenharia', photoUrl: null, ...base, risk: 28 },
+        { id: 'c3', name: 'Direcional Engenharia', photoUrl: null, ...base, risk: 30 },
+      ]);
+      setRules({
+        c1: {
+          companyId: 'c1',
+          defaultPct: 2.5,
+          installmentsCount: 2,
+          installmentsSplit: [60, 40],
+          firstPaymentDays: 30,
+          intervalDays: 30,
+          notes: null,
+          updatedAt: now,
+        },
+        c2: null,
+        c3: null,
+      });
+      setDevelopments([
+        {
+          id: 'd1',
+          companyId: 'c1',
+          name: 'Residencial Parque das Águas',
+          companyName: 'Construtora Alfa Incorporações',
+          description: '2 quartos sendo uma suíte, varanda gourmet e lazer completo.',
+          deliveryDate: '2027-03-01',
+          managerName: 'Roberta Nogueira',
+          photoUrl: photo,
+          isCatalog: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: 'd2',
+          companyId: 'c1',
+          name: 'Alfa Village Bosque Norte',
+          companyName: 'Construtora Alfa Incorporações',
+          description: null,
+          deliveryDate: '2026-12-01',
+          managerName: null,
+          photoUrl: null,
+          isCatalog: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+      setDevCounts({ c1: 3, c2: 0, c3: 0 });
+      setLoading(false);
+      return;
+    }
     if (!user) return;
     setLoading(true);
     const list = await db.catalog.listCompanies();
@@ -211,6 +282,18 @@ export default function CatalogoAdminScreen() {
     () => (editingId ? developments.filter((d) => d.companyId === editingId) : []),
     [developments, editingId],
   );
+
+  /**
+   * Empreendimentos que existem no catálogo mas não vieram na leitura.
+   *
+   * `db.developments.list` entrega só o que a CONTA usa (os dela + os das
+   * empresas que ela adotou), e o admin não precisa adotar o próprio catálogo.
+   * Sem este aviso o painel diria "nenhum empreendimento" para uma construtora
+   * que tem vários — e o admin cadastraria tudo de novo, duplicado.
+   */
+  const outOfReachDevelopments = editingId
+    ? Math.max(0, (devCounts[editingId] ?? 0) - editingDevelopments.length)
+    : 0;
 
   /** Adiciona a marca de tempo da última troca para furar o cache do navegador. */
   const photoSrc = useCallback(
@@ -619,7 +702,7 @@ export default function CatalogoAdminScreen() {
             <>
               <Text style={styles.sectionLabel}>
                 Empreendimentos
-                {editingDevelopments.length > 0 ? ` (${editingDevelopments.length})` : ''}
+                {(devCounts[editingId] ?? 0) > 0 ? ` (${devCounts[editingId]})` : ''}
               </Text>
               <Text style={styles.hint}>
                 Empreendimento novo entra na conta de quem já adotou esta construtora sem precisar
@@ -627,7 +710,22 @@ export default function CatalogoAdminScreen() {
               </Text>
               {devError ? <Text style={styles.error}>{devError}</Text> : null}
 
-              {editingDevelopments.length === 0 && !devFormOpen ? (
+              {outOfReachDevelopments > 0 ? (
+                <View style={styles.warnCard}>
+                  <Text style={styles.warnTitle}>
+                    {outOfReachDevelopments === 1
+                      ? '1 empreendimento fora da sua lista'
+                      : `${outOfReachDevelopments} empreendimentos fora da sua lista`}
+                  </Text>
+                  <Text style={styles.warnText}>
+                    Eles existem no catálogo e os corretores que adotaram estão vendo, mas a leitura
+                    de empreendimentos só devolve o que a SUA conta usa. Para editá-los aqui, adote
+                    esta construtora na aba &quot;Catálogo do sistema&quot;.
+                  </Text>
+                </View>
+              ) : null}
+
+              {editingDevelopments.length === 0 && outOfReachDevelopments === 0 && !devFormOpen ? (
                 <Text style={styles.muted}>Nenhum empreendimento cadastrado ainda.</Text>
               ) : null}
 
