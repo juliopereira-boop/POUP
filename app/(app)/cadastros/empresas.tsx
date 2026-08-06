@@ -31,92 +31,6 @@ import { layout, radius, spacing, typography, type AppColors } from '@/theme';
  */
 type Tab = 'minhas' | 'catalogo';
 
-// FIXTURE_TEMPORARIO — remover antes de commitar
-const FIXTURE = true;
-const PHOTO_H =
-  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjMUQ0RUQ4Ii8+PHRleHQgeD0iNDgiIHk9IjYwIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiBmb250LXNpemU9IjM2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iI0ZGRkZGRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SDwvdGV4dD48L3N2Zz4=';
-const PHOTO_M =
-  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjMEY3NjZFIi8+PHRleHQgeD0iNDgiIHk9IjYwIiBmb250LWZhbWlseT0iSGVsdmV0aWNhIiBmb250LXNpemU9IjM2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iI0ZGRkZGRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+TTwvdGV4dD48L3N2Zz4=';
-function fx(over: Partial<Company>): Company {
-  return {
-    id: 'x',
-    name: 'X',
-    risk: null,
-    maxInstallments: null,
-    maxSemiannual: null,
-    maxAnnual: null,
-    coincideInstallments: true,
-    photoUrl: null,
-    isCatalog: false,
-    createdAt: '2026-01-01',
-    updatedAt: '2026-01-01',
-    ...over,
-  };
-}
-const FIXTURE_COMPANIES: Company[] = [
-  fx({ id: 'c1', name: 'Alfa Construções', risk: 32 }),
-  fx({ id: 'c2', name: 'Construtora Horizonte', risk: 30, photoUrl: PHOTO_H, isCatalog: true }),
-  fx({ id: 'c3', name: 'Vale Verde Incorporadora', risk: 28, isCatalog: true }),
-];
-const FIXTURE_RULES: Record<string, CommissionRule | null> = {
-  c1: {
-    companyId: 'c1',
-    defaultPct: 2,
-    installmentsCount: 1,
-    installmentsSplit: null,
-    firstPaymentDays: 30,
-    intervalDays: 30,
-    notes: null,
-    updatedAt: '2026-01-01',
-  },
-  c2: {
-    companyId: 'c2',
-    defaultPct: 3,
-    installmentsCount: 2,
-    installmentsSplit: [60, 40],
-    firstPaymentDays: 30,
-    intervalDays: 30,
-    notes: null,
-    updatedAt: '2026-01-01',
-  },
-  c3: null,
-};
-const FIXTURE_CATALOG: CatalogCompany[] = [
-  {
-    company: FIXTURE_COMPANIES[1]!,
-    developmentCount: 4,
-    developmentNames: ['Residencial Aurora', 'Parque das Águas', 'Horizonte Central'],
-    commissionSummary: '3% · 2x',
-    adopted: true,
-  },
-  {
-    company: FIXTURE_COMPANIES[2]!,
-    developmentCount: 2,
-    developmentNames: ['Vale Verde I', 'Vale Verde II'],
-    commissionSummary: '2% · pagamento único',
-    adopted: true,
-  },
-  {
-    company: fx({
-      id: 'c4',
-      name: 'Meridiano do Sul Empreendimentos',
-      photoUrl: PHOTO_M,
-      isCatalog: true,
-    }),
-    developmentCount: 6,
-    developmentNames: ['Meridiano Bosque', 'Meridiano Praia', 'Reserva Meridiano'],
-    commissionSummary: '2,5% · 3x',
-    adopted: false,
-  },
-  {
-    company: fx({ id: 'c5', name: 'Bela Vista Construtora e Incorporadora', isCatalog: true }),
-    developmentCount: 0,
-    developmentNames: [],
-    commissionSummary: null,
-    adopted: false,
-  },
-];
-
 /** "3 empreendimentos" sem cair no plural errado quando é um só. */
 function developmentCountLabel(count: number): string {
   if (count === 0) return 'Nenhum empreendimento cadastrado';
@@ -158,14 +72,6 @@ export default function EmpresasScreen() {
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    // FIXTURE_TEMPORARIO
-    if (FIXTURE) {
-      setCompanies(FIXTURE_COMPANIES);
-      setRules(FIXTURE_RULES);
-      setCatalog(FIXTURE_CATALOG);
-      setLoading(false);
-      return;
-    }
     if (!user) return;
     setLoading(true);
     // As duas abas são carregadas juntas de propósito: adotar/remover muda as
@@ -880,7 +786,7 @@ const makeStyles = (colors: AppColors) =>
     sheetHint: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
     devList: { marginBottom: spacing.lg, gap: 2 },
     devItem: { ...typography.caption, color: colors.ink },
-    devMore: { ...typography.caption, color: colors.inkSubtle, marginTop: 2 },
+    devMore: { ...typography.caption, color: colors.inkMuted, marginTop: 2 },
     explainBox: {
       backgroundColor: colors.surface,
       borderWidth: 1,

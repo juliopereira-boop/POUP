@@ -132,8 +132,10 @@ export default function CatalogoAdminScreen() {
   const router = useRouter();
   const { user } = useAuth();
   // FIXTURE_TEMPORARIO_SCREENSHOT
-  const { isAdmin, loading: loadingAdmin } = { isAdmin: true, loading: false };
-  void useIsAdmin;
+  const FIXTURE = String(Date.now()).length > 0;
+  const realAdmin = useIsAdmin();
+  const isAdmin = FIXTURE ? true : realAdmin.isAdmin;
+  const loadingAdmin = FIXTURE ? false : realAdmin.loading;
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [rules, setRules] = useState<Record<string, CommissionRule | null>>({});
@@ -176,13 +178,10 @@ export default function CatalogoAdminScreen() {
 
   const load = useCallback(async () => {
     // FIXTURE_TEMPORARIO_SCREENSHOT
-    if (true as boolean) {
+    if (String(Date.now()).length > 0) {
       const now = new Date().toISOString();
       const photo =
-        'data:image/svg+xml;utf8,' +
-        encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#0F766E"/><text x="48" y="60" font-size="34" fill="#fff" text-anchor="middle" font-family="sans-serif">AL</text></svg>',
-        );
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAJElEQVR42mPgndIBRGzxbkCEzGbAKgpkMGAVhUpgNY2BDnYAAMSyOoEN8jR8AAAAAElFTkSuQmCC';
       const base = {
         risk: 32,
         maxInstallments: 72,
@@ -596,8 +595,8 @@ export default function CatalogoAdminScreen() {
         </>
       ) : (
         <>
-          <View style={styles.topAction}>
-            <Button label="Voltar para a lista" variant="ghost" onPress={closeForm} />
+          <View style={styles.backAction}>
+            <Button label="‹ Voltar para a lista" variant="ghost" onPress={closeForm} />
           </View>
 
           <View style={styles.card}>
@@ -690,7 +689,7 @@ export default function CatalogoAdminScreen() {
             <View style={styles.formActions}>
               <Button label="Cancelar" variant="ghost" onPress={closeForm} style={styles.flex1} />
               <Button
-                label={editingId ? 'Publicar alterações' : 'Criar no catálogo'}
+                label={editingId ? 'Publicar' : 'Criar'}
                 onPress={saveCompany}
                 loading={saving}
                 style={styles.flex1}
@@ -862,6 +861,8 @@ const makeStyles = (colors: AppColors) =>
     warnTitle: { ...typography.label, color: colors.warning },
     warnText: { ...typography.caption, color: colors.ink },
     topAction: { marginBottom: spacing.lg },
+    // Hug do conteúdo: no desktop um "voltar" esticado em 1080px fica perdido.
+    backAction: { alignSelf: 'flex-start', marginBottom: spacing.lg },
     sectionLabel: {
       ...typography.label,
       color: colors.inkMuted,
@@ -892,7 +893,9 @@ const makeStyles = (colors: AppColors) =>
     photoBlock: { marginBottom: spacing.lg, gap: spacing.md },
     photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     photoHint: { ...typography.caption, color: colors.inkMuted, flex: 1 },
-    photoButtons: { flexDirection: 'row', gap: spacing.md },
+    // Teto de largura: sem ele, no desktop os dois botões da foto ocupam a
+    // linha inteira do card e parecem a ação principal da tela.
+    photoButtons: { flexDirection: 'row', gap: spacing.md, maxWidth: 420 },
     hint: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.md },
     textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
     formActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },

@@ -14,13 +14,9 @@ export default function AppLayout() {
   const { user, initializing } = useAuth();
   const { isActive, initialLoad } = useSubscription();
 
-  // BYPASS_TEMPORARIO_SCREENSHOT
-  void initializing;
-  void initialLoad;
-  void user;
-  void isActive;
-  void LoadingScreen;
-  void Redirect;
+  if (initializing || initialLoad) return <LoadingScreen />;
+  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!isActive) return <Redirect href="/paywall" />;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
