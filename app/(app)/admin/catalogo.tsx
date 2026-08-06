@@ -131,11 +131,7 @@ export default function CatalogoAdminScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
-  // FIXTURE_TEMPORARIO_SCREENSHOT
-  const FIXTURE = String(Date.now()).length > 0;
-  const realAdmin = useIsAdmin();
-  const isAdmin = FIXTURE ? true : realAdmin.isAdmin;
-  const loadingAdmin = FIXTURE ? false : realAdmin.loading;
+  const { isAdmin, loading: loadingAdmin } = useIsAdmin();
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [rules, setRules] = useState<Record<string, CommissionRule | null>>({});
@@ -177,72 +173,6 @@ export default function CatalogoAdminScreen() {
   const [devError, setDevError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    // FIXTURE_TEMPORARIO_SCREENSHOT
-    if (String(Date.now()).length > 0) {
-      const now = new Date().toISOString();
-      const photo =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAJElEQVR42mPgndIBRGzxbkCEzGbAKgpkMGAVhUpgNY2BDnYAAMSyOoEN8jR8AAAAAElFTkSuQmCC';
-      const base = {
-        risk: 32,
-        maxInstallments: 72,
-        maxSemiannual: 6,
-        maxAnnual: 5,
-        coincideInstallments: true,
-        isCatalog: true,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setCompanies([
-        { id: 'c1', name: 'Construtora Alfa Incorporações', photoUrl: photo, ...base },
-        { id: 'c2', name: 'MRV Engenharia', photoUrl: null, ...base, risk: 28 },
-        { id: 'c3', name: 'Direcional Engenharia', photoUrl: null, ...base, risk: 30 },
-      ]);
-      setRules({
-        c1: {
-          companyId: 'c1',
-          defaultPct: 2.5,
-          installmentsCount: 2,
-          installmentsSplit: [60, 40],
-          firstPaymentDays: 30,
-          intervalDays: 30,
-          notes: null,
-          updatedAt: now,
-        },
-        c2: null,
-        c3: null,
-      });
-      setDevelopments([
-        {
-          id: 'd1',
-          companyId: 'c1',
-          name: 'Residencial Parque das Águas',
-          companyName: 'Construtora Alfa Incorporações',
-          description: '2 quartos sendo uma suíte, varanda gourmet e lazer completo.',
-          deliveryDate: '2027-03-01',
-          managerName: 'Roberta Nogueira',
-          photoUrl: photo,
-          isCatalog: true,
-          createdAt: now,
-          updatedAt: now,
-        },
-        {
-          id: 'd2',
-          companyId: 'c1',
-          name: 'Alfa Village Bosque Norte',
-          companyName: 'Construtora Alfa Incorporações',
-          description: null,
-          deliveryDate: '2026-12-01',
-          managerName: null,
-          photoUrl: null,
-          isCatalog: true,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]);
-      setDevCounts({ c1: 3, c2: 0, c3: 0 });
-      setLoading(false);
-      return;
-    }
     if (!user) return;
     setLoading(true);
     const list = await db.catalog.listCompanies();
