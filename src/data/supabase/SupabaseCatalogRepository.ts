@@ -1,4 +1,9 @@
 import { supabase } from '@/lib/supabase';
+import {
+  DEVELOPMENT_SELECT,
+  mapDevelopment,
+  type DevelopmentJoinRow,
+} from './developmentRow';
 import { describeCommissionRule } from '@/features/comissao/summary';
 import type { CatalogRepository } from '../repositories';
 import {
@@ -6,6 +11,7 @@ import {
   type CatalogPhotoKind,
   type Company,
   type CompanyInput,
+  type Development,
   type Result,
   err,
   ok,
@@ -171,6 +177,24 @@ export class SupabaseCatalogRepository implements CatalogRepository {
       .order('name', { ascending: true });
     if (error || !data) return [];
     return data.map(mapCatalogCompanyRow);
+  }
+
+  /**
+   * Os empreendimentos de uma empresa do catálogo, para o painel do admin.
+   *
+   * Não dá para reaproveitar `db.developments.list`: aquela é a visão do
+   * CORRETOR e descarta empreendimento de empresa do catálogo não adotada. O
+   * admin edita o catálogo sem adotá-lo, então precisa ler por `company_id`.
+   * A RLS já autoriza (`is_catalog_company`); o filtro que estorvava era do app.
+   */
+  async listDevelopments(companyId: string): Promise<Development[]> {
+    const { data, error } = await supabase
+      .from('developments')
+      .select(DEVELOPMENT_SELECT)
+      .eq('company_id', companyId)
+      .order('name', { ascending: true });
+    if (error || !data) return [];
+    return (data as unknown as DevelopmentJoinRow[]).map(mapDevelopment);
   }
 
   async createCompany(userId: string, data: CompanyInput): Promise<Result<Company>> {

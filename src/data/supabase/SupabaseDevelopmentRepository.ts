@@ -2,42 +2,11 @@ import { supabase } from '@/lib/supabase';
 import type { DevelopmentRepository } from '../repositories';
 import { type Development, type DevelopmentInput, type Result, err, ok } from '../types';
 import { fetchAdoptedCompanyIds } from './SupabaseCatalogRepository';
-
-// `companies(name, is_catalog)` vem embutido porque `isCatalog` do
-// empreendimento é DERIVADO da empresa: não existe coluna própria no banco.
-const SELECT =
-  'id, company_id, name, description, delivery_date, manager_name, photo_url, ' +
-  'created_at, updated_at, companies(name, is_catalog)';
-
-interface DevelopmentJoinRow {
-  id: string;
-  company_id: string;
-  name: string;
-  description: string | null;
-  delivery_date: string | null;
-  manager_name: string | null;
-  photo_url: string | null;
-  created_at: string;
-  updated_at: string;
-  companies: { name: string; is_catalog: boolean } | null;
-}
-
-function mapDevelopment(row: DevelopmentJoinRow): Development {
-  return {
-    id: row.id,
-    companyId: row.company_id,
-    name: row.name,
-    companyName: row.companies?.name ?? null,
-    description: row.description ?? null,
-    deliveryDate: row.delivery_date,
-    managerName: row.manager_name,
-    photoUrl: row.photo_url,
-    // Empresa do catálogo => empreendimento somente leitura para o corretor.
-    isCatalog: row.companies?.is_catalog ?? false,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
+import {
+  DEVELOPMENT_SELECT,
+  mapDevelopment,
+  type DevelopmentJoinRow,
+} from './developmentRow';
 
 function payload(data: DevelopmentInput) {
   return {
@@ -59,9 +28,9 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
     const adoptedIds = await fetchAdoptedCompanyIds(userId);
 
     const [own, adopted] = await Promise.all([
-      supabase.from('developments').select(SELECT).eq('user_id', userId),
+      supabase.from('developments').select(DEVELOPMENT_SELECT).eq('user_id', userId),
       adoptedIds.length > 0
-        ? supabase.from('developments').select(SELECT).in('company_id', adoptedIds)
+        ? supabase.from('developments').select(DEVELOPMENT_SELECT).in('company_id', adoptedIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -87,7 +56,7 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
     const { data: row, error } = await supabase
       .from('developments')
       .insert({ user_id: userId, ...payload(data) })
-      .select(SELECT)
+      .select(DEVELOPMENT_SELECT)
       .single();
     if (error || !row) return err(error?.message ?? 'Falha ao salvar empreendimento.');
     return ok(mapDevelopment(row as unknown as DevelopmentJoinRow));
@@ -98,7 +67,7 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
       .from('developments')
       .update({ ...payload(data), updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select(SELECT)
+      .select(DEVELOPMENT_SELECT)
       .single();
     if (error || !row) return err(error?.message ?? 'Falha ao atualizar empreendimento.');
     return ok(mapDevelopment(row as unknown as DevelopmentJoinRow));

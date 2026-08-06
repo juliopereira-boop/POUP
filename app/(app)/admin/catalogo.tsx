@@ -137,7 +137,6 @@ export default function CatalogoAdminScreen() {
   const [rules, setRules] = useState<Record<string, CommissionRule | null>>({});
   const [developments, setDevelopments] = useState<Development[]>([]);
   /** Quantos empreendimentos cada empresa do catálogo tem DE FATO, por id. */
-  const [devCounts, setDevCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   /**
@@ -176,21 +175,16 @@ export default function CatalogoAdminScreen() {
     if (!user) return;
     setLoading(true);
     const list = await db.catalog.listCompanies();
-    const [loadedRules, devs, catalogView] = await Promise.all([
+    // `db.catalog.listDevelopments` lê por empresa, não pela conta: o admin
+    // administra o catálogo sem precisar adotá-lo, então a visão aqui é
+    // completa por definição.
+    const [loadedRules, devsByCompany] = await Promise.all([
       Promise.all(list.map(async (c) => [c.id, await db.commissions.getRule(c.id)] as const)),
-      db.developments.list(user.id),
-      db.catalog.list(user.id),
+      Promise.all(list.map((c) => db.catalog.listDevelopments(c.id))),
     ]);
-    const catalogIds = new Set(list.map((c) => c.id));
     setCompanies(list);
     setRules(Object.fromEntries(loadedRules));
-    // A listagem de empreendimentos é a geral (os do usuário + os das empresas
-    // que ele adotou); aqui só interessam os das empresas do catálogo.
-    setDevelopments(devs.filter((d) => catalogIds.has(d.companyId)));
-    // A contagem vem do próprio catálogo porque ela é a ÚNICA visão completa:
-    // `db.developments.list` só entrega o que a conta alcança, então sem esta
-    // contagem o painel não saberia que existem empreendimentos fora do alcance.
-    setDevCounts(Object.fromEntries(catalogView.map((c) => [c.company.id, c.developmentCount])));
+    setDevelopments(devsByCompany.flat());
     setLoading(false);
   }, [user]);
 
@@ -211,18 +205,6 @@ export default function CatalogoAdminScreen() {
     () => (editingId ? developments.filter((d) => d.companyId === editingId) : []),
     [developments, editingId],
   );
-
-  /**
-   * Empreendimentos que existem no catálogo mas não vieram na leitura.
-   *
-   * `db.developments.list` entrega só o que a CONTA usa (os dela + os das
-   * empresas que ela adotou), e o admin não precisa adotar o próprio catálogo.
-   * Sem este aviso o painel diria "nenhum empreendimento" para uma construtora
-   * que tem vários — e o admin cadastraria tudo de novo, duplicado.
-   */
-  const outOfReachDevelopments = editingId
-    ? Math.max(0, (devCounts[editingId] ?? 0) - editingDevelopments.length)
-    : 0;
 
   /** Adiciona a marca de tempo da última troca para furar o cache do navegador. */
   const photoSrc = useCallback(
@@ -497,7 +479,7 @@ export default function CatalogoAdminScreen() {
             </Text>
           ) : (
             companies.map((c) => {
-              const devCount = devCounts[c.id] ?? 0;
+              const devCount = developments.filter((d) => d.companyId === c.id).length;
               return (
                 <Pressable
                   key={c.id}
@@ -631,7 +613,7 @@ export default function CatalogoAdminScreen() {
             <>
               <Text style={styles.sectionLabel}>
                 Empreendimentos
-                {(devCounts[editingId] ?? 0) > 0 ? ` (${devCounts[editingId]})` : ''}
+                {editingDevelopments.length > 0 ? ` (${editingDevelopments.length})` : ''}
               </Text>
               <Text style={styles.hint}>
                 Empreendimento novo entra na conta de quem já adotou esta construtora sem precisar
@@ -639,22 +621,7 @@ export default function CatalogoAdminScreen() {
               </Text>
               {devError ? <Text style={styles.error}>{devError}</Text> : null}
 
-              {outOfReachDevelopments > 0 ? (
-                <View style={styles.warnCard}>
-                  <Text style={styles.warnTitle}>
-                    {outOfReachDevelopments === 1
-                      ? '1 empreendimento fora da sua lista'
-                      : `${outOfReachDevelopments} empreendimentos fora da sua lista`}
-                  </Text>
-                  <Text style={styles.warnText}>
-                    Eles existem no catálogo e os corretores que adotaram estão vendo, mas a leitura
-                    de empreendimentos só devolve o que a SUA conta usa. Para editá-los aqui, adote
-                    esta construtora na aba &quot;Catálogo do sistema&quot;.
-                  </Text>
-                </View>
-              ) : null}
-
-              {editingDevelopments.length === 0 && outOfReachDevelopments === 0 && !devFormOpen ? (
+              {editingDevelopments.length === 0 && !devFormOpen ? (
                 <Text style={styles.muted}>Nenhum empreendimento cadastrado ainda.</Text>
               ) : null}
 

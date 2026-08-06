@@ -193,6 +193,16 @@ export interface CatalogRepository {
   /** Só as empresas do catálogo, para o painel do admin. */
   listCompanies(): Promise<Company[]>;
 
+  /**
+   * Os empreendimentos de UMA empresa do catálogo.
+   *
+   * Existe porque `DevelopmentRepository.list` é a visão do CORRETOR: ela
+   * descarta empreendimento de empresa do catálogo que ele não adotou. O admin
+   * precisa editar o catálogo sem adotá-lo — se dependesse daquela lista, ele
+   * não veria o que acabou de cadastrar.
+   */
+  listDevelopments(companyId: string): Promise<Development[]>;
+
   createCompany(userId: string, data: CompanyInput): Promise<Result<Company>>;
 
   /**
