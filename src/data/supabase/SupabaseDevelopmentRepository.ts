@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { DevelopmentRepository } from '../repositories';
 import { type Development, type DevelopmentInput, type Result, err, ok } from '../types';
 import { fetchAdoptedCompanyIds } from './SupabaseCatalogRepository';
+import { matchesUF } from '@/features/uf';
 import {
   DEVELOPMENT_SELECT,
   mapDevelopment,
@@ -15,7 +16,22 @@ function payload(data: DevelopmentInput) {
     description: data.description,
     delivery_date: data.deliveryDate,
     manager_name: data.managerName,
+    uf: data.uf,
   };
+}
+
+/**
+ * A UF em que o corretor atua. `null` quando ele ainda não escolheu — e aí nada
+ * é filtrado, para a lista não aparecer vazia sem explicação.
+ */
+async function fetchBrokerUF(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('uf')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.uf ?? null;
 }
 
 export class SupabaseDevelopmentRepository implements DevelopmentRepository {
@@ -23,9 +39,25 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
    * Mesma união da `CompanyRepository.list`: os empreendimentos do corretor mais
    * TODOS os das empresas do catálogo que ele adotou — sem cópia, são as mesmas
    * linhas do admin, então empreendimento novo no catálogo aparece sozinho aqui.
+   *
+   * ------------------------------------------------------------------
+   * FILTRO POR UF — mora AQUI de propósito
+   * ------------------------------------------------------------------
+   * O corretor só vê empreendimento do catálogo do estado em que atua: quem
+   * trabalha no MA não perde tempo com uma unidade de Fortaleza. Nove telas
+   * chamam esta lista; se o filtro ficasse em cada uma, bastaria esquecer uma
+   * para vazar obra de outro estado. Regra única, no único lugar por onde todas
+   * passam.
+   *
+   * O que o corretor CADASTROU continua sempre visível, com ou sem UF: ele
+   * criou, ele sabe o que é. O filtro vale só para o catálogo, que é o que ele
+   * não escolheu item a item.
    */
   async list(userId: string): Promise<Development[]> {
-    const adoptedIds = await fetchAdoptedCompanyIds(userId);
+    const [adoptedIds, brokerUF] = await Promise.all([
+      fetchAdoptedCompanyIds(userId),
+      fetchBrokerUF(userId),
+    ]);
 
     const [own, adopted] = await Promise.all([
       supabase.from('developments').select(DEVELOPMENT_SELECT).eq('user_id', userId),
@@ -47,7 +79,10 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
     }
     // Depois das próprias: se o admin adotou a própria empresa do catálogo, a
     // linha é a mesma e não pode duplicar.
-    for (const row of adoptedRows) byId.set(row.id, mapDevelopment(row));
+    for (const row of adoptedRows) {
+      if (!matchesUF(brokerUF, row.uf)) continue;
+      byId.set(row.id, mapDevelopment(row));
+    }
 
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }

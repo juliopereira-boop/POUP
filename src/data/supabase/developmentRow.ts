@@ -15,7 +15,7 @@ import type { Development } from '../types';
  * empreendimento é DERIVADO da empresa: não existe coluna própria no banco.
  */
 export const DEVELOPMENT_SELECT =
-  'id, company_id, name, description, delivery_date, manager_name, photo_url, ' +
+  'id, company_id, name, description, delivery_date, manager_name, photo_url, uf, ' +
   'created_at, updated_at, companies(name, is_catalog)';
 
 export interface DevelopmentJoinRow {
@@ -26,6 +26,7 @@ export interface DevelopmentJoinRow {
   delivery_date: string | null;
   manager_name: string | null;
   photo_url: string | null;
+  uf: string | null;
   created_at: string;
   updated_at: string;
   companies: { name: string; is_catalog: boolean } | null;
@@ -40,6 +41,7 @@ export function mapDevelopment(row: DevelopmentJoinRow): Development {
     description: row.description ?? null,
     deliveryDate: row.delivery_date,
     managerName: row.manager_name,
+    uf: row.uf,
     photoUrl: row.photo_url,
     // Empresa do catálogo => empreendimento somente leitura para o corretor.
     isCatalog: row.companies?.is_catalog ?? false,

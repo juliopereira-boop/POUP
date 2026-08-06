@@ -5,6 +5,7 @@ import {
   type DevelopmentJoinRow,
 } from './developmentRow';
 import { describeCommissionRule } from '@/features/comissao/summary';
+import { normalizeUF } from '@/features/uf';
 import type { CatalogRepository } from '../repositories';
 import {
   type CatalogCompany,
@@ -105,7 +106,7 @@ export class SupabaseCatalogRepository implements CatalogRepository {
     const [devs, rules, adopted] = await Promise.all([
       supabase
         .from('developments')
-        .select('company_id, name')
+        .select('company_id, name, uf')
         .in('company_id', ids)
         .order('name', { ascending: true }),
       supabase
@@ -116,10 +117,20 @@ export class SupabaseCatalogRepository implements CatalogRepository {
     ]);
 
     const names = new Map<string, string[]>();
+    // Os estados são DERIVADOS dos empreendimentos, nunca digitados na empresa:
+    // obra nova em outro estado entra na conta sozinha, sem alguém lembrar de
+    // atualizar um campo.
+    const ufs = new Map<string, Set<string>>();
     for (const d of devs.data ?? []) {
       const list = names.get(d.company_id) ?? [];
       list.push(d.name);
       names.set(d.company_id, list);
+      const uf = normalizeUF(d.uf);
+      if (uf) {
+        const set = ufs.get(d.company_id) ?? new Set<string>();
+        set.add(uf);
+        ufs.set(d.company_id, set);
+      }
     }
 
     const summaries = new Map<string, string>();
@@ -139,6 +150,7 @@ export class SupabaseCatalogRepository implements CatalogRepository {
         developmentCount: all.length,
         developmentNames: all.slice(0, PREVIEW_NAMES),
         commissionSummary: summaries.get(company.id) ?? null,
+        ufs: [...(ufs.get(company.id) ?? [])].sort(),
         adopted: adoptedSet.has(company.id),
       };
     });

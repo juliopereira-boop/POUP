@@ -14,6 +14,7 @@ export interface Database {
           phone: string | null;
           avatar_url: string | null;
           creci: string | null;
+          uf: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -27,6 +28,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;
+          uf?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -39,6 +41,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           creci?: string | null;
+          uf?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -215,6 +218,7 @@ export interface Database {
           manager_name: string | null;
           /** URL pública da foto redonda, no bucket `catalog`. */
           photo_url: string | null;
+          uf: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -227,6 +231,7 @@ export interface Database {
           delivery_date?: string | null;
           manager_name?: string | null;
           photo_url?: string | null;
+          uf?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -237,6 +242,7 @@ export interface Database {
           delivery_date?: string | null;
           manager_name?: string | null;
           photo_url?: string | null;
+          uf?: string | null;
           updated_at?: string;
         };
         Relationships: [];

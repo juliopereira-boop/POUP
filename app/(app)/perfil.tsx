@@ -5,7 +5,9 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { Select } from '@/components/Select';
 import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
+import { UF_OPTIONS } from '@/features/uf';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -24,6 +26,7 @@ export default function PerfilScreen() {
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [creci, setCreci] = useState('');
+  const [uf, setUf] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +39,7 @@ export default function PerfilScreen() {
     setCpf(formatCPF(profile.cpf ?? ''));
     setPhone(formatPhone(profile.phone ?? ''));
     setCreci(profile.creci ?? '');
+    setUf(profile.uf ?? null);
   }, [profile]);
 
   async function save() {
@@ -57,6 +61,7 @@ export default function PerfilScreen() {
       cpf: cpf.trim(),
       phone: phone.trim(),
       creci: creci.trim() || null,
+      uf,
     });
     setSaving(false);
     if (!result.ok) {
@@ -85,6 +90,17 @@ export default function PerfilScreen() {
       <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
       <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
       <Input label="CRECI (opcional)" value={creci} onChangeText={setCreci} placeholder="Seu registro CRECI" />
+      <Select
+        label="Estado onde você atua"
+        placeholder="Selecione seu estado"
+        value={uf}
+        options={UF_OPTIONS}
+        onChange={setUf}
+        searchable
+      />
+      <Text style={styles.hint}>
+        Define quais empreendimentos do catálogo do POUP aparecem para você.
+      </Text>
 
       <Button label="Salvar" onPress={save} loading={saving} style={styles.cta} />
     </Screen>
@@ -94,6 +110,7 @@ export default function PerfilScreen() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     email: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
+    hint: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.xs, marginBottom: spacing.md },
     cta: { marginTop: spacing.sm },
     error: {
       ...typography.caption,

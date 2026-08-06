@@ -16,6 +16,7 @@ function mapProfile(row: ProfileRow): UserProfile {
     phone: row.phone,
     avatarUrl: row.avatar_url,
     creci: row.creci,
+    uf: row.uf,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -48,6 +49,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
         phone: patch.phone,
         avatar_url: patch.avatarUrl,
         creci: patch.creci,
+        uf: patch.uf,
         updated_at: new Date().toISOString(),
       })
       .select('*')
@@ -58,6 +60,9 @@ export class SupabaseProfileRepository implements ProfileRepository {
       }
       if (error && /profiles_cpf_11_digits/i.test(error.message)) {
         return err('Informe um CPF com 11 dígitos.');
+      }
+      if (error && /profiles_uf_valida/i.test(error.message)) {
+        return err('Selecione um estado válido.');
       }
       return err(error?.message ?? 'Falha ao salvar perfil.');
     }

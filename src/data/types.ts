@@ -17,6 +17,14 @@ export interface UserProfile {
   phone: string | null;
   avatarUrl: string | null;
   creci: string | null;
+  /**
+   * UF em que o corretor atua (sigla de 2 letras).
+   *
+   * É o que decide quais empreendimentos do catálogo aparecem para ele: quem
+   * atua no MA não vê unidade de Fortaleza. `null` = ainda não escolheu, e aí
+   * nada é filtrado.
+   */
+  uf: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,7 +36,11 @@ export function isProfileComplete(p: UserProfile | null): boolean {
       p.agency?.trim() &&
       p.cnpj?.trim() &&
       p.cpf?.trim() &&
-      p.phone?.trim(),
+      p.phone?.trim() &&
+      // Sem UF o app não sabe quais empreendimentos do catálogo mostrar, então
+      // ela entra como obrigatória: quem já tinha conta preenche na próxima vez
+      // que abrir o app.
+      p.uf?.trim(),
   );
 }
 
@@ -173,6 +185,12 @@ export interface CatalogCompany {
   developmentNames: string[];
   /** Resumo da regra de comissão em uma linha, ou `null` se não houver regra. */
   commissionSummary: string | null;
+  /**
+   * Os estados em que esta construtora tem empreendimento, derivados dos
+   * próprios empreendimentos — nunca um campo digitado, que ficaria
+   * desatualizado assim que uma obra nova entrasse.
+   */
+  ufs: string[];
   /** O corretor logado já adotou esta empresa. */
   adopted: boolean;
 }
@@ -194,6 +212,14 @@ export interface Development {
   description: string | null;
   deliveryDate: string | null;
   managerName: string | null;
+  /**
+   * UF onde o empreendimento fica (sigla de 2 letras).
+   *
+   * `null` = sem restrição: aparece para corretor de qualquer estado. Some da
+   * lista de quem atua em OUTRA UF — por isso mora aqui e não na empresa: a
+   * mesma construtora tem obra em estados diferentes.
+   */
+  uf: string | null;
   /** Foto redonda do empreendimento (URL pública do bucket `catalog`). */
   photoUrl: string | null;
   /**
@@ -220,6 +246,8 @@ export interface DevelopmentInput {
   description: string | null;
   deliveryDate: string | null;
   managerName: string | null;
+  /** UF do empreendimento. `null` = aparece para corretor de qualquer estado. */
+  uf: string | null;
 }
 
 export interface CompanyMaterial {

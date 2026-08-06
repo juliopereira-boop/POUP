@@ -26,6 +26,7 @@ import { Input } from '@/components/Input';
 import { LoadingScreen } from '@/components/Loading';
 import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
+import { Select } from '@/components/Select';
 import { ToggleField } from '@/components/ToggleField';
 import {
   db,
@@ -38,6 +39,7 @@ import {
 } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { MONTHS } from '@/features/agenda/dates';
+import { UF_OPTIONS } from '@/features/uf';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -174,6 +176,7 @@ export default function CatalogoAdminScreen() {
   const [devDescription, setDevDescription] = useState('');
   const [devDelivery, setDevDelivery] = useState<string | null>(null);
   const [devManager, setDevManager] = useState('');
+  const [devUf, setDevUf] = useState<string | null>(null);
   const [devSaving, setDevSaving] = useState(false);
   const [devError, setDevError] = useState<string | null>(null);
 
@@ -403,6 +406,7 @@ export default function CatalogoAdminScreen() {
     setDevDescription('');
     setDevDelivery(null);
     setDevManager('');
+    setDevUf(null);
     setDevError(null);
   }
 
@@ -418,6 +422,7 @@ export default function CatalogoAdminScreen() {
     setDevDescription(dev.description ?? '');
     setDevDelivery(dev.deliveryDate);
     setDevManager(dev.managerName ?? '');
+    setDevUf(dev.uf);
     setDevError(null);
   }
 
@@ -435,6 +440,7 @@ export default function CatalogoAdminScreen() {
       description: devDescription.trim() || null,
       deliveryDate: devDelivery,
       managerName: devManager.trim() || null,
+      uf: devUf,
     };
     const result = devEditingId
       ? await db.developments.update(devEditingId, payload)
@@ -716,7 +722,8 @@ export default function CatalogoAdminScreen() {
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{d.name}</Text>
                     <Text style={styles.itemMeta}>
-                      Entrega: {formatDeliveryBR(d.deliveryDate)} · Gerente: {d.managerName ?? '—'}
+                      {d.uf ? `${d.uf} · ` : 'Todos os estados · '}Entrega:{' '}
+                      {formatDeliveryBR(d.deliveryDate)} · Gerente: {d.managerName ?? '—'}
                     </Text>
                     <View style={styles.linkRow}>
                       <Pressable onPress={() => startEditDev(d)} hitSlop={8}>
@@ -780,6 +787,18 @@ export default function CatalogoAdminScreen() {
                     placeholder="Nome do gerente"
                     autoCapitalize="words"
                   />
+                  <Select
+                    label="Estado (UF)"
+                    placeholder="Todos os estados"
+                    value={devUf}
+                    options={UF_OPTIONS}
+                    onChange={setDevUf}
+                    searchable
+                  />
+                  <Text style={styles.hint}>
+                    Só corretores que atuam neste estado veem este empreendimento. Em branco, ele
+                    aparece para todo mundo.
+                  </Text>
                   <View style={styles.formActions}>
                     <Button
                       label="Cancelar"

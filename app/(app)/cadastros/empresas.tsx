@@ -456,6 +456,7 @@ export default function EmpresasScreen() {
                   <Text style={styles.itemName}>{entry.company.name}</Text>
                   <Text style={styles.itemMeta}>
                     {developmentCountLabel(entry.developmentCount)}
+                    {entry.ufs.length > 0 ? ` · ${entry.ufs.join(', ')}` : ''}
                   </Text>
                   <Text style={styles.itemMeta}>
                     Comissão: {entry.commissionSummary ?? 'a combinar com a construtora'}
@@ -539,7 +540,10 @@ function CatalogSheet({
               <EntityAvatar photoUrl={company.photoUrl} name={company.name} size={56} />
               <View style={styles.flex1}>
                 <Text style={styles.sheetName}>{company.name}</Text>
-                <Text style={styles.itemMeta}>{developmentCountLabel(developmentCount)}</Text>
+                <Text style={styles.itemMeta}>
+                  {developmentCountLabel(developmentCount)}
+                  {entry.ufs.length > 0 ? ` · ${entry.ufs.join(', ')}` : ''}
+                </Text>
                 <Text style={styles.itemMeta}>
                   Comissão: {commissionSummary ?? 'a combinar com a construtora'}
                 </Text>

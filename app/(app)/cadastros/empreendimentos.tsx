@@ -9,6 +9,7 @@ import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { db, type Company, type Development } from '@/data';
+import { UF_OPTIONS } from '@/features/uf';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -28,6 +29,7 @@ export default function EmpreendimentosScreen() {
   const [description, setDescription] = useState('');
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
   const [managerName, setManagerName] = useState('');
+  const [uf, setUf] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +63,7 @@ export default function EmpreendimentosScreen() {
     setDescription('');
     setDeliveryDate(null);
     setManagerName('');
+    setUf(null);
     setError(null);
   }
 
@@ -71,6 +74,7 @@ export default function EmpreendimentosScreen() {
     setDescription(dev.description ?? '');
     setDeliveryDate(dev.deliveryDate);
     setManagerName(dev.managerName ?? '');
+    setUf(dev.uf);
     setError(null);
   }
 
@@ -92,6 +96,7 @@ export default function EmpreendimentosScreen() {
       description: description.trim() || null,
       deliveryDate,
       managerName: managerName.trim() || null,
+      uf,
     };
     const result = editingId
       ? await db.developments.update(editingId, payload)
@@ -184,6 +189,14 @@ export default function EmpreendimentosScreen() {
           onChangeText={setManagerName}
           placeholder="Nome do gerente"
           autoCapitalize="words"
+        />
+        <Select
+          label="Estado (UF) — opcional"
+          placeholder="Não informar"
+          value={uf}
+          options={UF_OPTIONS}
+          onChange={setUf}
+          searchable
         />
 
         <View style={styles.formActions}>
