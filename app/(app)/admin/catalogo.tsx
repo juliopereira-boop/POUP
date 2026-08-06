@@ -33,6 +33,7 @@ import {
   type CommissionRule,
   type Company,
   type CompanyInput,
+  type Correspondent,
   type Development,
 } from '@/data';
 import { useIsAdmin } from '@/features/admin';
@@ -161,6 +162,11 @@ export default function CatalogoAdminScreen() {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Correspondentes da construtora aberta.
+  const [correspondents, setCorrespondents] = useState<Correspondent[]>([]);
+  const [newCorrespondent, setNewCorrespondent] = useState('');
+  const [corrError, setCorrError] = useState<string | null>(null);
+
   // Formulário do empreendimento (dentro da empresa aberta).
   const [devFormOpen, setDevFormOpen] = useState(false);
   const [devEditingId, setDevEditingId] = useState<string | null>(null);
@@ -232,6 +238,9 @@ export default function CatalogoAdminScreen() {
     setFeedback(null);
     closeDevForm();
     setDevError(null);
+    setCorrespondents([]);
+    setNewCorrespondent('');
+    setCorrError(null);
   }
 
   function startCreate() {
@@ -248,7 +257,33 @@ export default function CatalogoAdminScreen() {
     setMaxSemiannual(company.maxSemiannual != null ? String(company.maxSemiannual) : '');
     setMaxAnnual(company.maxAnnual != null ? String(company.maxAnnual) : '');
     setCoincide(company.coincideInstallments);
+    // Correspondentes primeiro, e sem depender da regra: se a leitura da regra
+    // falhar (rede oscilando), a lista de correspondentes não pode sumir junto.
+    setCorrespondents(await db.companies.listCorrespondents(company.id));
     await commission.loadFor(company.id);
+  }
+
+  async function addCorrespondent() {
+    const nome = newCorrespondent.trim();
+    if (!user || !editingId || !nome) return;
+    setCorrError(null);
+    const result = await db.companies.addCorrespondent(user.id, editingId, nome);
+    if (!result.ok) {
+      setCorrError(result.error);
+      return;
+    }
+    setCorrespondents((prev) => [...prev, result.data].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+    setNewCorrespondent('');
+  }
+
+  async function removeCorrespondent(id: string) {
+    setCorrError(null);
+    const result = await db.companies.removeCorrespondent(id);
+    if (!result.ok) {
+      setCorrError(result.error);
+      return;
+    }
+    setCorrespondents((prev) => prev.filter((c) => c.id !== id));
   }
 
   async function saveCompany() {
@@ -297,6 +332,7 @@ export default function CatalogoAdminScreen() {
       // tentar de novo sem perder o que digitou.
       setEditingId(companyId);
       setCreating(false);
+      setCorrespondents(await db.companies.listCorrespondents(companyId));
       setError(`Empresa salva, mas a regra de comissão não foi: ${ruleFailure}`);
       return;
     }
@@ -598,6 +634,55 @@ export default function CatalogoAdminScreen() {
               userId={user?.id ?? null}
             />
 
+            {/*
+              Correspondentes ficam na CONSTRUTORA, não no empreendimento: o
+              simulador os lista por `companyId` (etapa 2), então quem entra
+              aqui aparece em todos os empreendimentos dela.
+            */}
+            <Text style={styles.sectionTitle}>Correspondentes</Text>
+            {editingId ? (
+              <>
+                <Text style={styles.hint}>
+                  Valem para todos os empreendimentos desta construtora e aparecem na etapa 2 do
+                  simulador, para quem adotou.
+                </Text>
+                {correspondents.map((c) => (
+                  <View key={c.id} style={styles.corrItem}>
+                    <Text style={styles.itemName}>{c.name}</Text>
+                    <Pressable
+                      onPress={() => void removeCorrespondent(c.id)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.deleteLink}>Excluir</Text>
+                    </Pressable>
+                  </View>
+                ))}
+                {correspondents.length === 0 ? (
+                  <Text style={styles.muted}>Nenhum correspondente cadastrado ainda.</Text>
+                ) : null}
+                {corrError ? <Text style={styles.error}>{corrError}</Text> : null}
+                <View style={styles.corrAddRow}>
+                  <View style={styles.corrInput}>
+                    <Input
+                      value={newCorrespondent}
+                      onChangeText={setNewCorrespondent}
+                      placeholder="Nome do correspondente"
+                    />
+                  </View>
+                  <Button
+                    label="Adicionar"
+                    variant="secondary"
+                    onPress={() => void addCorrespondent()}
+                  />
+                </View>
+              </>
+            ) : (
+              <Text style={styles.hint}>
+                Crie a construtora primeiro para cadastrar os correspondentes dela.
+              </Text>
+            )}
+
             <View style={styles.formActions}>
               <Button label="Cancelar" variant="ghost" onPress={closeForm} style={styles.flex1} />
               <Button
@@ -811,6 +896,18 @@ const makeStyles = (colors: AppColors) =>
     },
     itemPressed: { opacity: 0.6 },
     itemInfo: { flex: 1, gap: 2 },
+    corrItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    corrAddRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginTop: spacing.sm },
+    corrInput: { flex: 1 },
+
     itemName: { ...typography.body, color: colors.ink, fontWeight: '600' },
     itemMeta: { ...typography.caption, color: colors.inkMuted },
     linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, marginTop: spacing.sm },
