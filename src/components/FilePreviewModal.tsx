@@ -29,6 +29,7 @@ import {
 } from 'react-native';
 
 import { Button } from './Button';
+import { prefetchFile, saveFile } from '@/features/material/download';
 import { canPreviewInApp, KIND_BADGE, type FileKind } from '@/features/material/fileKind';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -53,20 +54,55 @@ const isWeb = Platform.OS === 'web';
 export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
   const styles = useThemedStyles(makeStyles);
   const [imageFailed, setImageFailed] = useState(false);
+  /** Conteúdo já baixado, pronto para o compartilhar do sistema. */
+  const [file, setFile] = useState<File | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   // Arquivo novo, erro zerado: senão o "não deu para mostrar" do anterior
   // grudaria no próximo que abrisse.
   useEffect(() => {
     setImageFailed(false);
+    setSaveMsg(null);
   }, [target?.url]);
+
+  /**
+   * Baixa o conteúdo assim que o preview abre.
+   *
+   * Tem que ser AGORA, e não no clique do "Salvar": o compartilhar do sistema
+   * exige um toque recente, e um `await` no meio do caminho faz o iPhone
+   * recusar em silêncio. Com o arquivo pronto, o botão age na hora.
+   */
+  useEffect(() => {
+    let alive = true;
+    setFile(null);
+    const url = target?.url;
+    const name = target?.name;
+    if (!url || !name) return undefined;
+    void prefetchFile(url, name).then((f) => {
+      if (alive) setFile(f);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [target?.url, target?.name]);
 
   if (!target) return null;
 
   const { name, kind, url, downloadUrl, sizeLabel } = target;
 
-  function baixar() {
-    const href = downloadUrl ?? url;
-    if (href) void Linking.openURL(href);
+  function salvar() {
+    const out = saveFile(file, downloadUrl ?? url, name);
+    if (!out.ok) {
+      setSaveMsg(out.error);
+      return;
+    }
+    // No compartilhar quem conclui é a folha do sistema; no download o
+    // navegador não avisa nada. Uma linha curta confirma que algo aconteceu.
+    setSaveMsg(
+      out.via === 'share'
+        ? 'Escolha onde salvar na janela do aparelho.'
+        : 'Arquivo salvo nos downloads.',
+    );
   }
 
   function abrirEmNovaAba() {
@@ -135,8 +171,9 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
               disabled={!url}
               style={styles.action}
             />
-            <Button label="Baixar" onPress={baixar} disabled={!url} style={styles.action} />
+            <Button label="Salvar" onPress={salvar} disabled={!url} style={styles.action} />
           </View>
+          {saveMsg ? <Text style={styles.saveMsg}>{saveMsg}</Text> : null}
         </View>
       </View>
     </Modal>
@@ -192,6 +229,12 @@ const makeStyles = (colors: AppColors) =>
       textAlign: 'center',
     },
 
+    saveMsg: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+    },
     actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
     action: { flex: 1 },
   });

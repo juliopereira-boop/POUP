@@ -36,9 +36,8 @@ import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { MAX_FILE_BYTES, MAX_FILE_MB } from '@/features/material/limits';
 
-const MAX_FILE_MB = 20;
-const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 const PREFILL_KEY = 'simulador:prefill';
 
 const SOURCE_LABEL: Record<Lead['source'], string> = {

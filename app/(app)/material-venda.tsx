@@ -17,19 +17,24 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { FilePreviewModal, type FilePreviewTarget } from '@/components/FilePreviewModal';
 import { FileThumb } from '@/components/FileThumb';
+import { EntityAvatar } from '@/components/EntityAvatar';
 import { Screen } from '@/components/Screen';
 import { db, type Company, type Development, type StorageEntry } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { CATALOG_MATERIAL_ROOT, canEditMaterial, materialRoot } from '@/features/catalog/material';
 import { fileKind, KIND_BADGE } from '@/features/material/fileKind';
+import { MAX_FILE_BYTES, MAX_FILE_MB } from '@/features/material/limits';
+import {
+  getCachedThumbs,
+  putCachedThumbs,
+  THUMB_TTL_SECONDS,
+} from '@/features/material/thumbCache';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
-const MAX_FILE_MB = 20;
-const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 const MAX_DEPTH = 5;
 const ROOT = 'material';
 
@@ -135,14 +140,28 @@ export default function MaterialVendaScreen() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
 
-  /** Assina só as IMAGENS: são as únicas que viram miniatura de verdade. */
+  /**
+   * Assina só as IMAGENS: são as únicas que viram miniatura de verdade.
+   *
+   * O que já está no cache entra na tela NA HORA, sem rede. Só o que falta vai
+   * ao servidor — e a assinatura nova é guardada com validade longa, para a
+   * próxima visita reaproveitar a MESMA URL e o navegador servir a foto do
+   * cache dele (URL diferente, para o navegador, é imagem diferente).
+   */
   const loadThumbs = useCallback(async (list: StorageEntry[]) => {
     const paths = list
       .filter((e) => !e.isFolder && fileKind(e.name, e.mimeType, false) === 'image')
       .map((e) => e.path);
     if (paths.length === 0) return;
-    const urls = await db.material.signedUrls(paths);
+
+    const { hits, misses } = await getCachedThumbs(paths);
+    if (Object.keys(hits).length > 0) setThumbs((prev) => ({ ...prev, ...hits }));
+    if (misses.length === 0) return;
+
+    const urls = await db.material.signedUrls(misses, THUMB_TTL_SECONDS);
+    if (Object.keys(urls).length === 0) return;
     setThumbs((prev) => ({ ...prev, ...urls }));
+    void putCachedThumbs(urls);
   }, []);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -514,6 +533,8 @@ export default function MaterialVendaScreen() {
                 <NavRow
                   key={c.id}
                   icon="🏢"
+                  photoUrl={c.photoUrl}
+                  avatarName={c.name}
                   label={c.name}
                   meta={
                     c.isCatalog
@@ -568,6 +589,8 @@ export default function MaterialVendaScreen() {
                 <NavRow
                   key={d.id}
                   icon="🏗️"
+                  photoUrl={d.photoUrl}
+                  avatarName={d.name}
                   label={d.name}
                   onPress={() => {
                     setDevelopment(d);
@@ -852,11 +875,17 @@ function NavRow({
   label,
   meta,
   onPress,
+  photoUrl,
+  avatarName,
 }: {
   icon: string;
   label: string;
   meta?: string;
   onPress: () => void;
+  /** Foto redonda da construtora ou do empreendimento. */
+  photoUrl?: string | null;
+  /** Nome usado nas iniciais quando ainda não há foto. */
+  avatarName?: string;
 }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -866,7 +895,11 @@ function NavRow({
       accessibilityRole="button"
     >
       <View style={styles.rowMain}>
-        <Text style={styles.rowIcon}>{icon}</Text>
+        {avatarName ? (
+          <EntityAvatar photoUrl={photoUrl} name={avatarName} size={44} />
+        ) : (
+          <Text style={styles.rowIcon}>{icon}</Text>
+        )}
         <View style={styles.rowInfo}>
           <Text style={styles.rowName} numberOfLines={1}>
             {label}
