@@ -12,6 +12,7 @@ import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { formatBytes } from '@/features/plans';
+import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -171,14 +172,19 @@ export default function ConfiguracoesScreen() {
             />
           </>
         ) : null}
-        <View style={styles.cardAction}>
-          <Button
-            label="Gerenciar assinatura"
-            variant="secondary"
-            onPress={openBillingPortal}
-            loading={loadingPortal}
-          />
-        </View>
+        {/* O portal do Stripe é cobrança de fora da loja: mostrar o botão no
+            app publicado é apontar o caminho, e é rejeição na revisão. Plano e
+            status continuam visíveis — informar não é vender. */}
+        {canShowBilling ? (
+          <View style={styles.cardAction}>
+            <Button
+              label="Gerenciar assinatura"
+              variant="secondary"
+              onPress={openBillingPortal}
+              loading={loadingPortal}
+            />
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.sectionLabel}>Armazenamento</Text>

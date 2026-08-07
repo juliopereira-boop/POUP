@@ -6,6 +6,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
+import { AppleButton } from '@/components/AppleButton';
 import { GoogleButton } from '@/components/GoogleButton';
 import { useAuth } from '@/providers/AuthProvider';
 import { spacing, typography, type AppColors } from '@/theme';
@@ -14,12 +15,13 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 export default function SignUpScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, signInWithApple } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +53,14 @@ export default function SignUpScreen() {
       return;
     }
     router.replace('/');
+  }
+
+  async function handleApple() {
+    setError(null);
+    setAppleLoading(true);
+    const result = await signInWithApple();
+    setAppleLoading(false);
+    if (!result.ok) notify(result.error);
   }
 
   async function handleGoogle() {
@@ -108,6 +118,10 @@ export default function SignUpScreen() {
 
       <GoogleButton onPress={handleGoogle} loading={googleLoading} />
 
+      <View style={styles.socialGap}>
+        <AppleButton onPress={handleApple} loading={appleLoading} />
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Já tem conta? </Text>
         <Link href="/(auth)/login">
@@ -151,6 +165,7 @@ const makeStyles = (colors: AppColors) =>
     gap: spacing.md,
   },
   line: { flex: 1, height: 1, backgroundColor: colors.border },
+  socialGap: { marginTop: spacing.md },
   dividerText: { ...typography.caption, color: colors.inkSubtle },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl },
   footerText: { ...typography.body, color: colors.inkMuted },

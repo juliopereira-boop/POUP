@@ -3,10 +3,12 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { InactiveAccountScreen } from '@/components/InactiveAccountScreen';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
+import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -24,7 +26,13 @@ export default function PaywallScreen() {
 
   // `upgrade=1` deixa quem já tem assinatura ativa abrir a comparação de planos
   // (é para onde os módulos exclusivos do Pro mandam o usuário do Start).
-  const upgradeMode = upgrade === '1';
+  //
+  // No app das lojas esse modo não existe: comparar planos ali é vender. E
+  // desligá-lo aqui também conserta uma armadilha — sem isso, um assinante
+  // ATIVO do Start que tocasse em "fazer upgrade" cairia na tela de
+  // "assinatura não está ativa", que seria simplesmente falso. Com o modo
+  // desligado, ele volta para o app, que é o certo.
+  const upgradeMode = upgrade === '1' && canShowBilling;
 
   if (user && isActive && !upgradeMode) return <Redirect href="/(app)" />;
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -53,6 +61,19 @@ export default function PaywallScreen() {
     }
     if (Platform.OS === 'web') window.location.assign(result.data.url);
     else await Linking.openURL(result.data.url);
+  }
+
+  // No app das lojas, nada de cobrança aparece — nem preço, nem link. Veja
+  // `src/features/store.ts` e `InactiveAccountScreen`.
+  if (!canShowBilling) {
+    return (
+      <InactiveAccountScreen
+        onCheckAgain={() => void checkAgain()}
+        checking={checkingAgain}
+        onSignOut={() => void signOut()}
+        trialExpired={trialExpired}
+      />
+    );
   }
 
   const subtitle = trialExpired

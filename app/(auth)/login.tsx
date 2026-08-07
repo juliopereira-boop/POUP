@@ -6,6 +6,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
+import { AppleButton } from '@/components/AppleButton';
 import { GoogleButton } from '@/components/GoogleButton';
 import { useAuth } from '@/providers/AuthProvider';
 import { spacing, typography, type AppColors } from '@/theme';
@@ -14,11 +15,12 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 export default function LoginScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +43,14 @@ export default function LoginScreen() {
       return;
     }
     router.replace('/');
+  }
+
+  async function handleApple() {
+    setError(null);
+    setAppleLoading(true);
+    const result = await signInWithApple();
+    setAppleLoading(false);
+    if (!result.ok) notify(result.error);
   }
 
   async function handleGoogle() {
@@ -96,6 +106,10 @@ export default function LoginScreen() {
 
       <GoogleButton onPress={handleGoogle} loading={googleLoading} />
 
+      <View style={styles.socialGap}>
+        <AppleButton onPress={handleApple} loading={appleLoading} />
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>Ainda não tem conta? </Text>
         <Link href="/(auth)/signup">
@@ -134,6 +148,7 @@ const makeStyles = (colors: AppColors) =>
     gap: spacing.md,
   },
   line: { flex: 1, height: 1, backgroundColor: colors.border },
+  socialGap: { marginTop: spacing.md },
   dividerText: { ...typography.caption, color: colors.inkSubtle },
   footer: {
     flexDirection: 'row',

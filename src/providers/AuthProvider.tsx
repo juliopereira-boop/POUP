@@ -10,6 +10,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<Result<AuthUser>>;
   signUp: (email: string, password: string, fullName?: string) => Promise<Result<AuthUser | null>>;
   signInWithGoogle: () => Promise<Result<void>>;
+  signInWithApple: () => Promise<Result<void>>;
   sendPasswordReset: (email: string) => Promise<Result<void>>;
   signOut: () => Promise<void>;
   /** Exclusão definitiva. `confirm` é a palavra digitada pelo corretor. */
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp: (email, password, fullName) =>
         db.auth.signUpWithPassword(email, password, fullName),
       signInWithGoogle: () => db.auth.signInWithGoogle(),
+      signInWithApple: () => db.auth.signInWithApple(),
       sendPasswordReset: (email) => db.auth.sendPasswordReset(email),
       // As miniaturas guardadas são URLs assinadas do corretor que está
       // saindo. Deixá-las no aparelho vazaria material de venda para a próxima

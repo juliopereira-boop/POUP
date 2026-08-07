@@ -57,12 +57,28 @@ export class SupabaseAuthRepository implements AuthRepository {
     return ok(mapUser(data.user));
   }
 
-  async signInWithGoogle(): Promise<Result<void>> {
+  /**
+   * Login social, para qualquer provedor que o Supabase suporte.
+   *
+   * Google e Apple compartilham exatamente este caminho — o que muda é só o
+   * nome do provedor. Duplicar o fluxo para a Apple significaria manter duas
+   * cópias do trecho mais delicado do login (o retorno do token pelo navegador
+   * do sistema, no celular).
+   *
+   * Web e celular divergem por necessidade: no navegador a própria página é
+   * redirecionada; no app não existe "redirecionar a página", então o link
+   * abre numa sessão de navegador do sistema e os tokens voltam no fragmento
+   * da URL, para serem instalados na mão.
+   */
+  private async signInWithProvider(
+    provider: 'google' | 'apple',
+    nomeAmigavel: string,
+  ): Promise<Result<void>> {
     const redirectTo = `${getAppUrl()}`;
 
     if (Platform.OS === 'web') {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider,
         options: { redirectTo },
       });
       if (error) return err(friendlyError(error.message));
@@ -70,13 +86,15 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: { redirectTo, skipBrowserRedirect: true },
     });
-    if (error || !data?.url) return err(error ? friendlyError(error.message) : 'Falha no Google.');
+    if (error || !data?.url) {
+      return err(error ? friendlyError(error.message) : `Falha no ${nomeAmigavel}.`);
+    }
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (result.type !== 'success') return err('Login com Google cancelado.');
+    if (result.type !== 'success') return err(`Login com ${nomeAmigavel} cancelado.`);
 
     const url = new URL(result.url);
     const params = new URLSearchParams(url.hash.replace(/^#/, ''));
@@ -90,6 +108,19 @@ export class SupabaseAuthRepository implements AuthRepository {
       if (sessionError) return err(friendlyError(sessionError.message));
     }
     return ok(undefined);
+  }
+
+  signInWithGoogle(): Promise<Result<void>> {
+    return this.signInWithProvider('google', 'Google');
+  }
+
+  /**
+   * A Apple EXIGE este login em todo app que ofereça login social de terceiros
+   * (é a regra 4.8, e vale mesmo tendo só o Google). Fica disponível também na
+   * web, para o corretor entrar do mesmo jeito nos dois lugares.
+   */
+  signInWithApple(): Promise<Result<void>> {
+    return this.signInWithProvider('apple', 'Apple');
   }
 
   async sendPasswordReset(email: string): Promise<Result<void>> {

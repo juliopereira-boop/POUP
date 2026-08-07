@@ -61,6 +61,12 @@ export interface AuthRepository {
 
   signInWithGoogle(): Promise<Result<void>>;
 
+  /**
+   * Exigido pela Apple em todo app que ofereça login social de terceiros
+   * (regra 4.8) — ou seja, ter o Google já obriga a ter este.
+   */
+  signInWithApple(): Promise<Result<void>>;
+
   sendPasswordReset(email: string): Promise<Result<void>>;
 
   signOut(): Promise<void>;

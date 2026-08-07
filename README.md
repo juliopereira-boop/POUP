@@ -27,8 +27,9 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 15. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
 16. [Deploy na Vercel](#▲-deploy-na-vercel)
 17. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
-18. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store-depois)
-19. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+18. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
+19. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
+20. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -38,7 +39,7 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 | ---------- | --------------------------------------------------------------- |
 | App        | [Expo](https://expo.dev) + Expo Router + React Native + RN Web |
 | Linguagem  | TypeScript (strict)                                              |
-| Auth       | Supabase Auth (email/senha + Google OAuth)                       |
+| Auth       | Supabase Auth (email/senha + Google e Apple OAuth)               |
 | Banco      | Supabase (Postgres) — **isolado atrás de uma camada de dados**  |
 | Pagamentos | Stripe (assinatura mensal) via Supabase Edge Functions           |
 | IA         | Anthropic Claude (scanner de documento, visão)                   |
@@ -190,7 +191,7 @@ O wizard também é **persistido em disco** (rascunho automático, ver §9) como
 
 ## 🔐 Autenticação
 
-Métodos suportados: **email/senha** e **Google OAuth**. Toda a lógica de auth fica atrás da interface `AuthRepository` (`src/data/repositories.ts`), implementada por `SupabaseAuthRepository`.
+Métodos suportados: **email/senha**, **Google OAuth** e **Apple OAuth**. Toda a lógica de auth fica atrás da interface `AuthRepository` (`src/data/repositories.ts`), implementada por `SupabaseAuthRepository`.
 
 ### Cadastro (`signup.tsx`)
 
@@ -201,6 +202,19 @@ Valida nome/email/senha (senha ≥ 6 caracteres) e chama `signUp`. Se o projeto 
 Email/senha padrão, ou botão Google (`signInWithGoogle`):
 - **Web**: redirect completo do navegador via `supabase.auth.signInWithOAuth`.
 - **Nativo**: abre uma sessão de navegador in-app (`expo-web-browser`) com `skipBrowserRedirect:true`, extrai `access_token`/`refresh_token` da URL de retorno e chama `supabase.auth.setSession(...)` manualmente.
+
+### Login com a Apple
+
+A Apple **exige** este login em todo app que ofereça login social de terceiros (regra 4.8) — ou
+seja, ter o Google já obriga a ter o da Apple. Ele usa exatamente o mesmo caminho do Google:
+`signInWithProvider('apple', ...)`, com o mesmo tratamento de retorno de token. Duplicar o fluxo
+significaria manter duas cópias do trecho mais delicado do login (o retorno pelo navegador do
+sistema, no celular).
+
+Fica disponível também na web, para o corretor entrar do mesmo jeito nos dois lugares. O
+`AppleButton` é o único botão do app que **ignora o tema de propósito**: a Apple publica regras de
+aparência para ele (fundo preto sólido, a maçã junto do texto, sem cor de marca própria) e a
+revisão confere.
 
 ### Esqueci a senha (`forgot-password.tsx`)
 
@@ -692,15 +706,121 @@ O registro é um `<script>` inline em `app/+html.tsx`, e não um módulo do app:
 
 ---
 
-## 📱 Caminho para App Store / Play Store (depois)
+## 📎 Arquivos: escolher, salvar e visualizar
 
-Já está preparado: o app é Expo. Quando quiser publicar nas lojas, usaremos **EAS Build** (`eas build`) e billing nativo. Nada da UI precisará mudar — apenas adicionamos uma implementação de `BillingRepository` para as lojas.
+Este é o trecho que mais divergia entre o site e o aplicativo. Tudo aqui funciona nos dois — a
+regra é: **um módulo só, com o galho certo por dentro**, nunca duas telas diferentes.
 
-### O que já está pronto para a revisão das lojas
+### Escolher (`src/features/files/pick.ts`)
 
-- **Política de Privacidade** (`app/privacidade.tsx`, rota pública em `/privacidade`) — a Apple e o Google pedem essa URL antes de qualquer outra coisa. Linkada no cadastro (`signup.tsx`) e em Ajustes → Ajuda, então também é alcançável de dentro do app logado.
-- **Excluir a conta pelo próprio app** (Ajustes → Excluir conta) — ver §5.
-- **Convite para instalar na tela de início** — ver §17 (não é exigência de loja, mas resolve o mesmo problema de retenção enquanto o app não está publicado).
+Existiam **três cópias** de um `<input type="file">` montado na mão (material de venda, anexos do
+lead e fotos do catálogo). Funcionavam no navegador e **não existiam no celular**: no app das
+lojas, o botão de anexar não abriria nada. E o único caminho nativo que havia (`expo-image-picker`,
+no material de venda) só pegava foto e vídeo — justamente sem **PDF**, que é planta, tabela e book,
+ou seja, quase todo o material do corretor.
+
+`pickFiles()` / `pickImage()` usam `expo-document-picker`, que resolve os dois lados: no navegador
+monta o mesmo `<input type="file">` (com tratamento de cancelamento e limpeza que as cópias na mão
+não tinham) e no celular abre o seletor nativo.
+
+Um detalhe de memória: na web o seletor devolve o `File` original em `asset.file`, e o módulo usa
+esse objeto direto. Ler o `uri` (que vem em base64) dobraria a memória à toa num arquivo de 35 MB.
+
+### Salvar (`src/features/files/save.ts`)
+
+São dois problemas diferentes, não um só:
+
+- **No navegador**, não existe "salvar na galeria". A única ponte é `navigator.share` com um `File`
+  dentro — aí o sistema abre a folha com "Salvar em Fotos"/"Salvar imagem", e PDF cai em "Salvar em
+  Arquivos". Sem isso, sobra o `<a download>`, que resolve no computador.
+- **No celular**, `navigator.share` e `<a download>` não existem (nem o DOM existe). O caminho é
+  gravar o conteúdo num arquivo local (`expo-file-system`) e entregar esse caminho ao
+  `expo-sharing`.
+
+> **A armadilha do iPhone, na web:** `navigator.share` exige um TOQUE recente. Baixar o arquivo
+> (`await`) e só então compartilhar faz o Safari recusar **em silêncio** — o mesmo problema que já
+> derrubou o envio pelo WhatsApp neste projeto. Por isso, na web, o conteúdo é baixado quando o
+> preview ABRE (`prefetchFile`) e o botão só usa o que já está pronto. No app nativo essa regra não
+> existe, e lá o download acontece no toque mesmo.
+
+### Visualizar (`src/components/FilePreviewModal.tsx`)
+
+|        | Navegador             | App das lojas                    |
+| ------ | --------------------- | -------------------------------- |
+| Imagem | `<Image>` na hora     | `<Image>` na hora                |
+| PDF    | `<iframe>` embutido   | navegador interno (`WebBrowser`) |
+| Vídeo  | `<video>` embutido    | navegador interno (`WebBrowser`) |
+
+`<iframe>` e `<video>` são tags de HTML: existem no navegador e **não existem** no celular. Em vez
+de trazer uma biblioteca de vídeo e outra de PDF só para isso, o app nativo usa o navegador interno
+do sistema — que já exibe os dois, abre **por cima** do app (sem jogar o corretor para fora) e não
+custa dependência nenhuma.
+
+---
+
+## 📱 Caminho para App Store / Play Store
+
+O app é Expo, então o build das lojas sai do mesmo código do site, via **EAS Build** (`eas.json` já
+está no repositório, com `development`, `preview` e `production`).
+
+### O que já está pronto para a revisão
+
+- **Política de Privacidade** (`app/privacidade.tsx`, rota pública `/privacidade`) — as duas lojas
+  pedem essa URL antes de qualquer outra coisa. Linkada no cadastro e em Ajustes → Ajuda, então
+  também é alcançável de dentro do app logado.
+- **Excluir a conta pelo próprio app** (Ajustes → Excluir conta) — ver §5. Faltar isso é rejeição
+  automática.
+- **Login com a Apple** — ver §5. Obrigatório (regra 4.8) por existir login com Google.
+- **Escolher, salvar e visualizar arquivos no celular** — ver §18. Sem isso, anexar e baixar
+  simplesmente não funcionariam no app publicado.
+- **Cobrança escondida no app das lojas** — abaixo.
+
+### A regra de ouro da cobrança (`src/features/store.ts`)
+
+A Apple não deixa um app cobrar por fora dela. E a regra não é só "não processar o pagamento
+dentro do app": é **não apontar o caminho**. Preço na tela, botão "Assinar", link para o portal de
+cobrança, "gerencie sua assinatura aqui" — qualquer um desses derruba a revisão, mesmo que a compra
+aconteça em outro lugar.
+
+O POUP cobra pelo Stripe, no site, e isso continua valendo para quem usa pelo navegador. No app das
+lojas, toda a parte de cobrança fica invisível:
+
+| Onde | No site | No app das lojas |
+| --- | --- | --- |
+| `/paywall` | planos, preços e Stripe Checkout | `InactiveAccountScreen`: aviso seco, sem preço e sem link |
+| Banner do teste na home | "Toque para assinar" | só informa quantos dias faltam, sem virar botão |
+| `ProFeatureLock` | preço do Pro + "Assinar o plano Pro" | explica o módulo, sem preço e sem botão |
+| Ajustes → Assinatura | plano, status e "Gerenciar assinatura" | plano e status apenas |
+
+`isStoreBuild` é `true` quando `EXPO_PUBLIC_STORE_BUILD=1` **ou**, por padrão, quando a plataforma
+não é web. A variável existe para conferir esse modo **pelo navegador**, sem gerar um build nativo
+a cada ajuste de texto — a diferença entre testar em segundos e testar em meia hora.
+
+> **Armadilha ao testar os dois modos localmente:** o Metro guarda o módulo já transformado num
+> cache em `/tmp/metro-cache`, e o valor de `EXPO_PUBLIC_*` é assado ali dentro. Trocar a variável e
+> rodar `npm run build:web` de novo **reaproveita o build anterior** — os dois `dist` saem com o
+> mesmo hash e parece que a flag não funciona. Limpe antes:
+> `rm -rf /tmp/metro-cache /tmp/metro-file-map-* .expo node_modules/.cache`.
+> No EAS cada build é uma máquina nova, então lá o problema não existe.
+
+### Antes do primeiro envio
+
+- `app.json` já vai com `version: 1.0.0`, `ios.buildNumber`, `android.versionCode`,
+  `ITSAppUsesNonExemptEncryption: false` (evita a pergunta de criptografia a cada envio) e
+  `userInterfaceStyle: "automatic"` — este último **era `"light"`**, o que travaria o app no tema
+  claro no celular mesmo com o modo escuro ligado.
+- As permissões de câmera **e de fotos** estão declaradas para o `expo-image-picker`. A de fotos
+  faltava: o scanner de documento cai na galeria quando a câmera é negada, e no iOS acessar a
+  galeria sem `NSPhotoLibraryUsageDescription` **derruba o app na hora**.
+- As variáveis `EXPO_PUBLIC_*` precisam existir no build do EAS (via `eas secret:create` ou o bloco
+  `env` de `eas.json`) — o `eas.json` do repositório declara só `EXPO_PUBLIC_STORE_BUILD`, porque as
+  outras são segredos e não entram em arquivo versionado.
+- **Login com a Apple** usa o mesmo fluxo OAuth do Google (`signInWithProvider`), o que evita
+  dependência nova e faz o botão funcionar também na web. Falta configurar o provedor Apple no
+  Supabase, o que depende da conta de desenvolvedor. Se a revisão pedir a folha nativa de "Sign in
+  with Apple", o próximo passo é `expo-apple-authentication` + `ios.usesAppleSignIn: true` — a
+  entitlement foi deixada **de fora** de propósito, porque exigi-la sem a capability provisionada
+  na conta Apple faz o build falhar.
 
 ---
 

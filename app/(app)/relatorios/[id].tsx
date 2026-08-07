@@ -31,6 +31,7 @@ import {
 } from '@/features/simulador/calc';
 import { ensureCommissionForSale } from '@/features/comissao/link';
 import { generateProposal } from '@/features/simulador/proposal';
+import { canShowBilling } from '@/features/store';
 import {
   ASSOCIATION_OPTIONS,
   EDIT_DRAFT_KEY,
@@ -211,7 +212,13 @@ export default function SimulationDetailScreen() {
   function onSaleDone() {
     setNotice(null);
     if (!canUse('vendas')) {
-      router.push({ pathname: '/paywall', params: { upgrade: '1' } });
+      // Fora das lojas, manda comparar os planos. Dentro delas isso seria
+      // vender por fora, então sobra explicar — sem preço e sem link.
+      if (canShowBilling) {
+        router.push({ pathname: '/paywall', params: { upgrade: '1' } });
+      } else {
+        setNotice('O registro de vendas está disponível no plano Pro.');
+      }
       return;
     }
     setSaleModal(true);

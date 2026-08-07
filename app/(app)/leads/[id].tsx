@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 
 import { Button } from '@/components/Button';
 import { DateField } from '@/components/DateField';
@@ -31,6 +30,7 @@ import {
   type StorageEntry,
 } from '@/data';
 import { localISO, maskTime } from '@/features/agenda/dates';
+import { pickFiles, type PickedFile } from '@/features/files/pick';
 import { currencyToNumber, formatCPF, formatCurrencyBRL, formatPhone } from '@/lib/masks';
 import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
@@ -47,74 +47,6 @@ const SOURCE_LABEL: Record<Lead['source'], string> = {
   meta: 'Facebook/Instagram',
   manual: 'Manual',
 };
-
-interface PickedFile {
-  name: string;
-  blob: Blob;
-  contentType: string;
-  size: number;
-}
-
-interface WebFile {
-  name: string;
-  type: string;
-  size: number;
-}
-interface WebInput {
-  type: string;
-  multiple: boolean;
-  onchange: (() => void) | null;
-  click: () => void;
-  files: ArrayLike<WebFile> | null;
-}
-
-function pickFilesWeb(): Promise<PickedFile[]> {
-  const doc = (globalThis as unknown as { document?: { createElement: (t: string) => WebInput } })
-    .document;
-  if (!doc) return Promise.resolve([]);
-  return new Promise((resolve) => {
-    const input = doc.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.onchange = () => {
-      const list = input.files ? Array.from(input.files as ArrayLike<WebFile>) : [];
-      resolve(
-        list.map((f) => ({
-          name: f.name,
-          blob: f as unknown as Blob,
-          contentType: f.type || 'application/octet-stream',
-          size: f.size,
-        })),
-      );
-    };
-    input.click();
-  });
-}
-
-async function pickFilesNative(): Promise<PickedFile[]> {
-  const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.All,
-    allowsMultipleSelection: true,
-    quality: 1,
-  });
-  if (res.canceled) return [];
-  const out: PickedFile[] = [];
-  for (const a of res.assets) {
-    const r = await fetch(a.uri);
-    const blob = await r.blob();
-    out.push({
-      name: a.fileName ?? `arquivo-${Date.now()}.jpg`,
-      blob,
-      contentType: blob.type || 'image/jpeg',
-      size: blob.size,
-    });
-  }
-  return out;
-}
-
-function pickFiles(): Promise<PickedFile[]> {
-  return Platform.OS === 'web' ? pickFilesWeb() : pickFilesNative();
-}
 
 function formatSize(n: number | null): string {
   if (n == null) return '';

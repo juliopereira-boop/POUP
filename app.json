@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "POUP",
+    "name": "Poup Gestão",
     "slug": "poup",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "poup",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
@@ -16,14 +16,21 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "br.com.poup.app"
+      "bundleIdentifier": "br.com.poup.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleLocalizations": ["pt-BR"],
+        "CFBundleDevelopmentRegion": "pt-BR"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "br.com.poup.app"
+      "package": "br.com.poup.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -44,7 +51,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "O POUP usa a câmera para escanear documentos (CNH/RG) e preencher os dados do cliente automaticamente."
+          "cameraPermission": "O POUP usa a câmera para escanear documentos (CNH/RG) e preencher os dados do cliente automaticamente.",
+          "photosPermission": "O POUP acessa suas fotos para você escanear a foto de um documento (CNH/RG) já salva no aparelho."
         }
       ]
     ],

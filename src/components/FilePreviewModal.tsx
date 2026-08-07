@@ -7,15 +7,22 @@
  * toque.
  *
  * ------------------------------------------------------------------
- * POR QUE `createElement` COM TAGS DE HTML
+ * COMO CADA TIPO APARECE, EM CADA AMBIENTE
  * ------------------------------------------------------------------
- * Vídeo e PDF não têm componente no React Native sem dependência nova (e uma
- * tentativa anterior de instalar biblioteca já quebrou o Metro neste projeto).
- * Na web o app renderiza por react-dom, então `<video>` e `<iframe>` funcionam
- * de verdade. Fora da web esse caminho não existe: cai no botão "Abrir", que
- * usa o visualizador do próprio sistema.
+ * |        | Navegador                    | App das lojas                    |
+ * |--------|------------------------------|----------------------------------|
+ * | Imagem | `<Image>` na hora            | `<Image>` na hora                |
+ * | PDF    | `<iframe>` embutido          | navegador interno (`WebBrowser`) |
+ * | Vídeo  | `<video>` embutido           | navegador interno (`WebBrowser`) |
+ *
+ * `<iframe>` e `<video>` são tags de HTML: existem no navegador (o app roda
+ * por react-dom lá) e **não existem** no celular. Em vez de trazer uma
+ * biblioteca de vídeo e outra de PDF só para isso, o app nativo usa o
+ * navegador interno do sistema — que já sabe exibir os dois, abre por cima do
+ * app (sem jogar o corretor para fora) e não custa dependência nenhuma.
  */
 import { createElement, useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import {
   ActivityIndicator,
   Image,
@@ -29,7 +36,7 @@ import {
 } from 'react-native';
 
 import { Button } from './Button';
-import { prefetchFile, saveFile } from '@/features/material/download';
+import { prefetchFile, saveFile } from '@/features/files/save';
 import { canPreviewInApp, KIND_BADGE, type FileKind } from '@/features/material/fileKind';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -54,25 +61,29 @@ const isWeb = Platform.OS === 'web';
 export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
   const styles = useThemedStyles(makeStyles);
   const [imageFailed, setImageFailed] = useState(false);
-  /** Conteúdo já baixado, pronto para o compartilhar do sistema. */
+  /** Conteúdo já baixado, pronto para o compartilhar do sistema. Só web. */
   const [file, setFile] = useState<File | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   // Arquivo novo, erro zerado: senão o "não deu para mostrar" do anterior
   // grudaria no próximo que abrisse.
   useEffect(() => {
     setImageFailed(false);
     setSaveMsg(null);
+    setSalvando(false);
   }, [target?.url]);
 
   /**
-   * Baixa o conteúdo assim que o preview abre.
+   * Baixa o conteúdo assim que o preview abre. **Só no navegador.**
    *
-   * Tem que ser AGORA, e não no clique do "Salvar": o compartilhar do sistema
+   * Tem que ser AGORA, e não no clique do "Salvar": o compartilhar da web
    * exige um toque recente, e um `await` no meio do caminho faz o iPhone
-   * recusar em silêncio. Com o arquivo pronto, o botão age na hora.
+   * recusar em silêncio. No app nativo essa regra não existe, então lá não se
+   * baixa nada à toa — o arquivo só é buscado se o corretor pedir.
    */
   useEffect(() => {
+    if (!isWeb) return undefined;
     let alive = true;
     setFile(null);
     const url = target?.url;
@@ -90,23 +101,51 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
 
   const { name, kind, url, downloadUrl, sizeLabel } = target;
 
-  function salvar() {
-    const out = saveFile(file, downloadUrl ?? url, name);
-    if (!out.ok) {
-      setSaveMsg(out.error);
+  /** No celular, PDF e vídeo abrem no navegador interno do sistema. */
+  const abreForaNoNativo = !isWeb && (kind === 'pdf' || kind === 'video');
+
+  async function salvar() {
+    if (salvando) return;
+    setSaveMsg(null);
+    const alvo = downloadUrl ?? url;
+
+    const resultado = saveFile(file, alvo, name);
+    // Na web a resposta é imediata (tem que ser, por causa do toque recente);
+    // no celular é uma promessa, e aí vale mostrar que está trabalhando.
+    if (resultado instanceof Promise) {
+      setSalvando(true);
+      const out = await resultado;
+      setSalvando(false);
+      setSaveMsg(out.ok ? 'Escolha onde salvar na janela do aparelho.' : out.error);
+      return;
+    }
+
+    if (!resultado.ok) {
+      setSaveMsg(resultado.error);
       return;
     }
     // No compartilhar quem conclui é a folha do sistema; no download o
     // navegador não avisa nada. Uma linha curta confirma que algo aconteceu.
     setSaveMsg(
-      out.via === 'share'
+      resultado.via === 'share'
         ? 'Escolha onde salvar na janela do aparelho.'
         : 'Arquivo salvo nos downloads.',
     );
   }
 
-  function abrirEmNovaAba() {
-    if (url) void Linking.openURL(url);
+  async function abrir() {
+    if (!url) return;
+    // O navegador interno abre POR CIMA do app e volta com um toque. Mandar
+    // para o navegador do sistema (`Linking`) tiraria o corretor daqui.
+    if (!isWeb) {
+      try {
+        await WebBrowser.openBrowserAsync(url);
+        return;
+      } catch {
+        // Sem navegador interno, o do sistema ainda resolve.
+      }
+    }
+    void Linking.openURL(url);
   }
 
   return (
@@ -152,14 +191,22 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
                 style: { width: '100%', height: '100%', border: 'none', background: '#fff' },
               })
             ) : (
-              <View style={styles.semPreview}>
+              <Pressable
+                style={styles.semPreview}
+                onPress={abreForaNoNativo ? () => void abrir() : undefined}
+                disabled={!abreForaNoNativo}
+              >
                 <Text style={styles.semPreviewIcon}>{KIND_BADGE[kind].icon}</Text>
                 <Text style={styles.semPreviewText}>
-                  {canPreviewInApp(kind)
-                    ? 'Não deu para mostrar aqui. Abra ou baixe o arquivo.'
-                    : 'Este tipo de arquivo não abre dentro do app. Baixe para ver.'}
+                  {abreForaNoNativo
+                    ? kind === 'pdf'
+                      ? 'Toque em Abrir para ver o PDF.'
+                      : 'Toque em Abrir para assistir ao vídeo.'
+                    : canPreviewInApp(kind)
+                      ? 'Não deu para mostrar aqui. Abra ou baixe o arquivo.'
+                      : 'Este tipo de arquivo não abre dentro do app. Baixe para ver.'}
                 </Text>
-              </View>
+              </Pressable>
             )}
           </View>
 
@@ -167,11 +214,17 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
             <Button
               label="Abrir"
               variant="secondary"
-              onPress={abrirEmNovaAba}
+              onPress={() => void abrir()}
               disabled={!url}
               style={styles.action}
             />
-            <Button label="Salvar" onPress={salvar} disabled={!url} style={styles.action} />
+            <Button
+              label="Salvar"
+              onPress={() => void salvar()}
+              disabled={!url}
+              loading={salvando}
+              style={styles.action}
+            />
           </View>
           {saveMsg ? <Text style={styles.saveMsg}>{saveMsg}</Text> : null}
         </View>

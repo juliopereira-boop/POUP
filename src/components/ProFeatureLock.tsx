@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button } from './Button';
 import { Screen } from './Screen';
 import { PLANS, PLAN_FEATURES } from '@/features/plans';
+import { canShowBilling } from '@/features/store';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -31,9 +32,12 @@ export function ProFeatureLock({ emoji, title, description }: ProFeatureLockProp
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
+        {/* O preço só aparece fora das lojas: dentro do app publicado, valor e
+            botão de assinar são justamente o que a Apple não permite. */}
         <Text style={styles.notice}>
-          Este módulo está disponível no plano Pro ({PLANS.pro.priceLabel}). Seu plano atual é o
-          Start.
+          {canShowBilling
+            ? `Este módulo está disponível no plano Pro (${PLANS.pro.priceLabel}). Seu plano atual é o Start.`
+            : 'Este módulo está disponível no plano Pro. Seu plano atual é o Start.'}
         </Text>
 
         <View style={styles.list}>
@@ -49,11 +53,13 @@ export function ProFeatureLock({ emoji, title, description }: ProFeatureLockProp
           </View>
         </View>
 
-        <Button
-          label="Assinar o plano Pro"
-          onPress={() => router.push({ pathname: '/paywall', params: { upgrade: '1' } })}
-          style={styles.cta}
-        />
+        {canShowBilling ? (
+          <Button
+            label="Assinar o plano Pro"
+            onPress={() => router.push({ pathname: '/paywall', params: { upgrade: '1' } })}
+            style={styles.cta}
+          />
+        ) : null}
       </View>
     </Screen>
   );

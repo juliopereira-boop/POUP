@@ -8,6 +8,7 @@ import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { db, isAppointmentLate, type Appointment, type AppointmentType } from '@/data';
 import type { PlanFeatureKey } from '@/features/plans';
+import { canShowBilling } from '@/features/store';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -154,14 +155,23 @@ export default function HomeScreen() {
       <Screen>
         <Text style={styles.greeting}>Olá, {firstName}</Text>
 
+        {/* No app das lojas o aviso continua (o corretor precisa saber que o
+            teste está acabando), mas sem virar botão e sem "assinar": levar
+            para o paywall seria apontar o caminho da cobrança de fora. */}
         {trialDaysLeft != null ? (
-          <Pressable style={styles.trialBanner} onPress={() => router.push('/paywall')}>
+          <Pressable
+            style={styles.trialBanner}
+            onPress={canShowBilling ? () => router.push('/paywall') : undefined}
+            disabled={!canShowBilling}
+          >
             <Text style={styles.trialTitle}>
               {trialDaysLeft === 1
                 ? 'Último dia do seu teste gratuito'
                 : `Faltam ${trialDaysLeft} dias do seu teste gratuito`}
             </Text>
-            <Text style={styles.trialText}>Toque para assinar e não perder o acesso.</Text>
+            {canShowBilling ? (
+              <Text style={styles.trialText}>Toque para assinar e não perder o acesso.</Text>
+            ) : null}
           </Pressable>
         ) : null}
 

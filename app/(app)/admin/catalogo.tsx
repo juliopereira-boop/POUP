@@ -39,6 +39,7 @@ import {
 } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { MONTHS } from '@/features/agenda/dates';
+import { pickImage } from '@/features/files/pick';
 import { UF_OPTIONS } from '@/features/uf';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -51,59 +52,6 @@ const REFLECT_WARNING =
   'Tudo que for salvo aqui vale imediatamente para TODOS os corretores que já adotaram a ' +
   'construtora: regra de comissão, empreendimentos, material e foto. A adoção é um vínculo, ' +
   'não uma cópia — não existe "versão antiga" para quem já adotou.';
-
-/* ------------------------------------------------------------------------- *
- * Foto: escolha do arquivo pela web
- * ------------------------------------------------------------------------- */
-
-interface WebFile {
-  name: string;
-  type: string;
-  size: number;
-}
-interface WebInput {
-  type: string;
-  accept: string;
-  onchange: (() => void) | null;
-  click: () => void;
-  files: ArrayLike<WebFile> | null;
-}
-
-interface PickedImage {
-  blob: Blob;
-  contentType: string;
-  size: number;
-}
-
-/**
- * Abre o seletor de arquivos do navegador para UMA imagem.
- *
- * Mesmo caminho do material de venda: `<input type="file">` criado na hora,
- * sem dependência nova. `null` = o admin fechou o seletor sem escolher.
- */
-function pickImageWeb(): Promise<PickedImage | null> {
-  const doc = (globalThis as unknown as { document?: { createElement: (t: string) => WebInput } })
-    .document;
-  if (!doc) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const input = doc.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(null);
-        return;
-      }
-      resolve({
-        blob: file as unknown as Blob,
-        contentType: file.type || 'image/jpeg',
-        size: file.size,
-      });
-    };
-    input.click();
-  });
-}
 
 /** `2026-03-01` -> `Março/2026`, sem passar por `Date` (fuso não atrapalha). */
 function formatDeliveryBR(ymd: string | null): string {
@@ -353,7 +301,7 @@ export default function CatalogoAdminScreen() {
   async function changePhoto(kind: CatalogPhotoKind, id: string) {
     setError(null);
     setFeedback(null);
-    const picked = await pickImageWeb();
+    const picked = await pickImage();
     if (!picked) return;
     if (picked.size > MAX_PHOTO_BYTES) {
       setError(`A imagem tem que ter até ${MAX_PHOTO_MB} MB.`);
