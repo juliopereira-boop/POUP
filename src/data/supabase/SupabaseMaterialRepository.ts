@@ -154,6 +154,27 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     return data.signedUrl;
   }
 
+  async signedUrls(paths: string[], expiresIn = 3600): Promise<Record<string, string>> {
+    if (paths.length === 0) return {};
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, expiresIn);
+    if (error || !data) return {};
+    const out: Record<string, string> = {};
+    for (const item of data) {
+      // O Supabase devolve um item por caminho pedido, com `error` preenchido
+      // no que falhou. Só entra no mapa o que realmente assinou.
+      if (item.signedUrl && item.path) out[item.path] = item.signedUrl;
+    }
+    return out;
+  }
+
+  async downloadUrl(path: string, fileName: string, expiresIn = 3600): Promise<string | null> {
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, expiresIn, { download: fileName });
+    if (error || !data) return null;
+    return data.signedUrl;
+  }
+
   async download(path: string): Promise<Blob | null> {
     const { data, error } = await supabase.storage.from(BUCKET).download(path);
     if (error || !data) return null;

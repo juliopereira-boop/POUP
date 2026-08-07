@@ -256,6 +256,22 @@ export interface MaterialRepository {
   ): Promise<Result<void>>;
   remove(path: string, isFolder: boolean): Promise<Result<void>>;
   signedUrl(path: string, expiresIn?: number): Promise<string | null>;
+
+  /**
+   * URLs assinadas de VÁRIOS arquivos de uma vez, indexadas pelo caminho.
+   *
+   * A listagem mostra uma miniatura por arquivo; pedir uma assinatura por vez
+   * seria dezenas de idas ao servidor só para desenhar a tela. Caminho que
+   * falhar simplesmente não aparece no resultado — a miniatura cai no ícone do
+   * tipo e nada quebra.
+   */
+  signedUrls(paths: string[], expiresIn?: number): Promise<Record<string, string>>;
+
+  /**
+   * URL que força o BAIXAR com o nome original, em vez de abrir no navegador.
+   * Sem isso o PDF abre numa aba e o corretor não consegue salvar o arquivo.
+   */
+  downloadUrl(path: string, fileName: string, expiresIn?: number): Promise<string | null>;
   download(path: string): Promise<Blob | null>;
   getCompanyMaterial(userId: string, companyId: string): Promise<CompanyMaterial | null>;
   saveCompanyMaterial(

@@ -15,10 +15,13 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { FilePreviewModal, type FilePreviewTarget } from '@/components/FilePreviewModal';
+import { FileThumb } from '@/components/FileThumb';
 import { Screen } from '@/components/Screen';
 import { db, type Company, type Development, type StorageEntry } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { CATALOG_MATERIAL_ROOT, canEditMaterial, materialRoot } from '@/features/catalog/material';
+import { fileKind, KIND_BADGE } from '@/features/material/fileKind';
 import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -124,6 +127,23 @@ export default function MaterialVendaScreen() {
   const [linkDraft, setLinkDraft] = useState('');
 
   const [entries, setEntries] = useState<StorageEntry[]>([]);
+  /**
+   * URL assinada por caminho, para as miniaturas de imagem.
+   * Pedidas em LOTE quando a lista carrega — uma assinatura por arquivo seriam
+   * dezenas de idas ao servidor só para desenhar a tela.
+   */
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
+
+  /** Assina só as IMAGENS: são as únicas que viram miniatura de verdade. */
+  const loadThumbs = useCallback(async (list: StorageEntry[]) => {
+    const paths = list
+      .filter((e) => !e.isFolder && fileKind(e.name, e.mimeType, false) === 'image')
+      .map((e) => e.path);
+    if (paths.length === 0) return;
+    const urls = await db.material.signedUrls(paths);
+    setThumbs((prev) => ({ ...prev, ...urls }));
+  }, []);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -217,12 +237,13 @@ export default function MaterialVendaScreen() {
       if (!mounted) return;
       const files = list.filter((e) => !e.isFolder);
       setGeneralFiles(files);
+      void loadThumbs(files);
       setLoadingGeneral(false);
     });
     return () => {
       mounted = false;
     };
-  }, [user, company, generalNonce]);
+  }, [user, company, generalNonce, loadThumbs]);
 
   const relPath = useMemo(() => {
     if (!company || !development) return null;
@@ -232,9 +253,11 @@ export default function MaterialVendaScreen() {
   const loadEntries = useCallback(async () => {
     if (!user || !relPath) return;
     setLoadingEntries(true);
-    setEntries(await db.material.list(root, relPath));
+    const list = await db.material.list(root, relPath);
+    setEntries(list);
+    void loadThumbs(list);
     setLoadingEntries(false);
-  }, [user, relPath, root]);
+  }, [user, relPath, root, loadThumbs]);
 
   useEffect(() => {
     void loadEntries();
@@ -363,10 +386,34 @@ export default function MaterialVendaScreen() {
     void loadEntries();
   }
 
+  /**
+   * Abre o preview por cima da lista.
+   *
+   * O modal aparece na hora, com o indicador de carregando, e as URLs chegam
+   * depois: esperar a assinatura antes de abrir dava a impressão de que o toque
+   * não tinha funcionado.
+   */
   async function onOpenFile(entry: StorageEntry) {
-    const url = await db.material.signedUrl(entry.path);
-    if (url) void Linking.openURL(url);
-    else setError('Não foi possível abrir o arquivo.');
+    const kind = fileKind(entry.name, entry.mimeType, entry.isFolder);
+    setPreview({
+      name: entry.name,
+      kind,
+      url: null,
+      downloadUrl: null,
+      sizeLabel: formatSize(entry.size),
+    });
+    const [url, download] = await Promise.all([
+      db.material.signedUrl(entry.path),
+      db.material.downloadUrl(entry.path, entry.name),
+    ]);
+    if (!url) {
+      setPreview(null);
+      setError('Não foi possível abrir o arquivo.');
+      return;
+    }
+    setPreview((cur) =>
+      cur && cur.name === entry.name ? { ...cur, url, downloadUrl: download } : cur,
+    );
   }
 
   function onDelete(entry: StorageEntry, after: () => void) {
@@ -547,6 +594,7 @@ export default function MaterialVendaScreen() {
                   key={e.path}
                   entry={e}
                   canDelete={canEdit}
+                  thumbUrl={thumbs[e.path]}
                   onOpen={() => void onOpenFile(e)}
                   onDelete={() => onDelete(e, () => setGeneralNonce((n) => n + 1))}
                 />
@@ -634,6 +682,7 @@ export default function MaterialVendaScreen() {
                   key={e.path}
                   entry={e}
                   canDelete={canEdit}
+                  thumbUrl={thumbs[e.path]}
                   onOpen={() =>
                     e.isFolder ? setFolderSegs([...folderSegs, e.name]) : void onOpenFile(e)
                   }
@@ -767,6 +816,8 @@ export default function MaterialVendaScreen() {
           </View>
         </View>
       </Modal>
+
+      <FilePreviewModal target={preview} onClose={() => setPreview(null)} />
     </Screen>
   );
 }
@@ -840,23 +891,29 @@ function EntryRow({
   onOpen,
   onDelete,
   canDelete,
+  thumbUrl,
 }: {
   entry: StorageEntry;
   onOpen: () => void;
   onDelete: () => void;
   /** `false` no material do catálogo: só o POUP apaga o que o POUP publicou. */
   canDelete: boolean;
+  /** URL assinada da imagem, quando o arquivo é uma. */
+  thumbUrl?: string | null;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const kind = fileKind(entry.name, entry.mimeType, entry.isFolder);
   return (
     <View style={styles.row}>
       <Pressable style={styles.rowMain} onPress={onOpen} accessibilityRole="button">
-        <Text style={styles.rowIcon}>{entry.isFolder ? '📁' : '📄'}</Text>
+        <FileThumb kind={kind} previewUrl={thumbUrl} size={44} />
         <View style={styles.rowInfo}>
           <Text style={styles.rowName} numberOfLines={1}>
             {entry.name}
           </Text>
-          <Text style={styles.rowMeta}>{entry.isFolder ? 'Pasta' : formatSize(entry.size)}</Text>
+          <Text style={styles.rowMeta}>
+            {entry.isFolder ? 'Pasta' : `${KIND_BADGE[kind].label} · ${formatSize(entry.size)}`}
+          </Text>
         </View>
       </Pressable>
       {canDelete ? (
