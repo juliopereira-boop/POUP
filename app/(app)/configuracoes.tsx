@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { openGuide } from '@/features/guide';
 
 import { Button } from '@/components/Button';
+import { DeleteAccountButton } from '@/components/DeleteAccountButton';
 import { InstallHowToModal, useInstallPrompt } from '@/components/InstallAppCard';
 import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
@@ -202,6 +203,13 @@ export default function ConfiguracoesScreen() {
 
       <View style={styles.signOut}>
         <Button label="Sair da conta" variant="danger" onPress={() => void signOut()} />
+      </View>
+
+      {/* Longe do "Sair da conta" de propósito: as duas ações se parecem no
+          texto e não se parecem em nada nas consequências. */}
+      <Text style={styles.sectionLabel}>Excluir conta</Text>
+      <View style={styles.card}>
+        <DeleteAccountButton />
       </View>
 
       <InstallHowToModal

@@ -104,7 +104,7 @@ supabase/
   migrations/0003_cadastros.sql            # Empresas e empreendimentos
   migrations/0004_profile_fields.sql       # Imobiliária e CNPJ no perfil
   migrations/0005_regras_negocio.sql       # Regras de negócio + correspondentes + gerente imob
-  functions/                               # Edge Functions (Stripe x3, scan-document)
+  functions/                               # Edge Functions (Stripe x3, scan-document, delete-account)
 docs/STRIPE_PLANOS.md               # Guia passo a passo para criar os 2 planos no Stripe
 ```
 
@@ -222,7 +222,24 @@ setUser((prev) => (sameUser(prev, u) ? prev : u));
 
 Se os dados são os mesmos, mantém a referência antiga do estado — nada re-renderiza desnecessariamente.
 
-`AuthProvider` expõe: `user`, `initializing`, `signIn`, `signUp`, `signInWithGoogle`, `sendPasswordReset`, `signOut`.
+`AuthProvider` expõe: `user`, `initializing`, `signIn`, `signUp`, `signInWithGoogle`, `sendPasswordReset`, `signOut` e `deleteAccount`.
+
+### Excluir a conta pelo app (Ajustes → Excluir conta)
+
+A App Store **rejeita automaticamente** app que deixa criar conta lá dentro mas não deixa excluir lá dentro — mandar o corretor escrever para o suporte não conta. Loja à parte, é o que a LGPD espera.
+
+O app não consegue apagar o próprio usuário de `auth.users` (isso é operação de administrador, e a chave que permite isso jamais pode estar no celular). Por isso a exclusão mora no Edge Function **`delete-account`**, atrás de um login válido, e a ordem das etapas importa:
+
+1. **Cancela a assinatura no Stripe.** Se o usuário sumisse primeiro, o cartão continuaria sendo cobrado por uma conta que não existe mais — e sem ninguém para reclamar, porque o login já teria sumido.
+2. **Apaga os arquivos do Storage** (`uploads/<user_id>/...`, percorrendo as subpastas). Eles **não** somem junto com o usuário: ficariam ocupando espaço e custo para sempre.
+3. **Apaga o usuário.** Todas as tabelas do app têm `on delete cascade` em `auth.users`, então leads, simulações, vendas e comissões vão junto.
+
+Dois detalhes que parecem miudeza e não são:
+
+- O function cria **dois clientes**: um com o token do corretor, só para descobrir _quem_ está pedindo (o `user_id` nunca vem do corpo da requisição — senão qualquer pessoa logada mandaria apagar a conta de outra), e um **service role puro**, sem `Authorization` por cima. Se o token do corretor ficasse sobre a credencial de administrador, a API de exclusão recusaria o pedido.
+- A palavra **`EXCLUIR`** digitada na tela é conferida também no servidor. A tela usa isso para obrigar o corretor a parar e ler (é irreversível); o servidor usa para não apagar nada por uma chamada solta.
+
+> Ao publicar, o `delete-account` precisa dos mesmos segredos das funções de billing (`SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`).
 
 ---
 

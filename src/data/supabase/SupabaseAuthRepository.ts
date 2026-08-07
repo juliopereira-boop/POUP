@@ -104,6 +104,22 @@ export class SupabaseAuthRepository implements AuthRepository {
     await supabase.auth.signOut();
   }
 
+  async deleteAccount(confirm: string): Promise<Result<void>> {
+    const { data, error } = await supabase.functions.invoke('delete-account', {
+      body: { confirm },
+    });
+    if (error) return err('Não foi possível excluir a conta. Tente novamente.');
+    const payload = data as { deleted?: boolean; error?: string } | null;
+    if (!payload?.deleted) {
+      return err(payload?.error ?? 'Não foi possível excluir a conta. Tente novamente.');
+    }
+
+    // A conta já não existe no servidor; o `signOut` só limpa o que sobrou no
+    // aparelho. Se falhar, a exclusão continua valendo — daí o catch vazio.
+    await supabase.auth.signOut().catch(() => undefined);
+    return ok(undefined);
+  }
+
   onAuthStateChange(cb: (payload: AuthChangePayload) => void): () => void {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       cb({ user: mapUser(session?.user ?? null) });

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
+import { clearThumbCache } from '@/features/material/thumbCache';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -11,6 +12,8 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<Result<void>>;
   sendPasswordReset: (email: string) => Promise<Result<void>>;
   signOut: () => Promise<void>;
+  /** Exclusão definitiva. `confirm` é a palavra digitada pelo corretor. */
+  deleteAccount: (confirm: string) => Promise<Result<void>>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -62,7 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         db.auth.signUpWithPassword(email, password, fullName),
       signInWithGoogle: () => db.auth.signInWithGoogle(),
       sendPasswordReset: (email) => db.auth.sendPasswordReset(email),
-      signOut: () => db.auth.signOut(),
+      // As miniaturas guardadas são URLs assinadas do corretor que está
+      // saindo. Deixá-las no aparelho vazaria material de venda para a próxima
+      // conta que entrar nele.
+      signOut: async () => {
+        await clearThumbCache();
+        await db.auth.signOut();
+      },
+      deleteAccount: async (confirm: string) => {
+        const result = await db.auth.deleteAccount(confirm);
+        if (result.ok) await clearThumbCache();
+        return result;
+      },
     }),
     [user, initializing],
   );

@@ -65,6 +65,15 @@ export interface AuthRepository {
 
   signOut(): Promise<void>;
 
+  /**
+   * Apaga a conta e tudo que ela guarda, sem volta.
+   *
+   * `confirm` é a palavra que o corretor digitou na tela; o servidor recusa se
+   * não bater. Em caso de sucesso a sessão já não vale mais — quem chama deve
+   * limpar o estado local em seguida.
+   */
+  deleteAccount(confirm: string): Promise<Result<void>>;
+
   onAuthStateChange(cb: (payload: AuthChangePayload) => void): () => void;
 }
 
