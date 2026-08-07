@@ -114,6 +114,16 @@ export default function SignUpScreen() {
           <Text style={styles.link}>Entrar</Text>
         </Link>
       </View>
+
+      <View style={styles.legalFooter}>
+        <Text style={styles.legalText}>
+          Ao criar sua conta, você concorda com nossa{' '}
+          <Link href="/privacidade">
+            <Text style={styles.legalLink}>Política de Privacidade</Text>
+          </Link>
+          .
+        </Text>
+      </View>
     </Screen>
   );
 }
@@ -144,4 +154,7 @@ const makeStyles = (colors: AppColors) =>
   dividerText: { ...typography.caption, color: colors.inkSubtle },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl },
   footerText: { ...typography.body, color: colors.inkMuted },
+  legalFooter: { marginTop: spacing.md, paddingHorizontal: spacing.md },
+  legalText: { ...typography.caption, color: colors.inkMuted, textAlign: 'center' },
+  legalLink: { ...typography.caption, color: colors.primary, textDecorationLine: 'underline' },
 });

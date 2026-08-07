@@ -120,6 +120,8 @@ export default function ConfiguracoesScreen() {
             />
           </>
         ) : null}
+        <Divider />
+        <NavRow label="Política de Privacidade" onPress={() => router.push('/privacidade')} />
       </View>
 
       <Text style={styles.sectionLabel}>Cadastros</Text>

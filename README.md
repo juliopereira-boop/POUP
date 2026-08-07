@@ -696,6 +696,12 @@ O registro é um `<script>` inline em `app/+html.tsx`, e não um módulo do app:
 
 Já está preparado: o app é Expo. Quando quiser publicar nas lojas, usaremos **EAS Build** (`eas build`) e billing nativo. Nada da UI precisará mudar — apenas adicionamos uma implementação de `BillingRepository` para as lojas.
 
+### O que já está pronto para a revisão das lojas
+
+- **Política de Privacidade** (`app/privacidade.tsx`, rota pública em `/privacidade`) — a Apple e o Google pedem essa URL antes de qualquer outra coisa. Linkada no cadastro (`signup.tsx`) e em Ajustes → Ajuda, então também é alcançável de dentro do app logado.
+- **Excluir a conta pelo próprio app** (Ajustes → Excluir conta) — ver §5.
+- **Convite para instalar na tela de início** — ver §17 (não é exigência de loja, mas resolve o mesmo problema de retenção enquanto o app não está publicado).
+
 ---
 
 ## 🛠️ Utilitários
