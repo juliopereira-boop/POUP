@@ -1,6 +1,24 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import { type ReactNode } from 'react';
 
+/**
+ * Registra o service worker (veja `public/sw.js`).
+ *
+ * Vai inline no HTML, e não num módulo do app, porque precisa rodar antes do
+ * bundle carregar: o Chrome só considera o site instalável depois que o worker
+ * está ativo, e o corretor não fica na tela inicial esperando.
+ *
+ * `load` em vez de imediato para não disputar banda com o bundle na primeira
+ * abertura — a instalação pode esperar meio segundo, a tela não.
+ */
+const REGISTER_SW = `
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  });
+}
+`;
+
 export default function Root({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
@@ -25,6 +43,7 @@ export default function Root({ children }: { children: ReactNode }) {
         <link rel="manifest" href="/manifest.json" />
 
         <ScrollViewStyleReset />
+        <script dangerouslySetInnerHTML={{ __html: REGISTER_SW }} />
       </head>
       <body>{children}</body>
     </html>

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 
 import { Icon, type IconName } from '@/components/Icon';
+import { InstallAppCard } from '@/components/InstallAppCard';
 import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { db, isAppointmentLate, type Appointment, type AppointmentType } from '@/data';
@@ -163,6 +164,8 @@ export default function HomeScreen() {
             <Text style={styles.trialText}>Toque para assinar e não perder o acesso.</Text>
           </Pressable>
         ) : null}
+
+        <InstallAppCard />
 
         {reminders.length > 0 ? (
           <ScrollView

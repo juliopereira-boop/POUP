@@ -5,7 +5,9 @@ import { useRouter } from 'expo-router';
 import { openGuide } from '@/features/guide';
 
 import { Button } from '@/components/Button';
+import { InstallHowToModal, useInstallPrompt } from '@/components/InstallAppCard';
 import { Screen } from '@/components/Screen';
+import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { formatBytes } from '@/features/plans';
@@ -34,6 +36,8 @@ export default function ConfiguracoesScreen() {
   const { isAdmin } = useIsAdmin();
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
+  const { plataforma, instalavel, jaInstalado } = useInstallPrompt();
+  const [comoInstalar, setComoInstalar] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -45,6 +49,19 @@ export default function ConfiguracoesScreen() {
       mounted = false;
     };
   }, [user]);
+
+  /**
+   * Instala pelo botão do navegador quando ele existe; caso contrário abre o
+   * passo a passo. É o mesmo caminho do convite da tela inicial — aqui ele fica
+   * guardado para quem dispensou o convite e depois se arrependeu.
+   */
+  async function instalarNaTelaInicial() {
+    if (canPromptInstall()) {
+      const aceitou = await promptInstall();
+      if (aceitou) return;
+    }
+    setComoInstalar(true);
+  }
 
   async function openBillingPortal() {
     setLoadingPortal(true);
@@ -88,6 +105,20 @@ export default function ConfiguracoesScreen() {
           subtitle="Rever o passo a passo de como usar o POUP"
           onPress={openGuide}
         />
+        {Platform.OS === 'web' && !jaInstalado ? (
+          <>
+            <Divider />
+            <NavRow
+              label="Instalar na tela de início"
+              subtitle={
+                instalavel
+                  ? 'Deixe o POUP como um ícone no seu aparelho'
+                  : 'Veja como deixar o POUP como um ícone no seu aparelho'
+              }
+              onPress={() => void instalarNaTelaInicial()}
+            />
+          </>
+        ) : null}
       </View>
 
       <Text style={styles.sectionLabel}>Cadastros</Text>
@@ -172,6 +203,12 @@ export default function ConfiguracoesScreen() {
       <View style={styles.signOut}>
         <Button label="Sair da conta" variant="danger" onPress={() => void signOut()} />
       </View>
+
+      <InstallHowToModal
+        visible={comoInstalar}
+        plataforma={plataforma}
+        onClose={() => setComoInstalar(false)}
+      />
     </Screen>
   );
 }

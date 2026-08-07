@@ -26,8 +26,9 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 14. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
 15. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
 16. [Deploy na Vercel](#▲-deploy-na-vercel)
-17. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store-depois)
-18. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+17. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
+18. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store-depois)
+19. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -632,6 +633,45 @@ O projeto já vem com `vercel.json`. Na Vercel:
 1. **Import** do repositório.
 2. **Environment Variables**: as mesmas `EXPO_PUBLIC_*` do `.env` (com `EXPO_PUBLIC_APP_URL` = domínio de produção).
 3. Build detectado automaticamente: `npm run build:web` → saída em `dist/`.
+
+---
+
+## 📲 Instalar na tela de início (PWA)
+
+Enquanto o app não está nas lojas, o corretor chega pelo navegador — e some junto com a aba. "Adicionar à tela de início" resolve isso, mas quase ninguém conhece o caminho sozinho. Por isso o app **convida** e **ensina**.
+
+### O que o corretor vê
+
+- **Cartão no topo da tela inicial** (`src/components/InstallAppCard.tsx`). Some sozinho quando o app já está instalado e quando o corretor toca em "Agora não" (a escolha fica guardada).
+- **Atalho em Ajustes → Ajuda → "Instalar na tela de início"**, para quem dispensou e se arrependeu. Usa exatamente o mesmo passo a passo.
+
+### Os dois mundos (e por que o botão muda de nome)
+
+|                                          | Android / Chrome                     | iPhone / Safari              |
+| ---------------------------------------- | ------------------------------------ | ---------------------------- |
+| O navegador avisa que dá para instalar?  | Sim (`beforeinstallprompt`)          | **Não existe API**           |
+| O que o app consegue fazer               | Abrir a caixa oficial: **um toque**  | Só **ensinar** o caminho     |
+| Rótulo do botão                          | "Instalar agora"                     | "Ver como fazer"             |
+
+`src/features/install/pwa.ts` concentra essa detecção: `isInstalled()`, `detectPlatform()` (iPad moderno se apresenta como Mac — o toque é o que denuncia), `watchInstallPrompt()`, `canPromptInstall()` / `promptInstall()` e o par `dismiss()` / `undismiss()`.
+
+### O service worker é obrigatório — e é minúsculo de propósito
+
+O Chrome só oferece "Instalar aplicativo" para sites que têm service worker respondendo offline. Sem `public/sw.js`, o Android **nunca** mostraria o botão de um toque: sobraria o passo a passo manual, que é exatamente o problema a resolver.
+
+Mas service worker que guarda JS e HTML é a causa clássica de "o app não atualiza". Então `public/sw.js` **não guarda nada do app**:
+
+- só intercepta requisições de **navegação** (`request.mode === 'navigate'`); bundle, imagem e chamada ao Supabase passam direto, sem interferência;
+- o único item em cache é `public/offline.html`, e ele só aparece quando a rede realmente falha;
+- a resposta é **remontada** antes de ir para o cache, porque o `cleanUrls` da Vercel redireciona `/offline.html` → `/offline`, e uma resposta vinda de redirecionamento não pode ser devolvida numa navegação (o navegador recusa e a tela fica em branco — justo o que se quer evitar).
+
+O registro é um `<script>` inline em `app/+html.tsx`, e não um módulo do app: precisa rodar antes do bundle carregar. O `vercel.json` serve `/sw.js` com `Cache-Control: no-cache`.
+
+### Requisitos de instalabilidade já atendidos
+
+`public/manifest.json` com `name`, `short_name`, `start_url`, `scope`, `display: standalone`, `theme_color` e ícones de **192** e **512** px (mais um `maskable`), referenciado em `app/+html.tsx` junto das metas `apple-mobile-web-app-*` que fazem o iPhone abrir em tela cheia.
+
+> Ao mudar o conteúdo de `offline.html`, suba a constante `CACHE` em `sw.js` (`poup-offline-v1` → `v2`): o `activate` apaga os caches antigos e o corretor pega a versão nova.
 
 ---
 
