@@ -1,0 +1,1790 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>POUP — a ferramenta do corretor de sucesso</title>
+    <meta
+      name="description"
+      content="Simulação, proposta em PDF, gestão de leads e controle de comissão num app só. Feito para corretor de imóveis, do celular, no meio do atendimento."
+    />
+    <meta name="theme-color" content="#06080D" />
+    <link rel="icon" type="image/png" href="/comercial/icon.png" />
+    <link rel="apple-touch-icon" href="/comercial/icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="POUP — a ferramenta do corretor de sucesso" />
+    <meta
+      property="og:description"
+      content="A proposta que levava duas horas sai em dois minutos. Simulador, PDF pronto, leads e comissão no mesmo lugar."
+    />
+    <meta property="og:image" content="/comercial/icon.png" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <style>
+      /* ==================================================================
+         POUP — página comercial
+         ------------------------------------------------------------------
+         HTML puro, de propósito. Esta página é a primeira coisa que o
+         corretor vê, muitas vezes no 4G, no meio da rua. Fazê-la como rota
+         do app carregaria o bundle inteiro do React só para mostrar texto.
+         Aqui não há dependência nenhuma: abre na hora.
+         ================================================================== */
+
+      :root {
+        --bg: #06080d;
+        --bg-2: #0a0e16;
+        --surface: rgba(255, 255, 255, 0.035);
+        --surface-2: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.09);
+        --border-hi: rgba(255, 255, 255, 0.16);
+        --ink: #f6f8fb;
+        --muted: #8d9aad;
+        --subtle: #5f6b7c;
+        --brand: #ff751f;
+        --brand-lt: #ff9d4d;
+        --brand-dk: #e05e0d;
+        --good: #34d399;
+        --maxw: 1180px;
+        --r-sm: 12px;
+        --r: 18px;
+        --r-lg: 26px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .wrap {
+        width: 100%;
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 22px;
+      }
+
+      /* --- tipografia -------------------------------------------------- */
+      h1,
+      h2,
+      h3 {
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+      }
+      h1 {
+        font-size: clamp(2.05rem, 6.2vw, 4.05rem);
+        /* Deixa o navegador equilibrar as linhas: sem isso sobra palavra
+           sozinha na última linha, que é a marca do texto amador. */
+        text-wrap: balance;
+      }
+      .hero h1 {
+        max-width: 15ch;
+      }
+      @media (max-width: 999px) {
+        .hero h1 {
+          max-width: none;
+        }
+      }
+      h2 {
+        font-size: clamp(1.9rem, 5vw, 3.1rem);
+      }
+      h3 {
+        font-size: 1.15rem;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+      .lead {
+        font-size: clamp(1.02rem, 2.3vw, 1.24rem);
+        color: var(--muted);
+        max-width: 60ch;
+      }
+      .brand-text {
+        color: var(--brand);
+      }
+
+      /* Gradiente só no texto de destaque — o resto fica sólido, para não
+         virar aquele arco-íris que cansa a leitura. */
+      .grad {
+        background: linear-gradient(100deg, var(--brand) 10%, var(--brand-lt) 60%, #ffd0a8 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--brand-lt);
+        background: rgba(255, 117, 31, 0.1);
+        border: 1px solid rgba(255, 117, 31, 0.28);
+        padding: 7px 14px;
+        border-radius: 999px;
+      }
+      .eyebrow::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--brand);
+        box-shadow: 0 0 10px var(--brand);
+      }
+
+      /* --- botões ------------------------------------------------------ */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-size: 1.02rem;
+        font-weight: 700;
+        padding: 15px 28px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.18s ease,
+          background 0.18s ease;
+        white-space: nowrap;
+      }
+      .btn-primary {
+        background: linear-gradient(180deg, var(--brand-lt), var(--brand));
+        color: #1a0b00;
+        box-shadow:
+          0 10px 30px -8px rgba(255, 117, 31, 0.55),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow:
+          0 18px 40px -10px rgba(255, 117, 31, 0.7),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      .btn-ghost {
+        background: var(--surface-2);
+        border-color: var(--border-hi);
+        color: var(--ink);
+      }
+      .btn-ghost:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+      }
+      .btn-sm {
+        padding: 10px 20px;
+        font-size: 0.93rem;
+      }
+
+      /* --- nav --------------------------------------------------------- */
+      header.nav {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        background: rgba(6, 8, 13, 0.72);
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.25s ease;
+      }
+      header.nav.scrolled {
+        border-bottom-color: var(--border);
+      }
+      .nav-in {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 68px;
+        gap: 20px;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        font-size: 1.3rem;
+      }
+      .logo img {
+        width: 30px;
+        height: 30px;
+        object-fit: contain;
+      }
+      .nav-links {
+        display: none;
+        gap: 30px;
+        font-size: 0.95rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .nav-links a:hover {
+        color: var(--ink);
+      }
+      .nav-cta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .nav-cta .enter {
+        display: none;
+        font-weight: 600;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .nav-cta .enter:hover {
+        color: var(--ink);
+      }
+      @media (min-width: 860px) {
+        .nav-links,
+        .nav-cta .enter {
+          display: flex;
+        }
+      }
+
+      /* --- hero -------------------------------------------------------- */
+      .hero {
+        position: relative;
+        padding: clamp(56px, 9vw, 104px) 0 clamp(60px, 8vw, 90px);
+        overflow: hidden;
+      }
+      /* O brilho fica ATRÁS de tudo e não intercepta clique. */
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(90px);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .glow-1 {
+        width: min(760px, 105vw);
+        height: 460px;
+        background: radial-gradient(closest-side, rgba(255, 117, 31, 0.4), transparent);
+        top: -190px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .glow-2 {
+        width: 420px;
+        height: 420px;
+        background: radial-gradient(closest-side, rgba(80, 120, 255, 0.16), transparent);
+        bottom: -160px;
+        right: -120px;
+      }
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: clamp(44px, 6vw, 64px);
+        align-items: center;
+      }
+      @media (min-width: 1000px) {
+        .hero-grid {
+          grid-template-columns: 1.06fr 0.94fr;
+        }
+      }
+      .hero h1 {
+        margin: 22px 0 20px;
+      }
+      .hero-cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 13px;
+        margin: 32px 0 18px;
+      }
+      .hero-note {
+        display: flex;
+        /* Alinhado pelo topo: quando o texto quebra em duas linhas no celular,
+           centralizar deixaria o check flutuando no meio do parágrafo. */
+        align-items: flex-start;
+        gap: 9px;
+        font-size: 0.9rem;
+        color: var(--subtle);
+      }
+      .hero-note svg {
+        flex: 0 0 auto;
+        margin-top: 4px;
+      }
+
+      /* --- maquete do celular ------------------------------------------ */
+      .stage {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        perspective: 1400px;
+        /* Espaço para a folha sair por baixo do celular sem ser cortada pelo
+           `overflow: hidden` da seção. */
+        padding-bottom: 58px;
+      }
+      .phone {
+        position: relative;
+        width: min(310px, 78vw);
+        border-radius: 42px;
+        padding: 11px;
+        background: linear-gradient(160deg, #2a2f3a, #12151d 55%);
+        box-shadow:
+          0 50px 90px -30px rgba(0, 0, 0, 0.9),
+          0 0 0 1px rgba(255, 255, 255, 0.09);
+        transform: rotateY(-11deg) rotateX(4deg) rotateZ(1deg);
+      }
+      .phone-screen {
+        background: #0b0f17;
+        border-radius: 32px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+      }
+      .notch {
+        width: 96px;
+        height: 20px;
+        background: #12151d;
+        border-radius: 0 0 14px 14px;
+        margin: 0 auto 6px;
+      }
+      .scr-pad {
+        /* O rodapé generoso não é estilo: é a área onde a folha da proposta se
+           apoia. Sem ele, ela cobria o "R$ 240.000" e o "SALDO R$ 0,00" — que
+           é justamente o número que prova que a conta fechou. */
+        padding: 4px 15px 92px;
+      }
+      .scr-title {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--subtle);
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .scr-total {
+        font-size: 1.42rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin-bottom: 3px;
+      }
+      .scr-sub {
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-bottom: 15px;
+      }
+      .parcela {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid var(--border);
+        border-radius: 13px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+      }
+      .parcela b {
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .parcela span {
+        font-size: 0.68rem;
+        color: var(--subtle);
+        display: block;
+        font-weight: 500;
+      }
+      .parcela .val {
+        text-align: right;
+        color: var(--brand-lt);
+        font-weight: 800;
+        font-size: 0.9rem;
+      }
+      .saldo-ok {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(52, 211, 153, 0.12);
+        border: 1px solid rgba(52, 211, 153, 0.32);
+        border-radius: 13px;
+        padding: 11px 12px;
+        margin-top: 12px;
+      }
+      .saldo-ok span {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: var(--good);
+      }
+      .saldo-ok b {
+        font-size: 0.95rem;
+        color: var(--good);
+        font-weight: 800;
+      }
+
+      /* Folha da proposta, flutuando ao lado do celular. */
+      .sheet {
+        position: absolute;
+        right: -42px;
+        bottom: 2px;
+        width: min(178px, 46vw);
+        background: #fff;
+        color: #0f172a;
+        border-radius: 10px;
+        padding: 13px 12px;
+        box-shadow: 0 34px 60px -22px rgba(0, 0, 0, 0.85);
+        transform: rotate(5deg);
+        z-index: 3;
+      }
+      .sheet-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 2px solid var(--brand);
+        padding-bottom: 6px;
+        margin-bottom: 8px;
+      }
+      .sheet-top strong {
+        font-size: 0.56rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .sheet-mark {
+        width: 15px;
+        height: 15px;
+        border-radius: 4px;
+        background: var(--brand);
+      }
+      .sheet h4 {
+        font-size: 0.66rem;
+        margin-bottom: 8px;
+        letter-spacing: -0.01em;
+      }
+      .sheet-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.53rem;
+        color: #475569;
+        padding: 3px 0;
+        border-bottom: 1px dashed #e2e8f0;
+      }
+      .sheet-row b {
+        color: #0f172a;
+      }
+      .sheet-ok {
+        margin-top: 8px;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 0.52rem;
+        font-weight: 800;
+        text-align: center;
+        padding: 5px;
+        border-radius: 5px;
+      }
+      @media (max-width: 560px) {
+        .sheet {
+          right: -10px;
+          width: min(152px, 41vw);
+        }
+      }
+
+      /* --- barra de confiança ------------------------------------------ */
+      .trust {
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+        padding: 26px 0;
+      }
+      .trust-in {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 12px 34px;
+        text-align: center;
+      }
+      .trust-in p {
+        font-size: 0.82rem;
+        color: var(--subtle);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-weight: 700;
+      }
+      .trust-item {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-size: 1.02rem;
+        color: #c8d2e0;
+      }
+
+      /* --- seções ------------------------------------------------------ */
+      section {
+        padding: clamp(66px, 10vw, 118px) 0;
+        position: relative;
+      }
+      .sec-head {
+        max-width: 720px;
+        margin-bottom: clamp(38px, 5vw, 58px);
+      }
+      .sec-head h2 {
+        margin: 16px 0 16px;
+      }
+      .center {
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+      }
+      .center .lead {
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .cards {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 28px 24px;
+        transition:
+          border-color 0.25s ease,
+          transform 0.25s ease,
+          background 0.25s ease;
+      }
+      .card:hover {
+        border-color: var(--border-hi);
+        background: var(--surface-2);
+        transform: translateY(-4px);
+      }
+      .card h3 {
+        margin-bottom: 9px;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 0.97rem;
+      }
+      .ico {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        font-size: 1.35rem;
+        margin-bottom: 17px;
+        background: rgba(255, 117, 31, 0.12);
+        border: 1px solid rgba(255, 117, 31, 0.24);
+      }
+
+      /* A dor: cartão com barra vermelha, para contrastar com as soluções. */
+      .pain {
+        border-left: 3px solid #ef4444;
+        background: rgba(239, 68, 68, 0.05);
+      }
+      .pain .ico {
+        background: rgba(239, 68, 68, 0.12);
+        border-color: rgba(239, 68, 68, 0.28);
+      }
+
+      /* --- passos do simulador ----------------------------------------- */
+      .steps {
+        display: grid;
+        gap: 14px;
+        counter-reset: passo;
+      }
+      @media (min-width: 760px) {
+        .steps {
+          grid-template-columns: repeat(5, 1fr);
+        }
+      }
+      .step {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 22px 18px;
+        position: relative;
+      }
+      .step::before {
+        counter-increment: passo;
+        content: counter(passo);
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--brand);
+        color: #1a0b00;
+        font-weight: 800;
+        font-size: 0.88rem;
+        margin-bottom: 13px;
+      }
+      .step h3 {
+        font-size: 1rem;
+        margin-bottom: 5px;
+      }
+      .step p {
+        font-size: 0.87rem;
+        color: var(--muted);
+      }
+
+      /* --- painel de comissão ------------------------------------------ */
+      .split {
+        display: grid;
+        gap: clamp(34px, 5vw, 60px);
+        align-items: center;
+      }
+      @media (min-width: 940px) {
+        .split {
+          grid-template-columns: 1fr 1fr;
+        }
+        .split.flip > *:first-child {
+          order: 2;
+        }
+      }
+      .panel {
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 22px;
+        box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8);
+      }
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .kpi {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        padding: 13px 11px;
+      }
+      .kpi span {
+        display: block;
+        font-size: 0.63rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--subtle);
+        font-weight: 700;
+        margin-bottom: 5px;
+      }
+      .kpi b {
+        font-size: clamp(0.95rem, 2.3vw, 1.16rem);
+        letter-spacing: -0.03em;
+      }
+      .kpi.ok b {
+        color: var(--good);
+      }
+      .kpi.due b {
+        color: var(--brand-lt);
+      }
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 9px 0;
+        border-top: 1px solid var(--border);
+        font-size: 0.85rem;
+      }
+      .bar-row .who {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .bar {
+        width: 84px;
+        height: 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.09);
+        overflow: hidden;
+        flex: 0 0 auto;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 4px;
+        background: linear-gradient(90deg, var(--brand), var(--brand-lt));
+      }
+      .tag {
+        font-size: 0.66rem;
+        font-weight: 800;
+        padding: 3px 9px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+      .tag.ok {
+        color: var(--good);
+        background: rgba(52, 211, 153, 0.14);
+      }
+      .tag.wait {
+        color: var(--brand-lt);
+        background: rgba(255, 117, 31, 0.14);
+      }
+
+      /* --- lista de checagem ------------------------------------------- */
+      .checks {
+        list-style: none;
+        display: grid;
+        gap: 13px;
+        margin-top: 26px;
+      }
+      .checks li {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+      .checks svg {
+        flex: 0 0 auto;
+        margin-top: 3px;
+      }
+      .checks b {
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      /* --- módulos ------------------------------------------------------ */
+      .mods {
+        display: grid;
+        gap: 13px;
+        grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      }
+      .mod {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 16px 17px;
+        transition:
+          border-color 0.2s ease,
+          transform 0.2s ease;
+      }
+      .mod:hover {
+        border-color: rgba(255, 117, 31, 0.4);
+        transform: translateY(-3px);
+      }
+      .mod .e {
+        font-size: 1.3rem;
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.05);
+        flex: 0 0 auto;
+      }
+      .mod b {
+        display: block;
+        font-size: 0.96rem;
+        letter-spacing: -0.02em;
+      }
+      .mod span {
+        font-size: 0.79rem;
+        color: var(--subtle);
+      }
+
+      /* --- preços ------------------------------------------------------- */
+      .prices {
+        display: grid;
+        gap: 20px;
+        max-width: 880px;
+        margin: 0 auto;
+      }
+      @media (min-width: 800px) {
+        .prices {
+          grid-template-columns: 1fr 1fr;
+          align-items: start;
+        }
+      }
+      .price {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 32px 27px;
+        position: relative;
+      }
+      .price.best {
+        border-color: rgba(255, 117, 31, 0.5);
+        background: linear-gradient(170deg, rgba(255, 117, 31, 0.09), var(--surface) 55%);
+        box-shadow: 0 30px 70px -34px rgba(255, 117, 31, 0.6);
+      }
+      .price .badge {
+        position: absolute;
+        top: -13px;
+        left: 27px;
+        background: linear-gradient(180deg, var(--brand-lt), var(--brand));
+        color: #1a0b00;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 5px 14px;
+        border-radius: 999px;
+      }
+      .price h3 {
+        font-size: 1.4rem;
+        margin-bottom: 4px;
+      }
+      .price .tagline {
+        color: var(--muted);
+        font-size: 0.92rem;
+        margin-bottom: 20px;
+      }
+      .price .amount {
+        display: flex;
+        align-items: baseline;
+        gap: 5px;
+        margin-bottom: 22px;
+      }
+      .price .amount b {
+        font-size: clamp(2.2rem, 6vw, 2.9rem);
+        letter-spacing: -0.045em;
+        font-weight: 800;
+      }
+      .price .amount span {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .price ul {
+        list-style: none;
+        display: grid;
+        gap: 11px;
+        margin: 22px 0 0;
+      }
+      .price li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 0.94rem;
+        color: var(--muted);
+      }
+      .price li svg {
+        flex: 0 0 auto;
+        margin-top: 3px;
+      }
+      .price .btn {
+        width: 100%;
+      }
+      .price-note {
+        text-align: center;
+        color: var(--subtle);
+        font-size: 0.87rem;
+        margin-top: 26px;
+      }
+
+      /* --- faq ---------------------------------------------------------- */
+      .faq {
+        max-width: 780px;
+        margin: 0 auto;
+        display: grid;
+        gap: 11px;
+      }
+      details {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        overflow: hidden;
+      }
+      details[open] {
+        border-color: var(--border-hi);
+        background: var(--surface-2);
+      }
+      summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 19px 22px;
+        font-weight: 700;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::after {
+        content: '+';
+        color: var(--brand);
+        font-size: 1.4rem;
+        font-weight: 400;
+        line-height: 1;
+        transition: transform 0.22s ease;
+        flex: 0 0 auto;
+      }
+      details[open] summary::after {
+        transform: rotate(45deg);
+      }
+      details p {
+        padding: 0 22px 20px;
+        color: var(--muted);
+        font-size: 0.96rem;
+      }
+
+      /* --- cta final ----------------------------------------------------- */
+      .final {
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+        border-top: 1px solid var(--border);
+      }
+      .final .glow-3 {
+        position: absolute;
+        width: min(900px, 120vw);
+        height: 420px;
+        border-radius: 50%;
+        filter: blur(100px);
+        background: radial-gradient(closest-side, rgba(255, 117, 31, 0.32), transparent);
+        left: 50%;
+        top: 30%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      .final .inner {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* --- rodapé -------------------------------------------------------- */
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 44px 0 54px;
+        background: var(--bg-2);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 22px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .foot-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 22px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .foot-links a:hover {
+        color: var(--ink);
+      }
+      .foot-copy {
+        font-size: 0.84rem;
+        color: var(--subtle);
+        margin-top: 22px;
+      }
+
+      /* --- revelação no scroll ------------------------------------------- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+        transition:
+          opacity 0.6s cubic-bezier(0.2, 0.7, 0.3, 1),
+          transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+      }
+      .reveal.on {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* Quem pediu menos movimento recebe a página inteira parada — e, o mais
+         importante, VISÍVEL: sem isso o conteúdo ficaria em opacidade 0. */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .reveal {
+          opacity: 1 !important;
+          transform: none !important;
+          transition: none !important;
+        }
+        .phone {
+          transform: none;
+        }
+        * {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="nav" id="nav">
+      <div class="wrap nav-in">
+        <a href="#topo" class="logo">
+          <img src="/comercial/logo.png" alt="" />
+          <span>POUP</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#simulador">Simulador</a>
+          <a href="#comissao">Comissão</a>
+          <a href="#modulos">Módulos</a>
+          <a href="#precos">Preços</a>
+        </nav>
+        <div class="nav-cta">
+          <a href="/" class="enter">Entrar</a>
+          <a href="/(auth)/signup" class="btn btn-primary btn-sm">Criar minha conta</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="topo">
+      <!-- ================= HERO ================= -->
+      <section class="hero">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+        <div class="wrap hero-grid">
+          <div class="reveal">
+            <span class="eyebrow">Feito por corretor, para corretor</span>
+            <h1>Duas horas de proposta viraram <span class="grad">dois minutos</span>.</h1>
+            <p class="lead">
+              Simula o financiamento, monta o fluxo parcela por parcela e gera a proposta em PDF com
+              a marca da construtora. Tudo pelo celular, no meio do atendimento.
+            </p>
+            <div class="hero-cta">
+              <a href="/(auth)/signup" class="btn btn-primary">Criar minha conta</a>
+              <a href="#simulador" class="btn btn-ghost">Ver como funciona</a>
+            </div>
+            <p class="hero-note">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M20 6 9 17l-5-5"
+                  stroke="#34d399"
+                  stroke-width="2.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Sem instalar nada. Abre no celular e no computador.
+            </p>
+          </div>
+
+          <!-- Maquete: a tela de parcelas + a proposta saindo dela. -->
+          <div class="stage reveal">
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="notch"></div>
+                <div class="scr-pad">
+                  <p class="scr-title">Fluxo de pagamento</p>
+                  <p class="scr-total">R$ 350.000,00</p>
+                  <p class="scr-sub">Village Connect I &middot; Torre 1 &middot; Apto 704</p>
+
+                  <div class="parcela">
+                    <div>
+                      <b>Ato</b>
+                      <span>na assinatura</span>
+                    </div>
+                    <div class="val">R$ 15.000</div>
+                  </div>
+                  <div class="parcela">
+                    <div>
+                      <b>36 mensais</b>
+                      <span>a partir de 10/10/2026</span>
+                    </div>
+                    <div class="val">R$ 1.680</div>
+                  </div>
+                  <div class="parcela">
+                    <div>
+                      <b>6 semestrais</b>
+                      <span>reforço de caixa</span>
+                    </div>
+                    <div class="val">R$ 4.200</div>
+                  </div>
+                  <div class="parcela">
+                    <div>
+                      <b>Financiamento</b>
+                      <span>aprovado na CEF</span>
+                    </div>
+                    <div class="val">R$ 240.000</div>
+                  </div>
+
+                  <div class="saldo-ok">
+                    <span>SALDO A DISTRIBUIR</span>
+                    <b>R$ 0,00</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sheet" aria-hidden="true">
+              <div class="sheet-top">
+                <strong>Proposta</strong>
+                <div class="sheet-mark"></div>
+              </div>
+              <h4>Proposta de Compra e Venda</h4>
+              <div class="sheet-row"><span>Cliente</span><b>Ana P. Souza</b></div>
+              <div class="sheet-row"><span>Unidade</span><b>Apto 704</b></div>
+              <div class="sheet-row"><span>Valor</span><b>R$ 350.000</b></div>
+              <div class="sheet-row"><span>Entrada</span><b>R$ 15.000</b></div>
+              <div class="sheet-ok">PARCELAMENTO ACEITÁVEL</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CONFIANÇA ================= -->
+      <div class="trust">
+        <div class="wrap trust-in">
+          <p>Em uso no lançamento</p>
+          <div class="trust-item">Canopus Construções</div>
+          <div class="trust-item">Village Connect I</div>
+        </div>
+      </div>
+
+      <!-- ================= A DOR ================= -->
+      <section>
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <span class="eyebrow">Você conhece essa cena</span>
+            <h2>O cliente não espera<br />você abrir a planilha.</h2>
+            <p class="lead">
+              Não é falta de esforço. É que a ferramenta certa nunca esteve na mão do corretor —
+              sempre no computador do escritório, sempre depois.
+            </p>
+          </div>
+
+          <div class="cards">
+            <div class="card pain reveal">
+              <div class="ico">⏳</div>
+              <h3>"Depois eu te mando"</h3>
+              <p>
+                Ele pergunta quanto fica por mês. Você anota, promete retorno e vai fazer a conta em
+                casa. Quando manda, ele já falou com outro corretor.
+              </p>
+            </div>
+            <div class="card pain reveal">
+              <div class="ico">📄</div>
+              <h3>A proposta improvisada</h3>
+              <p>
+                Word, logo esticado, valor copiado de uma tabela da semana passada. O documento que
+                deveria fechar a venda é o que passa insegurança.
+              </p>
+            </div>
+            <div class="card pain reveal">
+              <div class="ico">💸</div>
+              <h3>A comissão que some</h3>
+              <p>
+                Vendeu em março, receberia em seis parcelas. Estamos em agosto e você não sabe
+                dizer, sem abrir o WhatsApp, quantas já caíram.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SIMULADOR ================= -->
+      <section id="simulador">
+        <div class="wrap">
+          <div class="sec-head center reveal">
+            <span class="eyebrow">O coração do POUP</span>
+            <h2>Cinco telas entre a pergunta<br />e a proposta assinada.</h2>
+            <p class="lead">
+              O corretor preenche conversando com o cliente. O app faz a conta, distribui as
+              parcelas nos vencimentos certos e avisa na hora se o parcelamento fecha.
+            </p>
+          </div>
+
+          <div class="steps reveal">
+            <div class="step">
+              <h3>Empreendimento</h3>
+              <p>Escolhe a construtora, a unidade e o valor. As regras já vêm carregadas.</p>
+            </div>
+            <div class="step">
+              <h3>Corretor</h3>
+              <p>Seus dados e os do correspondente entram sozinhos, do seu perfil.</p>
+            </div>
+            <div class="step">
+              <h3>Cliente</h3>
+              <p>Nome e CPF pela foto do documento. Aceita segundo proponente.</p>
+            </div>
+            <div class="step">
+              <h3>Financiamento</h3>
+              <p>Valor aprovado, subsídio, FGTS. O risco aparece em porcentagem.</p>
+            </div>
+            <div class="step">
+              <h3>Fluxo</h3>
+              <p>Ato, mensais, semestrais e anuais. Saldo tem que fechar em zero.</p>
+            </div>
+          </div>
+
+          <div class="split" style="margin-top: clamp(46px, 6vw, 76px)">
+            <div class="reveal">
+              <h2 style="font-size: clamp(1.6rem, 4vw, 2.3rem)">
+                E no fim, um PDF que<br />parece de construtora grande.
+              </h2>
+              <ul class="checks">
+                <li>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="11" fill="rgba(255,117,31,.16)" />
+                    <path
+                      d="M17 8.5 10.5 15.5 7 12"
+                      stroke="#FF9D4D"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span
+                    ><b>Com a foto da construtora</b> no topo, ao lado da sua marca. O cliente vê um
+                    documento sério, não um improviso.</span
+                  >
+                </li>
+                <li>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="11" fill="rgba(255,117,31,.16)" />
+                    <path
+                      d="M17 8.5 10.5 15.5 7 12"
+                      stroke="#FF9D4D"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span
+                    ><b>Parcela por parcela, com data.</b> Nada de "36x de aproximadamente". Cada
+                    vencimento no dia certo.</span
+                  >
+                </li>
+                <li>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="11" fill="rgba(255,117,31,.16)" />
+                    <path
+                      d="M17 8.5 10.5 15.5 7 12"
+                      stroke="#FF9D4D"
+                      stroke-width="2.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span
+                    ><b>Pronto para mandar no WhatsApp</b> ali mesmo, ainda sentado com o
+                    cliente.</span
+                  >
+                </li>
+              </ul>
+            </div>
+
+            <div class="panel reveal">
+              <div class="kpis">
+                <div class="kpi"><span>Unidade</span><b>R$ 350.000</b></div>
+                <div class="kpi due"><span>Entrada</span><b>R$ 15.000</b></div>
+                <div class="kpi ok"><span>Saldo</span><b>R$ 0,00</b></div>
+              </div>
+              <div class="bar-row">
+                <span class="who">Ato &middot; 10/09/2026</span>
+                <div class="bar"><i style="width: 100%"></i></div>
+                <span class="tag ok">no ato</span>
+              </div>
+              <div class="bar-row">
+                <span class="who">Mensais &middot; 36x</span>
+                <div class="bar"><i style="width: 62%"></i></div>
+                <span class="tag wait">R$ 1.680</span>
+              </div>
+              <div class="bar-row">
+                <span class="who">Semestrais &middot; 6x</span>
+                <div class="bar"><i style="width: 40%"></i></div>
+                <span class="tag wait">R$ 4.200</span>
+              </div>
+              <div class="bar-row">
+                <span class="who">Financiamento CEF</span>
+                <div class="bar"><i style="width: 88%"></i></div>
+                <span class="tag ok">aprovado</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= COMISSÃO ================= -->
+      <section id="comissao">
+        <div class="wrap split flip">
+          <div class="panel reveal">
+            <div class="kpis">
+              <div class="kpi"><span>Previsto</span><b>R$ 48.200</b></div>
+              <div class="kpi ok"><span>Recebido</span><b>R$ 21.400</b></div>
+              <div class="kpi due"><span>A receber</span><b>R$ 26.800</b></div>
+            </div>
+            <div class="bar-row">
+              <span class="who">Ana P. Souza &middot; 3/6</span>
+              <div class="bar"><i style="width: 50%"></i></div>
+              <span class="tag wait">set/26</span>
+            </div>
+            <div class="bar-row">
+              <span class="who">Marcos Lima &middot; 6/6</span>
+              <div class="bar"><i style="width: 100%"></i></div>
+              <span class="tag ok">quitada</span>
+            </div>
+            <div class="bar-row">
+              <span class="who">Cláudia R. &middot; 1/4</span>
+              <div class="bar"><i style="width: 25%"></i></div>
+              <span class="tag wait">out/26</span>
+            </div>
+            <div class="bar-row">
+              <span class="who">João B. Neto &middot; 2/8</span>
+              <div class="bar"><i style="width: 25%"></i></div>
+              <span class="tag wait">set/26</span>
+            </div>
+          </div>
+
+          <div class="reveal">
+            <span class="eyebrow">A parte que ninguém controla</span>
+            <h2 style="margin: 16px 0 16px">
+              Quanto você<br />
+              <span class="grad">tem a receber</span> hoje?
+            </h2>
+            <p class="lead">
+              Se a resposta demora, o dinheiro está trabalhando para outra pessoa. Ao registrar a
+              venda, o POUP já lança a comissão e divide nas parcelas combinadas.
+            </p>
+            <ul class="checks">
+              <li>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="rgba(52,211,153,.16)" />
+                  <path
+                    d="M17 8.5 10.5 15.5 7 12"
+                    stroke="#34d399"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span><b>Cada parcela com vencimento</b> e status de recebida ou pendente.</span>
+              </li>
+              <li>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="rgba(52,211,153,.16)" />
+                  <path
+                    d="M17 8.5 10.5 15.5 7 12"
+                    stroke="#34d399"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span
+                  ><b>Nota fiscal registrada na parcela</b>, com número, data e link — some a pasta
+                  de prints.</span
+                >
+              </li>
+              <li>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="11" fill="rgba(52,211,153,.16)" />
+                  <path
+                    d="M17 8.5 10.5 15.5 7 12"
+                    stroke="#34d399"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span><b>Distrato não bagunça o histórico:</b> o que já entrou continua lá.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= MÓDULOS ================= -->
+      <section id="modulos">
+        <div class="wrap">
+          <div class="sec-head center reveal">
+            <span class="eyebrow">Tudo no mesmo lugar</span>
+            <h2>Nove ferramentas que hoje<br />estão espalhadas em cinco apps.</h2>
+          </div>
+
+          <div class="mods reveal">
+            <div class="mod">
+              <div class="e">🧮</div>
+              <div><b>Simulador</b><span>Financiamento e fluxo</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">📄</div>
+              <div><b>Proposta em PDF</b><span>Pronta em minutos</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">👥</div>
+              <div><b>Gestão de leads</b><span>Funil do seu jeito</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">🎯</div>
+              <div><b>Prospecção</b><span>Ache quem comprar</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">📅</div>
+              <div><b>Calendário</b><span>Visitas e retornos</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">💰</div>
+              <div><b>Comissão</b><span>Parcela por parcela</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">🤝</div>
+              <div><b>Vendas</b><span>Histórico e metas</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">💼</div>
+              <div><b>Material de venda</b><span>Plantas e tabelas</span></div>
+            </div>
+            <div class="mod">
+              <div class="e">📱</div>
+              <div><b>Página de captação</b><span>Com seu QR Code</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= PREÇOS ================= -->
+      <section id="precos">
+        <div class="wrap">
+          <div class="sec-head center reveal">
+            <span class="eyebrow">Preço de corretor</span>
+            <h2>Menos de uma comissão por ano.</h2>
+            <p class="lead">
+              Uma única venda a mais paga o POUP por vários anos. Cancele quando quiser, sem
+              fidelidade.
+            </p>
+          </div>
+
+          <div class="prices">
+            <div class="price reveal">
+              <h3>Start</h3>
+              <p class="tagline">Para começar a organizar a operação</p>
+              <div class="amount"><b>R$ 59,90</b><span>/mês</span></div>
+              <a href="/(auth)/signup" class="btn btn-ghost">Começar no Start</a>
+              <ul>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#FF9D4D"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Simulador de financiamento
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#FF9D4D"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Proposta de compra e venda em PDF
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#FF9D4D"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Gestão de leads e prospecção
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#FF9D4D"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Calendário, material de venda e captação
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#FF9D4D"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  5 GB de armazenamento
+                </li>
+              </ul>
+            </div>
+
+            <div class="price best reveal">
+              <span class="badge">Recomendado</span>
+              <h3>Pro</h3>
+              <p class="tagline">Tudo do POUP, sem limite de recursos</p>
+              <div class="amount"><b>R$ 89,90</b><span>/mês</span></div>
+              <a href="/(auth)/signup" class="btn btn-primary">Começar no Pro</a>
+              <ul>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#34d399"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <b style="color: var(--ink)">Tudo do Start</b>
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#34d399"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Controle de comissão parcela a parcela
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#34d399"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Vendas realizadas, com histórico e metas
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#34d399"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Agente de IA de atendimento
+                </li>
+                <li>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20 6 9 17l-5-5"
+                      stroke="#34d399"
+                      stroke-width="2.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  25 GB de armazenamento
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <p class="price-note">
+            Cobrança mensal no cartão, pelo Stripe. Cancele quando quiser, direto nas configurações.
+          </p>
+        </div>
+      </section>
+
+      <!-- ================= FAQ ================= -->
+      <section>
+        <div class="wrap">
+          <div class="sec-head center reveal">
+            <span class="eyebrow">Antes de você perguntar</span>
+            <h2>Dúvidas de quem está chegando.</h2>
+          </div>
+
+          <div class="faq reveal">
+            <details>
+              <summary>Preciso instalar alguma coisa?</summary>
+              <p>
+                Não. O POUP abre no navegador do celular e do computador. Se quiser, dá para deixar
+                ele como ícone na tela inicial e usar como qualquer outro aplicativo — o próprio app
+                te ensina o caminho.
+              </p>
+            </details>
+            <details>
+              <summary>Sou leigo em tecnologia. Vou conseguir usar?</summary>
+              <p>
+                O POUP foi desenhado para quem vende imóvel, não para quem entende de sistema. O
+                simulador é conversa: você preenche na ordem em que o cliente pergunta. E tem um
+                guia dentro do app mostrando o passo a passo.
+              </p>
+            </details>
+            <details>
+              <summary>Os empreendimentos já vêm cadastrados?</summary>
+              <p>
+                As construtoras parceiras vêm prontas no catálogo, com regra de comissão, unidades e
+                material de venda. Você só adota e já começa a simular. Quando a construtora
+                atualiza alguma coisa, chega para você automaticamente.
+              </p>
+            </details>
+            <details>
+              <summary>E os meus dados e os dos meus clientes?</summary>
+              <p>
+                Ficam na sua conta, isolados dos demais corretores por regra no próprio banco de
+                dados. Você pode excluir tudo quando quiser, direto no app, sem precisar pedir para
+                ninguém.
+              </p>
+            </details>
+            <details>
+              <summary>Posso cancelar depois?</summary>
+              <p>
+                Quando quiser, sem multa e sem fidelidade. É um botão nas configurações. Enquanto a
+                assinatura estiver ativa, tudo continua no lugar.
+              </p>
+            </details>
+            <details>
+              <summary>Funciona para qualquer construtora?</summary>
+              <p>
+                Sim. Além do catálogo pronto, você cadastra suas próprias construtoras e
+                empreendimentos, com as regras de negócio e comissão de cada uma.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CTA FINAL ================= -->
+      <section class="final">
+        <div class="glow-3"></div>
+        <div class="wrap inner reveal">
+          <span class="eyebrow">POUP tempo. Venda mais.</span>
+          <h2 style="margin: 20px auto 18px; max-width: 16ch">
+            Sua próxima proposta pode<br />sair hoje ainda.
+          </h2>
+          <p class="lead center" style="margin-bottom: 32px">
+            Crie sua conta, adote a construtora e faça a primeira simulação nos próximos dez
+            minutos.
+          </p>
+          <div style="display: flex; gap: 13px; justify-content: center; flex-wrap: wrap">
+            <a href="/(auth)/signup" class="btn btn-primary">Criar minha conta</a>
+            <a href="/" class="btn btn-ghost">Já tenho conta</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <div class="foot">
+          <a href="#topo" class="logo">
+            <img src="/comercial/logo.png" alt="" />
+            <span>POUP</span>
+          </a>
+          <div class="foot-links">
+            <a href="#simulador">Simulador</a>
+            <a href="#precos">Preços</a>
+            <a href="/suporte">Suporte</a>
+            <a href="/privacidade">Privacidade</a>
+          </div>
+        </div>
+        <p class="foot-copy">
+          POUP — a ferramenta do corretor de sucesso. Feito no Brasil para corretores de imóveis.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      /*
+       * Revelação no scroll.
+       *
+       * A regra que manda aqui é uma só: o conteúdo NUNCA pode ficar invisível.
+       * Uma animação que não dispara vira um bloco em branco na cara do
+       * corretor — pior do que não ter animação nenhuma. Por isso há três
+       * camadas de proteção:
+       *
+       * 1. Sem `IntersectionObserver` (navegador antigo), tudo aparece de uma
+       *    vez.
+       * 2. O limiar é praticamente zero, então basta um pixo entrar na tela.
+       *    Com limiar alto, um bloco mais alto que a tela pode nunca alcançar a
+       *    porcentagem pedida e ficar escondido para sempre.
+       * 3. Uma rede de segurança revela tudo depois de 2,5 s, aconteça o que
+       *    acontecer.
+       */
+      (function () {
+        var alvos = [].slice.call(document.querySelectorAll('.reveal'));
+        function revelarTudo() {
+          alvos.forEach(function (el) {
+            el.classList.add('on');
+          });
+        }
+
+        if (!('IntersectionObserver' in window)) {
+          revelarTudo();
+          return;
+        }
+
+        var obs = new IntersectionObserver(
+          function (entradas) {
+            entradas.forEach(function (e) {
+              if (e.isIntersecting) {
+                e.target.classList.add('on');
+                obs.unobserve(e.target);
+              }
+            });
+          },
+          { threshold: 0.01, rootMargin: '0px 0px -40px' },
+        );
+        alvos.forEach(function (el) {
+          obs.observe(el);
+        });
+
+        setTimeout(revelarTudo, 2500);
+      })();
+
+      // A borda do topo só aparece depois que a página rola — assim o cabeçalho
+      // não corta o hero com uma linha à toa.
+      (function () {
+        var nav = document.getElementById('nav');
+        var ticking = false;
+        function marcar() {
+          nav.classList.toggle('scrolled', window.scrollY > 8);
+          ticking = false;
+        }
+        window.addEventListener(
+          'scroll',
+          function () {
+            if (!ticking) {
+              ticking = true;
+              requestAnimationFrame(marcar);
+            }
+          },
+          { passive: true },
+        );
+        marcar();
+      })();
+    </script>
+  </body>
+</html>
