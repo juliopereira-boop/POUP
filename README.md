@@ -804,6 +804,12 @@ a cada ajuste de texto — a diferença entre testar em segundos e testar em mei
 > `rm -rf /tmp/metro-cache /tmp/metro-file-map-* .expo node_modules/.cache`.
 > No EAS cada build é uma máquina nova, então lá o problema não existe.
 
+### Decisões que valem revisar
+
+- **iPad desligado** (`ios.supportsTablet: false`). O app roda em modo compatibilidade no iPad e a loja deixa de exigir capturas de tela de 13". É uma linha para reverter, mais as capturas.
+- **`expo-secure-store` removido**: estava declarado, nunca era usado, e trazia uma capacidade de Keychain que o app não precisa.
+- **Token de sessão continua em AsyncStorage.** A Apple não exige Keychain, e trocar isso sem poder testar em aparelho arrisca quebrar o login (o `SecureStore` tem teto de 2 KB e a sessão do Supabase costuma passar disso). Fica registrado como melhoria, não como pendência de conformidade.
+
 ### Antes do primeiro envio
 
 - `app.json` já vai com `version: 1.0.0`, `ios.buildNumber`, `android.versionCode`,
@@ -833,7 +839,7 @@ Auditoria feita contra a documentação oficial vigente. Cada item cita a regra.
 
 | Item | Regra / fonte | Situação |
 | --- | --- | --- |
-| Build com **Xcode 26 / iOS 26 SDK** | [Submitting](https://developer.apple.com/app-store/submitting/) — obrigatório desde 28/04/2026 | `eas.json` usa `ios.image: "latest"`. **Não validado**: o projeto está no Expo SDK 52 e a própria Expo recomenda SDK 54+ para Xcode 26. Sem macOS aqui, não dá para provar que compila. |
+| Build com **Xcode 26 / iOS 26 SDK** | [Submitting](https://developer.apple.com/app-store/submitting/) — obrigatório desde 28/04/2026 | Projeto migrado para **Expo SDK 54** (React 19, RN 0.81, expo-router 6), que é o mínimo compatível com Xcode 26; `eas.json` pede `ios.image: "latest"`. Validado no que dá aqui: tsc, eslint, build web, 9 rotas sem erro de JS e prebuild do iOS. **O build nativo em si segue sem validação** — não há macOS neste ambiente. |
 | **PrivacyInfo.xcprivacy** | [Privacy manifest files](https://developer.apple.com/documentation/BundleResources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk) — obrigatório desde iOS 17.2 | ✅ Validado: `ios.privacyManifests` no `app.json` gera o arquivo no projeto nativo (conferido com `expo prebuild`). |
 
 ### Regras que já estavam sendo violadas e foram corrigidas
