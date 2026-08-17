@@ -29,7 +29,10 @@
  * No app nativo essa regra não existe, então lá o download acontece na hora do
  * toque mesmo — e é por isso que `saveFileNative` pode ser assíncrona sem medo.
  */
-import * as FileSystem from 'expo-file-system';
+// `File` do expo-file-system tem o MESMO NOME do `File` do navegador, que
+// este arquivo também usa (é o conteúdo que vai para `navigator.share`).
+// Sem o apelido, um sombreia o outro e o caminho da web deixa de compilar.
+import { File as ArquivoLocal, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
@@ -178,13 +181,17 @@ function safeFileName(name: string): string {
  * verdade é o corretor, e o sistema limpa o cache sozinho depois.
  */
 export async function saveFileNative(url: string, name: string): Promise<SaveOutcome> {
-  const dir = FileSystem.cacheDirectory;
-  if (!dir) return { ok: false, error: ERRO_GENERICO };
-
-  const destino = `${dir}${safeFileName(name)}`;
+  // API de arquivos do SDK 54: `Paths.cache` é a pasta e o destino é criado
+  // antes. (Antes era `FileSystem.cacheDirectory` + `downloadAsync`, que hoje
+  // só existem em `expo-file-system/legacy`.)
+  //
+  // Usamos o `destino` que criamos, e não o retorno de `downloadFileAsync`,
+  // porque a tipagem do pacote declara esse retorno como o `File` do NAVEGADOR
+  // em vez do dele mesmo. Como o download grava no destino informado, o `uri`
+  // que interessa já está aqui.
+  const destino = new ArquivoLocal(Paths.cache, safeFileName(name));
   try {
-    const { status } = await FileSystem.downloadAsync(url, destino);
-    if (status !== 200) return { ok: false, error: 'Não foi possível baixar o arquivo.' };
+    await ArquivoLocal.downloadFileAsync(url, destino);
   } catch {
     return { ok: false, error: 'Não foi possível baixar o arquivo.' };
   }
@@ -196,7 +203,7 @@ export async function saveFileNative(url: string, name: string): Promise<SaveOut
   }
 
   try {
-    await Sharing.shareAsync(destino);
+    await Sharing.shareAsync(destino.uri);
     return { ok: true, via: 'share' };
   } catch {
     // Fechar a folha também cai aqui, e desistir não é erro.
