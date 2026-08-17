@@ -29,7 +29,8 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 17. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
 18. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
 19. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
-20. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+20. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
+21. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -821,6 +822,62 @@ a cada ajuste de texto — a diferença entre testar em segundos e testar em mei
   with Apple", o próximo passo é `expo-apple-authentication` + `ios.usesAppleSignIn: true` — a
   entitlement foi deixada **de fora** de propósito, porque exigi-la sem a capability provisionada
   na conta Apple faz o build falhar.
+
+---
+
+## 🍏 Conformidade com a App Review da Apple
+
+Auditoria feita contra a documentação oficial vigente. Cada item cita a regra.
+
+### O que bloqueia o envio (resolver antes de gerar o build)
+
+| Item | Regra / fonte | Situação |
+| --- | --- | --- |
+| Build com **Xcode 26 / iOS 26 SDK** | [Submitting](https://developer.apple.com/app-store/submitting/) — obrigatório desde 28/04/2026 | `eas.json` usa `ios.image: "latest"`. **Não validado**: o projeto está no Expo SDK 52 e a própria Expo recomenda SDK 54+ para Xcode 26. Sem macOS aqui, não dá para provar que compila. |
+| **PrivacyInfo.xcprivacy** | [Privacy manifest files](https://developer.apple.com/documentation/BundleResources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk) — obrigatório desde iOS 17.2 | ✅ Validado: `ios.privacyManifests` no `app.json` gera o arquivo no projeto nativo (conferido com `expo prebuild`). |
+
+### Regras que já estavam sendo violadas e foram corrigidas
+
+| Regra | O que estava errado | Correção |
+| --- | --- | --- |
+| **2.1** App Completeness | O onboarding era um beco: sem fechar, sem pular, exigindo **CPF brasileiro com dígito verificador válido**. Um revisor da Apple não tem CPF — ficaria preso e nunca veria o app. | Botão "Preencher depois" em `OnboardingModal`. |
+| **2.1** | Erro cru do Postgres/PostgREST na tela (~40 pontos): `duplicate key value violates unique constraint`, `PGRST116`, `row-level security policy`. | `src/data/friendlyError.ts`, aplicado dentro de `err()` — ponto único por onde toda falha do app passa. |
+| **2.1** | A tela dizia ao corretor: *"falta rodar a migration 0023_commissions.sql no Supabase"*. Instrução de deploy na cara do usuário. | Diagnóstico vai para o log; o corretor lê o que pode fazer. |
+| **2.1** | "Gerar Nota Fiscal" prometia emissão automática e respondia "ainda não está conectada"; um banner anunciava recurso futuro. | Rótulo passa a "Registrar Nota Fiscal" quando não há plataforma conectada, e os textos descrevem o que o app faz **hoje**. |
+| **2.1** | `FeaturePlaceholder` ("Em desenvolvimento") e `MenuCard` ("Em breve") no bundle. | Removidos — eram código morto. |
+| **4.8** Login Services | O login social nativo voltava para uma URL `https` (com fallback `http://localhost:8081`). O iOS só devolve o controle ao app por esquema próprio: o botão da Apple quebraria na mão do revisor. | `Linking.createURL('/')` → `poup://`, sem depender de variável de ambiente. |
+| **5.1.1(i)** Privacy Policies | A política omitia a **Casa dos Dados** (recebe dados na prospecção) e o login com **Apple**; faltava a cláusula de proteção equivalente pelos terceiros e o "como revogar consentimento". | Todos incluídos em `app/privacidade.tsx`. |
+| **5.1.1(v)** Account Sign-In | *"Apps may not require users to enter personal information to function"* — ver o beco do onboarding acima. | Mesma correção. |
+| **5.1.2(i)** Data Use and Sharing | *"You must clearly disclose where personal data will be shared with third parties, **including with third-party AI**, and obtain explicit permission before doing so."* O scanner mandava a foto do documento **do cliente** para a Anthropic atrás de um botão com um emoji, sem uma palavra de aviso. | Consentimento explícito antes da primeira leitura (`src/features/scan/consent.ts`), nomeando o terceiro e pedindo confirmação de autorização do titular. |
+| Segurança / LGPD | Os rascunhos do simulador guardam **nome, CPF e renda do cliente** em chave global, e não eram apagados na saída da conta: o próximo corretor no mesmo aparelho abriria o simulador com o cliente do anterior. | `clearLocalUserData()` no `signOut` e na exclusão de conta. |
+
+### Por que o app não precisa de compra dentro do app
+
+A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alone companion to a paid web based tool ... do not need to use in-app purchase, provided there is no purchasing inside the app, or calls to action for purchase outside of the app."*
+
+É exatamente o desenho do POUP: a assinatura é vendida no site, e o app das lojas não mostra preço, botão de assinar nem link de cobrança (ver §19). Para isso valer, o app **precisa ser gratuito** na App Store Connect.
+
+### O que ainda depende de configuração manual
+
+**Antes de gerar o build:**
+
+- `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
+- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`.
+- Publicar o Edge Function `delete-account`.
+- Adicionar `poup://` na lista de **Redirect URLs** do Supabase Auth, senão o login social nativo não fecha.
+
+**Na App Store Connect:**
+
+- Preço: **Grátis** (exigência da 3.1.3(f)).
+- Privacy Policy URL: `https://<dominio>/privacidade`
+- Support URL: `https://<dominio>/suporte`
+- App Privacy: sem tracking, sem publicidade, sem analytics — o app não tem nenhum SDK desse tipo. Os tipos coletados são os 8 declarados no `PrivacyInfo.xcprivacy`.
+
+**Para o revisor (App Review Information) — o ponto mais importante:**
+
+> A conta de teste **precisa ter assinatura ativa** (`subscriptions.status = 'active'` no Supabase). No app das lojas a cobrança é invisível: sem assinatura o revisor cai na tela "Assinatura não está ativa" e **não consegue revisar nada**. Isso sozinho reprova o app.
+
+Vale também explicar na nota de revisão o que é a prospecção (consulta ao cadastro **público** de CNPJ) e que a leitura de documento por IA só roda depois de consentimento explícito.
 
 ---
 

@@ -1,3 +1,4 @@
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
@@ -74,16 +75,29 @@ export class SupabaseAuthRepository implements AuthRepository {
     provider: 'google' | 'apple',
     nomeAmigavel: string,
   ): Promise<Result<void>> {
-    const redirectTo = `${getAppUrl()}`;
-
     if (Platform.OS === 'web') {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo },
+        options: { redirectTo: getAppUrl() },
       });
       if (error) return err(friendlyError(error.message));
       return ok(undefined);
     }
+
+    /*
+     * No celular o retorno NÃO pode ser um endereço da web.
+     *
+     * O iOS só devolve o controle ao app quando o navegador de autenticação
+     * chega num endereço do próprio app — o esquema `poup://`, declarado em
+     * `app.json`. Apontar para `https://...` (ou pior, para o
+     * `http://localhost:8081` que era o valor padrão quando a variável de
+     * ambiente faltava) faz o navegador abrir o site e simplesmente ficar lá:
+     * o login "funciona" e o app nunca recebe a sessão.
+     *
+     * `Linking.createURL` monta esse endereço a partir do esquema do app, então
+     * este caminho não depende de nenhuma variável de ambiente estar certa.
+     */
+    const redirectTo = Linking.createURL('/');
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,

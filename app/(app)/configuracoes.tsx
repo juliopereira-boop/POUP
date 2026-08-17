@@ -122,6 +122,8 @@ export default function ConfiguracoesScreen() {
           </>
         ) : null}
         <Divider />
+        <NavRow label="Suporte" onPress={() => router.push('/suporte')} />
+        <Divider />
         <NavRow label="Política de Privacidade" onPress={() => router.push('/privacidade')} />
       </View>
 

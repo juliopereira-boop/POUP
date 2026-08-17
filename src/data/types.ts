@@ -1,3 +1,5 @@
+import { friendlyError } from './friendlyError';
+
 import type { SimuladorState } from '@/features/simulador/SimuladorProvider';
 
 export interface AuthUser {
@@ -706,6 +708,16 @@ export function ok<T>(data: T): Result<T> {
   return { ok: true, data };
 }
 
+/**
+ * Um erro pronto para a tela.
+ *
+ * A mensagem passa por `friendlyError` aqui, no ponto único por onde TODA
+ * falha do app sai. Antes, cada repositório devolvia o texto cru do
+ * Postgres/PostgREST e as telas o exibiam sem filtro — o corretor via
+ * "duplicate key value violates unique constraint". Veja
+ * `src/data/friendlyError.ts` para o porquê e para o cuidado de não estragar
+ * as mensagens que já estavam escritas em português.
+ */
 export function err<T = never>(error: string): Result<T> {
-  return { ok: false, error };
+  return { ok: false, error: friendlyError(error) };
 }

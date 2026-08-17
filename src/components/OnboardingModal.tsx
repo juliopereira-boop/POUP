@@ -1,3 +1,22 @@
+/**
+ * Pedido dos dados do corretor logo após o primeiro login.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE EXISTE UMA SAÍDA
+ * ------------------------------------------------------------------
+ * Antes esta tela era um beco: sem botão de fechar, sem pular, e exigindo CPF
+ * com dígito verificador válido. Duas consequências:
+ *
+ * 1. Um revisor da App Store, que não tem CPF brasileiro, ficaria preso aqui e
+ *    nunca veria o app — reprovação certa pela regra 2.1.
+ * 2. A regra 5.1.1(v) diz que o app "não pode exigir que o usuário informe
+ *    dados pessoais para funcionar", salvo quando diretamente ligados à função
+ *    principal. Esses dados são necessários para EMITIR PROPOSTA, não para
+ *    abrir o app.
+ *
+ * Por isso o "Preencher depois": o pedido continua aparecendo a cada abertura
+ * enquanto o cadastro estiver incompleto, mas nunca tranca a porta.
+ */
 import { useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -22,6 +41,8 @@ export function OnboardingModal() {
   const [uf, setUf] = useState<string | null>(profile?.uf ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Adiado nesta sessão. Volta a aparecer na próxima abertura do app. */
+  const [adiado, setAdiado] = useState(false);
 
   async function save() {
     setError(null);
@@ -47,7 +68,12 @@ export function OnboardingModal() {
   }
 
   return (
-    <Modal visible={needsOnboarding} animationType="slide" transparent onRequestClose={() => {}}>
+    <Modal
+      visible={needsOnboarding && !adiado}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setAdiado(true)}
+    >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -86,6 +112,16 @@ export function OnboardingModal() {
             </Text>
 
             <Button label="Salvar e continuar" onPress={save} loading={saving} style={styles.cta} />
+            <Button
+              label="Preencher depois"
+              variant="ghost"
+              onPress={() => setAdiado(true)}
+              disabled={saving}
+            />
+            <Text style={styles.hint}>
+              Você consegue usar o app sem isso. Só precisamos desses dados na hora de gerar uma
+              proposta em PDF — dá para preencher em Ajustes → Editar perfil.
+            </Text>
           </ScrollView>
         </View>
       </View>

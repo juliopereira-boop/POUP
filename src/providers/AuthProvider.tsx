@@ -3,6 +3,9 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
+import { clearScanConsent } from '@/features/scan/consent';
+import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
+import { sessionStorage } from '@/lib/storage';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -15,6 +18,24 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   /** Exclusão definitiva. `confirm` é a palavra digitada pelo corretor. */
   deleteAccount: (confirm: string) => Promise<Result<void>>;
+}
+
+/**
+ * Apaga do aparelho tudo que pertence a quem está saindo.
+ *
+ * Não é higiene: é vazamento entre contas. As miniaturas são URLs assinadas do
+ * material de venda, e os rascunhos do simulador guardam nome, CPF e renda dos
+ * CLIENTES do corretor — com chave global, não por usuário. Sem esta limpeza,
+ * o próximo login no mesmo aparelho abriria o simulador preenchido com o
+ * cliente do corretor anterior.
+ */
+async function clearLocalUserData(): Promise<void> {
+  await clearThumbCache();
+  // O consentimento da leitura por IA é de quem o deu, não do aparelho.
+  await clearScanConsent();
+  await Promise.all(
+    SIMULADOR_LOCAL_KEYS.map((key) => sessionStorage.removeItem(key).catch(() => undefined)),
+  );
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -71,12 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // saindo. Deixá-las no aparelho vazaria material de venda para a próxima
       // conta que entrar nele.
       signOut: async () => {
-        await clearThumbCache();
+        await clearLocalUserData();
         await db.auth.signOut();
       },
       deleteAccount: async (confirm: string) => {
         const result = await db.auth.deleteAccount(confirm);
-        if (result.ok) await clearThumbCache();
+        if (result.ok) await clearLocalUserData();
         return result;
       },
     }),

@@ -7,6 +7,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "image": "latest"
+      },
       "env": {
         "EXPO_PUBLIC_STORE_BUILD": "1"
       }
@@ -16,12 +19,18 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "image": "latest"
+      },
       "env": {
         "EXPO_PUBLIC_STORE_BUILD": "1"
       }
     },
     "production": {
       "autoIncrement": true,
+      "ios": {
+        "image": "latest"
+      },
       "env": {
         "EXPO_PUBLIC_STORE_BUILD": "1"
       }

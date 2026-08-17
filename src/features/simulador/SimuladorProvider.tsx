@@ -128,6 +128,19 @@ export const INITIAL_SIMULADOR_STATE: SimuladorState = INITIAL;
 const DRAFT_KEY = 'poup.simulador.draft';
 export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';
 export const PREFILL_KEY = 'simulador:prefill';
+
+/**
+ * Tudo que o simulador deixa gravado no aparelho.
+ *
+ * Estes rascunhos guardam **nome, CPF, e-mail, telefone e renda do cliente** —
+ * e as chaves não são separadas por usuário. Sem apagar na saída da conta, o
+ * próximo corretor a entrar no mesmo aparelho abriria o simulador já
+ * preenchido com o cliente do anterior. É vazamento de dado pessoal entre
+ * contas, e no Brasil é problema de LGPD.
+ *
+ * Exportado para o `AuthProvider` limpar no `signOut`.
+ */
+export const SIMULADOR_LOCAL_KEYS = [DRAFT_KEY, EDIT_DRAFT_KEY, PREFILL_KEY];
 const SAVE_DEBOUNCE_MS = 300;
 
 export interface LeadPrefill {

@@ -218,7 +218,7 @@ function ComissaoContent() {
     setNotaTarget({
       inst,
       hint: res.notConfigured
-        ? 'A emissão automática ainda não está conectada. Registre abaixo os dados da nota que você emitiu no portal — fica gravado na parcela.'
+        ? 'Registre abaixo os dados da nota que você emitiu no portal da prefeitura — fica gravado nesta parcela.'
         : `Não foi possível emitir automaticamente: ${res.error} Você pode registrar a nota manualmente abaixo.`,
     });
   }
@@ -370,9 +370,8 @@ function ComissaoContent() {
         <View style={styles.nfBanner}>
           <Text style={styles.nfBannerTitle}>Nota fiscal</Text>
           <Text style={styles.nfBannerText}>
-            A emissão automática de NFS-e/NF-e entra quando a plataforma de notas for conectada ao
-            POUP. Até lá, “Gerar Nota Fiscal” abre o registro manual: você informa número, data e
-            link da nota emitida no portal e ela fica gravada na parcela.
+            Emita a nota no portal da sua prefeitura e registre aqui: informe número, data e link, e
+            ela fica guardada junto da parcela, com o histórico do recebimento.
           </Text>
         </View>
       ) : null}
@@ -486,7 +485,15 @@ function ComissaoContent() {
               {inst.status !== 'cancelada' && inst.invoiceStatus !== 'emitida' ? (
                 <ActionChip
                   styles={styles}
-                  label={busy ? 'Gerando…' : '🧾 Gerar Nota Fiscal'}
+                  label={
+                    busy
+                      ? nfsePronta
+                        ? 'Gerando…'
+                        : 'Abrindo…'
+                      : nfsePronta
+                        ? '🧾 Gerar Nota Fiscal'
+                        : '🧾 Registrar Nota Fiscal'
+                  }
                   disabled={busy}
                   onPress={() => void onGerarNota(inst)}
                 />

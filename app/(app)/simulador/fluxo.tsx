@@ -7,6 +7,7 @@ import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { SlotNumber } from '@/components/SlotNumber';
+import { friendlyError } from '@/data/friendlyError';
 import { db, type Simulation, type SimulationInput } from '@/data';
 import { buildFlow, computePoupanca, formatDateBR } from '@/features/simulador/calc';
 import { generateProposal } from '@/features/simulador/proposal';
@@ -136,7 +137,13 @@ export default function SimuladorFluxo() {
       sim.reset();
       router.replace('/(app)');
     } catch (e) {
-      setError((e as Error).message);
+      // Mensagem crua de exceção não vai para a tela: passa pelo mesmo filtro
+      // que o resto do app, e o detalhe técnico fica no log.
+      console.error('[simulador] falha ao gerar a proposta:', e);
+      setError(
+        friendlyError(e instanceof Error ? e.message : '') ||
+          'Não foi possível gerar a proposta. Tente de novo.',
+      );
     } finally {
       setGenerating(false);
     }

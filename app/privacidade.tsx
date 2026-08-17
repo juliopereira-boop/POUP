@@ -21,7 +21,7 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 
 const SUPORTE_EMAIL = 'gestao@poupgestao.com';
 /** Sincronize com a data em que o conteúdo abaixo mudar de fato. */
-const VIGENCIA = '7 de agosto de 2026';
+const VIGENCIA = '17 de agosto de 2026';
 
 export default function PrivacyPolicyScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -51,7 +51,7 @@ export default function PrivacyPolicyScreen() {
 
       <Section title="2. Dados que coletamos">
         <SubTitle>Do corretor, ao criar e usar a conta</SubTitle>
-        <Bullet>Nome completo, e-mail e senha (ou login com sua conta Google)</Bullet>
+        <Bullet>Nome completo, e-mail e senha (ou login com sua conta Google ou Apple)</Bullet>
         <Bullet>Telefone, CNPJ e CPF, imobiliária e CRECI</Bullet>
         <Bullet>Estado (UF) onde atua — usado só para filtrar quais empreendimentos aparecem</Bullet>
         <Bullet>Foto de perfil, se você optar por enviar uma</Bullet>
@@ -61,6 +61,14 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           Fotos de documentos de identidade (CNH/RG), quando o corretor usa o leitor automático
           para preencher nome e CPF do cliente
+        </Bullet>
+
+        <SubTitle>Da busca por novos clientes (prospecção)</SubTitle>
+        <Bullet>
+          Quando você usa a prospecção, consultamos uma base de dados públicos de empresas (a
+          Casa dos Dados, que reúne o cadastro público de CNPJ) e mostramos nome, telefone,
+          e-mail e cidade de empresas da região que você escolheu. Esses contatos só são salvos
+          na sua conta se você tocar em salvar.
         </Bullet>
 
         <SubTitle>Do uso do app</SubTitle>
@@ -100,7 +108,12 @@ export default function PrivacyPolicyScreen() {
           <Bold>Stripe</Bold> — processamento de pagamento da assinatura
         </Bullet>
         <Bullet>
-          <Bold>Google</Bold> — login via conta Google, quando você escolhe essa opção
+          <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe
+          uma dessas opções
+        </Bullet>
+        <Bullet>
+          <Bold>Casa dos Dados</Bold> — consulta ao cadastro público de empresas, usada apenas
+          quando você aciona a prospecção
         </Bullet>
         <Bullet>
           <Bold>Anthropic (Claude)</Bold> — leitura automática de CNH/RG, apenas quando você aciona
@@ -109,22 +122,46 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           <Bold>Vercel</Bold> — hospedagem do site e do aplicativo
         </Bullet>
+        <Paragraph>
+          Exigimos de cada um desses prestadores proteção aos seus dados equivalente à descrita
+          nesta política. Nenhum deles está autorizado a usar seus dados para finalidade própria.
+        </Paragraph>
       </Section>
 
       <Section title="5. Por quanto tempo guardamos">
         <Paragraph>
           Enquanto sua conta estiver ativa. Se você excluir a conta pelo próprio app (Ajustes →
-          Excluir conta), tudo é apagado de forma definitiva: leads, simulações, vendas, comissões
-          e arquivos enviados. Não há como recuperar depois — inclusive por nós.
+          Excluir conta), tudo é apagado de forma definitiva e imediata: leads, simulações,
+          vendas, comissões e arquivos enviados. Não há como recuperar depois — inclusive por nós.
+          Se houver assinatura ativa, ela é cancelada no mesmo momento.
+        </Paragraph>
+        <Paragraph>
+          A foto de documento usada no preenchimento automático é exceção: ela não é guardada em
+          momento algum. É lida e descartada — só o nome e o CPF extraídos ficam no cadastro que
+          você preencheu.
         </Paragraph>
       </Section>
 
-      <Section title="6. Seus direitos">
+      <Section title="6. Seus direitos e como revogar consentimentos">
         <Paragraph>
           Você pode pedir a qualquer momento para acessar, corrigir ou excluir seus dados. A
-          exclusão está disponível direto no app; as demais solicitações podem ser feitas por{' '}
-          <Email address={SUPORTE_EMAIL} />.
+          exclusão da conta está disponível direto no app, em Ajustes → Excluir conta; as demais
+          solicitações podem ser feitas por <Email address={SUPORTE_EMAIL} />.
         </Paragraph>
+        <SubTitle>Revogar consentimentos já dados</SubTitle>
+        <Bullet>
+          <Bold>Leitura de documento por IA</Bold>: basta parar de usar o botão de preencher pela
+          foto. Nenhum documento é enviado sem que você acione essa função.
+        </Bullet>
+        <Bullet>
+          <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do
+          próprio aparelho. O app continua funcionando; só o preenchimento automático deixa de
+          estar disponível.
+        </Bullet>
+        <Bullet>
+          <Bold>Todo o resto</Bold>: excluir a conta encerra qualquer tratamento e apaga os dados,
+          conforme o item 5.
+        </Bullet>
       </Section>
 
       <Section title="7. Segurança">

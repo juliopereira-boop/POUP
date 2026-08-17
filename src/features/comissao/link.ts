@@ -11,6 +11,7 @@
  * Então o resultado sempre diz o que aconteceu, e a tela da venda mostra o
  * motivo com um botão para tentar de novo.
  */
+import { friendlyError } from '@/data/friendlyError';
 import { db, type Sale } from '@/data';
 import { buildCommissionForSale } from './engine';
 
@@ -54,22 +55,30 @@ export async function ensureCommissionForSale(
 }
 
 /**
- * Traduz a mensagem crua do banco.
+ * Traduz a mensagem crua do banco para o corretor.
  *
- * O caso que mais aparece na estreia do módulo é a migration
- * `0023_commissions.sql` não ter sido rodada: o PostgREST responde que a tabela
- * não existe, o que não diz nada ao corretor. A mensagem tem que apontar o que
- * fazer.
+ * ------------------------------------------------------------------
+ * O QUE MUDOU E POR QUÊ
+ * ------------------------------------------------------------------
+ * Estas mensagens citavam a migration pelo nome ("falta rodar a
+ * 0023_commissions.sql no Supabase"). Isso é instrução de manutenção nossa
+ * aparecendo na tela de quem só queria registrar uma venda — e, na revisão da
+ * App Store, é exatamente a cara de um app inacabado (regra 2.1).
+ *
+ * O diagnóstico continua existindo, mas onde ele serve: no log do servidor,
+ * para quem opera o sistema. Para o corretor sobra o que ele pode fazer.
  */
 function describe(raw: string): string {
   const text = (raw ?? '').trim();
   if (/does not exist|could not find the table|schema cache|PGRST205|42P01/i.test(text)) {
-    return 'O módulo de comissão ainda não foi instalado no banco de dados (falta rodar a migration 0023_commissions.sql no Supabase).';
+    console.error('[comissao] tabela ausente — conferir a migration 0023_commissions.sql:', text);
+    return 'O controle de comissão está indisponível no momento. A venda foi salva; tente lançar a comissão mais tarde.';
   }
   if (/row-level security|permission denied|42501/i.test(text)) {
-    return 'Sem permissão para gravar a comissão. Confira se a migration 0023_commissions.sql rodou por inteiro, incluindo as políticas de acesso.';
+    console.error('[comissao] RLS bloqueou a gravação — conferir políticas da 0023:', text);
+    return 'Sem permissão para lançar a comissão desta venda. A venda em si foi salva normalmente.';
   }
-  return text || 'Não foi possível lançar a comissão desta venda.';
+  return friendlyError(text) || 'Não foi possível lançar a comissão desta venda.';
 }
 
 /**
