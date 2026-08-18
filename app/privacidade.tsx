@@ -117,7 +117,8 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
         <Bullet>
           <Bold>Anthropic (Claude)</Bold> — leitura automática de CNH/RG, apenas quando você aciona
-          o leitor de documento
+          o leitor de documento; e a transcrição da negociação, apenas enquanto a assistente LIA
+          estiver ligada por você
         </Bullet>
         <Bullet>
           <Bold>Vercel</Bold> — hospedagem do site e do aplicativo
@@ -139,6 +140,14 @@ export default function PrivacyPolicyScreen() {
           A foto de documento usada no preenchimento automático é exceção: ela não é guardada em
           momento algum. É lida e descartada — só o nome e o CPF extraídos ficam no cadastro que
           você preencheu.
+        </Paragraph>
+        <Paragraph>
+          A assistente <Bold>LIA</Bold> é outra exceção, na mesma direção: o áudio da negociação{' '}
+          <Bold>não é gravado nem enviado a lugar nenhum</Bold>. A transcrição existe apenas no seu
+          aparelho, enquanto a sessão estiver aberta, e é descartada quando você encerra. O que
+          chega aos nossos servidores e à Anthropic é somente o texto, no momento da análise, e
+          nada dele é armazenado. Do que foi falado, o que sobra é apenas a simulação que você
+          decidiu salvar.
         </Paragraph>
       </Section>
 

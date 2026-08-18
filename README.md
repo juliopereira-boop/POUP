@@ -20,17 +20,18 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 8. [Cadastros: Empresas, Empreendimentos e Correspondentes](#🏢-cadastros-empresas-empreendimentos-e-correspondentes)
 9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
 10. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
-11. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
-12. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
-13. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
-14. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
-15. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
-16. [Deploy na Vercel](#▲-deploy-na-vercel)
-17. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
-18. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
-19. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
-20. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
-21. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+11. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
+12. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
+13. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
+14. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
+15. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
+16. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
+17. [Deploy na Vercel](#▲-deploy-na-vercel)
+18. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
+19. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
+20. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
+21. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
+22. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -511,6 +512,148 @@ saldo       = poupança − distribuído
 O card fica verde quando `|saldo| < 1` (arredondamento de centavos) e vermelho caso contrário — sinal visual de que os valores digitados não fecham com a poupança calculada.
 
 **Botão "Gerar proposta"**: exige vencimento do ato e ao menos 1 parcela mensal. Ao concluir a geração/impressão do PDF com sucesso, a simulação inteira é **resetada** (`sim.reset()`, apagando também o rascunho salvo) e o corretor é redirecionado ao menu (`router.replace('/(app)')`) — para não deixar dados de um cliente "vazando" para a próxima simulação.
+
+---
+
+## 🎧 LIA — a assistente que ouve a negociação
+
+> **Estado:** primeira funcionalidade entregue (*Simulação de poupança*), funcionando **na web**.
+> A escuta ao vivo depende de transcrição de voz, que o app nativo ainda não traz — ver
+> "Onde funciona hoje" abaixo.
+
+A LIA é uma assistente de corretagem que **só escuta**. Ela não fala, não interrompe e não
+sugere: durante a negociação ela ouve o corretor e o cliente, entende o que foi dito e vai
+preenchendo a simulação. No fim, o simulador abre pronto.
+
+O botão fica flutuando no canto inferior direito, em qualquer tela de `(app)`. Um toque abre o
+leque de funcionalidades — hoje uma só, e o leque já existe porque a segunda entra sem
+redesenhar nada.
+
+### O ciclo
+
+```
+ouve  →  junta o que foi dito  →  na pausa de 3 s, entende  →  mostra o que falta  →  volta a ouvir
+```
+
+**O silêncio é o gatilho, e ele serve a dois propósitos ao mesmo tempo.** Chamar o modelo a cada
+palavra seria caro, lento e pior: metade das frases chega pela metade, e uma frase pela metade
+vira um valor errado que depois pisca na tela ao ser desfeito. A pausa é o momento natural — numa
+negociação ela significa "acabei de dizer uma coisa". E é exatamente o instante em que o corretor
+tem atenção sobrando para olhar a tela e ver o que ainda falta perguntar. Voltou a falar, a
+cobrança some sozinha.
+
+### As três decisões que sustentam o resto
+
+**1. A conversa inteira vai ao modelo, toda vez — e a resposta é o estado FINAL, não um delta.**
+
+Existe uma frase que aparece em toda negociação de verdade:
+
+> *"Na verdade não são dois e oitocentos, são três e meio."*
+
+Com um "patch" incremental, seria preciso inventar regras de retratação: como saber que "três e
+meio" está substituindo a renda, e não sendo o valor da parcela? Com a conversa inteira em mãos,
+a pergunta desaparece — o modelo lê a correção no contexto dela. O último valor dito ganha porque
+o modelo *vê* que ele veio depois. Reenviar a conversa custa alguns milhares de tokens; errar a
+renda do cliente custa a venda.
+
+**2. Cada campo mostra o trecho da conversa que o produziu.**
+
+Não é enfeite. Ninguém confia numa caixa-preta que escreve `R$ 2.800,00` sem dizer de onde tirou.
+Vendo *"ela ganha dois e oitocentos"* embaixo do valor, o corretor confere num piscar de olhos —
+e, quando estiver errado, sabe na hora **por que** errou. É a diferença entre uma ferramenta que
+ele usa de olho fechado numa reunião e uma que ele abandona na segunda vez que ela erra sem
+explicação.
+
+**3. A empresa não é perguntada: ela é deduzida.**
+
+O catálogo do corretor (empreendimentos + correspondentes, com os IDs) vai junto em cada chamada.
+Ouvir *"no Vila Nova"* preenche empreendimento **e construtora**, sem ninguém ter dito o nome da
+construtora. É o truque mais barato do projeto e o que mais faz a LIA parecer que já sabe das
+coisas. O gerente vem de carona: sai do cadastro do empreendimento.
+
+### `src/features/lia/campos.ts` é a fonte única da verdade
+
+A lista de campos é lida por três lugares que, em quase todo projeto, divergem com o tempo: o
+**prompt** enviado ao modelo, a **tela** e o **preenchimento do simulador**. Aqui a Edge Function
+**não tem lista própria** — ela recebe a lista pronta no corpo da requisição e monta o prompt a
+partir dela.
+
+Consequência prática: para a LIA passar a ouvir um campo novo, acrescente **uma linha** nesse
+arquivo. Sem mexer no prompt, sem republicar Edge Function, sem tocar na tela.
+
+Cada campo carrega um `comoAparece` — que não é a definição do campo, e sim **como ele aparece
+numa conversa de verdade**. É o que separa "extrair renda" de entender que *"ela ganha três e
+meio"* são R$ 3.500,00 e *"um salário"* são R$ 1.518,00.
+
+### O que o modelo devolve nunca é gravado direto
+
+Tudo volta como texto — é o formato que ele acerta. A conversão para o que cada campo do
+simulador espera é local, determinística e **descarta em silêncio o que não converte**: um ID de
+empreendimento que não existe no catálogo, um CPF com menos de 11 dígitos, um dia de vencimento
+45. Preencher o simulador com lixo é pior que deixar o campo vazio, porque o corretor confia no
+que já está preenchido e não confere.
+
+### Concorrência: uma chamada por vez, e a última ganha
+
+A pessoa volta a falar enquanto a rodada anterior ainda está no ar. Se as respostas voltassem
+fora de ordem, uma análise velha sobrescreveria uma nova — e o corretor veria o valor corrigido
+virar de novo o valor antigo, sozinho, na frente do cliente. Cada rodada leva um número; resposta
+com número menor que a última aplicada é descartada.
+
+### Privacidade — e por que ela é mais séria aqui
+
+A LIA abre um microfone numa sala onde há **outra pessoa**, e o titular do dado é o cliente, não
+o corretor. Por isso:
+
+- **Consentimento explícito antes da primeira sessão**, nomeando a Anthropic (regra 5.1.2(i) da
+  App Store) e dizendo com todas as letras que o cliente precisa saber que está sendo transcrito.
+- **O áudio não é gravado nem enviado.** O que sai do aparelho é o texto, no momento da análise.
+- **A transcrição vive só na sessão** e é apagada ao encerrar ou ao entregar para o simulador —
+  ela contém nome, CPF e renda de alguém que não é o usuário do app.
+- **O consentimento é da pessoa, não do aparelho**: o `AuthProvider` o apaga no logout.
+- **O sinal de "estou ouvindo" acompanha a navegação.** O botão vira um anel pulsante verde e o
+  `LiaProvider` envolve o layout inteiro de `(app)` — se o corretor for consultar um cadastro no
+  meio da conversa, o aviso vai junto e a sessão não se perde.
+
+### Onde funciona hoje
+
+| Plataforma | Estado |
+|---|---|
+| Chrome / Edge (desktop e Android) | ✅ funciona |
+| Safari / iOS Safari | ⚠️ sem transcrição contínua confiável — a tela avisa |
+| App nativo (Expo Go incluído) | ❌ precisa de *development build* com `expo-speech-recognition` |
+
+Reconhecimento de fala contínuo não existe no React Native puro: é módulo nativo, e o Expo Go só
+carrega o que vem embutido nele. Em vez de deixar o botão parecer quebrado, `suporteDeEscuta()`
+diz exatamente o que falta e a tela mostra isso. **Um recurso indisponível naquela plataforma é
+uma informação; um botão que não faz nada é um bug.**
+
+### As arestas da Web Speech API (`src/features/lia/escuta.ts`)
+
+Todas custaram tempo de alguém e estão tratadas:
+
+- **Ela desliga sozinha.** Mesmo com `continuous = true`, o Chrome encerra a sessão depois de um
+  tempo sem fala — sem religar no `onend`, a LIA ficaria "ouvindo" em silêncio pelo resto da
+  reunião. O religamento tem trava anti-laço: religar num erro permanente trava a aba.
+- **`no-speech` não é erro.** É o que ela devolve quando ninguém falou, e numa negociação isso é
+  metade do tempo.
+- **Resultados chegam duas vezes** (provisório e final). Guardar os dois duplicaria a conversa
+  inteira; só o final entra na transcrição, o provisório só alimenta a onda na tela.
+- **`resultIndex`**: o evento traz a lista desde o começo da sessão, não só o pedaço novo.
+- **A permissão só é concedida dentro de um gesto do usuário** — por isso o consentimento é pedido
+  ao *abrir o painel*, e não no toque de "Começar a ouvir": assim esse toque chega limpo ao
+  `iniciar()`, sem um `await` no meio que o Safari usa para descartar o gesto.
+
+### Publicar
+
+```
+Edge Function: lia-extract     (precisa de ANTHROPIC_API_KEY, a mesma do scanner)
+Modelo:        claude-sonnet-5 (trocável por LIA_MODEL)
+```
+
+Sonnet, e não o Haiku que o scanner usa: a tarefa não é ler um campo impresso, é acompanhar uma
+conversa sem ordem, em que o sentido de um número depende do contexto, correções chegam depois e
+um nome mal transcrito precisa ser casado com o catálogo.
 
 ---
 

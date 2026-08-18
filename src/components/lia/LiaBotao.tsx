@@ -1,0 +1,216 @@
+/**
+ * O botão da LIA — o ponto de entrada da assistente.
+ *
+ * Fica flutuando acima da barra inferior. Um toque abre o leque de
+ * funcionalidades; hoje há uma só ("Simulação de poupança"), e o leque já
+ * existe porque a segunda entra sem redesenhar nada.
+ *
+ * O botão MUDA DE CARA quando a LIA está ouvindo: vira um anel pulsante. Numa
+ * ferramenta que abre o microfone, o estado "estou gravando" precisa ser
+ * visível de relance, de qualquer tela do aplicativo — nunca escondido atrás de
+ * um menu.
+ */
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { Logo } from '@/components/Logo';
+import { useLia } from '@/features/lia/LiaProvider';
+import { useThemedStyles } from '@/providers/ThemeProvider';
+import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
+
+interface Funcionalidade {
+  chave: 'simulacao';
+  titulo: string;
+  descricao: string;
+  emoji: string;
+}
+
+const FUNCIONALIDADES: Funcionalidade[] = [
+  {
+    chave: 'simulacao',
+    titulo: 'Simulação de poupança',
+    descricao: 'A LIA ouve a negociação e preenche a simulação sozinha.',
+    emoji: '🎧',
+  },
+];
+
+interface LiaBotaoProps {
+  /** Abre o painel da sessão. Quem controla a abertura é o layout. */
+  onAbrirSessao: () => void;
+}
+
+export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  const { status } = useLia();
+  const [aberto, setAberto] = useState(false);
+
+  const ouvindo = status === 'ouvindo' || status === 'entendendo';
+
+  // Leque: cada item entra com um atraso, de baixo para cima.
+  const leque = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(leque, {
+      toValue: aberto ? 1 : 0,
+      duration: aberto ? 220 : 140,
+      easing: aberto ? Easing.out(Easing.back(1.4)) : Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [aberto, leque]);
+
+  // Pulso do anel enquanto ouve. Só roda quando ouve — animação eterna em
+  // aplicativo de campo é bateria indo embora.
+  const pulso = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!ouvindo) {
+      pulso.setValue(0);
+      return;
+    }
+    const laco = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulso, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulso, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    laco.start();
+    return () => laco.stop();
+  }, [ouvindo, pulso]);
+
+  function abrirFuncionalidade() {
+    setAberto(false);
+    onAbrirSessao();
+  }
+
+  return (
+    <View
+      style={[styles.ancora, { bottom: 74 + Math.max(insets.bottom, spacing.sm) }]}
+      pointerEvents="box-none"
+    >
+      {aberto ? (
+        <Animated.View
+          style={[
+            styles.menu,
+            {
+              opacity: leque,
+              transform: [
+                { translateY: leque.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+                { scale: leque.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.menuTitulo}>LIA</Text>
+          <Text style={styles.menuSub}>Sua assistente de corretagem</Text>
+          {FUNCIONALIDADES.map((f) => (
+            <Pressable
+              key={f.chave}
+              style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+              onPress={abrirFuncionalidade}
+            >
+              <Text style={styles.itemEmoji}>{f.emoji}</Text>
+              <View style={styles.itemTextos}>
+                <Text style={styles.itemTitulo}>{f.titulo}</Text>
+                <Text style={styles.itemDescricao}>{f.descricao}</Text>
+              </View>
+            </Pressable>
+          ))}
+          <Text style={styles.emBreve}>Mais funcionalidades em breve.</Text>
+        </Animated.View>
+      ) : null}
+
+      <Pressable
+        onPress={() => (ouvindo ? onAbrirSessao() : setAberto((v) => !v))}
+        style={({ pressed }) => [styles.botao, ouvindo && styles.botaoOuvindo, pressed && styles.botaoPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={ouvindo ? 'LIA está ouvindo. Abrir a sessão.' : 'Abrir a LIA'}
+      >
+        {ouvindo ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.anel,
+              {
+                opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] }),
+                transform: [
+                  { scale: pulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] }) },
+                ],
+              },
+            ]}
+          />
+        ) : null}
+        <Logo size={30} />
+      </Pressable>
+    </View>
+  );
+}
+
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
+    ancora: {
+      position: 'absolute',
+      right: spacing.lg,
+      alignItems: 'flex-end',
+      zIndex: 40,
+    },
+    botao: {
+      width: 58,
+      height: 58,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+      borderWidth: 2,
+      borderColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      ...shadow.card,
+    },
+    botaoOuvindo: { borderColor: colors.success },
+    botaoPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
+    anel: {
+      position: 'absolute',
+      width: 58,
+      height: 58,
+      borderRadius: radius.pill,
+      borderWidth: 2,
+      borderColor: colors.success,
+    },
+    menu: {
+      marginBottom: spacing.md,
+      width: 280,
+      padding: spacing.lg,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.xs,
+      ...shadow.card,
+    },
+    menuTitulo: { ...typography.heading, color: colors.primary },
+    menuSub: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.sm },
+    item: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      alignItems: 'center',
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    itemPressed: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    itemEmoji: { fontSize: 22 },
+    itemTextos: { flex: 1 },
+    itemTitulo: { ...typography.label, color: colors.ink },
+    itemDescricao: { ...typography.caption, color: colors.inkMuted },
+    emBreve: {
+      ...typography.caption,
+      color: colors.inkSubtle,
+      marginTop: spacing.xs,
+      textAlign: 'center',
+    },
+  });

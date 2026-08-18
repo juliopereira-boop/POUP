@@ -148,6 +148,15 @@ export interface LeadPrefill {
   companyId?: string | null;
   developmentId?: string | null;
   proponent1?: Partial<Proponent>;
+  /**
+   * Estado completo, para quem monta a simulação inteira antes de abrir a tela.
+   *
+   * Nasceu para a LIA: ela ouve a negociação e chega aqui com valor da unidade,
+   * renda, forma de pagamento — coisas que os três campos acima não comportam.
+   * Aplicado ANTES dos campos avulsos, para o caminho antigo (o lead) continuar
+   * mandando no que sempre mandou.
+   */
+  estado?: Partial<SimuladorState>;
 }
 
 let pendingEditId: string | null = null;
@@ -186,6 +195,16 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
         await sessionStorage.removeItem(PREFILL_KEY);
         try {
           const p = JSON.parse(prefillRaw) as LeadPrefill;
+          // `estado` primeiro, campos avulsos depois: assim o caminho antigo
+          // (abrir o simulador a partir de um lead) continua tendo a última
+          // palavra sobre empresa, empreendimento e dados do proponente.
+          next = { ...next, ...(p.estado ?? {}) };
+          if (p.estado?.proponent1) {
+            next.proponent1 = { ...emptyProponent(), ...p.estado.proponent1 };
+          }
+          if (p.estado?.proponent2) {
+            next.proponent2 = { ...emptyProponent(), ...p.estado.proponent2 };
+          }
           next = {
             ...next,
             companyId: p.companyId ?? next.companyId,

@@ -4,6 +4,7 @@ import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
 import { clearScanConsent } from '@/features/scan/consent';
+import { limparConsentimentoLia } from '@/features/lia/consentimento';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
 import { sessionStorage } from '@/lib/storage';
 
@@ -35,8 +36,11 @@ interface AuthContextValue {
  */
 async function clearLocalUserData(): Promise<void> {
   await clearThumbCache();
-  // O consentimento da leitura por IA é de quem o deu, não do aparelho.
+  // Os consentimentos de IA são de quem os deu, não do aparelho. Vale para a
+  // leitura de documento e, com peso maior, para a LIA: quem autorizou abrir o
+  // microfone numa negociação foi uma pessoa, não este celular.
   await clearScanConsent();
+  await limparConsentimentoLia();
   await Promise.all(
     SIMULADOR_LOCAL_KEYS.map((key) => sessionStorage.removeItem(key).catch(() => undefined)),
   );
