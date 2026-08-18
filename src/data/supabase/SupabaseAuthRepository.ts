@@ -24,6 +24,16 @@ function friendlyError(message: string): string {
   if (m.includes('invalid login credentials')) return 'Email ou senha incorretos.';
   if (m.includes('already registered')) return 'Este email já está cadastrado.';
   if (m.includes('email not confirmed')) return 'Confirme seu email antes de entrar.';
+  if (m.includes('password should be at least')) return 'A senha deve ter pelo menos 6 caracteres.';
+  if (m.includes('should be different')) return 'A senha nova precisa ser diferente da atual.';
+  // Link de recuperação: o caso comum não é erro de código, é link velho —
+  // eles duram uma hora e valem uma vez só. A frase precisa dizer o que fazer.
+  if (m.includes('expired') || m.includes('invalid or has expired')) {
+    return 'Este link de redefinição expirou ou já foi usado. Peça um novo.';
+  }
+  if (m.includes('auth session missing') || m.includes('session_not_found')) {
+    return 'A sessão de redefinição não está mais válida. Peça um novo link.';
+  }
   if (m.includes('password should be')) return 'A senha deve ter pelo menos 6 caracteres.';
   return message;
 }
@@ -137,10 +147,72 @@ export class SupabaseAuthRepository implements AuthRepository {
     return this.signInWithProvider('apple', 'Apple');
   }
 
+  /**
+   * O link do e-mail de recuperação tem que cair na tela DE TROCAR A SENHA.
+   *
+   * Antes ele apontava para `/login`, e o efeito era o oposto do pedido: o
+   * clique no link cria uma sessão de verdade, então o `/login` via o usuário
+   * autenticado, redirecionava para dentro do app e a senha continuava a
+   * antiga. Quem pediu para trocar a senha era jogado na tela inicial sem
+   * nunca ter trocado nada.
+   *
+   * `/redefinir-senha` mora FORA do grupo `(auth)` de propósito: o
+   * `(auth)/_layout` manda todo mundo autenticado para `/`, e a sessão de
+   * recuperação faz o visitante contar como autenticado — dentro do grupo, a
+   * tela seria expulsa antes de aparecer.
+   */
+  private recoveryRedirect(): string {
+    // No celular só um endereço do próprio app devolve o controle ao app; um
+    // `https://` abriria o site no navegador e a troca aconteceria lá.
+    return Platform.OS === 'web'
+      ? `${getAppUrl()}/redefinir-senha`
+      : Linking.createURL('/redefinir-senha');
+  }
+
   async sendPasswordReset(email: string): Promise<Result<void>> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${getAppUrl()}/login`,
+      redirectTo: this.recoveryRedirect(),
     });
+    if (error) return err(friendlyError(error.message));
+    return ok(undefined);
+  }
+
+  /**
+   * Instala a sessão de recuperação a partir da URL do deep link (celular).
+   *
+   * Os tokens vêm no FRAGMENTO (`#access_token=...`), não na query: é o
+   * formato do fluxo implícito, que é o padrão deste cliente. Link expirado ou
+   * já usado chega pelo mesmo caminho, como `#error_description=...` — e essa
+   * é a resposta mais comum na prática, então ela precisa virar uma frase que
+   * o corretor entenda, não um silêncio.
+   */
+  async applyRecoveryLink(url: string): Promise<Result<void>> {
+    let params: URLSearchParams;
+    try {
+      const parsed = new URL(url);
+      params = new URLSearchParams(parsed.hash.replace(/^#/, ''));
+      // Alguns provedores de e-mail reescrevem o link e devolvem tudo na query.
+      if (!params.has('access_token') && !params.has('error_description')) {
+        params = new URLSearchParams(parsed.search.replace(/^\?/, ''));
+      }
+    } catch {
+      return err('Link inválido.');
+    }
+
+    const descricao = params.get('error_description');
+    if (descricao) return err(friendlyError(descricao));
+
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+    if (!access_token || !refresh_token) return err('Link inválido.');
+
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error) return err(friendlyError(error.message));
+    return ok(undefined);
+  }
+
+  async updatePassword(password: string): Promise<Result<void>> {
+    const { error } = await supabase.auth.updateUser({ password });
     if (error) return err(friendlyError(error.message));
     return ok(undefined);
   }

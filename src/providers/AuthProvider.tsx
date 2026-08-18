@@ -15,6 +15,10 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<Result<void>>;
   signInWithApple: () => Promise<Result<void>>;
   sendPasswordReset: (email: string) => Promise<Result<void>>;
+  /** Instala a sessão que vem no link do e-mail de redefinição (celular). */
+  applyRecoveryLink: (url: string) => Promise<Result<void>>;
+  /** Grava a senha nova de quem está autenticado agora. */
+  updatePassword: (password: string) => Promise<Result<void>>;
   signOut: () => Promise<void>;
   /** Exclusão definitiva. `confirm` é a palavra digitada pelo corretor. */
   deleteAccount: (confirm: string) => Promise<Result<void>>;
@@ -88,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle: () => db.auth.signInWithGoogle(),
       signInWithApple: () => db.auth.signInWithApple(),
       sendPasswordReset: (email) => db.auth.sendPasswordReset(email),
+      applyRecoveryLink: (url) => db.auth.applyRecoveryLink(url),
+      updatePassword: (password) => db.auth.updatePassword(password),
       // As miniaturas guardadas são URLs assinadas do corretor que está
       // saindo. Deixá-las no aparelho vazaria material de venda para a próxima
       // conta que entrar nele.

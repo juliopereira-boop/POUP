@@ -64,6 +64,12 @@ function ThemedNavigator() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
         <Stack.Screen name="captar" />
+        {/*
+          Fora de `(auth)` de propósito: o link do e-mail já autentica o
+          visitante, e o `(auth)/_layout` expulsa todo mundo autenticado para
+          `/`. Dentro daquele grupo, a tela de trocar a senha nunca apareceria.
+        */}
+        <Stack.Screen name="redefinir-senha" />
         <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
       </Stack>
     </>

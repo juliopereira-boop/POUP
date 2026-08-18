@@ -69,6 +69,24 @@ export interface AuthRepository {
 
   sendPasswordReset(email: string): Promise<Result<void>>;
 
+  /**
+   * Instala a sessão de recuperação que vem no link do e-mail.
+   *
+   * Só o celular precisa disto. Na web o cliente do Supabase é criado com
+   * `detectSessionInUrl` e faz a leitura sozinho; no aplicativo nativo essa
+   * opção está desligada (não existe "URL da página"), então o link chega como
+   * deep link e os tokens têm que ser instalados na mão.
+   */
+  applyRecoveryLink(url: string): Promise<Result<void>>;
+
+  /**
+   * Troca a senha de quem está autenticado agora.
+   *
+   * É o segundo passo do "esqueci minha senha": o link do e-mail autentica, e
+   * esta chamada grava a senha nova.
+   */
+  updatePassword(password: string): Promise<Result<void>>;
+
   signOut(): Promise<void>;
 
   /**

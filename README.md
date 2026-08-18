@@ -671,6 +671,23 @@ O projeto é gerenciado manualmente (sem CLI conectada a este repositório):
 2. Copie `Project URL`/`anon public` de **Project Settings → API** para o `.env`.
 3. **Google OAuth**: em **Authentication → Providers → Google**, habilite e cole o Client ID/Secret (criado no [Google Cloud Console](https://console.cloud.google.com/apis/credentials)). Em **Authentication → URL Configuration**, adicione as Redirect URLs (`http://localhost:8081` e o domínio de produção).
 
+> **Redirect URLs — a lista precisa cobrir `/redefinir-senha` e o esquema do app.** O Supabase só honra um `redirectTo` que case com essa lista; qualquer endereço fora dela é **silenciosamente trocado pelo Site URL**. O sintoma é confuso: o link do e-mail de senha "funciona", mas cai na tela inicial em vez da tela de trocar a senha. Deixe `https://<seu-dominio>/**` e `poup://**` cadastrados.
+
+### Redefinição de senha
+
+O link do e-mail cai em **`/redefinir-senha`** — não em `/login`. A diferença importa porque clicar no link **cria uma sessão de verdade** (é assim que o Supabase prova que quem clicou é o dono da caixa de entrada). Enquanto o destino era `/login`, o efeito era o oposto do pedido: a tela via um usuário autenticado, redirecionava para dentro do app, e a senha continuava a antiga. O corretor pedia para trocar a senha e era jogado no app sem ter trocado nada.
+
+`app/redefinir-senha.tsx` mora **na raiz, fora de `(auth)`**, e isso não é arrumação: `app/(auth)/_layout.tsx` faz `if (user) return <Redirect href="/" />`. Como o link já autenticou o visitante, dentro daquele grupo a tela seria expulsa antes de aparecer — o mesmo bug, por outro caminho.
+
+Web e celular chegam nela de formas diferentes, e o código trata as duas:
+
+- **Web**: o cliente é criado com `detectSessionInUrl`, então ele lê os tokens do endereço, instala a sessão e **limpa o endereço** em seguida. Por isso a tela não tenta ler a URL na web — quando ela monta, o fragmento já pode ter sido consumido. Ela **espera a sessão aparecer** (até 8 s, verificando a cada 250 ms). Sem essa espera, um link válido seria declarado expirado por milésimos de segundo.
+- **Celular**: não existe "endereço da página". O `redirectTo` é `Linking.createURL('/redefinir-senha')` (`poup://…`), o link chega como deep link e os tokens vêm no **fragmento** — `applyRecoveryLink` os instala na mão, porque `detectSessionInUrl` é `false` fora da web.
+
+No fim, a tela **sai da conta** e manda para o login. É o que o corretor pediu ao clicar em "esqueci minha senha": trocar a senha, não entrar. Entrar sozinho deixaria a dúvida de sempre ("será que salvou?"); pedir a senha nova responde isso na hora, com a própria senha.
+
+Link expirado ou já usado é o caso **comum**, não a exceção — eles duram pouco e valem uma vez só. Por isso vira uma tela própria ("Link expirado") com o botão de pedir outro, em vez de um erro técnico.
+
 ### Configuração do Stripe (planos Start e Pro)
 
 **Guia completo passo a passo (100% pelo navegador): [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).** Resumo:
@@ -931,7 +948,7 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
 - Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`.
 - Publicar o Edge Function `delete-account`.
-- Adicionar `poup://` na lista de **Redirect URLs** do Supabase Auth, senão o login social nativo não fecha.
+- Adicionar `poup://**` e `https://<dominio>/**` na lista de **Redirect URLs** do Supabase Auth. Sem o primeiro, o login social nativo não fecha; sem o segundo, o link de redefinição de senha cai no Site URL e a troca de senha nunca acontece.
 
 **Na App Store Connect:**
 
