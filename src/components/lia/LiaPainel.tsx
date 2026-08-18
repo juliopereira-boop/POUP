@@ -27,13 +27,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
 import { LiaOrbe, type ModoOrbe } from './LiaOrbe';
-import {
-  CAMPOS,
-  CAMPOS_POR_CHAVE,
-  GRUPO_ROTULO,
-  dinheiroParaCampo,
-  type GrupoCampo,
-} from '@/features/lia/campos';
+import { LiaCapturaSurgindo } from './LiaCapturaSurgindo';
+import { CAMPOS, CAMPOS_POR_CHAVE, GRUPO_ROTULO, type GrupoCampo } from '@/features/lia/campos';
 import { useLia, type CampoCapturado } from '@/features/lia/LiaProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -75,8 +70,16 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
             <IndisponivelAqui suporte={lia.suporte} />
           ) : (
             <>
-              <View style={styles.palco}>
-                <LiaOrbe modo={modoDoOrbe(lia.status)} nivel={lia.nivelDeVoz} tamanho={84} />
+              {/*
+                A camada das etiquetas fica FORA do palco, que recorta a fumaça.
+                Se estivesse dentro, a etiqueta seria cortada justo no fim da
+                subida — quando ela ainda está sendo lida.
+              */}
+              <View style={styles.palcoWrap}>
+                <View style={styles.palco}>
+                  <LiaOrbe modo={modoDoOrbe(lia.status)} nivel={lia.nivelDeVoz} tamanho={84} />
+                </View>
+                <LiaCapturaSurgindo capturados={lia.capturados} />
               </View>
 
               <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
@@ -181,7 +184,12 @@ function CartaoCampo({
           <Text style={styles.descartar}>remover</Text>
         </Pressable>
       </View>
-      <Text style={styles.cartaoValor}>{exibir(campo)}</Text>
+      <View style={styles.cartaoLinha}>
+        <Text style={styles.cartaoValor}>{campo.exibicao}</Text>
+        {/* O ✓ verde fica: a etiqueta que surgiu no orbe some em segundos, e
+            o card é onde o corretor confere depois, com calma. */}
+        <Text style={styles.check}>✓</Text>
+      </View>
       <Text style={styles.cartaoTrecho} numberOfLines={2}>
         “{campo.trecho}”
       </Text>
@@ -244,19 +252,6 @@ function agrupar(
     .filter((g) => g.itens.length > 0);
 }
 
-/** Mostra o valor do jeito que o corretor lê, não do jeito que o modelo devolve. */
-function exibir(campo: CampoCapturado): string {
-  const spec = CAMPOS_POR_CHAVE[campo.chave];
-  if (!spec) return campo.valor;
-  if (spec.tipo === 'dinheiro') return dinheiroParaCampo(campo.valor) ?? campo.valor;
-  if (spec.tipo === 'sim_nao') return campo.valor === 'sim' ? 'Sim' : 'Não';
-  if (spec.tipo === 'empreendimento' || spec.tipo === 'correspondente') {
-    // O valor é um id; quem sabe o nome é o trecho falado, logo abaixo.
-    return 'identificado ✓';
-  }
-  return campo.valor;
-}
-
 /** O status da sessão traduzido para o vocabulário visual do orbe. */
 function modoDoOrbe(status: string): ModoOrbe {
   if (status === 'ouvindo') return 'ouvindo';
@@ -300,6 +295,7 @@ const makeStyles = (colors: AppColors) =>
      * para orbitar). O palco recorta essa caixa com altura fixa para o painel
      * não crescer: a fumaça pode vazar por cima, e vazar é o efeito.
      */
+    palcoWrap: { position: 'relative' },
     palco: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 
     corpo: { paddingHorizontal: spacing.lg },
@@ -360,7 +356,9 @@ const makeStyles = (colors: AppColors) =>
     },
     seloDuvida: { color: colors.warning, backgroundColor: colors.warningSoft },
     descartar: { ...typography.caption, fontSize: 11, color: colors.inkSubtle },
-    cartaoValor: { ...typography.label, color: colors.ink, fontSize: 17 },
+    cartaoLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    cartaoValor: { ...typography.label, color: colors.ink, fontSize: 17, flexShrink: 1 },
+    check: { color: colors.success, fontSize: 15, fontWeight: '700' },
     cartaoTrecho: { ...typography.caption, color: colors.inkSubtle, fontStyle: 'italic' },
 
     parcial: { ...typography.caption, color: colors.inkSubtle, textAlign: 'center' },

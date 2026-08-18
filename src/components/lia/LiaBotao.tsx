@@ -162,8 +162,9 @@ const makeStyles = (colors: AppColors) =>
     botaoOuvindo: { backgroundColor: 'transparent', borderColor: 'transparent' },
     botaoPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
     // (58 * 1,6 - 58) / 2 = 17,4 — o quanto a caixa do orbe passa do botão de
-    // cada lado. Menor que os 16 px de margem mais a folga do gesto, então nada
-    // vaza para fora da tela.
+    // cada lado, para ficar centrada nele. Some com os 16 px de margem da tela,
+    // e é por isso que o modo compacto do orbe é calibrado para caber: a régua
+    // final, porém, é o `overflow-x: hidden` declarado em app/+html.tsx.
     orbeAtras: { position: 'absolute', bottom: -17, right: -17 },
     menu: {
       marginBottom: spacing.md,

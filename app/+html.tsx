@@ -19,6 +19,26 @@ if ('serviceWorker' in navigator) {
 }
 `;
 
+/**
+ * O POUP nunca rola para o lado — e agora isso está declarado.
+ *
+ * O app é uma casca de tela cheia: todo conteúdo largo (tabela, gráfico, fluxo
+ * de pagamento) rola dentro do próprio contêiner. A página em si deslizar na
+ * horizontal é sempre acidente, e é um acidente que parece defeito grave no
+ * celular: o usuário arrasta para rolar a lista e a tela inteira anda de lado.
+ *
+ * O acidente aqui veio do orbe da LIA, cuja nuvem se espalha para fora do botão
+ * flutuante — que vive a 16 px da borda. Dá para calibrar cada camada da
+ * animação para caber no milímetro, e foi o que se fez no modo `compacto`; mas
+ * confiar só nisso é deixar a próxima animação (ou o próximo botão flutuante)
+ * reintroduzir o problema em silêncio. Esta regra é a garantia estrutural, e
+ * ela não esconde bug de layout nenhum: numa casca de tela cheia, não existe
+ * conteúdo legítimo à direita da borda.
+ */
+const SEM_ROLAGEM_LATERAL = `
+html, body { overflow-x: hidden; max-width: 100%; }
+`;
+
 export default function Root({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
@@ -43,6 +63,7 @@ export default function Root({ children }: { children: ReactNode }) {
         <link rel="manifest" href="/manifest.json" />
 
         <ScrollViewStyleReset />
+        <style dangerouslySetInnerHTML={{ __html: SEM_ROLAGEM_LATERAL }} />
         <script dangerouslySetInnerHTML={{ __html: REGISTER_SW }} />
       </head>
       <body>{children}</body>

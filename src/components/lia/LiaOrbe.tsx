@@ -6,7 +6,7 @@
  * ===========================================================================
  * Quatro camadas, de baixo para cima:
  *
- *   1. **Fumaça** — sete manchas laranjas, em dois tons translúcidas, grandes e sobrepostas,
+ *   1. **Fumaça** — sete manchas laranjas translúcidas, em dois tons, grandes e sobrepostas,
  *      cada uma girando numa órbita própria com duração diferente. Nenhuma
  *      delas é bonita sozinha; o que produz a nuvem que respira é a soma delas
  *      fora de fase. Durações primas entre si de propósito: com valores
@@ -68,8 +68,11 @@ interface LiaOrbeProps {
    * celular que desliza na horizontal parece app quebrado, e o preço não vale
    * o enfeite.
    *
-   * Compacto, as manchas orbitam de perto e as ondas param em 1,55x, ficando
-   * dentro da margem. O espetáculo mora no painel; aqui o orbe é sinalização.
+   * Compacto, as manchas orbitam de perto e as ondas param em 1,4x, ficando
+   * praticamente dentro do botão. A garantia final contra a rolagem lateral,
+   * porém, é o `overflow-x: hidden` de `app/+html.tsx` — calibrar animação no
+   * milímetro funciona hoje e quebra na próxima. O espetáculo mora no painel;
+   * aqui o orbe é sinalização.
    */
   compacto?: boolean;
 }
@@ -186,9 +189,9 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
 
   const caixa = tamanho * (compacto ? 1.6 : 3.1);
   /** Até onde a onda abre. É este número que decide se a página rola. */
-  const alcance = compacto ? 1.55 : 2.5;
+  const alcance = compacto ? 1.4 : 2.5;
   /** O quanto a nuvem se afasta do centro. */
-  const espalha = compacto ? 0.34 : 1;
+  const espalha = compacto ? 0.22 : 1;
 
   // A voz empurra tudo: anel maior, fumaça mais densa, núcleo mais cheio.
   const empurrao = useMemo(
@@ -201,7 +204,7 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
       {/* 1. fumaça */}
       {ORBITAS.map((o, i) => {
         const t = orbitas[i]!;
-        const d = tamanho * (compacto ? Math.min(o.tamanho, 1.25) : o.tamanho);
+        const d = tamanho * (compacto ? Math.min(o.tamanho, 1.05) : o.tamanho);
         const raio = o.raio * espalha;
         return (
           <Animated.View

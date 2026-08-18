@@ -640,6 +640,52 @@ Duas coisas que o orbe **não** faz, por decisão:
 E o microfone é devolvido: `parar()` fecha o laço, o analisador, o contexto de áudio **e as faixas
 do fluxo** — é o que apaga a luz do microfone no aparelho.
 
+### A captura surgindo do orbe
+
+Assim que a LIA entende alguma coisa, a informação **sai de dentro do orbe**: uma etiqueta sobe do
+centro da nuvem com o campo, o valor e um ✓ verde — `Empreendimento  Residencial Vila Nova ✓` —
+fica um instante e se dissolve para cima.
+
+A lista de campos capturados já existia e continua sendo a fonte da verdade. A diferença é que ela
+é **estado**, e a etiqueta é **acontecimento**. Quem está numa negociação olhando o cliente não
+varre uma lista para descobrir o que mudou; a etiqueta responde num olhar de meio segundo, sem
+tirar o corretor da conversa, à única pergunta que importa naquele instante: *"ela pegou?"*. E
+responde no lugar certo — saindo do orbe, que é para onde ele já está olhando enquanto a LIA
+processa.
+
+Quatro decisões pequenas que fazem isso funcionar:
+
+- **A comparação é pelo valor, não pela presença.** Um campo corrigido ("na verdade são três e
+  meio") surge de novo, com o selo `corrigido` — porque a correção é exatamente o que o corretor
+  precisa ver acontecer. Já um campo reconfirmado igual a cada rodada não pisca a cada três
+  segundos: viraria ruído e ele pararia de olhar.
+- **Cascata, não bloco.** Uma rodada costuma devolver vários campos de uma vez, e todos subindo no
+  mesmo instante viram um bloco — o olho recebe quatro coisas e não lê nenhuma. Com 150 ms entre
+  uma e outra, cada uma ganha o seu momento.
+- **O degrau é fixado na criação**, não lido do índice no array. Com o índice, a saída de uma
+  etiqueta faria as outras escorregarem para baixo bem no meio da leitura.
+- **O `aoTerminar` vive numa ref.** Ele é recriado a cada render do pai, e o pai renderiza sempre
+  que outra etiqueta entra ou sai. Nas dependências do efeito, a animação seria cancelada e
+  recomeçada a cada vizinha nova: nunca terminaria, nunca se removeria, e a fila cresceria até
+  engasgar — o mesmo formato de vazamento que já travou esta tela por outro caminho.
+
+De carona, o card na lista passou a mostrar o **nome** em vez de `identificado ✓`. Em empreendimento
+e correspondente o modelo devolve um **id** (`dev-a1b2…`), que na tela não diz nada; e
+"identificado ✓" era pior ainda, porque obrigava a confiar sem conferir — o oposto do que esta tela
+existe para fazer. Quem resolve o id de volta para o nome é o `LiaProvider`, que é quem tem o
+catálogo em mãos.
+
+### `overflow-x: hidden` na casca (`app/+html.tsx`)
+
+O POUP nunca rola para o lado: todo conteúdo largo rola dentro do próprio contêiner. A página
+deslizar na horizontal é sempre acidente — e um acidente que parece defeito grave no celular, onde
+o usuário arrasta para rolar a lista e a tela inteira anda de lado.
+
+O acidente veio do orbe da LIA, cuja nuvem se espalha para fora do botão flutuante, que vive a
+16 px da borda. O modo `compacto` calibra as camadas para caber, mas confiar só nisso é deixar a
+próxima animação reintroduzir o problema em silêncio. A regra é a garantia estrutural, e não
+esconde bug de layout: numa casca de tela cheia, não existe conteúdo legítimo à direita da borda.
+
 ### O travamento do religamento (corrigido)
 
 Vale registrar porque o sintoma era assustador e a causa é sutil: **a LIA travava o aplicativo

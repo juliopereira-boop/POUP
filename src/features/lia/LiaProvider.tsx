@@ -55,6 +55,7 @@ import { PREFILL_KEY } from '@/features/simulador/SimuladorProvider';
 import {
   CAMPOS_POR_CHAVE,
   CHAVES_ESSENCIAIS,
+  exibirValor,
   paraSimulador,
   type CapturaBruta,
   type ContextoCatalogo,
@@ -77,7 +78,16 @@ export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
 
 export interface CampoCapturado {
   chave: string;
+  /** O valor cru, como o modelo devolveu. É o que vai para o simulador. */
   valor: string;
+  /**
+   * O mesmo valor, legível para o corretor.
+   *
+   * Calculado aqui, e não na tela, porque só o provider tem o catálogo em mãos
+   * — é ele que sabe que `dev-a1b2…` se chama "Connect". A tela não deveria
+   * precisar carregar o catálogo só para escrever um rótulo.
+   */
+  exibicao: string;
   trecho: string;
   confianca: 'alta' | 'media' | 'baixa';
   /** Mudou em relação à rodada anterior — a negociação voltou atrás. */
@@ -155,6 +165,8 @@ export function LiaProvider({ children }: { children: ReactNode }) {
 
   // Catálogo do corretor, carregado uma vez por sessão de escuta.
   const empreendimentosRef = useRef<EmpreendimentoContexto[]>([]);
+  /** id → nome, para devolver nome onde o modelo devolveu id. */
+  const nomesRef = useRef<Record<string, string>>({});
   const contextoRef = useRef<ContextoCatalogo>({
     empresaDoEmpreendimento: {},
     correspondentes: [],
@@ -187,10 +199,15 @@ export function LiaProvider({ children }: { children: ReactNode }) {
      * nossa.
      */
     const listas = await Promise.all(empresas.map((e) => db.companies.listCorrespondents(e.id)));
+    const correspondentes = listas.flat().map((c) => ({ id: c.id, nome: c.name }));
     contextoRef.current = {
       empresaDoEmpreendimento: Object.fromEntries(empreendimentos.map((d) => [d.id, d.companyId])),
-      correspondentes: listas.flat().map((c) => ({ id: c.id, nome: c.name })),
+      correspondentes,
     };
+    nomesRef.current = Object.fromEntries([
+      ...empreendimentos.map((d) => [d.id, d.name]),
+      ...correspondentes.map((c) => [c.id, c.nome]),
+    ]);
   }, [user]);
 
   const analisar = useCallback(async () => {
@@ -239,6 +256,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
         novo[c.chave] = {
           chave: c.chave,
           valor: c.valor,
+          exibicao: exibirValor(c.chave, c.valor, nomesRef.current),
           trecho: c.trecho,
           confianca: c.confianca,
           corrigido: mudou,

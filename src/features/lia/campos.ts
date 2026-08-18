@@ -29,7 +29,7 @@
  *   empreendimento — é isso que faz a LIA parecer que "já sabe".
  * - **Risco, prazos máximos e regra de comissão**: vêm da empresa do catálogo.
  */
-import { cpfDigits, formatCurrencyBRL } from '@/lib/masks';
+import { cpfDigits, formatCPF, formatCurrencyBRL, formatPhone } from '@/lib/masks';
 import type { Proponent, SimuladorState } from '@/features/simulador/SimuladorProvider';
 
 /** Como o valor deve ser interpretado e normalizado. */
@@ -364,6 +364,53 @@ function inteiro(valor: string, min: number, max: number): number | null {
   const i = Math.round(n);
   return i >= min && i <= max ? i : null;
 }
+
+/**
+ * O valor do jeito que o CORRETOR lê, não do jeito que o modelo devolve.
+ *
+ * Faz diferença justamente onde mais importa: em empreendimento e
+ * correspondente o modelo devolve um **id** (`dev-a1b2...`), que na tela não
+ * diz nada. Mostrar "identificado ✓" era pior ainda — obrigava o corretor a
+ * confiar sem conferir, que é o oposto do que esta tela existe para fazer. Com
+ * o nome de volta ("Connect"), ele lê e confirma num relance.
+ *
+ * `nomes` mapeia id → nome, e vem do catálogo que o `LiaProvider` já carregou
+ * para mandar ao modelo. Um id que não estiver lá cai no próprio texto: melhor
+ * mostrar algo estranho do que esconder que a LIA capturou alguma coisa.
+ */
+export function exibirValor(
+  chave: string,
+  valor: string,
+  nomes: Record<string, string> = {},
+): string {
+  const spec = CAMPOS_POR_CHAVE[chave];
+  if (!spec) return valor;
+
+  switch (spec.tipo) {
+    case 'empreendimento':
+    case 'correspondente':
+      return nomes[valor] ?? valor;
+    case 'dinheiro':
+      return dinheiroParaCampo(valor) ?? valor;
+    case 'sim_nao':
+      return simNao(valor) ? 'Sim' : 'Não';
+    case 'cpf':
+      return formatCPF(valor);
+    case 'telefone':
+      return formatPhone(valor);
+    case 'opcao':
+      return ROTULO_OPCAO[valor] ?? valor;
+    default:
+      return valor;
+  }
+}
+
+const ROTULO_OPCAO: Record<string, string> = {
+  conjuge: 'Cônjuge',
+  parente: 'Parente',
+  fiador: 'Fiador',
+  socio: 'Sócio',
+};
 
 /** O que o `LiaProvider` acumulou, na forma bruta (chave → texto). */
 export type CapturaBruta = Record<string, string>;
