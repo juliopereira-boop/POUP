@@ -102,10 +102,18 @@ join auth.users u on u.id = a.user_id;
 -- testando, isto libera o acesso da SUA conta sem passar pelo Stripe.
 -- Troque o e-mail pelo mesmo do passo 2.
 
+-- O `25::bigint` no comeco da conta NAO e decoracao. A coluna e bigint e
+-- aguenta o valor, mas `25 * 1024 * 1024 * 1024` sao quatro literais integer:
+-- o Postgres faz a multiplicacao em integer e estoura ANTES de chegar na
+-- coluna (teto do integer = 2.147.483.647; 25 GB = 26.843.545.600), com o erro
+-- "22003: integer out of range". Tipar o primeiro fator faz a conta inteira
+-- ser em bigint. Mesmo cuidado da migration 0015.
+
 do $$
 declare
   v_email text := 'gestao@poupgestao.com';   -- <<<<<< TROQUE AQUI
   v_user_id uuid;
+  v_limite bigint := 25::bigint * 1024 * 1024 * 1024;   -- 25 GB (plano Pro)
 begin
   select id into v_user_id from auth.users where lower(email) = lower(v_email);
   if v_user_id is null then
@@ -113,11 +121,11 @@ begin
   end if;
 
   insert into public.subscriptions (user_id, status, plan_tier, storage_limit_bytes)
-  values (v_user_id, 'active', 'pro', 25 * 1024 * 1024 * 1024)
+  values (v_user_id, 'active', 'pro', v_limite)
   on conflict (user_id) do update
     set status              = 'active',
         plan_tier           = 'pro',
-        storage_limit_bytes = 25 * 1024 * 1024 * 1024;
+        storage_limit_bytes = v_limite;
 
   raise notice 'Assinatura Pro ativada para % (uso interno/teste).', v_email;
 end $$;
