@@ -386,6 +386,31 @@ Empresa do catálogo **não** entra na lista de ninguém só por ser do admin: m
 - **Trava anti-escalação**: um corretor comum não pode marcar `is_catalog = true` na empresa dele e publicá-la para toda a base. Duas coisas garantem isso: a policy antiga `companies_all_own` foi **removida** (policies permissivas se somam com `OR` — enquanto ela existisse, a trava seria decoração), e o `UPDATE` repete a condição em `using` **e** `with check`, para o estado final da linha também ser barrado.
 - **Brecha antiga fechada de carona**: as tabelas filhas exigiam apenas que a *linha* fosse sua, não que a *empresa* fosse — dava para pendurar empreendimento ou regra de comissão na empresa privada de outro corretor. Agora a escrita exige `is_own_private_company(company_id)`.
 
+### O catálogo sobrevive à exclusão de quem o cadastrou (migration `0026`)
+
+Isto nasceu de um acidente real: o dono do app excluiu a própria conta pelo botão "Excluir conta" e **o catálogo inteiro foi junto** — construtoras, empreendimentos, correspondentes, regras de comissão e as adoções de todos os outros corretores.
+
+A causa é o desenho original dos cadastros. O catálogo mora nas **mesmas tabelas** dos cadastros privados, com `is_catalog = true` e `user_id` apontando para o admin que cadastrou. E todas elas nasceram com `user_id ... references auth.users (id) on delete cascade`. Um `delete` em `auth.users` levou o acervo do produto.
+
+**Trocar o `cascade` por `on delete set null` não resolve**, e é importante entender por quê: a chave estrangeira é cega — não sabe distinguir linha de catálogo de linha privada. Com `set null` na tabela inteira, o corretor comum que excluísse a conta deixaria para trás as empresas privadas dele como linhas órfãs, invisíveis e eternas. Isso é lixo de dados e contraria o que a exclusão de conta promete (e o que a LGPD e a App Store cobram).
+
+A regra que se quer é **condicional** — linha do catálogo se solta, linha privada vai embora — e chave estrangeira não expressa condição. Gatilho expressa:
+
+1. `user_id` passa a **aceitar** nulo nessas tabelas (só aceitar; o app continua sempre gravando o dono).
+2. Um gatilho `BEFORE DELETE` em `auth.users` (`detach_catalog_from_user`) põe `user_id = null` **só** nas linhas de empresa do catálogo.
+3. O cascade roda em seguida e não encontra mais nada do catálogo — nulo não casa com o id excluído. As linhas privadas, que o gatilho não tocou, somem normalmente.
+
+**Nada no aplicativo precisou mudar**, e a razão é a RLS da `0024`: o caminho do catálogo nunca dependeu de `user_id`. Leitura é `is_catalog` / `is_catalog_company()`, escrita é `is_app_admin()`. Com `user_id` nulo o primeiro lado do `OR` dá falso e o segundo — o do catálogo — continua valendo igual.
+
+Dois detalhes que a migration precisou resolver:
+
+- **`company_materials` trocou de chave primária.** `user_id` fazia parte da PK composta, e coluna de PK é obrigatoriamente `NOT NULL` — o link do material do catálogo continuaria morrendo com o admin. Agora a PK é um `id` próprio e `(user_id, company_id)` virou **índice único**. O `onConflict: 'user_id,company_id'` do `SupabaseMaterialRepository` infere por índice único, não por PK, então o upsert continua igual.
+- **`companies` ganhou o check `companies_owner_required`** (`is_catalog or user_id is not null`): o passo 1 abriu a porta para nulo na tabela inteira, e este check a fecha de novo para tudo que não é catálogo.
+
+Em **defesa em profundidade**, a Edge Function `delete-account` passou a **recusar** a exclusão de uma conta que esteja em `app_admins`. Mesmo com o catálogo salvo, apagar a conta apagaria a linha de admin e deixaria o app sem ninguém capaz de editar o catálogo. Não é porta trancada, é ordem: tire o admin primeiro (`delete from public.app_admins where user_id = '...'`), exclua depois. Corretor nenhum é afetado — `app_admins` só tem o dono do app.
+
+> `supabase/admin_recuperar_acesso.sql` é o utilitário para promover uma conta a admin de novo. Ele **não recupera dado nenhum**: dado já apagado só volta por **Supabase → Database → Backups**, e backup tem janela de retenção.
+
 ### Material de venda e cota
 
 Material do catálogo mora no bucket `uploads` sob a raiz **`catalog/`** (em vez de `<userId>/`): admin escreve, qualquer autenticado lê. A raiz é escolhida por `materialRoot()` (`src/features/catalog/material.ts`) — nunca monte esse caminho na tela.
@@ -904,7 +929,7 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 **Antes de gerar o build:**
 
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
-- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`.
+- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`.
 - Publicar o Edge Function `delete-account`.
 - Adicionar `poup://` na lista de **Redirect URLs** do Supabase Auth, senão o login social nativo não fecha.
 

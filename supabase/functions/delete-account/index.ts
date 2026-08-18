@@ -123,6 +123,42 @@ Deno.serve(async (req) => {
       return json({ error: 'Confirmação inválida.' }, 400);
     }
 
+    /*
+     * TRAVA DE ADMIN.
+     *
+     * A conta de administrador é a que publica o catálogo do POUP. Excluí-la
+     * pelo app já custou o acervo inteiro uma vez: as construtoras, os
+     * empreendimentos e as adoções de todo mundo sumiram junto com ela.
+     *
+     * A migration 0026 conserta o dano no banco — o catálogo agora se solta do
+     * dono em vez de morrer com ele. Esta trava resolve o resto: mesmo com o
+     * catálogo salvo, apagar a conta apaga a linha em `app_admins`, e o app
+     * fica sem ninguém capaz de editar o catálogo até alguém voltar ao SQL
+     * Editor para promover outra conta. Um toque a menos de distância disso.
+     *
+     * Não é uma porta trancada: é uma ordem. Tire o admin primeiro, exclua
+     * depois. E não afeta corretor nenhum — `app_admins` só tem o dono do app.
+     */
+    const { data: ehAdmin } = await admin
+      .from('app_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (ehAdmin) {
+      return json(
+        {
+          error:
+            'Esta é a conta de administrador do POUP e não pode ser excluída pelo aplicativo. ' +
+            'Remova o acesso de administrador antes (Supabase → SQL Editor: ' +
+            "delete from public.app_admins where user_id = '" +
+            user.id +
+            "';) e tente de novo.",
+        },
+        409,
+      );
+    }
+
     // 1. Assinatura: parar a cobrança antes de perder o vínculo com o cliente.
     const { data: sub } = await admin
       .from('subscriptions')
