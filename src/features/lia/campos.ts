@@ -41,6 +41,7 @@ export type TipoCampo =
   | 'telefone'
   | 'email'
   | 'dia_do_mes'
+  | 'data'
   | 'sim_nao'
   | 'opcao'
   | 'empreendimento'
@@ -147,7 +148,7 @@ export const CAMPOS: CampoLia[] = [
     rotulo: 'CPF',
     tipo: 'cpf',
     grupo: 'cliente',
-    essencial: false,
+    essencial: true,
     comoAparece:
       'CPF do proponente principal, ditado em blocos de números. Devolva só os 11 dígitos. Só preencha se ouvir 11 dígitos.',
   },
@@ -156,7 +157,7 @@ export const CAMPOS: CampoLia[] = [
     rotulo: 'Telefone',
     tipo: 'telefone',
     grupo: 'cliente',
-    essencial: false,
+    essencial: true,
     comoAparece: 'Celular do cliente, com DDD. Só os dígitos.',
   },
   {
@@ -220,7 +221,7 @@ export const CAMPOS: CampoLia[] = [
     rotulo: 'Financiamento aprovado',
     tipo: 'dinheiro',
     grupo: 'financiamento',
-    essencial: false,
+    essencial: true,
     comoAparece:
       'Quanto a Caixa aprovou de financiamento. "A carta veio 180", "aprovou cento e oitenta mil".',
   },
@@ -247,16 +248,33 @@ export const CAMPOS: CampoLia[] = [
     rotulo: 'Ato (entrada)',
     tipo: 'dinheiro',
     grupo: 'pagamento',
-    essencial: false,
+    essencial: true,
     comoAparece:
       'Valor pago no ato da assinatura — a entrada. "Consigo dar cinco mil de entrada", "no ato ele paga 3".',
+  },
+  {
+    /*
+     * A DATA DO ATO É O CAMPO MAIS SUBESTIMADO DA PROPOSTA.
+     *
+     * `buildFlow` ancora TODO o cronograma nela: sem `atoDueDate`, o primeiro
+     * vencimento das mensais é nulo, e com ele caem as datas das semestrais e
+     * das anuais. O PDF sai inteiro com "—" na coluna de vencimento — uma
+     * proposta que parece pronta e não serve para nada.
+     */
+    chave: 'atoDataVencimento',
+    rotulo: 'Data do ato',
+    tipo: 'data',
+    grupo: 'pagamento',
+    essencial: true,
+    comoAparece:
+      'Quando a entrada (o ato) será paga. "Ele paga dia 10", "na assinatura, dia 5 de março", "semana que vem". Devolva no formato AAAA-MM-DD. Use a data de hoje, informada no início, para resolver referências relativas ("hoje", "amanhã", "sexta", "dia 10" = o próximo dia 10).',
   },
   {
     chave: 'mensaisQuantidade',
     rotulo: 'Qtd. de mensais',
     tipo: 'inteiro',
     grupo: 'pagamento',
-    essencial: false,
+    essencial: true,
     comoAparece: 'Em quantas parcelas mensais o saldo será dividido. "Divide em 36 vezes".',
   },
   {
@@ -264,7 +282,7 @@ export const CAMPOS: CampoLia[] = [
     rotulo: 'Dia do vencimento',
     tipo: 'dia_do_mes',
     grupo: 'pagamento',
-    essencial: false,
+    essencial: true,
     comoAparece: 'Dia do mês em que a parcela vence. "Todo dia 10". Número de 1 a 31.',
   },
   {
@@ -282,6 +300,24 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'pagamento',
     essencial: false,
     comoAparece: 'Valor de cada reforço semestral.',
+  },
+  {
+    chave: 'cefTaxaClientePaga',
+    rotulo: 'Taxa CEF',
+    tipo: 'sim_nao',
+    grupo: 'pagamento',
+    essencial: false,
+    comoAparece:
+      'Se o CLIENTE paga a taxa da Caixa. "A taxa fica com ele" = sim. "A construtora absorve", "a gente banca" = não. Sai impresso na proposta como CLIENTE PAGA / NÃO PAGA.',
+  },
+  {
+    chave: 'cefParcela',
+    rotulo: 'Parcela CEF',
+    tipo: 'dinheiro',
+    grupo: 'pagamento',
+    essencial: false,
+    comoAparece:
+      'Valor da parcela do financiamento na Caixa — o que o cliente vai pagar por mês ao banco depois. Não confunda com a mensal da construtora.',
   },
   {
     chave: 'anuaisQuantidade',
@@ -398,11 +434,35 @@ export function exibirValor(
       return formatCPF(valor);
     case 'telefone':
       return formatPhone(valor);
+    case 'data':
+      return dataBR(valor);
     case 'opcao':
       return ROTULO_OPCAO[valor] ?? valor;
     default:
       return valor;
   }
+}
+
+/**
+ * AAAA-MM-DD → DD/MM/AAAA, **sem passar por `Date`**.
+ *
+ * `new Date('2026-03-10')` é interpretado como meia-noite UTC e, no fuso do
+ * Brasil, volta um dia atrás. Uma proposta com a data da entrada errada em um
+ * dia é o tipo de erro que ninguém percebe até o boleto vencer.
+ */
+function dataBR(iso: string): string {
+  const [a, m, d] = iso.split('-');
+  return a && m && d ? `${d}/${m}/${a}` : iso;
+}
+
+/** Aceita só o que tem cara de AAAA-MM-DD com mês e dia possíveis. */
+function dataValida(iso: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!m) return null;
+  const mes = Number(m[2]);
+  const dia = Number(m[3]);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
 const ROTULO_OPCAO: Record<string, string> = {
@@ -520,6 +580,15 @@ export function paraSimulador(
 
   const dia = captura.mensalDiaVencimento ? inteiro(captura.mensalDiaVencimento, 1, 31) : null;
   if (dia !== null) out.mensalDueDay = String(dia);
+
+  const dataAto = captura.atoDataVencimento ? dataValida(captura.atoDataVencimento) : null;
+  if (dataAto) out.atoDueDate = dataAto;
+
+  const taxaCef = captura.cefTaxaClientePaga ? simNao(captura.cefTaxaClientePaga) : null;
+  if (taxaCef !== null) out.cefClientPays = taxaCef;
+
+  const parcelaCef = captura.cefParcela ? dinheiroParaCampo(captura.cefParcela) : null;
+  if (parcelaCef) out.cefParcela = parcelaCef;
 
   const sem = captura.semestraisQuantidade ? inteiro(captura.semestraisQuantidade, 1, 60) : null;
   if (sem !== null) {

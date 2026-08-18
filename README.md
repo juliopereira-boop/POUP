@@ -600,6 +600,117 @@ fora de ordem, uma análise velha sobrescreveria uma nova — e o corretor veria
 virar de novo o valor antigo, sozinho, na frente do cliente. Cada rodada leva um número; resposta
 com número menor que a última aplicada é descartada.
 
+### A meta é o PDF, não a simulação
+
+O objetivo declarado é o corretor falar e, no fim, cair **direto no botão de gerar a proposta**.
+Isso mudou o que conta como "essencial": não é mais o que o simulador precisa para abrir, é o que o
+**PDF** precisa para sair correto. São 14 campos.
+
+O que faltava e entrou:
+
+| campo | por que |
+|---|---|
+| **Data do ato** | o campo mais subestimado da proposta — `buildFlow` ancora **todo** o cronograma nele. Sem ele, o primeiro vencimento das mensais é nulo, e com ele caem as datas das semestrais e das anuais: o PDF sai inteiro com "—" na coluna de vencimento. Uma proposta que parece pronta e não serve. |
+| **Ato, qtd. de mensais, dia do vencimento** | são o fluxo de pagamento. Sem eles não há parcela nem cronograma. |
+| **Financiamento aprovado** | entra na conta da poupança; sem ele o saldo a parcelar sai errado. |
+| **CPF e telefone do cliente** | vão impressos na proposta. |
+| **Taxa CEF e parcela CEF** | também vão impressos (opcionais: têm padrão). |
+
+E o destino passou a depender do resultado: **completo → `/simulador/fluxo`**, que é a tela do botão
+"Gerar proposta"; **incompleto → `/simulador`**, a primeira etapa. A assimetria é de propósito —
+faltando dado, o corretor *precisa* passar pelo formulário, e cair no fim o obrigaria a voltar
+procurando o buraco.
+
+### Datas faladas, e o fuso que estraga tudo
+
+`atoDataVencimento` sai do modelo em `AAAA-MM-DD`, resolvido contra a data de **hoje**. E essa data
+vai do aparelho para a Edge Function, em vez de ser lida no servidor: a função roda em UTC e, no
+Brasil, das 21h à meia-noite, o servidor já virou o dia. "Dia 10" viraria um mês inteiro de
+diferença no vencimento da entrada — num documento que o cliente assina.
+
+Na volta, a conversão para exibição também não passa por `Date`: `new Date('2026-03-10')` é
+meia-noite **UTC** e, no fuso do Brasil, volta um dia atrás.
+
+### Duas pausas, porque são duas coisas diferentes
+
+| | quando | o que faz |
+|---|---|---|
+| **1,2 s** | a frase acabou | **interpreta** |
+| **3 s** | a conversa parou | **cobra** o que falta |
+
+Interpretar é o que faz a LIA parecer rápida, e esperar três segundos para *começar a pensar*
+significa ainda estar processando a frase anterior quando a próxima chegar. Com 1,2 s ela trabalha
+no vão entre as frases — tempo que já existia e estava sendo desperdiçado. Cobrar continua nos três
+segundos: a lista piscando a cada respiração, no canto do olho de quem negocia, seria pior que não
+cobrar.
+
+O que segura o custo é um **piso de 3,5 s entre chamadas**. Sem ele, uma conversa em frases curtas
+("sim" · "certo" · "isso") dispararia uma análise por segundo. E quando a vez ainda não chegou, a
+rodada **não é descartada** — fica agendada para o instante em que o intervalo fecha. Descartar
+faria a LIA perder uma frase inteira até a próxima pausa. "Reler agora" fura a fila, porque aí é o
+corretor pedindo, e ele não deve esperar por uma regra de custo.
+
+### Ruído: o que ela precisa ignorar
+
+O microfone está aberto numa sala, e capta o café, o trânsito, a TV, o telefone tocando, o corretor
+atendendo uma ligação sobre **outro** cliente, e pedaços de frase que o reconhecimento inventou.
+
+A regra no prompt é uma só: **um número só vira campo quando a frase em volta mostra de que campo
+ele é.** "Duzentos e dez" solto não é o valor do imóvel. E na dúvida entre registrar com contexto
+fraco e não registrar, não registra — um campo vazio o corretor preenche em cinco segundos; um campo
+errado ele manda para o cliente sem perceber.
+
+Uma limitação honesta: a Web Speech API **não separa quem fala**. Não há como distinguir o cliente
+do rádio ligado ao fundo por voz — só por contexto, que é o que o prompt faz.
+
+### Material de venda por voz — o mini-chat
+
+A segunda habilidade da LIA:
+
+```
+LIA:      Qual empreendimento você quer?
+corretor: "quero o connect"
+LIA:      Connect. E o que você deseja?   [Book] [Posts] [Plantas]
+corretor: "posts"
+LIA:      Posts. Aqui está:   ▢ ▢ ▢
+```
+
+**Isto não usa o modelo.** Não há nada para interpretar: existe uma lista fechada de nomes na tela e
+o corretor falou um deles. Mandar isso para um modelo custaria dinheiro e — o que importa mais — um
+segundo de espera num fluxo cujo valor inteiro é ser mais rápido que tocar em três botões. O
+casamento é local e instantâneo (`materialPorVoz.ts`), e o problema é fácil: comparar uma fala curta
+com cinco nomes conhecidos não é entender uma negociação.
+
+O casamento aguenta o que a transcrição faz com nome próprio, em cinco passos, do mais seguro ao
+mais tolerante: igualdade → um contém o outro → palavra significativa em comum → distância de edição
+contra o nome **e contra cada palavra dele**. Esse último detalhe é o que faz "conect" achar
+"Residencial Connect": contra o nome inteiro a distância é enorme, contra a palavra "connect" é 1.
+
+A ordem importa. Se a distância de edição viesse antes da palavra em comum, "parque sul" acharia
+"Parque Norte" por estar a poucas letras de distância.
+
+E **empate não escolhe**: "parque", com "Parque Sul" e "Parque Norte" cadastrados, devolve os dois e
+a LIA pergunta. Chutar é como um assistente perde a confiança de quem usa.
+
+Duas decisões de produto:
+
+- **A LIA escreve, não fala.** Voz sintetizada no meio de um atendimento é constrangedora — o
+  cliente está do lado, e o corretor não quer que o celular comece a falar sozinho.
+- **Toda etapa tem o toque como saída.** Cada opção listada é também um botão. Uma interface só por
+  voz é uma interface que trava quando a voz falha, e numa reunião com cliente na frente isso não é
+  aceitável.
+
+A visualização reaproveita o `FilePreviewModal` da tela de Material de Venda em vez de ter uma
+segunda cópia: PDF e vídeo abrem fora do app no celular, imagem tem fallback quando a URL assinada
+falha, e o botão de baixar precisa do nome original — duas implementações divergiriam na primeira
+correção que só uma recebesse.
+
+> O material **não** pede o consentimento da escuta, e isso é deliberado. São coisas diferentes: a
+> simulação abre o microfone numa conversa com o *cliente* e manda o texto para um serviço de IA; o
+> material é o corretor falando sozinho uma palavra para navegar na própria pasta, sem nada saindo
+> do aparelho. Pedir o mesmo aviso nos dois treinaria o corretor a aceitar sem ler — e é justamente
+> na simulação que ele precisa ler.
+
 ### O orbe — a logo viva (`src/components/lia/LiaOrbe.tsx`)
 
 Quatro camadas empilhadas, e nenhuma delas é bonita sozinha:

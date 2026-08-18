@@ -13,7 +13,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
-import { LiaBotao } from './LiaBotao';
+import { LiaBotao, type HabilidadeLia } from './LiaBotao';
+import { LiaMaterialChat } from './LiaMaterialChat';
 import { LiaPainel } from './LiaPainel';
 import { useLia } from '@/features/lia/LiaProvider';
 import {
@@ -29,6 +30,7 @@ export function Lia() {
   const lia = useLia();
 
   const [painelAberto, setPainelAberto] = useState(false);
+  const [materialAberto, setMaterialAberto] = useState(false);
   const [pedindoConsentimento, setPedindoConsentimento] = useState(false);
   const [jaConsentiu, setJaConsentiu] = useState<boolean | null>(null);
 
@@ -36,8 +38,19 @@ export function Lia() {
     void temConsentimentoLia().then(setJaConsentiu);
   }, []);
 
-  const abrirSessao = useCallback(() => {
-    setPainelAberto(true);
+  const abrir = useCallback((habilidade: HabilidadeLia) => {
+    /*
+     * O material NÃO pede o consentimento da escuta.
+     *
+     * São duas coisas diferentes: a simulação abre o microfone numa conversa
+     * com o CLIENTE e manda o texto para um serviço de IA — daí o aviso. O
+     * material é o corretor falando sozinho uma palavra para navegar na
+     * própria pasta, sem nada saindo do aparelho. Pedir o mesmo aviso aqui
+     * seria treinar o corretor a aceitar sem ler, e é justamente na simulação
+     * que ele precisa ler.
+     */
+    if (habilidade === 'material') setMaterialAberto(true);
+    else setPainelAberto(true);
   }, []);
 
   /*
@@ -67,19 +80,29 @@ export function Lia() {
   }
 
   const levarParaSimulador = useCallback(async () => {
-    await lia.levarParaSimulador();
+    const completo = await lia.levarParaSimulador();
     setPainelAberto(false);
-    router.push('/simulador');
+    /*
+     * Com tudo capturado, a LIA entrega o corretor DIRETO no botão de gerar o
+     * PDF — que mora na última etapa do simulador. O objetivo é esse: ele fala,
+     * ela preenche, ele confere e gera. Passar pelas cinco etapas de novo seria
+     * pedir que refizesse à mão o trabalho que ela acabou de fazer.
+     *
+     * Faltando alguma coisa, cai na primeira etapa: aí ele PRECISA passar pelo
+     * formulário, e começar do fim o obrigaria a voltar procurando o buraco.
+     */
+    router.push(completo ? '/simulador/fluxo' : '/simulador');
   }, [lia, router]);
 
   return (
     <>
-      <LiaBotao onAbrirSessao={abrirSessao} />
+      <LiaBotao onAbrir={abrir} />
       <LiaPainel
         visivel={painelAberto && !pedindoConsentimento}
         aoFechar={() => setPainelAberto(false)}
         aoLevarParaSimulador={() => void levarParaSimulador()}
       />
+      <LiaMaterialChat visivel={materialAberto} aoFechar={() => setMaterialAberto(false)} />
       <ModalConsentimento
         visivel={pedindoConsentimento}
         aoAceitar={() => void aceitar()}

@@ -139,6 +139,7 @@ function montarPrompt(
   campos: CampoEntrada[],
   empreendimentos: Empreendimento[],
   correspondentes: Correspondente[],
+  hoje: string,
 ): string {
   const listaCampos = campos
     .map((c) => {
@@ -159,6 +160,8 @@ function montarPrompt(
 
 Você NÃO conversa, NÃO responde, NÃO sugere nada ao corretor. Você só escuta e registra.
 
+Hoje é ${hoje} (formato AAAA-MM-DD). Use esta data para resolver qualquer referência relativa de tempo.
+
 # COMO ESSA CONVERSA REALMENTE É
 
 A transcrição vem de reconhecimento de voz automático, então espere:
@@ -166,7 +169,18 @@ A transcrição vem de reconhecimento de voz automático, então espere:
 - Números por extenso e abreviados do jeito falado: "duzentos e dez mil", "dois e oitocentos", "três e meio", "cento e vinte".
 - Assuntos fora de ordem, interrompidos e retomados dez minutos depois.
 - Duas ou mais pessoas falando, sem identificação de quem é quem.
-- Conversa paralela que não interessa (trânsito, café, família).
+
+# O QUE É RUÍDO, E O QUE FAZER COM ELE
+
+O microfone está aberto numa sala. Além da negociação, ele capta coisa que NÃO tem nada a ver:
+- conversa paralela (o café, o trânsito, a família, o time);
+- outra pessoa falando ao fundo, telefone tocando, televisão, rádio;
+- o corretor atendendo uma ligação sobre OUTRO cliente ou OUTRO imóvel;
+- pedaços de frase sem sentido que o reconhecimento inventou.
+
+Regra: **um número só vira campo quando a frase em volta dele mostra que ele é daquele campo.** "Duzentos e dez" solto, sem nada por perto que diga do que se trata, não é o valor do imóvel — é ruído, e você não devolve nada. Na dúvida entre registrar com contexto fraco e não registrar, NÃO REGISTRE: um campo vazio o corretor preenche em cinco segundos; um campo errado ele manda para o cliente sem perceber.
+
+Se aparecer o que parece ser uma SEGUNDA negociação no meio (outro nome de cliente, outro empreendimento, sem ninguém corrigir a anterior), fique com a que domina a conversa e avise em "observacao".
 
 # AS TRÊS REGRAS QUE MAIS IMPORTAM
 
@@ -183,6 +197,14 @@ Regra prática de corretor brasileiro, e ela depende do contexto:
 - Falando de RENDA, o mesmo vale em escala menor: "dois e oitocentos" = 2800, "três e meio" = 3500.
 - "Um salário" = 1518. "Dois salários" = 3036.
 - Valores em dinheiro: devolva apenas o número em reais, sem "R$" e sem separador de milhar. Use ponto como decimal se houver centavos. Exemplos: 210000, 2800, 1518.50.
+
+# DATAS FALADAS
+
+Campos de tipo `data` saem sempre em AAAA-MM-DD, resolvidos contra a data de hoje informada acima:
+- "dia 10" → o próximo dia 10 (deste mês se ainda não passou, do mês seguinte se já passou).
+- "amanhã", "semana que vem", "sexta" → a data correspondente.
+- "5 de março" → 5 de março do ano corrente, ou do ano seguinte se março já passou.
+- Se não der para determinar o dia com segurança, NÃO devolva o campo.
 
 # O CATÁLOGO DESTE CORRETOR
 
@@ -235,6 +257,14 @@ Deno.serve(async (req) => {
     const correspondentes: Correspondente[] = Array.isArray(body.correspondentes)
       ? body.correspondentes.slice(0, MAX_ITENS_CATALOGO)
       : [];
+    /*
+     * A data de HOJE vem do aparelho do corretor, não do servidor.
+     *
+     * A Edge Function roda em UTC; no Brasil, entre 21h e meia-noite, o
+     * servidor já virou o dia. "Dia 10" viraria um mês inteiro de diferença no
+     * vencimento da entrada — num documento que o cliente assina.
+     */
+    const hoje = /^\d{4}-\d{2}-\d{2}$/.test(body.hoje ?? '') ? body.hoje : null;
 
     if (!transcricao) return json({ campos: [] });
     if (campos.length === 0) return json({ error: 'Nenhum campo solicitado.' }, 400);
@@ -255,7 +285,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4096,
-        system: montarPrompt(campos, empreendimentos, correspondentes),
+        system: montarPrompt(campos, empreendimentos, correspondentes, hoje ?? 'desconhecida'),
         tools: [TOOL],
         tool_choice: { type: 'tool', name: 'registrar_campos' },
         messages: [

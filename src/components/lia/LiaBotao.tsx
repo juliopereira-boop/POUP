@@ -20,8 +20,10 @@ import { useLia } from '@/features/lia/LiaProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 
+export type HabilidadeLia = 'simulacao' | 'material';
+
 interface Funcionalidade {
-  chave: 'simulacao';
+  chave: HabilidadeLia;
   titulo: string;
   descricao: string;
   emoji: string;
@@ -34,14 +36,20 @@ const FUNCIONALIDADES: Funcionalidade[] = [
     descricao: 'A LIA ouve a negociação e preenche a simulação sozinha.',
     emoji: '🎧',
   },
+  {
+    chave: 'material',
+    titulo: 'Material de venda',
+    descricao: 'Diga o empreendimento e a pasta. Ela acha a mídia.',
+    emoji: '🖼️',
+  },
 ];
 
 interface LiaBotaoProps {
-  /** Abre o painel da sessão. Quem controla a abertura é o layout. */
-  onAbrirSessao: () => void;
+  /** Abre a habilidade escolhida. Quem controla a abertura é o layout. */
+  onAbrir: (habilidade: HabilidadeLia) => void;
 }
 
-export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
+export function LiaBotao({ onAbrir }: LiaBotaoProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { status, nivelDeVoz } = useLia();
@@ -60,9 +68,9 @@ export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
     }).start();
   }, [aberto, leque]);
 
-  function abrirFuncionalidade() {
+  function abrirFuncionalidade(chave: HabilidadeLia) {
     setAberto(false);
-    onAbrirSessao();
+    onAbrir(chave);
   }
 
   return (
@@ -89,7 +97,7 @@ export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
             <Pressable
               key={f.chave}
               style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
-              onPress={abrirFuncionalidade}
+              onPress={() => abrirFuncionalidade(f.chave)}
             >
               <Text style={styles.itemEmoji}>{f.emoji}</Text>
               <View style={styles.itemTextos}>
@@ -123,7 +131,9 @@ export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
       ) : null}
 
       <Pressable
-        onPress={() => (ouvindo ? onAbrirSessao() : setAberto((v) => !v))}
+        // Ouvindo, o toque leva direto à sessão em andamento: nesse momento o
+        // corretor quer voltar para o que está rolando, não escolher outra coisa.
+        onPress={() => (ouvindo ? onAbrir('simulacao') : setAberto((v) => !v))}
         style={({ pressed }) => [
           styles.botao,
           ouvindo && styles.botaoOuvindo,

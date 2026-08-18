@@ -99,11 +99,27 @@ export interface OpcoesEscuta {
   aoFechar: (texto: string) => void;
   /** Chamado a cada palavra provisória. Serve para a tela mostrar vida. */
   aoOuvir: (parcial: string) => void;
-  /** Passou o tempo combinado sem ninguém falar. */
+  /**
+   * Pausa curta: a frase acabou. Hora de interpretar.
+   *
+   * Separado da pausa longa de propósito. Interpretar é o que faz a LIA
+   * parecer rápida, e esperar três segundos para começar a pensar é tempo
+   * jogado fora — quando a próxima frase chegar, ela ainda estará processando
+   * a anterior. A pausa curta manda ela trabalhar no vão entre as frases.
+   */
+  aoPausar: () => void;
+  /**
+   * Pausa longa: a conversa parou de verdade. Hora de cobrar o que falta.
+   *
+   * Cobrar na pausa curta seria pior que não cobrar: a lista apareceria e
+   * sumiria a cada respiração, no canto do olho de quem está negociando.
+   */
   aoSilenciar: () => void;
   /** Erro que interrompe a escuta de verdade (permissão, rede). */
   aoFalhar: (mensagem: string) => void;
-  /** Quanto tempo de silêncio conta como pausa. */
+  /** Pausa curta, em ms. */
+  pausaMs: number;
+  /** Pausa longa, em ms. */
   silencioMs: number;
 }
 
@@ -134,19 +150,26 @@ export function criarEscuta(opts: OpcoesEscuta): Escuta {
   const Reconhecimento = construtor();
   let rec: ReconhecimentoFala | null = null;
   let ativo = false;
+  let timerPausa: ReturnType<typeof setTimeout> | null = null;
   let timerSilencio: ReturnType<typeof setTimeout> | null = null;
   let timerReligar: ReturnType<typeof setTimeout> | null = null;
   let sessaoIniciadaEm = 0;
   let sessoesCurtas = 0;
 
   function reiniciarTimerSilencio() {
+    if (timerPausa) clearTimeout(timerPausa);
     if (timerSilencio) clearTimeout(timerSilencio);
+    timerPausa = setTimeout(() => {
+      if (ativo) opts.aoPausar();
+    }, opts.pausaMs);
     timerSilencio = setTimeout(() => {
       if (ativo) opts.aoSilenciar();
     }, opts.silencioMs);
   }
 
   function pararTimer() {
+    if (timerPausa) clearTimeout(timerPausa);
+    timerPausa = null;
     if (timerSilencio) clearTimeout(timerSilencio);
     timerSilencio = null;
     if (timerReligar) clearTimeout(timerReligar);

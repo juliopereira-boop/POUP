@@ -66,13 +66,31 @@ import { temConsentimentoLia } from './consentimento';
 import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
 
 /**
- * Três segundos, como pedido.
+ * DUAS PAUSAS, PORQUE SÃO DUAS COISAS DIFERENTES.
  *
- * É tempo suficiente para não cortar quem está pensando no meio da frase, e
- * curto o bastante para o aviso do que falta chegar enquanto o assunto ainda
- * está na mesa.
+ * `PAUSA_MS` — a frase acabou. É quando a LIA vai INTERPRETAR. Curta de
+ * propósito: interpretar é o que a faz parecer rápida, e esperar três segundos
+ * para começar a pensar significa ainda estar processando a frase anterior
+ * quando a próxima chegar. Com 1,2 s ela trabalha no vão entre as frases, que
+ * é tempo que já existia e estava sendo desperdiçado.
+ *
+ * `SILENCIO_MS` — a conversa parou de verdade. É quando ela COBRA o que falta.
+ * Continua nos três segundos pedidos: cobrar a cada respiração faria a lista
+ * piscar no canto do olho de quem está negociando.
  */
+const PAUSA_MS = 1200;
 const SILENCIO_MS = 3000;
+
+/**
+ * Piso entre duas chamadas ao modelo.
+ *
+ * Sem ele, uma conversa em frases curtas ("sim" · "certo" · "isso") dispararia
+ * uma análise a cada segundo — e a conta de uma reunião de meia hora seria
+ * absurda para uma informação que não mudou. Com 3,5 s, a LIA continua
+ * respondendo dentro do mesmo assunto e o teto vira ~17 chamadas por minuto no
+ * pior caso, não 50.
+ */
+const INTERVALO_MINIMO_MS = 3500;
 
 export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
 
@@ -126,8 +144,13 @@ interface LiaContextValue {
   entenderAgora: () => void;
   /** Descarta um campo que a LIA entendeu errado. */
   descartar: (chave: string) => void;
-  /** Leva o que foi capturado para o simulador e encerra a sessão. */
-  levarParaSimulador: () => Promise<void>;
+  /**
+   * Leva o que foi capturado para o simulador e encerra a sessão.
+   *
+   * Devolve `true` quando nada essencial ficou faltando — é o que decide se o
+   * corretor cai direto no botão de gerar o PDF ou na primeira etapa.
+   */
+  levarParaSimulador: () => Promise<boolean>;
 }
 
 const LiaContext = createContext<LiaContextValue | undefined>(undefined);
@@ -160,6 +183,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const sessaoAtivaRef = useRef(false);
   const rodadaRef = useRef(0);
   const ultimaAplicadaRef = useRef(0);
+  /** Quando a última chamada ao modelo COMEÇOU. Base do intervalo mínimo. */
+  const ultimaChamadaRef = useRef(0);
+  const timerRefilaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Marca que chegou texto novo desde a última análise. */
   const pendenteRef = useRef(false);
 
@@ -210,11 +236,37 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     ]);
   }, [user]);
 
-  const analisar = useCallback(async () => {
+  const analisar = useCallback(async (forcado = false) => {
     const texto = transcricaoRef.current.trim();
-    if (!texto || analisandoRef.current) return;
+    if (!texto) return;
+
+    /*
+     * Uma chamada por vez, e nunca mais rápido que o intervalo mínimo.
+     *
+     * Quando a vez ainda não chegou, a rodada NÃO é descartada: fica agendada
+     * para o instante em que o intervalo fecha. Descartar faria a LIA "perder"
+     * uma frase inteira até a próxima pausa; agendar faz ela responder assim
+     * que pode. "Reler agora" (`forcado`) fura a fila, porque aí é o corretor
+     * pedindo, e ele não deve esperar por uma regra de custo.
+     */
+    if (analisandoRef.current) {
+      pendenteRef.current = true;
+      return;
+    }
+    const desdeUltima = Date.now() - ultimaChamadaRef.current;
+    if (!forcado && desdeUltima < INTERVALO_MINIMO_MS) {
+      pendenteRef.current = true;
+      if (!timerRefilaRef.current) {
+        timerRefilaRef.current = setTimeout(() => {
+          timerRefilaRef.current = null;
+          if (sessaoAtivaRef.current && pendenteRef.current) void analisar();
+        }, INTERVALO_MINIMO_MS - desdeUltima);
+      }
+      return;
+    }
 
     analisandoRef.current = true;
+    ultimaChamadaRef.current = Date.now();
     pendenteRef.current = false;
     rodadaRef.current += 1;
     const rodada = rodadaRef.current;
@@ -270,17 +322,16 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     if (sessaoAtivaRef.current) setStatus('ouvindo');
 
     /*
-     * NÃO se reanalisa aqui, mesmo tendo chegado fala nova durante a chamada.
+     * Chegou fala nova durante a chamada: reanalisa — mas SEMPRE passando pelo
+     * intervalo mínimo lá em cima.
      *
-     * A primeira versão fazia isso, e o efeito era desfazer o desenho inteiro:
-     * numa conversa corrida sempre chega texto novo durante a análise, então a
-     * cada resposta uma nova chamada partia — o gatilho deixava de ser a pausa
-     * e virava um laço contínuo, com custo por minuto de reunião.
-     *
-     * Nada se perde: a transcrição é cumulativa e a próxima pausa analisa tudo,
-     * inclusive o que chegou agora. Esperar a pausa é o desenho, não uma
-     * limitação dele.
+     * A primeira versão reanalisava sem esse freio, e o efeito era desfazer o
+     * desenho inteiro: numa conversa corrida sempre chega texto novo durante a
+     * análise, então cada resposta disparava outra chamada e o gatilho deixava
+     * de ser a pausa para virar um laço contínuo. Com o freio, a LIA
+     * acompanha a conversa sem que o custo cresça com a duração da reunião.
      */
+    if (sessaoAtivaRef.current && pendenteRef.current) void analisar();
   }, []);
 
   const iniciar = useCallback(async () => {
@@ -302,6 +353,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     await carregarCatalogo();
 
     const escuta = criarEscuta({
+      pausaMs: PAUSA_MS,
       silencioMs: SILENCIO_MS,
       aoOuvir: (p) => setParcial(p),
       aoFechar: (texto) => {
@@ -311,8 +363,12 @@ export function LiaProvider({ children }: { children: ReactNode }) {
         // Voltou a falar: some a cobrança, como pedido.
         setCobrando(false);
       },
+      // Frase fechada: pensa já, sem esperar a conversa parar.
+      aoPausar: () => {
+        if (pendenteRef.current) void analisar();
+      },
+      // Conversa parada: aí sim mostra o que ainda falta perguntar.
       aoSilenciar: () => {
-        // Sem nada novo desde a última análise, a pausa só decide se cobra.
         if (pendenteRef.current) void analisar();
         setCobrando(true);
       },
@@ -349,6 +405,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     // Sem isto, a luz do microfone fica acesa depois de encerrar a LIA.
     medidorRef.current?.parar();
     medidorRef.current = null;
+    if (timerRefilaRef.current) clearTimeout(timerRefilaRef.current);
+    timerRefilaRef.current = null;
+    pendenteRef.current = false;
     setStatus('desligada');
     setParcial('');
     setCobrando(false);
@@ -356,7 +415,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
 
   const entenderAgora = useCallback(() => {
     pendenteRef.current = true;
-    void analisar();
+    void analisar(true);
   }, [analisar]);
 
   const descartar = useCallback((chave: string) => {
@@ -367,7 +426,8 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const levarParaSimulador = useCallback(async () => {
+  const levarParaSimulador = useCallback(async (): Promise<boolean> => {
+    const completo = faltando.length === 0;
     const bruto: CapturaBruta = Object.fromEntries(
       Object.values(capturados).map((c) => [c.chave, c.valor]),
     );
@@ -379,7 +439,8 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     transcricaoRef.current = '';
     setTranscricao('');
     setCapturados({});
-  }, [capturados, encerrar]);
+    return completo;
+  }, [capturados, encerrar, faltando.length]);
 
   // Sair da conta com o microfone aberto não é aceitável.
   useEffect(() => {

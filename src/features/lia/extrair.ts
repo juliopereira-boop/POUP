@@ -27,6 +27,21 @@ export interface ResultadoExtracao {
   observacao: string | null;
 }
 
+/**
+ * Data de hoje pelas partes LOCAIS do aparelho.
+ *
+ * Nunca `toISOString()`: ele devolve UTC, e no Brasil, das 21h à meia-noite,
+ * isso já é o dia seguinte. A LIA usa esta data para resolver "dia 10" na data
+ * do ato — errar por um dia aqui vira um mês de diferença no vencimento da
+ * entrada, num documento que o cliente assina.
+ */
+function hojeYmd(): string {
+  const agora = new Date();
+  const m = String(agora.getMonth() + 1).padStart(2, '0');
+  const d = String(agora.getDate()).padStart(2, '0');
+  return `${agora.getFullYear()}-${m}-${d}`;
+}
+
 export async function extrairDaConversa(
   transcricao: string,
   empreendimentos: EmpreendimentoContexto[],
@@ -38,6 +53,7 @@ export async function extrairDaConversa(
       campos: CAMPOS.map(campoParaPrompt),
       empreendimentos,
       correspondentes,
+      hoje: hojeYmd(),
     },
   });
 

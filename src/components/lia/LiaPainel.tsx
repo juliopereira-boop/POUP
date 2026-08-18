@@ -127,11 +127,17 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
                   <Button label="Começar a ouvir" onPress={() => void lia.iniciar()} />
                 ) : (
                   <>
+                    {/*
+                      Com tudo preenchido, o rótulo é o destino: a próxima tela
+                      é o botão de gerar o PDF, não mais um formulário. Faltando
+                      alguma coisa, o botão continua existindo — mas diz quantas,
+                      para o corretor decidir se vale seguir assim.
+                    */}
                     <Button
                       label={
                         prontoParaSimular
-                          ? 'Gerar a simulação'
-                          : `Gerar mesmo assim (${lia.faltando.length} sem preencher)`
+                          ? 'Gerar proposta de venda'
+                          : `Continuar assim (${lia.faltando.length} sem preencher)`
                       }
                       variant={prontoParaSimular ? 'primary' : 'secondary'}
                       onPress={aoLevarParaSimulador}
