@@ -711,6 +711,77 @@ correção que só uma recebesse.
 > do aparelho. Pedir o mesmo aviso nos dois treinaria o corretor a aceitar sem ler — e é justamente
 > na simulação que ele precisa ler.
 
+### O custo, e o redesenho que o cortou 42×
+
+A primeira versão da LIA **custava US$ 2,13 por simulação** — mais que a mensalidade do corretor.
+O produto não fechava. Medindo (`npm run custo:lia`), a conta era: prompt fixo de ~3.400 tokens
+reenviado ~107 vezes por reunião (72% do total), mais a conversa inteira a cada rodada (custo
+**quadrático** na duração), tudo em Sonnet.
+
+Cinco mudanças, em ordem de tamanho:
+
+**1. Cache em dois blocos, e a ordem é o truque.** O prompt foi partido em *global* (instruções +
+lista de campos — idêntico byte a byte para **todos** os corretores) e *do corretor* (catálogo +
+data). Ambos com `cache_control`. Cache é casamento de **prefixo**, então o global vem **primeiro**:
+assim ele é o mesmo prefixo para a conta inteira — uma escrita, e leituras a 0,1× para todo mundo.
+Invertido, o catálogo de cada corretor quebraria o prefixo no começo e ninguém compartilharia nada.
+
+> Consequência para quem editar: mexer no bloco global **invalida a cache de todos de uma vez**. É
+> barato (uma escrita até reaquecer), mas evite ajustes cosméticos ali.
+
+**2. Estado + trecho novo, em vez da conversa inteira.** As rodadas parciais mandam o que já foi
+capturado (chave → valor, **sem** os trechos — só a tela os usa) e o pedaço novo. A correção
+continua funcionando *por causa* do estado: o modelo vê `clienteRenda: 2800`, ouve "na verdade são
+três e meio", e corrige. Não é preciso reler a conversa para isso. O custo virou **linear**.
+
+**3. Gatilho local (`gatilho.ts`), o filtro mais barato que existe.** Roda no aparelho e decide se
+o trecho novo tem chance de conter um dado: dígito, número por extenso, palavra do vocabulário do
+negócio, verbo de retratação, ou trecho longo demais para ignorar. "Pois é", "com certeza", "o
+trânsito tava horrível" não chamam o modelo. Numa conversa de exemplo, **corta 61% das janelas**.
+
+A regra é errar para o lado de chamar: um falso positivo custa uma fração de centavo; um falso
+negativo perde um dado e o corretor descobre quando a proposta sai errada. Dois detalhes que os
+testes forçaram: **"um" e "uma" ficaram fora** da lista de números (em português são artigos antes
+de numerais, e aprovavam justamente o ruído — "deixa eu ver *um* instante"); e existe uma lista de
+**retratação** (`esquece`, `desistiu`, `mudou`, `proponente`), porque "esquece o segundo proponente"
+não tem número nenhum e ainda assim apaga um campo já capturado.
+
+**4. Haiku nas parciais, Sonnet no fecho.** As rodadas intermediárias existem para a tela
+acompanhar. A que decide a proposta é a última — e ela relê a **conversa inteira, sem filtro**, no
+modelo bom. É a rede que segura os atalhos: um trecho descartado pelo gatilho ou um campo que o
+modelo barato deixou passar reaparecem ali, antes de virar PDF. Nenhuma rodada parcial tem
+autoridade sobre o que o cliente assina.
+
+**5. Intervalo de 3,5 s → 12 s e saída só do que mudou.** O corretor vê os cards em blocos um pouco
+maiores e não perde nada: a cobrança do que falta continua nos 3 s de silêncio. Uma janela maior
+ainda melhora a qualidade — o modelo recebe frase inteira em vez de meia.
+
+#### O resultado
+
+| | por simulação |
+|---|---|
+| antes | **$2,134** |
+| agora (cache global fria) | $0,055 |
+| agora (o caso normal) | **$0,051** |
+
+Com R$ 59,90/mês e 30 simulações por corretor:
+
+| usuários | custo total R$ | **lucro R$** | margem |
+|---|---|---|---|
+| 10 | 35,38 | 24,52 | 41% |
+| 30 | 19,18 | 40,72 | 68% |
+| 80 | 14,11 | 45,79 | 76% |
+| 200 | 12,29 | 47,61 | 79% |
+| 400 | 11,68 | **48,22** | **80%** |
+
+Em 10 usuários quem domina não é mais a LIA (R$ 8,30) — é a infra fixa do Supabase e da Vercel
+(R$ 24,30 divididos por dez). Isso se dilui sozinho com a escala.
+
+A Edge Function passou a devolver o **`uso` real** de cada chamada (incluindo quanto veio da cache).
+`scripts/custo-lia.mjs` ainda estima tokens por caracteres; quando houver uso de verdade, troque a
+estimativa pelo medido — é o mesmo cálculo com números melhores. E `cacheLeitura` alto é o sinal de
+que a cache está pegando: se vier zero, alguma coisa está invalidando o prefixo.
+
 ### O orbe — a logo viva (`src/components/lia/LiaOrbe.tsx`)
 
 Quatro camadas empilhadas, e nenhuma delas é bonita sozinha:

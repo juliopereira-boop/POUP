@@ -20,12 +20,20 @@
  * ainda falta. Um gatilho, dois propósitos.
  *
  * ===========================================================================
- * POR QUE A CONVERSA INTEIRA VAI TODA VEZ
+ * ESTADO + TRECHO NOVO, E UM FECHO QUE RELÊ TUDO
  * ===========================================================================
- * Porque negociação volta atrás: "na verdade são três e meio". Reinterpretar a
- * conversa inteira faz a correção se resolver sozinha — o estado devolvido é
- * sempre o FINAL. Um "patch" incremental precisaria de regras de retratação, e
- * elas errariam. Ver o comentário da Edge Function `lia-extract`.
+ * As rodadas parciais mandam o ESTADO já capturado e só o PEDAÇO NOVO da
+ * conversa. A correção continua funcionando justamente por causa do estado: o
+ * modelo vê `clienteRenda: 2800`, ouve "na verdade são três e meio", e corrige.
+ * Não é preciso reler a conversa para isso.
+ *
+ * A primeira versão reenviava a conversa inteira a cada rodada. Funcionava, e
+ * custava US$ 2,13 por simulação — mais que a mensalidade do corretor. Hoje o
+ * custo é linear na duração da reunião, não quadrático.
+ *
+ * O que segura a qualidade é o FECHO: antes de gerar o PDF, a conversa inteira
+ * é relida pelo modelo bom, sem filtro nenhum. As rodadas parciais são para a
+ * tela acompanhar; nenhuma delas decide o que o cliente assina.
  *
  * ===========================================================================
  * UMA CHAMADA POR VEZ, E A ÚLTIMA GANHA
@@ -61,7 +69,8 @@ import {
   type ContextoCatalogo,
 } from './campos';
 import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
-import { extrairDaConversa, type EmpreendimentoContexto } from './extrair';
+import { extrair, type EmpreendimentoContexto, type ModoExtracao } from './extrair';
+import { valeAnalisar } from './gatilho';
 import { temConsentimentoLia } from './consentimento';
 import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
 
@@ -84,13 +93,17 @@ const SILENCIO_MS = 3000;
 /**
  * Piso entre duas chamadas ao modelo.
  *
- * Sem ele, uma conversa em frases curtas ("sim" · "certo" · "isso") dispararia
- * uma análise a cada segundo — e a conta de uma reunião de meia hora seria
- * absurda para uma informação que não mudou. Com 3,5 s, a LIA continua
- * respondendo dentro do mesmo assunto e o teto vira ~17 chamadas por minuto no
- * pior caso, não 50.
+ * Foi de 3,5 s para 12 s, e é uma decisão de CUSTO com efeito pequeno na
+ * experiência. A 3,5 s, uma negociação de dez minutos custava mais que a
+ * mensalidade do corretor. A 12 s, o corretor vê os cards aparecerem em blocos
+ * um pouco maiores — e não perde nada, porque a cobrança do que falta continua
+ * saindo nos 3 s de silêncio (que é quando ele olha a tela) e o fecho relê a
+ * conversa inteira antes de gerar o PDF.
+ *
+ * Uma janela maior ainda ajuda a qualidade: o modelo recebe uma frase inteira
+ * em vez de meia.
  */
-const INTERVALO_MINIMO_MS = 3500;
+const INTERVALO_MINIMO_MS = 12000;
 
 export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
 
@@ -188,6 +201,26 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const timerRefilaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Marca que chegou texto novo desde a última análise. */
   const pendenteRef = useRef(false);
+  /**
+   * O que foi falado DESDE a última análise.
+   *
+   * É isto que vai ao modelo nas rodadas parciais, em vez da conversa inteira.
+   * A `transcricaoRef` continua existindo, completa, para o fecho — e é ela
+   * que garante que nada se perde: mesmo que uma rodada parcial erre ou seja
+   * pulada pelo gatilho, a releitura final vê tudo.
+   */
+  const trechoNovoRef = useRef('');
+  /**
+   * Espelho de `capturados` legível pelo callback da análise.
+   *
+   * `analisar` é criado uma vez (dependências vazias, de propósito — ele é
+   * chamado de dentro dos callbacks da escuta, que também são criados uma vez).
+   * Sem o espelho, ele mandaria ao modelo o estado do primeiro instante e o
+   * modelo reenviaria campos que já tínhamos, rodada após rodada.
+   */
+  const capturadosRef = useRef<Record<string, CampoCapturado>>({});
+  /** Soma do que a sessão gastou, para medir custo real em vez de estimar. */
+  const usoRef = useRef({ entrada: 0, cacheEscrita: 0, cacheLeitura: 0, saida: 0, chamadas: 0 });
 
   // Catálogo do corretor, carregado uma vez por sessão de escuta.
   const empreendimentosRef = useRef<EmpreendimentoContexto[]>([]);
@@ -236,30 +269,47 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     ]);
   }, [user]);
 
-  const analisar = useCallback(async (forcado = false) => {
-    const texto = transcricaoRef.current.trim();
-    if (!texto) return;
+  const analisar = useCallback(async (modo: ModoExtracao = 'parcial') => {
+    const fecho = modo === 'final';
+    const conversa = fecho ? transcricaoRef.current.trim() : trechoNovoRef.current.trim();
+    if (!conversa) return;
+
+    /*
+     * O FILTRO MAIS BARATO QUE EXISTE.
+     *
+     * Boa parte do que o microfone capta não tem nenhum dado da simulação:
+     * cumprimento, trânsito, "pois é", o corretor explicando como funciona o
+     * financiamento. Mandar isso ao modelo custa e devolve lista vazia.
+     *
+     * O fecho NUNCA passa por aqui: quando o corretor manda gerar a proposta,
+     * a conversa inteira é relida sem filtro. Assim, um trecho que este gatilho
+     * tenha descartado por engano volta a ser visto antes de virar PDF.
+     */
+    if (!fecho && !valeAnalisar(conversa)) {
+      trechoNovoRef.current = '';
+      pendenteRef.current = false;
+      return;
+    }
 
     /*
      * Uma chamada por vez, e nunca mais rápido que o intervalo mínimo.
      *
      * Quando a vez ainda não chegou, a rodada NÃO é descartada: fica agendada
      * para o instante em que o intervalo fecha. Descartar faria a LIA "perder"
-     * uma frase inteira até a próxima pausa; agendar faz ela responder assim
-     * que pode. "Reler agora" (`forcado`) fura a fila, porque aí é o corretor
-     * pedindo, e ele não deve esperar por uma regra de custo.
+     * uma frase inteira até a próxima pausa. O fecho fura a fila, porque aí é o
+     * corretor pedindo, e ele não deve esperar por uma regra de custo.
      */
     if (analisandoRef.current) {
       pendenteRef.current = true;
       return;
     }
     const desdeUltima = Date.now() - ultimaChamadaRef.current;
-    if (!forcado && desdeUltima < INTERVALO_MINIMO_MS) {
+    if (!fecho && desdeUltima < INTERVALO_MINIMO_MS) {
       pendenteRef.current = true;
       if (!timerRefilaRef.current) {
         timerRefilaRef.current = setTimeout(() => {
           timerRefilaRef.current = null;
-          if (sessaoAtivaRef.current && pendenteRef.current) void analisar();
+          if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
         }, INTERVALO_MINIMO_MS - desdeUltima);
       }
       return;
@@ -268,6 +318,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     analisandoRef.current = true;
     ultimaChamadaRef.current = Date.now();
     pendenteRef.current = false;
+    // Esvazia JÁ: o que chegar durante a chamada é o trecho da PRÓXIMA rodada.
+    // Esvaziar depois perderia tudo que foi falado enquanto o modelo pensava.
+    if (!fecho) trechoNovoRef.current = '';
     rodadaRef.current += 1;
     const rodada = rodadaRef.current;
 
@@ -277,11 +330,20 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     // "ouvindo" com o microfone já fechado.
     if (sessaoAtivaRef.current) setStatus('entendendo');
 
-    const r = await extrairDaConversa(
-      texto,
-      empreendimentosRef.current,
-      contextoRef.current.correspondentes,
+    // O estado vai SEM os trechos: o modelo só precisa saber o que já tem para
+    // decidir o que mudou. Os trechos são da tela, e mandá-los dobraria o
+    // tamanho do estado a cada rodada sem servir para nada.
+    const estado = Object.fromEntries(
+      Object.values(capturadosRef.current).map((c) => [c.chave, c.valor]),
     );
+
+    const r = await extrair({
+      modo,
+      conversa,
+      estado,
+      empreendimentos: empreendimentosRef.current,
+      correspondentes: contextoRef.current.correspondentes,
+    });
 
     analisandoRef.current = false;
 
@@ -296,11 +358,29 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (r.uso) {
+      const u = usoRef.current;
+      u.entrada += r.uso.entrada;
+      u.cacheEscrita += r.uso.cacheEscrita;
+      u.cacheLeitura += r.uso.cacheLeitura;
+      u.saida += r.uso.saida;
+      u.chamadas += 1;
+    }
+
     setErro(null);
     setObservacao(r.observacao);
+
+    /*
+     * FUSÃO, não substituição.
+     *
+     * A resposta traz só o que mudou, então o que já estava capturado
+     * permanece. É o outro lado da economia: sem a fusão, cada rodada teria de
+     * pedir ao modelo que repetisse os catorze campos para não perder nenhum.
+     */
     setCapturados((antes) => {
       const agora = Date.now();
-      const novo: Record<string, CampoCapturado> = {};
+      const novo = { ...antes };
+      for (const chave of r.remover) delete novo[chave];
       for (const c of r.campos) {
         if (!CAMPOS_POR_CHAVE[c.chave]) continue;
         const anterior = antes[c.chave];
@@ -312,26 +392,18 @@ export function LiaProvider({ children }: { children: ReactNode }) {
           trecho: c.trecho,
           confianca: c.confianca,
           corrigido: mudou,
-          // Campo inalterado mantém o horário antigo: só o que mexeu é "novo".
-          em: anterior && !mudou ? anterior.em : agora,
+          em: agora,
         };
       }
+      capturadosRef.current = novo;
       return novo;
     });
 
     if (sessaoAtivaRef.current) setStatus('ouvindo');
 
-    /*
-     * Chegou fala nova durante a chamada: reanalisa — mas SEMPRE passando pelo
-     * intervalo mínimo lá em cima.
-     *
-     * A primeira versão reanalisava sem esse freio, e o efeito era desfazer o
-     * desenho inteiro: numa conversa corrida sempre chega texto novo durante a
-     * análise, então cada resposta disparava outra chamada e o gatilho deixava
-     * de ser a pausa para virar um laço contínuo. Com o freio, a LIA
-     * acompanha a conversa sem que o custo cresça com a duração da reunião.
-     */
-    if (sessaoAtivaRef.current && pendenteRef.current) void analisar();
+    // Chegou fala nova durante a chamada: reanalisa — passando pelo intervalo
+    // mínimo lá em cima, que é o que impede o laço contínuo.
+    if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
   }, []);
 
   const iniciar = useCallback(async () => {
@@ -348,6 +420,12 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     setObservacao(null);
     setCobrando(false);
     sessaoAtivaRef.current = true;
+    transcricaoRef.current = '';
+    trechoNovoRef.current = '';
+    capturadosRef.current = {};
+    usoRef.current = { entrada: 0, cacheEscrita: 0, cacheLeitura: 0, saida: 0, chamadas: 0 };
+    setTranscricao('');
+    setCapturados({});
     setStatus('ouvindo');
 
     await carregarCatalogo();
@@ -358,6 +436,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       aoOuvir: (p) => setParcial(p),
       aoFechar: (texto) => {
         transcricaoRef.current = `${transcricaoRef.current} ${texto}`.trim();
+        trechoNovoRef.current = `${trechoNovoRef.current} ${texto}`.trim();
         setTranscricao(transcricaoRef.current);
         pendenteRef.current = true;
         // Voltou a falar: some a cobrança, como pedido.
@@ -365,11 +444,11 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       },
       // Frase fechada: pensa já, sem esperar a conversa parar.
       aoPausar: () => {
-        if (pendenteRef.current) void analisar();
+        if (pendenteRef.current) void analisar('parcial');
       },
       // Conversa parada: aí sim mostra o que ainda falta perguntar.
       aoSilenciar: () => {
-        if (pendenteRef.current) void analisar();
+        if (pendenteRef.current) void analisar('parcial');
         setCobrando(true);
       },
       aoFalhar: (mensagem) => {
@@ -413,23 +492,49 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     setCobrando(false);
   }, []);
 
+  /**
+   * "Reler agora" é um FECHO, não uma rodada parcial.
+   *
+   * Quando o corretor pede explicitamente, ele quer a melhor leitura possível —
+   * conversa inteira, modelo bom. É a mesma passada que roda antes de gerar o
+   * PDF, e é de propósito: assim ele consegue conferir o resultado definitivo
+   * antes de sair da tela.
+   */
   const entenderAgora = useCallback(() => {
-    pendenteRef.current = true;
-    void analisar(true);
+    void analisar('final');
   }, [analisar]);
 
   const descartar = useCallback((chave: string) => {
     setCapturados((antes) => {
       const resto = { ...antes };
       delete resto[chave];
+      capturadosRef.current = resto;
       return resto;
     });
   }, []);
 
   const levarParaSimulador = useCallback(async (): Promise<boolean> => {
-    const completo = faltando.length === 0;
+    /*
+     * O FECHO ACONTECE AQUI, E É O QUE DECIDE A PROPOSTA.
+     *
+     * Antes de entregar, a conversa INTEIRA é relida pelo modelo bom. As
+     * rodadas parciais existiram para a tela acompanhar — rápidas, baratas e
+     * vendo só um pedaço de cada vez. Nenhuma delas tem autoridade sobre o que
+     * o cliente vai assinar.
+     *
+     * É também a rede que segura os dois atalhos de custo: um trecho que o
+     * gatilho local descartou por engano, ou um campo que o modelo barato
+     * deixou passar, reaparecem aqui — porque aqui nada é filtrado.
+     */
+    await analisar('final');
+
+    // `capturadosRef`, e não `capturados`: o estado do React ainda não
+    // atualizou quando esta linha roda, e o que vale é o resultado do fecho.
+    const atual = capturadosRef.current;
+    const completo = CHAVES_ESSENCIAIS.every((c) => atual[c]);
+
     const bruto: CapturaBruta = Object.fromEntries(
-      Object.values(capturados).map((c) => [c.chave, c.valor]),
+      Object.values(atual).map((c) => [c.chave, c.valor]),
     );
     const estado = paraSimulador(bruto, contextoRef.current);
     await sessionStorage.setItem(PREFILL_KEY, JSON.stringify({ estado }));
@@ -437,10 +542,12 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     // A transcrição não sobrevive à entrega: ela contém nome, CPF e renda de
     // uma pessoa que não é o usuário do app.
     transcricaoRef.current = '';
+    trechoNovoRef.current = '';
+    capturadosRef.current = {};
     setTranscricao('');
     setCapturados({});
     return completo;
-  }, [capturados, encerrar, faltando.length]);
+  }, [analisar, encerrar]);
 
   // Sair da conta com o microfone aberto não é aceitável.
   useEffect(() => {
