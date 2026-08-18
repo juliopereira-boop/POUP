@@ -15,6 +15,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/Logo';
+import { LiaOrbe } from './LiaOrbe';
 import { useLia } from '@/features/lia/LiaProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
@@ -43,7 +44,7 @@ interface LiaBotaoProps {
 export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const { status } = useLia();
+  const { status, nivelDeVoz } = useLia();
   const [aberto, setAberto] = useState(false);
 
   const ouvindo = status === 'ouvindo' || status === 'entendendo';
@@ -58,29 +59,6 @@ export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
       useNativeDriver: true,
     }).start();
   }, [aberto, leque]);
-
-  // Pulso do anel enquanto ouve. Só roda quando ouve — animação eterna em
-  // aplicativo de campo é bateria indo embora.
-  const pulso = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!ouvindo) {
-      pulso.setValue(0);
-      return;
-    }
-    const laco = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulso, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulso, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]),
-    );
-    laco.start();
-    return () => laco.stop();
-  }, [ouvindo, pulso]);
 
   function abrirFuncionalidade() {
     setAberto(false);
@@ -124,27 +102,37 @@ export function LiaBotao({ onAbrirSessao }: LiaBotaoProps) {
         </Animated.View>
       ) : null}
 
+      {/*
+        Ouvindo, o botão VIRA o orbe — a mesma linguagem visual do painel, com a
+        mesma reação à voz. É o sinal de "microfone aberto" que acompanha o
+        corretor por qualquer tela, e ele não pode ser um ícone parado: um
+        ponto estático some no canto da tela em dez segundos.
+
+        O orbe fica atrás do Pressable e sem captura de toque, para a área
+        clicável continuar sendo o botão de 58 px e não a nuvem inteira.
+      */}
+      {ouvindo ? (
+        <View style={styles.orbeAtras} pointerEvents="none">
+          <LiaOrbe
+            modo={status === 'entendendo' ? 'pensando' : 'ouvindo'}
+            nivel={nivelDeVoz}
+            tamanho={58}
+            compacto
+          />
+        </View>
+      ) : null}
+
       <Pressable
         onPress={() => (ouvindo ? onAbrirSessao() : setAberto((v) => !v))}
-        style={({ pressed }) => [styles.botao, ouvindo && styles.botaoOuvindo, pressed && styles.botaoPressed]}
+        style={({ pressed }) => [
+          styles.botao,
+          ouvindo && styles.botaoOuvindo,
+          pressed && styles.botaoPressed,
+        ]}
         accessibilityRole="button"
         accessibilityLabel={ouvindo ? 'LIA está ouvindo. Abrir a sessão.' : 'Abrir a LIA'}
       >
-        {ouvindo ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.anel,
-              {
-                opacity: pulso.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] }),
-                transform: [
-                  { scale: pulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] }) },
-                ],
-              },
-            ]}
-          />
-        ) : null}
-        <Logo size={30} />
+        {ouvindo ? null : <Logo size={30} />}
       </Pressable>
     </View>
   );
@@ -169,16 +157,14 @@ const makeStyles = (colors: AppColors) =>
       justifyContent: 'center',
       ...shadow.card,
     },
-    botaoOuvindo: { borderColor: colors.success },
+    // Ouvindo, o próprio orbe desenha o fundo e a borda: o botão só delimita a
+    // área de toque.
+    botaoOuvindo: { backgroundColor: 'transparent', borderColor: 'transparent' },
     botaoPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
-    anel: {
-      position: 'absolute',
-      width: 58,
-      height: 58,
-      borderRadius: radius.pill,
-      borderWidth: 2,
-      borderColor: colors.success,
-    },
+    // (58 * 1,6 - 58) / 2 = 17,4 — o quanto a caixa do orbe passa do botão de
+    // cada lado. Menor que os 16 px de margem mais a folga do gesto, então nada
+    // vaza para fora da tela.
+    orbeAtras: { position: 'absolute', bottom: -17, right: -17 },
     menu: {
       marginBottom: spacing.md,
       width: 280,

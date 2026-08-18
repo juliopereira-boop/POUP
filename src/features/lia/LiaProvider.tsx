@@ -46,6 +46,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Animated } from 'react-native';
 
 import { db } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
@@ -61,6 +62,7 @@ import {
 import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
 import { extrairDaConversa, type EmpreendimentoContexto } from './extrair';
 import { temConsentimentoLia } from './consentimento';
+import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
 
 /**
  * Três segundos, como pedido.
@@ -99,6 +101,14 @@ interface LiaContextValue {
   erro: string | null;
   /** Verdadeiro depois de uma pausa em que ainda faltava coisa essencial. */
   cobrando: boolean;
+  /**
+   * Volume da voz, de 0 a 1, para as animações.
+   *
+   * É um `Animated.Value` e não um número de estado porque ele muda ~60 vezes
+   * por segundo: passar isso pelo React seriam 60 renderizações do aplicativo
+   * inteiro a cada segundo de conversa.
+   */
+  nivelDeVoz: Animated.Value;
 
   iniciar: () => Promise<void>;
   encerrar: () => void;
@@ -125,6 +135,8 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const [cobrando, setCobrando] = useState(false);
 
   const escutaRef = useRef<Escuta | null>(null);
+  const medidorRef = useRef<MedidorDeVoz | null>(null);
+  const nivelDeVozRef = useRef(new Animated.Value(0));
   /*
    * A transcrição vive TAMBÉM numa ref, e não é redundância.
    *
@@ -257,6 +269,12 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     if (suporte !== 'ok') return;
     if (!(await temConsentimentoLia())) return;
 
+    // Dois toques em "Começar a ouvir" deixariam dois reconhecedores vivos, e
+    // o segundo sobrescreveria a referência do primeiro — que ficaria com o
+    // microfone aberto, sem ninguém capaz de fechá-lo.
+    escutaRef.current?.parar();
+    escutaRef.current = null;
+
     setErro(null);
     setObservacao(null);
     setCobrando(false);
@@ -289,12 +307,30 @@ export function LiaProvider({ children }: { children: ReactNode }) {
 
     escutaRef.current = escuta;
     escuta.iniciar();
+
+    /*
+     * O medidor de volume é ENFEITE, e por isso vem por último e sem travar
+     * nada: se ele falhar (permissão, navegador sem Web Audio), o orbe cai na
+     * animação por ritmo e a escuta segue igual. Uma animação nunca pode
+     * derrubar a funcionalidade.
+     */
+    void medirVoz((n) => nivelDeVozRef.current.setValue(n)).then((m) => {
+      // A sessão pode ter sido encerrada enquanto a permissão era resolvida.
+      if (!sessaoAtivaRef.current) {
+        m?.parar();
+        return;
+      }
+      medidorRef.current = m;
+    });
   }, [analisar, carregarCatalogo, suporte]);
 
   const encerrar = useCallback(() => {
     sessaoAtivaRef.current = false;
     escutaRef.current?.parar();
     escutaRef.current = null;
+    // Sem isto, a luz do microfone fica acesa depois de encerrar a LIA.
+    medidorRef.current?.parar();
+    medidorRef.current = null;
     setStatus('desligada');
     setParcial('');
     setCobrando(false);
@@ -333,7 +369,13 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   }, [user, encerrar]);
 
   // Desmontar sem soltar o microfone deixaria a luz do aparelho acesa.
-  useEffect(() => () => escutaRef.current?.parar(), []);
+  useEffect(
+    () => () => {
+      escutaRef.current?.parar();
+      medidorRef.current?.parar();
+    },
+    [],
+  );
 
   const value = useMemo<LiaContextValue>(
     () => ({
@@ -346,6 +388,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       observacao,
       erro,
       cobrando,
+      nivelDeVoz: nivelDeVozRef.current,
       iniciar,
       encerrar,
       entenderAgora,

@@ -22,19 +22,11 @@
  * instante em que ele tem atenção sobrando e o assunto ainda está na mesa.
  * Voltou a falar, a cobrança some sozinha.
  */
-import { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
+import { LiaOrbe, type ModoOrbe } from './LiaOrbe';
 import {
   CAMPOS,
   CAMPOS_POR_CHAVE,
@@ -83,7 +75,9 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
             <IndisponivelAqui suporte={lia.suporte} />
           ) : (
             <>
-              <OndaDeVoz ativa={lia.status === 'ouvindo' && !!lia.parcial} />
+              <View style={styles.palco}>
+                <LiaOrbe modo={modoDoOrbe(lia.status)} nivel={lia.nivelDeVoz} tamanho={84} />
+              </View>
 
               <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
                 {lia.erro ? <Text style={styles.erro}>{lia.erro}</Text> : null}
@@ -195,60 +189,6 @@ function CartaoCampo({
   );
 }
 
-/**
- * Barrinhas que sobem e descem enquanto alguém fala.
- *
- * Serve para uma pergunta que o corretor faz sem perceber no meio da reunião:
- * "ela ainda está ouvindo?". Um texto responderia isso; o movimento responde
- * sem ele precisar ler.
- */
-function OndaDeVoz({ ativa }: { ativa: boolean }) {
-  const styles = useThemedStyles(makeStyles);
-  const barras = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0.3))).current;
-
-  useEffect(() => {
-    if (!ativa) {
-      barras.forEach((b) => b.setValue(0.3));
-      return;
-    }
-    const animacoes = barras.map((b, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(b, {
-            toValue: 1,
-            duration: 260 + i * 70,
-            useNativeDriver: false,
-          }),
-          Animated.timing(b, {
-            toValue: 0.3,
-            duration: 260 + i * 70,
-            useNativeDriver: false,
-          }),
-        ]),
-      ),
-    );
-    animacoes.forEach((a) => a.start());
-    return () => animacoes.forEach((a) => a.stop());
-  }, [ativa, barras]);
-
-  return (
-    <View style={styles.onda}>
-      {barras.map((b, i) => (
-        <Animated.View
-          key={i}
-          style={[
-            styles.ondaBarra,
-            {
-              height: b.interpolate({ inputRange: [0, 1], outputRange: [4, 22] }),
-              opacity: ativa ? 1 : 0.35,
-            },
-          ]}
-        />
-      ))}
-    </View>
-  );
-}
-
 function VazioInicial({ ouvindo }: { ouvindo: boolean }) {
   const styles = useThemedStyles(makeStyles);
   return (
@@ -317,6 +257,13 @@ function exibir(campo: CampoCapturado): string {
   return campo.valor;
 }
 
+/** O status da sessão traduzido para o vocabulário visual do orbe. */
+function modoDoOrbe(status: string): ModoOrbe {
+  if (status === 'ouvindo') return 'ouvindo';
+  if (status === 'entendendo') return 'pensando';
+  return 'parada';
+}
+
 function legendaStatus(status: string, suporte: string): string {
   if (suporte !== 'ok') return 'Indisponível nesta plataforma';
   if (status === 'ouvindo') return 'Ouvindo a negociação';
@@ -348,15 +295,12 @@ const makeStyles = (colors: AppColors) =>
     subtitulo: { ...typography.caption, color: colors.inkMuted },
     fechar: { ...typography.heading, color: colors.inkMuted },
 
-    onda: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 4,
-      height: 26,
-      marginTop: spacing.md,
-    },
-    ondaBarra: { width: 4, borderRadius: 2, backgroundColor: colors.primary },
+    /*
+     * O orbe tem 2,6x o diâmetro do núcleo em caixa (a fumaça precisa de espaço
+     * para orbitar). O palco recorta essa caixa com altura fixa para o painel
+     * não crescer: a fumaça pode vazar por cima, e vazar é o efeito.
+     */
+    palco: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 
     corpo: { paddingHorizontal: spacing.lg },
     corpoConteudo: { paddingVertical: spacing.md, gap: spacing.md },

@@ -112,17 +112,32 @@ export interface Escuta {
   parar: () => void;
 }
 
-/** Religar mais rápido que isto significa que algo está errado de verdade. */
-const MIN_ENTRE_RELIGADAS_MS = 400;
-const MAX_RELIGADAS_SEGUIDAS = 6;
+/**
+ * Uma sessão que durou menos que isto não "funcionou": ela nasceu e morreu.
+ *
+ * É a régua que separa o religamento legítimo (o navegador encerrou depois de
+ * um tempo de silêncio, e é para religar mesmo) da sessão natimorta, que se
+ * repetida vira laço.
+ */
+const SESSAO_CURTA_MS = 1500;
+const MAX_SESSOES_CURTAS = 5;
+
+/**
+ * Espera antes de religar, crescendo a cada sessão natimorta seguida.
+ *
+ * O primeiro valor não é zero de propósito: religar de dentro do `onend` sem
+ * passar pela fila de eventos é exatamente o que travava a aba.
+ */
+const ESPERA_RELIGAR_MS = [120, 250, 500, 1000, 2000];
 
 export function criarEscuta(opts: OpcoesEscuta): Escuta {
   const Reconhecimento = construtor();
   let rec: ReconhecimentoFala | null = null;
   let ativo = false;
   let timerSilencio: ReturnType<typeof setTimeout> | null = null;
-  let ultimaReligada = 0;
-  let religadasSeguidas = 0;
+  let timerReligar: ReturnType<typeof setTimeout> | null = null;
+  let sessaoIniciadaEm = 0;
+  let sessoesCurtas = 0;
 
   function reiniciarTimerSilencio() {
     if (timerSilencio) clearTimeout(timerSilencio);
@@ -134,6 +149,8 @@ export function criarEscuta(opts: OpcoesEscuta): Escuta {
   function pararTimer() {
     if (timerSilencio) clearTimeout(timerSilencio);
     timerSilencio = null;
+    if (timerReligar) clearTimeout(timerReligar);
+    timerReligar = null;
   }
 
   function montar(): ReconhecimentoFala | null {
@@ -145,9 +162,7 @@ export function criarEscuta(opts: OpcoesEscuta): Escuta {
     r.maxAlternatives = 1;
 
     r.onstart = () => {
-      // Uma sessão que chegou a começar zera o contador: o religamento
-      // anterior deu certo, então não é laço.
-      religadasSeguidas = 0;
+      sessaoIniciadaEm = Date.now();
       reiniciarTimerSilencio();
     };
 
@@ -199,36 +214,60 @@ export function criarEscuta(opts: OpcoesEscuta): Escuta {
       }
     };
 
+    /*
+     * ---------------------------------------------------------------------
+     * O RELIGAMENTO — e o travamento que ele já causou
+     * ---------------------------------------------------------------------
+     * O navegador encerra a sessão sozinho depois de um tempo sem fala. Sem
+     * religar, a LIA ficaria "ouvindo" em silêncio pelo resto da reunião. Só
+     * que a primeira versão religava de dois jeitos errados, e juntos eles
+     * TRAVAVAM O APLICATIVO INTEIRO:
+     *
+     *   1. `r.start()` era chamado DENTRO do `onend`, de forma síncrona. Se a
+     *      sessão morresse logo ao nascer, o par end→start virava um laço que
+     *      nunca devolvia o controle à fila de eventos — e um laço assim não
+     *      trava só a LIA: o toque em "Encerrar" nunca chega a ser processado,
+     *      porque não sobra volta de laço para processar toque nenhum. Era
+     *      exatamente isso que dava a sensação de app travado.
+     *
+     *   2. A trava anti-laço era zerada no `onstart`. Como a sessão CHEGAVA a
+     *      começar (e só então morria), o contador voltava a zero a cada
+     *      volta e a proteção nunca disparava.
+     *
+     * A correção ataca as duas: religa sempre por `setTimeout` — o que basta
+     * para o toque no botão passar na frente — e mede a DURAÇÃO da sessão em
+     * vez de contar starts. Sessão que durou o bastante é sinal de que estava
+     * funcionando; sessão natimorta repetida é o laço, e aí desiste com uma
+     * mensagem em vez de queimar a aba.
+     */
     r.onend = () => {
       if (!ativo) return;
-      /*
-       * A sessão terminou sozinha (o navegador faz isso depois de um tempo de
-       * silêncio) e ainda queremos ouvir: religa.
-       *
-       * A trava importa: se algo estiver falhando na hora do `start`, o par
-       * end→start vira um laço que consome a aba inteira. Duas condições —
-       * intervalo mínimo e teto de tentativas seguidas — cortam isso.
-       */
-      const agora = Date.now();
-      if (agora - ultimaReligada < MIN_ENTRE_RELIGADAS_MS) {
-        religadasSeguidas += 1;
-      } else {
-        religadasSeguidas = 1;
-      }
-      ultimaReligada = agora;
 
-      if (religadasSeguidas > MAX_RELIGADAS_SEGUIDAS) {
+      const durou = Date.now() - sessaoIniciadaEm;
+      sessoesCurtas = durou < SESSAO_CURTA_MS ? sessoesCurtas + 1 : 0;
+
+      if (sessoesCurtas >= MAX_SESSOES_CURTAS) {
         ativo = false;
         pararTimer();
-        opts.aoFalhar('A escuta parou sozinha várias vezes seguidas. Tente começar de novo.');
+        opts.aoFalhar(
+          'A escuta não conseguiu se manter aberta. Verifique o microfone e comece de novo.',
+        );
         return;
       }
 
-      try {
-        r.start();
-      } catch {
-        // `InvalidStateError` acontece quando já está rodando: nada a fazer.
-      }
+      const espera = ESPERA_RELIGAR_MS[Math.min(sessoesCurtas, ESPERA_RELIGAR_MS.length - 1)]!;
+      if (timerReligar) clearTimeout(timerReligar);
+      timerReligar = setTimeout(() => {
+        timerReligar = null;
+        // `ativo` pode ter virado false enquanto esperávamos: quem encerrou
+        // ganha, sempre.
+        if (!ativo || rec !== r) return;
+        try {
+          r.start();
+        } catch {
+          // `InvalidStateError` acontece quando já está rodando: nada a fazer.
+        }
+      }, espera);
     };
 
     return r;
@@ -243,6 +282,8 @@ export function criarEscuta(opts: OpcoesEscuta): Escuta {
         return;
       }
       ativo = true;
+      sessoesCurtas = 0;
+      sessaoIniciadaEm = Date.now();
       try {
         rec.start();
       } catch {

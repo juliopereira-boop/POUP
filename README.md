@@ -600,6 +600,70 @@ fora de ordem, uma análise velha sobrescreveria uma nova — e o corretor veria
 virar de novo o valor antigo, sozinho, na frente do cliente. Cada rodada leva um número; resposta
 com número menor que a última aplicada é descartada.
 
+### O orbe — a logo viva (`src/components/lia/LiaOrbe.tsx`)
+
+Quatro camadas empilhadas, e nenhuma delas é bonita sozinha:
+
+1. **Fumaça** — sete manchas laranjas translúcidas, em dois tons, cada uma numa órbita própria.
+   As durações são **números primos** (7 s, 11 s, 13 s, 17 s, 19 s, 23 s, 29 s) de propósito: com
+   valores múltiplos, a nuvem reencontraria a mesma posição a cada poucos segundos e o olho pega o
+   ciclo — que é exatamente o que faz uma animação parecer barata. Os dois tons dão profundidade,
+   porque a borda de uma mancha aparece por dentro da outra em vez de somar numa mancha chapada.
+2. **Ondas** — quatro anéis que nascem no centro, abrem e se dissolvem, com a **borda afinando**
+   enquanto crescem, como a crista de uma onda. Sem isso, o anel vira um aro de desenho animado.
+3. **Núcleo** — o disco que segura a logo e a separa da fumaça.
+4. **Logo** — respirando devagar, **sempre**. Mesmo parada, a LIA está viva.
+
+**O pulso segue a voz, não o relógio.** `nivelDeVoz.ts` mede o volume real do microfone
+(`AnalyserNode`, RMS do sinal) e escreve num `Animated.Value` que multiplica a escala das ondas, a
+densidade da fumaça e o tamanho do núcleo. Uma animação em laço fixo é bonita por dez segundos e
+vira papel de parede no décimo primeiro; reagindo ao volume, o movimento **vira informação** — dá
+para ver, sem ler nada, que a LIA está captando *aquela* frase.
+
+Detalhe de custo: a medição roda a ~60 Hz. Levar isso ao estado do React seriam 60 renderizações
+do app por segundo de conversa. Escrevendo direto no `Animated.Value`, a árvore de estilos consome
+sem re-renderizar nada.
+
+**"Pensando" é o mesmo desenho invertido**: os anéis contraem em vez de expandir e a nuvem acelera.
+Em vez de emitir, ela recolhe — e o corretor entende a diferença sem legenda.
+
+Duas coisas que o orbe **não** faz, por decisão:
+
+- **Não derruba a LIA se falhar.** Sem permissão de microfone ou sem Web Audio, `medirVoz` devolve
+  `null` em silêncio e sobra a animação por ritmo. Enfeite nunca leva funcionalidade junto.
+- **Não vaza da tela.** No botão flutuante ele roda em modo `compacto`: a nuvem orbita de perto e a
+  onda para em 1,55x. O orbe cheio se espalha ~60 px além do botão, que vive a 16 px da borda — na
+  web isso empurra a largura da página e **faz o app rolar para o lado**. Uma tela de celular que
+  desliza na horizontal parece app quebrado, e o preço não valia o enfeite. O espetáculo mora no
+  painel; no botão o orbe é sinalização.
+
+E o microfone é devolvido: `parar()` fecha o laço, o analisador, o contexto de áudio **e as faixas
+do fluxo** — é o que apaga a luz do microfone no aparelho.
+
+### O travamento do religamento (corrigido)
+
+Vale registrar porque o sintoma era assustador e a causa é sutil: **a LIA travava o aplicativo
+inteiro** — o botão "Encerrar" não respondia a nada.
+
+O navegador encerra a sessão de reconhecimento sozinho depois de um tempo sem fala, então religar é
+obrigatório. A primeira versão religava de dois jeitos errados, e juntos eles fechavam a conta:
+
+1. `r.start()` era chamado **dentro do `onend`, de forma síncrona**. Se a sessão morresse logo ao
+   nascer, o par `end → start` virava um laço que nunca devolvia o controle à fila de eventos. E um
+   laço assim não trava só a LIA: **o toque em "Encerrar" nunca chega a ser processado**, porque
+   não sobra volta de laço para processar toque nenhum.
+2. A trava anti-laço era zerada no `onstart`. Como a sessão *chegava* a começar (e só então
+   morria), o contador voltava a zero a cada volta e a proteção nunca disparava.
+
+A correção ataca as duas: religa sempre por `setTimeout` com espera crescente — o que basta para o
+toque no botão passar na frente — e mede a **duração** da sessão em vez de contar `start`s. Sessão
+que durou o bastante indica que estava funcionando; cinco sessões natimortas seguidas encerram com
+uma mensagem em vez de queimar a aba.
+
+> Verificado com a Web Speech API substituída por uma falsa no navegador, em dois modos. Sessão
+> saudável: 1 `start`, campos capturados, "Encerrar" respondeu em 849 ms. Sessão natimorta: **5**
+> `start`s e para, com aviso na tela; a página seguiu respondendo em 1 ms.
+
 ### Privacidade — e por que ela é mais séria aqui
 
 A LIA abre um microfone numa sala onde há **outra pessoa**, e o titular do dado é o cliente, não
