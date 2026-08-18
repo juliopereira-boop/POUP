@@ -752,30 +752,36 @@ modelo bom. É a rede que segura os atalhos: um trecho descartado pelo gatilho o
 modelo barato deixou passar reaparecem ali, antes de virar PDF. Nenhuma rodada parcial tem
 autoridade sobre o que o cliente assina.
 
-**5. Intervalo de 3,5 s → 12 s e saída só do que mudou.** O corretor vê os cards em blocos um pouco
-maiores e não perde nada: a cobrança do que falta continua nos 3 s de silêncio. Uma janela maior
-ainda melhora a qualidade — o modelo recebe frase inteira em vez de meia.
+**5. Saída só do que mudou** — os campos parados de rodada para rodada não voltam na resposta,
+poupando tokens de saída sem custar nada em qualidade.
+
+> **O intervalo entre chamadas ficou em 3,5 s — o mesmo de sempre.** Numa primeira passada eu tinha
+> subido para 12 s achando que precisava, sem recalcular depois que cache + gatilho + Haiku já
+> tinham feito o trabalho pesado. Refeita a conta: manter 3,5 s custa **R$ 0,21 a mais por
+> simulação** que 12 s — e a sensação de "ao vivo" (os cards aparecendo quase na hora) é parte do
+> que torna a LIA impressionante. Não valia a troca por uma economia irrelevante perto da margem.
 
 #### O resultado
 
 | | por simulação |
 |---|---|
-| antes | **$2,134** |
-| agora (cache global fria) | $0,055 |
-| agora (o caso normal) | **$0,051** |
+| antes (3,5 s, sem cache/gatilho/Haiku) | **$2,134** |
+| agora, com cache/gatilho/Haiku, ainda a 3,5 s | **$0,091** |
 
-Com R$ 59,90/mês e 30 simulações por corretor:
+**23× mais barato, com o mesmo ritmo de resposta de antes.** Com R$ 59,90/mês e 30 simulações por
+corretor:
 
 | usuários | custo total R$ | **lucro R$** | margem |
 |---|---|---|---|
-| 10 | 35,38 | 24,52 | 41% |
-| 30 | 19,18 | 40,72 | 68% |
-| 80 | 14,11 | 45,79 | 76% |
-| 200 | 12,29 | 47,61 | 79% |
-| 400 | 11,68 | **48,22** | **80%** |
+| 10 | 41,86 | 18,04 | 30% |
+| 30 | 25,66 | 34,24 | 57% |
+| 80 | 20,60 | 39,30 | 66% |
+| 200 | 18,78 | 41,12 | 69% |
+| 400 | 18,17 | **41,73** | **70%** |
 
-Em 10 usuários quem domina não é mais a LIA (R$ 8,30) — é a infra fixa do Supabase e da Vercel
-(R$ 24,30 divididos por dez). Isso se dilui sozinho com a escala.
+Em 10 usuários quem domina não é mais a LIA (R$ 14,78) — é a infra fixa do Supabase e da Vercel
+(R$ 24,30 divididos por dez). Isso se dilui sozinho com a escala. Com 15 simulações/mês em vez de
+30, a margem sobe mais ainda (42% a 82% — ver `npm run custo:lia`).
 
 A Edge Function passou a devolver o **`uso` real** de cada chamada (incluindo quanto veio da cache).
 `scripts/custo-lia.mjs` ainda estima tokens por caracteres; quando houver uso de verdade, troque a

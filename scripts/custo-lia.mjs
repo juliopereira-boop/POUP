@@ -77,11 +77,15 @@ const MIN = 8;   // minutos EFETIVAMENTE falados numa negociacao de ~10 min
 
 console.log('blocos medidos: global ~' + BLOCO_GLOBAL + ' tok | corretor ~' + BLOCO_CORRETOR + ' tok\n');
 console.log('POR SIMULACAO (' + MIN + ' min de fala)\n');
-const antes = 2.134;   // medido no desenho anterior
+// intervaloS: 3,5 s no código (src/features/lia/LiaProvider.tsx). Foi para 12s
+// numa primeira passada de corte de custo e voltou: refeita a conta depois de
+// cache + gatilho + Haiku, o intervalo custava só R$ 0,21/simulação a mais em
+// troca de manter a sensação de "ao vivo" — não valia a troca.
+const antes = 2.134;   // medido no desenho anterior (sem cache/gatilho/Haiku)
 const cenarios = [
   ['antes (desenho anterior)', null],
-  ['agora, 1o corretor do dia (cache fria)', { minutos:MIN, intervaloS:12, taxaGatilho:0.4, globalJaQuente:false }],
-  ['agora, cache global quente (o normal)',  { minutos:MIN, intervaloS:12, taxaGatilho:0.4, globalJaQuente:true }],
+  ['agora, 1o corretor do dia (cache fria)', { minutos:MIN, intervaloS:3.5, taxaGatilho:0.4, globalJaQuente:false }],
+  ['agora, cache global quente (o normal)',  { minutos:MIN, intervaloS:3.5, taxaGatilho:0.4, globalJaQuente:true }],
 ];
 const base = {};
 for (const [nome, cfg] of cenarios) {

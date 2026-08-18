@@ -93,17 +93,14 @@ const SILENCIO_MS = 3000;
 /**
  * Piso entre duas chamadas ao modelo.
  *
- * Foi de 3,5 s para 12 s, e é uma decisão de CUSTO com efeito pequeno na
- * experiência. A 3,5 s, uma negociação de dez minutos custava mais que a
- * mensalidade do corretor. A 12 s, o corretor vê os cards aparecerem em blocos
- * um pouco maiores — e não perde nada, porque a cobrança do que falta continua
- * saindo nos 3 s de silêncio (que é quando ele olha a tela) e o fecho relê a
- * conversa inteira antes de gerar o PDF.
- *
- * Uma janela maior ainda ajuda a qualidade: o modelo recebe uma frase inteira
- * em vez de meia.
+ * Voltou a 3,5 s depois de eu subir para 12 s achando que era necessário para
+ * o custo caber — sem recalcular depois que a cache, o gatilho local e o
+ * Haiku já tinham feito o trabalho pesado. Refeita a conta: 3,5 s custa
+ * US$ 0,09/simulação contra US$ 0,05 a 12 s — uma diferença de R$ 0,21 por
+ * simulação, irrelevante perto da margem (cai de 80% para 78% em 400
+ * usuários). Não valia trocar a sensação de "ao vivo" por isso.
  */
-const INTERVALO_MINIMO_MS = 12000;
+const INTERVALO_MINIMO_MS = 3500;
 
 export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
 
