@@ -810,6 +810,42 @@ a cada ajuste de texto — a diferença entre testar em segundos e testar em mei
 - **`expo-secure-store` removido**: estava declarado, nunca era usado, e trazia uma capacidade de Keychain que o app não precisa.
 - **Token de sessão continua em AsyncStorage.** A Apple não exige Keychain, e trocar isso sem poder testar em aparelho arrisca quebrar o login (o `SecureStore` tem teto de 2 KB e a sessão do Supabase costuma passar disso). Fica registrado como melhoria, não como pendência de conformidade.
 
+### Gerar um build de teste no EAS
+
+O primeiro build costuma falhar por configuração, não por código. Em ordem:
+
+1. **`extra.eas.projectId` no `app.json`.** Sem isso o EAS para logo no começo com
+   *"The extra.eas.projectId field is missing"*. O identificador é criado pela Expo e fica em
+   **expo.dev → o projeto → Project settings → Project ID**. Rode `eas init` (que escreve o campo
+   sozinho) ou cole o valor na mão:
+
+   ```json
+   "extra": {
+     "router": { "origin": false },
+     "eas": { "projectId": "COLE-O-UUID-AQUI" }
+   }
+   ```
+
+   Se a conta for de organização, `"owner": "<slug-da-conta>"` também precisa entrar na raiz do
+   `expo`.
+
+2. **Variáveis de ambiente nos segredos do EAS**: `EXPO_PUBLIC_SUPABASE_URL`,
+   `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL`. O `eas.json` versionado só define
+   `EXPO_PUBLIC_STORE_BUILD` — segredo não entra em arquivo versionado. Se faltarem, o app agora
+   abre numa tela dizendo exatamente o que faltou (`BackendMissingScreen`), em vez de instalar e
+   não carregar nada.
+
+3. **Perfil `preview`** é o de teste: gera **APK** no Android, que instala direto no aparelho sem
+   loja nenhuma. É o único build possível hoje — o iOS, mesmo interno, exige a conta paga da Apple,
+   que depende do D-U-N-S.
+
+> **A pegadinha do build de teste:** o perfil `preview` roda com `EXPO_PUBLIC_STORE_BUILD=1`, ou
+> seja, se comporta como o app das lojas — sem paywall, sem preço, sem link de cobrança. Se a conta
+> usada no teste **não tiver assinatura ativa**, você vai parar na tela "Assinatura não está ativa"
+> e não vai conseguir entrar. Deixe `subscriptions.status = 'active'` para o e-mail de teste no
+> Supabase antes de instalar. É de propósito: testar um build que se comporta diferente da produção
+> não testa nada.
+
 ### Antes do primeiro envio
 
 - `app.json` já vai com `version: 1.0.0`, `ios.buildNumber`, `android.versionCode`,

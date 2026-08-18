@@ -3,13 +3,32 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { BackendMissingScreen } from '@/components/BackendMissingScreen';
 import { SplashGate } from '@/components/SplashGate';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { SubscriptionProvider } from '@/providers/SubscriptionProvider';
 import { ProfileProvider } from '@/providers/ProfileProvider';
 import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
+import { isBackendConfigured } from '@/lib/env';
 
 export default function RootLayout() {
+  /*
+   * Build sem as chaves do Supabase: avisa em vez de abrir um app onde nada
+   * funciona e ninguém entende por quê. Fica ANTES dos providers de propósito
+   * — o `AuthProvider` tentaria conversar com um servidor que não existe.
+   */
+  if (!isBackendConfigured) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <BackendMissingScreen />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

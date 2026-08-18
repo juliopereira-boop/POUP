@@ -151,7 +151,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "O POUP usa a câmera para escanear documentos (CNH/RG) e preencher os dados do cliente automaticamente.",
-          "photosPermission": "O POUP acessa suas fotos para você escanear a foto de um documento (CNH/RG) já salva no aparelho."
+          "photosPermission": "O POUP acessa suas fotos para você escanear a foto de um documento (CNH/RG) já salva no aparelho.",
+          "microphonePermission": false
         }
       ]
     ],
