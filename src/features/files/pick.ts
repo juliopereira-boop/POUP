@@ -23,13 +23,23 @@
  * mais usado.
  */
 import * as DocumentPicker from 'expo-document-picker';
+// `File` do expo-file-system tem o MESMO NOME do `File` do navegador.
+import { File as ArquivoLocal } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Platform } from 'react-native';
+
+import type { UploadBody } from '@/data';
 
 /** Um arquivo escolhido, já pronto para subir no Storage. */
 export interface PickedFile {
   name: string;
-  blob: Blob;
+  /**
+   * O conteúdo. `Blob` na web, `ArrayBuffer` no celular — a razão está em
+   * `UploadBody` (`src/data/types.ts`): no React Native o `supabase-js`
+   * embrulha `Blob` em `FormData`, que não sabe serializá-lo, e o upload sobe
+   * vazio sem devolver erro nenhum.
+   */
+  body: UploadBody;
   contentType: string;
   size: number;
 }
@@ -44,30 +54,49 @@ interface PickOptions {
 const isWeb = Platform.OS === 'web';
 
 /**
- * O conteúdo do arquivo escolhido.
+ * Lê o arquivo de um `file://` local como `ArrayBuffer`.
  *
- * No navegador o próprio seletor devolve o `File` original em `asset.file`, e
- * usar ele direto evita reprocessar a base64 do `uri` — o que dobraria a
- * memória à toa num arquivo de 35 MB.
+ * Este é o caminho do CELULAR, e ele existe por um motivo específico: enviar
+ * `Blob` no React Native produz um upload vazio, sem erro (ver `UploadBody`).
+ * `ArrayBuffer` é o formato que a própria documentação do `supabase-js` manda
+ * usar aqui.
  *
- * No celular o `uri` é um `file://` local (o seletor copia para o cache), e o
- * `fetch` lê esse caminho normalmente.
+ * `expo-file-system` lê os bytes direto do disco. O caminho antigo era
+ * `fetch(uri).blob()` — que além de devolver a forma errada, passava pelo
+ * empilhamento de rede à toa para ler um arquivo local.
  */
-async function toBlob(asset: DocumentPicker.DocumentPickerAsset): Promise<Blob | null> {
-  if (isWeb && asset.file) return asset.file;
+async function bytesFromUri(uri: string): Promise<ArrayBuffer | null> {
   try {
-    const res = await fetch(asset.uri);
-    return await res.blob();
+    const bytes = await new ArquivoLocal(uri).bytes();
+    // `.buffer` pode ser maior que a visão (offset/tamanho). O `slice` garante
+    // que só os bytes DESTE arquivo sejam enviados.
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   } catch {
     return null;
   }
 }
 
-function fallbackName(asset: DocumentPicker.DocumentPickerAsset, blob: Blob): string {
+/**
+ * O conteúdo do arquivo escolhido, na forma que a plataforma aceita.
+ *
+ * No navegador o próprio seletor devolve o `File` original em `asset.file`, e
+ * usar ele direto evita reprocessar a base64 do `uri` — o que dobraria a
+ * memória à toa num arquivo de 35 MB.
+ */
+async function toBody(asset: DocumentPicker.DocumentPickerAsset): Promise<UploadBody | null> {
+  if (isWeb) return asset.file ?? null;
+  return bytesFromUri(asset.uri);
+}
+
+function bodySize(body: UploadBody): number {
+  return body instanceof ArrayBuffer ? body.byteLength : body.size;
+}
+
+function fallbackName(asset: DocumentPicker.DocumentPickerAsset, contentType: string): string {
   if (asset.name) return asset.name;
   // Sem nome (acontece em alguns seletores do Android), o tipo salva o dia:
   // sem extensão o arquivo vira "desconhecido" na hora de abrir depois.
-  const ext = (blob.type || '').split('/')[1] ?? 'dat';
+  const ext = contentType.split('/')[1] ?? 'dat';
   return `arquivo.${ext}`;
 }
 
@@ -97,14 +126,16 @@ export async function pickFiles({ multiple = true, type = '*/*' }: PickOptions =
 
   const out: PickedFile[] = [];
   for (const asset of result.assets) {
-    const blob = await toBlob(asset);
+    const body = await toBody(asset);
     // Um arquivo ilegível não pode derrubar os outros da mesma seleção.
-    if (!blob || blob.size === 0) continue;
+    if (!body || bodySize(body) === 0) continue;
+    const contentType =
+      asset.mimeType || (body instanceof Blob ? body.type : '') || 'application/octet-stream';
     out.push({
-      name: fallbackName(asset, blob),
-      blob,
-      contentType: asset.mimeType || blob.type || 'application/octet-stream',
-      size: asset.size ?? blob.size,
+      name: fallbackName(asset, contentType),
+      body,
+      contentType,
+      size: asset.size ?? bodySize(body),
     });
   }
   return out;
@@ -175,20 +206,21 @@ async function fromGallery(square: boolean): Promise<PickedFile | null> {
   const asset = result.canceled ? null : result.assets?.[0];
   if (!asset) return null;
 
-  let blob: Blob;
-  try {
-    blob = await (await fetch(asset.uri)).blob();
-  } catch {
-    return null;
-  }
-  if (blob.size === 0) return null;
+  const body = await bytesFromUri(asset.uri);
+  if (!body || body.byteLength === 0) return null;
 
-  const contentType = asset.mimeType || blob.type || 'image/jpeg';
+  /*
+   * `allowsEditing` reescreve a imagem, e o resultado do recorte sai em JPEG
+   * mesmo quando o original era PNG. Confiar no `mimeType` do asset gravaria
+   * `.png` num arquivo JPEG — o Storage serviria com o tipo errado e a foto
+   * não abriria em alguns navegadores.
+   */
+  const contentType = square ? 'image/jpeg' : asset.mimeType || 'image/jpeg';
   return {
     name: asset.fileName || `foto.${contentType.split('/')[1] ?? 'jpg'}`,
-    blob,
+    body,
     contentType,
-    size: asset.fileSize ?? blob.size,
+    size: body.byteLength,
   };
 }
 

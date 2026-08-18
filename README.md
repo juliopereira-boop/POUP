@@ -769,6 +769,34 @@ não tinham) e no celular abre o seletor nativo.
 Um detalhe de memória: na web o seletor devolve o `File` original em `asset.file`, e o módulo usa
 esse objeto direto. Ler o `uri` (que vem em base64) dobraria a memória à toa num arquivo de 35 MB.
 
+#### `Blob` no celular sobe um arquivo VAZIO — sem erro nenhum
+
+A armadilha mais cara deste módulo, e a que explica o campo `PickedFile.body` ser
+`Blob | ArrayBuffer` (o tipo `UploadBody`, em `src/data/types.ts`) em vez de só `Blob`.
+
+O `supabase-js` embrulha **todo `Blob`** num `FormData` antes de enviar. No navegador é o certo. No
+React Native o `FormData` **não sabe serializar um `Blob`** — ele só entende `string` e o objeto
+`{ uri, name, type }` do próprio RN. O upload é então aceito com **corpo vazio**: nenhum erro volta,
+`result.ok` é `true`, a URL pública é gravada na linha, e o arquivo simplesmente não existe. A
+própria biblioteca documenta isso na fonte:
+
+> *"For React Native, using either `Blob`, `File` or `FormData` does not work as intended. Upload
+> file using `ArrayBuffer` from base64 file data instead."*
+
+Por isso o módulo devolve **`Blob` na web** (o navegador transmite sem copiar) e **`ArrayBuffer` no
+celular**, lido do `file://` com `expo-file-system` — que cai no caminho de corpo cru do
+`supabase-js`, com o `content-type` no cabeçalho. Isso vale para **todo** upload do app: foto do
+catálogo, material de venda e anexo de lead.
+
+> Sintoma quando isso quebra: no celular a foto "sobe", nenhum erro aparece, e o avatar continua nas
+> iniciais. Como não há erro em lugar nenhum, é fácil perder horas procurando o bug na tela.
+
+Um segundo detalhe que produzia o **mesmo sintoma** por outro caminho: o `EntityAvatar` guardava
+`failed: boolean` quando a imagem não carregava. A falha virava definitiva — o admin trocava a foto,
+a URL nova chegava, e o avatar continuava nas iniciais porque o componente não é remontado (mesma
+posição na árvore) e nada devolvia o `failed` a `false`. Hoje ele guarda **qual URL** falhou, então
+uma imagem nova recomeça limpa sozinha.
+
 **`pickImage()` é o caso à parte: seletor de arquivos não é seletor de fotos.** No celular a
 diferença é grande — o `expo-document-picker` abre o gerenciador de arquivos (Downloads, Documentos,
 Drive), e no iPhone isso é o app **Arquivos, que nem mostra o rolo da câmera**. Para a foto de uma

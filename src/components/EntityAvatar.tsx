@@ -40,9 +40,19 @@ function initials(name: string): string {
 
 export function EntityAvatar({ photoUrl, name, size = 44 }: EntityAvatarProps) {
   const styles = useThemedStyles(makeStyles);
-  // Uma URL quebrada (arquivo apagado no bucket) não pode deixar um buraco na
-  // lista: o onError devolve as iniciais.
-  const [failed, setFailed] = useState(false);
+
+  /*
+   * Uma URL quebrada (arquivo apagado no bucket) não pode deixar um buraco na
+   * lista: o `onError` devolve as iniciais.
+   *
+   * Guarda-se QUAL url falhou, não um `failed: boolean`. Com o booleano, a
+   * falha era definitiva: o admin trocava a foto, a URL nova chegava, e o
+   * avatar continuava nas iniciais porque o `failed` de antes nunca voltava a
+   * `false` — o componente não é remontado, já que fica na mesma posição da
+   * árvore. Comparando com a URL, uma imagem nova recomeça limpa sozinha.
+   */
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const failed = !!photoUrl && failedUrl === photoUrl;
 
   const box = {
     width: size,
@@ -68,7 +78,7 @@ export function EntityAvatar({ photoUrl, name, size = 44 }: EntityAvatarProps) {
     <Image
       source={{ uri: photoUrl }}
       style={[styles.photo, box]}
-      onError={() => setFailed(true)}
+      onError={() => setFailedUrl(photoUrl)}
       resizeMode="cover"
       accessibilityLabel={name}
     />

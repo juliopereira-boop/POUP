@@ -310,7 +310,7 @@ export default function CatalogoAdminScreen() {
       return;
     }
     setPhotoBusyId(id);
-    const result = await db.catalog.uploadPhoto(kind, id, picked.blob, picked.contentType);
+    const result = await db.catalog.uploadPhoto(kind, id, picked.body, picked.contentType);
     setPhotoBusyId(null);
     if (!result.ok) {
       setError(result.error);

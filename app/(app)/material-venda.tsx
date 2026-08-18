@@ -301,7 +301,7 @@ export default function MaterialVendaScreen() {
     setBusy(true);
     let firstErr: string | null = null;
     for (const f of okFiles) {
-      const res = await db.material.upload(root, path, f.name, f.blob, f.contentType);
+      const res = await db.material.upload(root, path, f.name, f.body, f.contentType);
       if (!res.ok && !firstErr) firstErr = res.error;
     }
     setBusy(false);

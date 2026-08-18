@@ -89,6 +89,28 @@ export interface StorageUsage {
 }
 
 /**
+ * O conteúdo de um arquivo, no formato que o Storage aceita **em cada
+ * plataforma**. Não é preciosismo de tipo: é um bug de verdade.
+ *
+ * O `supabase-js` embrulha todo `Blob` num `FormData` antes de enviar. No
+ * navegador isso é o certo. No React Native o `FormData` **não sabe serializar
+ * um `Blob`** — ele só entende `string` e o objeto `{ uri, name, type }` do
+ * próprio RN. O upload então é aceito com corpo vazio: nenhum erro volta, a
+ * URL pública é gravada, e o arquivo simplesmente não existe. A biblioteca
+ * documenta isso na própria fonte:
+ *
+ *   "For React Native, using either Blob, File or FormData does not work as
+ *    intended. Upload file using ArrayBuffer from base64 file data instead."
+ *
+ * Daí a união: `Blob` na web (o navegador transmite sem copiar) e
+ * `ArrayBuffer` no celular, que cai no caminho de corpo cru do `supabase-js`,
+ * com o `content-type` mandado no cabeçalho.
+ *
+ * Quem escolhe é `src/features/files/pick.ts`; as telas só repassam.
+ */
+export type UploadBody = Blob | ArrayBuffer;
+
+/**
  * Data em que o período de teste gratuito vence.
  * `null` quando a assinatura não está em teste ou não tem vencimento gravado.
  */

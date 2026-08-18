@@ -42,6 +42,7 @@ import type {
   TrialCampaign,
   TrialCampaignInput,
   UserProfile,
+  UploadBody,
 } from './types';
 
 export interface AuthChangePayload {
@@ -245,7 +246,7 @@ export interface CatalogRepository {
   uploadPhoto(
     kind: CatalogPhotoKind,
     id: string,
-    data: Blob,
+    data: UploadBody,
     contentType: string,
   ): Promise<Result<string>>;
 
@@ -284,7 +285,7 @@ export interface MaterialRepository {
     root: string,
     relPath: string,
     fileName: string,
-    data: Blob,
+    data: UploadBody,
     contentType: string,
   ): Promise<Result<void>>;
   remove(path: string, isFolder: boolean): Promise<Result<void>>;

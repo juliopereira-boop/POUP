@@ -294,7 +294,7 @@ export default function LeadDetailScreen() {
     setBusyFiles(true);
     let firstErr: string | null = null;
     for (const f of okFiles) {
-      const res = await db.material.upload(userId, filesPath, f.name, f.blob, f.contentType);
+      const res = await db.material.upload(userId, filesPath, f.name, f.body, f.contentType);
       if (!res.ok && !firstErr) firstErr = res.error;
     }
     setBusyFiles(false);

@@ -4,6 +4,7 @@ import {
   type CompanyMaterial,
   type Result,
   type StorageEntry,
+  type UploadBody,
   err,
   ok,
 } from '../types';
@@ -108,7 +109,7 @@ export class SupabaseMaterialRepository implements MaterialRepository {
     root: string,
     relPath: string,
     fileName: string,
-    data: Blob,
+    data: UploadBody,
     contentType: string,
   ): Promise<Result<void>> {
     const clean = sanitizeFileName(fileName) || `arquivo-${Date.now()}`;

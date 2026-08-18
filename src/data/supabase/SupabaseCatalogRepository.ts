@@ -14,6 +14,7 @@ import {
   type CompanyInput,
   type Development,
   type Result,
+  type UploadBody,
   err,
   ok,
 } from '../types';
@@ -233,7 +234,7 @@ export class SupabaseCatalogRepository implements CatalogRepository {
   async uploadPhoto(
     kind: CatalogPhotoKind,
     id: string,
-    data: Blob,
+    data: UploadBody,
     contentType: string,
   ): Promise<Result<string>> {
     const ext = photoExt(contentType);
