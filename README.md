@@ -769,6 +769,28 @@ não tinham) e no celular abre o seletor nativo.
 Um detalhe de memória: na web o seletor devolve o `File` original em `asset.file`, e o módulo usa
 esse objeto direto. Ler o `uri` (que vem em base64) dobraria a memória à toa num arquivo de 35 MB.
 
+**`pickImage()` é o caso à parte: seletor de arquivos não é seletor de fotos.** No celular a
+diferença é grande — o `expo-document-picker` abre o gerenciador de arquivos (Downloads, Documentos,
+Drive), e no iPhone isso é o app **Arquivos, que nem mostra o rolo da câmera**. Para a foto de uma
+construtora era o lugar errado: a foto quase sempre está na galeria. Então `pickImage()` **pergunta**
+— "Galeria de fotos" (`expo-image-picker`) ou "Arquivos" (`expo-document-picker`). "Arquivos"
+continua na lista porque logo de construtora costuma chegar como PNG baixado, e no iPhone isso vai
+para o app Arquivos e nunca aparece em Fotos.
+
+Três botões, não quatro: o `Alert` do Android tem só três lugares (positivo/negativo/neutro) e
+**descarta os excedentes em silêncio** — um menu que perde uma opção só num dos sistemas é pior que
+um menu menor. A câmera ficou de fora por isso, e porque a foto tirada na hora cai na galeria de
+qualquer jeito.
+
+Na **web** não há essa pergunta: o `<input type="file" accept="image/*">` já oferece galeria, câmera
+e arquivos num menu feito pelo próprio sistema. Perguntar ali seria inventar uma escolha que o
+navegador faz melhor.
+
+A opção `square` liga o recorte 1:1 no caminho da galeria. A foto do catálogo aparece **dentro de um
+círculo**; sem o recorte, uma foto deitada entra cortada pelo meio e o corretor não tem como
+consertar. A permissão de fototeca é pedida **só no Android** — no iOS o seletor moderno roda fora do
+app e não exige autorização, e pedir ali abriria à toa o alerta de acesso *total* às fotos.
+
 ### Salvar (`src/features/files/save.ts`)
 
 São dois problemas diferentes, não um só:

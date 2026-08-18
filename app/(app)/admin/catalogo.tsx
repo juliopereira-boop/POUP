@@ -301,7 +301,9 @@ export default function CatalogoAdminScreen() {
   async function changePhoto(kind: CatalogPhotoKind, id: string) {
     setError(null);
     setFeedback(null);
-    const picked = await pickImage();
+    // `square`: a foto aparece dentro de um círculo. Sem o recorte, uma foto
+    // deitada entra cortada pelo meio e o corretor não tem como consertar.
+    const picked = await pickImage({ square: true });
     if (!picked) return;
     if (picked.size > MAX_PHOTO_BYTES) {
       setError(`A imagem tem que ter até ${MAX_PHOTO_MB} MB.`);

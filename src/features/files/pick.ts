@@ -23,7 +23,8 @@
  * mais usado.
  */
 import * as DocumentPicker from 'expo-document-picker';
-import { Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert, Platform } from 'react-native';
 
 /** Um arquivo escolhido, já pronto para subir no Storage. */
 export interface PickedFile {
@@ -109,8 +110,125 @@ export async function pickFiles({ multiple = true, type = '*/*' }: PickOptions =
   return out;
 }
 
-/** Atalho para os casos de uma imagem só (foto de perfil, capa, logo). */
-export async function pickImage(): Promise<PickedFile | null> {
+/* ===========================================================================
+ * IMAGENS
+ * ===========================================================================
+ * O seletor de ARQUIVOS não é o seletor de FOTOS, e no celular a diferença é
+ * grande: `expo-document-picker` abre o gerenciador de arquivos (Downloads,
+ * Documentos, Drive) — no iPhone é o app Arquivos, que nem mostra o rolo da
+ * câmera. Para escolher a foto de uma construtora, era o lugar errado: a foto
+ * quase sempre está na galeria, e chegar nela pelo gerenciador de arquivos
+ * exige saber navegar até a pasta certa.
+ *
+ * Por isso a imagem passou a ter os dois caminhos, e o corretor escolhe:
+ * galeria (`expo-image-picker`) ou arquivos (`expo-document-picker`).
+ * "Arquivos" continua existindo porque logo de construtora costuma chegar como
+ * PNG baixado — no iPhone isso vai para o app Arquivos e nunca aparece em
+ * Fotos.
+ *
+ * Na WEB não existe essa divisão: o `<input type="file" accept="image/*">` do
+ * navegador já oferece galeria, câmera e arquivos em um menu só, feito pelo
+ * próprio sistema. Perguntar ali seria inventar uma escolha que o navegador já
+ * faz melhor.
+ */
+
+/** De onde a imagem vem. */
+export type ImageOrigin = 'galeria' | 'arquivos';
+
+interface PickImageOptions {
+  /**
+   * Pede o recorte quadrado antes de devolver.
+   *
+   * Vale para foto que será exibida redonda (construtora, empreendimento): sem
+   * o recorte, uma foto deitada entra no círculo cortada pelo meio, e o
+   * corretor não tem como consertar. Só funciona no caminho da galeria — o
+   * gerenciador de arquivos não tem editor.
+   */
+  square?: boolean;
+}
+
+/** Converte o que o seletor de fotos devolve no mesmo formato do de arquivos. */
+async function fromGallery(square: boolean): Promise<PickedFile | null> {
+  /*
+   * Permissão só no Android. No iOS o seletor moderno roda fora do app e não
+   * exige autorização nenhuma — pedir ali abriria, à toa, o alerta de acesso
+   * TOTAL à fototeca, que é justamente o que não se quer num app que precisa
+   * de uma foto só.
+   */
+  if (Platform.OS === 'android') {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return null;
+  }
+
+  let result: ImagePicker.ImagePickerResult;
+  try {
+    result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: square,
+      aspect: square ? [1, 1] : undefined,
+      quality: 0.85,
+    });
+  } catch {
+    return null;
+  }
+
+  const asset = result.canceled ? null : result.assets?.[0];
+  if (!asset) return null;
+
+  let blob: Blob;
+  try {
+    blob = await (await fetch(asset.uri)).blob();
+  } catch {
+    return null;
+  }
+  if (blob.size === 0) return null;
+
+  const contentType = asset.mimeType || blob.type || 'image/jpeg';
+  return {
+    name: asset.fileName || `foto.${contentType.split('/')[1] ?? 'jpg'}`,
+    blob,
+    contentType,
+    size: asset.fileSize ?? blob.size,
+  };
+}
+
+/** Abre direto a origem pedida, sem perguntar. */
+export async function pickImageFrom(
+  origem: ImageOrigin,
+  { square = false }: PickImageOptions = {},
+): Promise<PickedFile | null> {
+  if (origem === 'galeria' && !isWeb) return fromGallery(square);
   const files = await pickFiles({ multiple: false, type: 'image/*' });
   return files[0] ?? null;
+}
+
+/**
+ * Pergunta de onde vem a imagem e abre o seletor correspondente.
+ *
+ * Três botões, não quatro: o `Alert` do Android só tem três lugares
+ * (positivo/negativo/neutro) e descarta os excedentes em silêncio — um menu
+ * que perde uma opção só no Android é pior do que um menu menor. A câmera
+ * ficou de fora por isso e porque a foto tirada na hora cai na galeria de
+ * qualquer forma, então ela continua a um toque de distância.
+ */
+export async function pickImage(options: PickImageOptions = {}): Promise<PickedFile | null> {
+  if (isWeb) return pickImageFrom('arquivos', options);
+
+  const origem = await new Promise<ImageOrigin | null>((resolve) => {
+    Alert.alert(
+      'Escolher imagem',
+      'De onde você quer pegar a foto?',
+      [
+        { text: 'Galeria de fotos', onPress: () => resolve('galeria') },
+        { text: 'Arquivos', onPress: () => resolve('arquivos') },
+        // `onDismiss` não existe no iOS: tocar fora não fecha um Alert lá. O
+        // `onPress` do cancelar cobre os dois sistemas.
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) },
+    );
+  });
+
+  if (!origem) return null;
+  return pickImageFrom(origem, options);
 }
