@@ -12,7 +12,8 @@
     "vercel-build": "expo export --platform web",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "checar:funcoes": "node scripts/checar-edge-functions.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

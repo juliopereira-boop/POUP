@@ -200,7 +200,7 @@ Regra prática de corretor brasileiro, e ela depende do contexto:
 
 # DATAS FALADAS
 
-Campos de tipo `data` saem sempre em AAAA-MM-DD, resolvidos contra a data de hoje informada acima:
+Campos de tipo "data" saem sempre em AAAA-MM-DD, resolvidos contra a data de hoje informada acima:
 - "dia 10" → o próximo dia 10 (deste mês se ainda não passou, do mês seguinte se já passou).
 - "amanhã", "semana que vem", "sexta" → a data correspondente.
 - "5 de março" → 5 de março do ano corrente, ou do ano seguinte se março já passou.
