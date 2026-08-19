@@ -267,10 +267,10 @@ Dois detalhes que parecem miudeza e não são:
 | --- | --- | --- | --- |
 | **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, prospecção, calendário, material de venda, cadastros, captação | 5 GB |
 | **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** | 15 GB |
-| **Pro** | R$ 59,90/mês | Tudo do Intermed **+ a LIA** | 25 GB |
+| **Pro** | R$ 89,90/mês | Tudo do Intermed **+ a LIA** | 25 GB |
 
 **A LIA é o que justifica o topo da escada** — é o único recurso exclusivo do Pro, e o degrau de
-Intermed para Pro custa R$ 10.
+Intermed para Pro custa R$ 40.
 
 > **O armazenamento não aparece mais no paywall nem na landing.** `storageLimitBytes` continua em
 > cada plano porque é ele que o trigger `enforce_storage_quota` usa no banco para recusar upload
@@ -598,10 +598,24 @@ explicação.
 
 **3. A empresa não é perguntada: ela é deduzida.**
 
-O catálogo do corretor (empreendimentos + correspondentes, com os IDs) vai junto em cada chamada.
-Ouvir *"no Vila Nova"* preenche empreendimento **e construtora**, sem ninguém ter dito o nome da
+O catálogo do corretor (empreendimentos + correspondentes) vai junto em cada chamada. Ouvir
+*"no Vila Nova"* preenche empreendimento **e construtora**, sem ninguém ter dito o nome da
 construtora. É o truque mais barato do projeto e o que mais faz a LIA parecer que já sabe das
 coisas. O gerente vem de carona: sai do cadastro do empreendimento.
+
+**4. O modelo devolve NOME; quem acha o cadastro é o aplicativo.**
+
+A primeira versão mandava a lista com os UUIDs e pedia o ID de volta. Errado por dois motivos:
+copiar 36 caracteres é a tarefa que um modelo faz *pior* (um dígito trocado vira campo fantasma:
+a tela diz "capturado" e o simulador não acha nada), e cada linha `id — nome — construtora` custa
+~25 tokens contra ~4 só do nome — em **toda** chamada.
+
+Hoje o modelo devolve o nome e `src/features/lia/catalogo.ts` casa com o cadastro **localmente**,
+com a mesma `casarPorVoz` do material de vendas: igualdade → contido → palavra em comum →
+distância de edição contra o nome inteiro *e cada palavra dele*. É isso que faz *"connect"* achar
+**"Village Connect I"**. Nome que não casa com ninguém — ou que casa com dois — **não vira campo**:
+o corretor recebe uma frase dizendo o que foi ouvido. Um empreendimento errado arrasta empresa,
+gerente, comissão e prazo máximo junto; chutar ali é caro demais.
 
 ### `src/features/lia/campos.ts` é a fonte única da verdade
 
@@ -743,7 +757,7 @@ correção que só uma recebesse.
 > do aparelho. Pedir o mesmo aviso nos dois treinaria o corretor a aceitar sem ler — e é justamente
 > na simulação que ele precisa ler.
 
-### O custo, e o redesenho que o cortou 42×
+### O custo, e o redesenho que o cortou 17×
 
 A primeira versão da LIA **custava US$ 2,13 por simulação** — mais que a mensalidade do corretor.
 O produto não fechava. Medindo (`npm run custo:lia`), a conta era: prompt fixo de ~3.400 tokens
@@ -761,15 +775,31 @@ Invertido, o catálogo de cada corretor quebraria o prefixo no começo e ningué
 > Consequência para quem editar: mexer no bloco global **invalida a cache de todos de uma vez**. É
 > barato (uma escrita até reaquecer), mas evite ajustes cosméticos ali.
 
-**2. Estado + trecho novo, em vez da conversa inteira.** As rodadas parciais mandam o que já foi
-capturado (chave → valor, **sem** os trechos — só a tela os usa) e o pedaço novo. A correção
-continua funcionando *por causa* do estado: o modelo vê `clienteRenda: 2800`, ouve "na verdade são
-três e meio", e corrige. Não é preciso reler a conversa para isso. O custo virou **linear**.
+**2. Estado + contexto curto + trecho novo, em vez da conversa inteira.** As rodadas parciais
+mandam o que já foi capturado (chave → valor, **sem** os trechos — só a tela os usa), uma janela de
+1.200 caracteres do que foi dito antes (bloco **ANTES**, só para entender) e o pedaço novo (bloco
+**AGORA**, de onde se extrai). A correção continua funcionando *por causa* do estado: o modelo vê
+`clienteRenda: 2800`, ouve "na verdade são três e meio", e corrige. Não é preciso reler a conversa
+inteira para isso. O custo virou **linear**.
+
+> **A janela ANTES entrou depois, consertando um erro meu.** A primeira versão econômica mandava
+> *só* o pedaço novo — 3,5 segundos de fala, sozinhos. Junto com a regra (correta) de não registrar
+> número solto sem saber de que campo ele é, o resultado em uso real foi a LIA **não capturar quase
+> nada**: ela recebia "duzentos e dez mil" sem nada em volta e devolvia lista vazia, obedecendo. O
+> contexto custa ~1 centavo de dólar por simulação. Economia que quebra a funcionalidade não é
+> economia.
 
 **3. Gatilho local (`gatilho.ts`), o filtro mais barato que existe.** Roda no aparelho e decide se
 o trecho novo tem chance de conter um dado: dígito, número por extenso, palavra do vocabulário do
-negócio, verbo de retratação, ou trecho longo demais para ignorar. "Pois é", "com certeza", "o
-trânsito tava horrível" não chamam o modelo. Numa conversa de exemplo, **corta 61% das janelas**.
+negócio, **nome do catálogo deste corretor**, verbo de retratação, ou trecho longo demais para
+ignorar. "Pois é", "com certeza", "o trânsito tava horrível" não chamam o modelo. Numa conversa de
+exemplo, **corta mais da metade das janelas**.
+
+> **Os nomes do catálogo entraram depois, e eram um buraco sério.** *"É o connect mesmo"* não tem
+> dígito nem palavra do vocabulário fixo — a janela era descartada **no aparelho** e o modelo nunca
+> via o nome do empreendimento, justamente o campo que puxa empresa, gerente, comissão e prazo. A
+> lista fixa não tem como saber que "connect" importa: ela é a mesma para todo mundo. A do corretor
+> sabe.
 
 A regra é errar para o lado de chamar: um falso positivo custa uma fração de centavo; um falso
 negativo perde um dado e o corretor descobre quando a proposta sai errada. Dois detalhes que os
@@ -798,22 +828,27 @@ poupando tokens de saída sem custar nada em qualidade.
 | | por simulação |
 |---|---|
 | antes (3,5 s, sem cache/gatilho/Haiku) | **$2,134** |
-| agora, com cache/gatilho/Haiku, ainda a 3,5 s | **$0,091** |
+| agora, com cache/gatilho/Haiku, ainda a 3,5 s | **$0,122** |
 
-**23× mais barato, com o mesmo ritmo de resposta de antes.** Com R$ 59,90/mês e 30 simulações por
-corretor:
+**17× mais barato, com o mesmo ritmo de resposta de antes.** A conta é feita contra os **R$ 89,90
+do Pro**, e não contra a média dos planos: a LIA é exclusiva do Pro, e quem paga Start ou Intermed
+não gera custo de LLM nenhum — o botão nem existe para eles. Com 30 simulações por corretor:
 
 | usuários | custo total R$ | **lucro R$** | margem |
 |---|---|---|---|
-| 10 | 41,86 | 18,04 | 30% |
-| 30 | 25,66 | 34,24 | 57% |
-| 80 | 20,60 | 39,30 | 66% |
-| 200 | 18,78 | 41,12 | 69% |
-| 400 | 18,17 | **41,73** | **70%** |
+| 10 | 48,08 | 41,82 | 47% |
+| 30 | 31,88 | 58,02 | 65% |
+| 80 | 26,82 | 63,08 | 70% |
+| 200 | 24,99 | 64,91 | 72% |
+| 400 | 24,39 | **65,51** | **73%** |
 
-Em 10 usuários quem domina não é mais a LIA (R$ 14,78) — é a infra fixa do Supabase e da Vercel
+Em 10 usuários quem domina não é mais a LIA (R$ 19,80) — é a infra fixa do Supabase e da Vercel
 (R$ 24,30 divididos por dez). Isso se dilui sozinho com a escala. Com 15 simulações/mês em vez de
-30, a margem sobe mais ainda (42% a 82% — ver `npm run custo:lia`).
+30, a margem sobe mais ainda (58% a 84% — ver `npm run custo:lia`).
+
+> A simulação subiu de $0,091 para $0,122 quando a janela ANTES e os nomes do catálogo no gatilho
+> entraram. **É o custo de a LIA funcionar**: sem os dois, ela custava menos e não capturava nada.
+> R$ 0,17 a mais por simulação, contra uma margem de 73%.
 
 A Edge Function passou a devolver o **`uso` real** de cada chamada (incluindo quanto veio da cache).
 `scripts/custo-lia.mjs` ainda estima tokens por caracteres; quando houver uso de verdade, troque a
@@ -1471,6 +1506,7 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
 - Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`.
 - Publicar o Edge Function `delete-account`.
+- **Publicar o Edge Function `lia-extract`** — obrigatório, e não é opcional depois de mexer nele. O aplicativo e a função combinam uma **versão de contrato** (`VERSAO_CONTRATO` em `src/features/lia/extrair.ts` × `VERSAO` na função) e a resposta ecoa a versão; sem o eco, o aplicativo mostra *"A LIA no servidor está desatualizada"* em vez de fingir que ouviu. Isso existe porque a versão anterior falhava em silêncio: a função procurava um campo que o aplicativo tinha parado de mandar, recebia `undefined` e respondia `{campos: []}` com status 200 — indistinguível de "a LIA não entendeu nada".
 - Adicionar `poup://**` e `https://<dominio>/**` na lista de **Redirect URLs** do Supabase Auth. Sem o primeiro, o login social nativo não fecha; sem o segundo, o link de redefinição de senha cai no Site URL e a troca de senha nunca acontece.
 
 **Na App Store Connect:**

@@ -13,14 +13,50 @@
  * que vai para o PDF — as rodadas parciais nunca decidem sozinhas o que o
  * cliente assina.
  *
- * O catálogo vai junto em toda chamada porque é ele que permite o truque que
- * faz a LIA parecer que "já sabe": ouvir "no Vila Nova" e preencher
- * empreendimento **e** construtora, sem ninguém ter dito o nome da construtora.
+ * ===========================================================================
+ * ANTES E AGORA: O CONSERTO QUE FEZ A LIA VOLTAR A CAPTURAR
+ * ===========================================================================
+ * Na primeira versão econômica, a rodada parcial mandava SÓ o pedaço novo —
+ * três segundos e meio de fala, sozinhos no mundo. E o prompt manda, com razão,
+ * não registrar número solto sem saber de que campo ele é. As duas regras juntas
+ * produziam o pior resultado possível: o modelo recebia "duzentos e dez mil",
+ * não tinha como saber do que se tratava e devolvia lista vazia — corretamente.
+ * Na prática, a LIA não preenchia nada.
+ *
+ * Agora vão dois blocos: **ANTES** (uma janela curta do que já foi dito, só para
+ * dar contexto) e **AGORA** (o trecho novo, de onde se extrai). Custa uns
+ * poucos milhares de tokens de Haiku por simulação — menos de um centavo — e é
+ * a diferença entre uma assistente que funciona e uma que não.
+ *
+ * ===========================================================================
+ * NOMES, NUNCA IDS
+ * ===========================================================================
+ * O catálogo vai como lista de NOMES. O modelo devolve nome; quem casa nome com
+ * cadastro é `catalogo.ts`, localmente. Pedir UUID a um modelo era caro e
+ * errado — veja o cabeçalho daquele arquivo.
+ *
+ * O catálogo vai em toda chamada porque é ele que permite o truque que faz a
+ * LIA parecer que "já sabe": ouvir "no Vila Nova" e preencher empreendimento
+ * **e** construtora, sem ninguém ter dito o nome da construtora.
  */
 import { supabase } from '@/lib/supabase';
 import { CAMPOS, campoParaPrompt } from './campos';
 
 export type ModoExtracao = 'parcial' | 'final';
+
+/**
+ * Versão do contrato com a Edge Function.
+ *
+ * Existe por uma falha que custou caro para diagnosticar: a função publicada
+ * lia um campo `conversa` que o aplicativo tinha parado de mandar, recebia
+ * `undefined` e respondia `{campos: []}` — sem erro, com status 200. Do lado de
+ * cá isso é indistinguível de "a LIA não entendeu nada", que é exatamente a
+ * reclamação que chegou.
+ *
+ * A resposta agora ecoa a versão. Sem eco, a função no ar é velha, e o
+ * aplicativo diz isso em português em vez de fingir que ouviu.
+ */
+export const VERSAO_CONTRATO = 2;
 
 export interface CampoOuvido {
   chave: string;
@@ -28,12 +64,6 @@ export interface CampoOuvido {
   /** O pedaço literal da conversa que justifica o valor. */
   trecho: string;
   confianca: 'alta' | 'media' | 'baixa';
-}
-
-export interface EmpreendimentoContexto {
-  id: string;
-  nome: string;
-  empresaNome: string;
 }
 
 /** O que a chamada custou de verdade. Serve para medir, não para estimar. */
@@ -56,19 +86,24 @@ export interface ResultadoExtracao {
 
 export interface PedidoExtracao {
   modo: ModoExtracao;
-  /** Trecho novo (parcial) ou conversa inteira (final). */
-  conversa: string;
+  /** Contexto do que já foi dito. Vazio no fecho, que manda tudo em `agora`. */
+  antes: string;
+  /** De onde se extrai: o trecho novo (parcial) ou a conversa inteira (final). */
+  agora: string;
   /** Chave → valor do que já foi capturado. Sem os trechos: só a tela os usa. */
   estado: Record<string, string>;
-  empreendimentos: EmpreendimentoContexto[];
-  correspondentes: { id: string; nome: string }[];
+  /** Só os nomes. O casamento com o cadastro é local — veja `catalogo.ts`. */
+  empreendimentos: string[];
+  correspondentes: string[];
 }
 
 export async function extrair(p: PedidoExtracao): Promise<ResultadoExtracao | { erro: string }> {
   const { data, error } = await supabase.functions.invoke('lia-extract', {
     body: {
+      versao: VERSAO_CONTRATO,
       modo: p.modo,
-      conversa: p.conversa,
+      antes: p.antes,
+      agora: p.agora,
       estado: p.estado,
       campos: CAMPOS.map(campoParaPrompt),
       empreendimentos: p.empreendimentos,
@@ -80,6 +115,7 @@ export async function extrair(p: PedidoExtracao): Promise<ResultadoExtracao | { 
   if (error) return { erro: 'A LIA não conseguiu processar agora. Continue falando.' };
 
   const payload = data as {
+    versao?: number;
     campos?: CampoOuvido[];
     remover?: string[];
     observacao?: string | null;
@@ -87,6 +123,18 @@ export async function extrair(p: PedidoExtracao): Promise<ResultadoExtracao | { 
     error?: string;
   };
   if (payload?.error) return { erro: payload.error };
+
+  /*
+   * Sem o eco da versão, a função no ar é anterior a este contrato: ela procura
+   * um campo `conversa` que já não mandamos e devolve lista vazia com status
+   * 200. Falhar alto aqui é o que impede a LIA de passar horas "ouvindo" sem
+   * capturar nada, que foi como esse erro se manifestou.
+   */
+  if (payload?.versao !== VERSAO_CONTRATO) {
+    return {
+      erro: 'A LIA no servidor está desatualizada. Publique a função lia-extract novamente.',
+    };
+  }
 
   return {
     campos: Array.isArray(payload?.campos) ? payload.campos : [],

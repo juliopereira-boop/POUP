@@ -122,7 +122,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   pro: {
     tier: 'pro',
     name: 'Pro',
-    priceLabel: 'R$ 59,90/mês',
+    priceLabel: 'R$ 89,90/mês',
     tagline: 'Tudo do POUP, com a LIA ouvindo por você',
     storageLimitBytes: 25 * GB,
     storageLabel: '25 GB',

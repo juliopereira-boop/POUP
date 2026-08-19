@@ -20,7 +20,10 @@
  * A contagem de tokens é estimada por caracteres (~3,3 por token em português
  * acentuado), não medida pela API. E `taxaGatilho` — quanto do que é falado
  * realmente contém dado — é a premissa mais frágil daqui: veio de uma conversa
- * de exemplo, não de uso real.
+ * de exemplo, não de uso real. Subiu de 0,40 para 0,45 quando o gatilho passou
+ * a reconhecer também os NOMES do catálogo do corretor: ele aprova mais
+ * janelas de propósito, porque estava descartando "é o connect" — a frase que
+ * identifica o empreendimento, o campo que puxa empresa, gerente e comissão.
  *
  * A Edge Function já devolve o `uso` real de cada chamada (inclusive quanto foi
  * lido da cache). Quando houver uso de verdade, troque a estimativa pelo
@@ -34,6 +37,16 @@ const BLOCO_CORRETOR = Math.round(1300 / CHARS_TOKEN);   // catalogo + data
 const FERRAMENTA     = 350;                              // schema da tool
 const ESTADO_CHEIO   = 14 * 16;                          // chave:valor dos essenciais
 const FALA_MIN       = 220;                              // tokens de transcricao por minuto falado
+/*
+ * JANELA DE CONTEXTO — o bloco ANTES que vai junto em cada rodada parcial.
+ *
+ * 1.200 caracteres, o valor de `JANELA_CONTEXTO_CHARS` no LiaProvider. Ele
+ * existe porque a versão sem contexto nenhum simplesmente NAO CAPTURAVA: o
+ * modelo recebia "duzentos e dez mil" solto e obedecia a regra de nao inventar
+ * campo para numero sem dono. Este e o custo de a LIA funcionar, e ele aparece
+ * aqui embaixo, na linha "agora".
+ */
+const CONTEXTO       = Math.round(1200 / CHARS_TOKEN);
 
 const PRECO = {
   'claude-haiku-4-5': { in: 1.00, out:  5.00 },
@@ -58,8 +71,9 @@ function sessao({ minutos, intervaloS, taxaGatilho, globalJaQuente }) {
     : BLOCO_GLOBAL * W + BLOCO_GLOBAL * R * (parciais - 1);
   // bloco do corretor + ferramenta: escritos uma vez na sessao, lidos depois
   const corretorTok = (BLOCO_CORRETOR + FERRAMENTA) * W + (BLOCO_CORRETOR + FERRAMENTA) * R * (parciais - 1);
-  // mensagem: estado (cresce ate os 14) + trecho novo. Media do estado = metade.
-  const msgTok = (ESTADO_CHEIO / 2 + trechoPorChamada + 40) * parciais;
+  // mensagem: estado (cresce ate os 14) + contexto ANTES + trecho novo AGORA.
+  // Media do estado = metade. O contexto so nao existe na primeira rodada.
+  const msgTok = (ESTADO_CHEIO / 2 + CONTEXTO + trechoPorChamada + 60) * parciais;
   // saida: 0 a 2 campos por rodada, ~55 tokens cada + envelope
   const saidaParcial = 100 * parciais;
 
@@ -84,8 +98,8 @@ console.log('POR SIMULACAO (' + MIN + ' min de fala)\n');
 const antes = 2.134;   // medido no desenho anterior (sem cache/gatilho/Haiku)
 const cenarios = [
   ['antes (desenho anterior)', null],
-  ['agora, 1o corretor do dia (cache fria)', { minutos:MIN, intervaloS:3.5, taxaGatilho:0.4, globalJaQuente:false }],
-  ['agora, cache global quente (o normal)',  { minutos:MIN, intervaloS:3.5, taxaGatilho:0.4, globalJaQuente:true }],
+  ['agora, 1o corretor do dia (cache fria)', { minutos:MIN, intervaloS:3.5, taxaGatilho:0.45, globalJaQuente:false }],
+  ['agora, cache global quente (o normal)',  { minutos:MIN, intervaloS:3.5, taxaGatilho:0.45, globalJaQuente:true }],
 ];
 const base = {};
 for (const [nome, cfg] of cenarios) {
@@ -100,11 +114,17 @@ console.log(`\nreducao: ${(antes/agora).toFixed(0)}x mais barato\n`);
 
 // ---------------------------------------------------------------- mensalidade
 const BRL_USD = 5.40;                 // AJUSTE se o cambio estiver outro
-const MENSALIDADE = 59.90;
+/*
+ * A LIA e exclusiva do PRO, entao a conta e contra a mensalidade do PRO — e nao
+ * contra a media dos planos. Quem paga Start ou Intermed nao gera custo de LLM
+ * nenhum: o botao da LIA nem existe para eles (`Lia.tsx`).
+ */
+const MENSALIDADE = 89.90;
 const STRIPE = MENSALIDADE * 0.0399 + 0.39;
 const INFRA_FIXA_USD = 45;            // Supabase Pro 25 + Vercel 20
 
-console.log('MARGEM EM R$ 59,90 (cambio R$ ' + BRL_USD.toFixed(2) + '/US$)\n');
+console.log('MARGEM NO PRO, R$ ' + MENSALIDADE.toFixed(2).replace('.', ',') +
+            ' (cambio R$ ' + BRL_USD.toFixed(2) + '/US$)\n');
 console.log('usuarios | sims/mes | LIA R$ | Stripe R$ | infra R$ | custo R$ | LUCRO R$ | margem');
 console.log('---------|----------|--------|-----------|----------|----------|----------|-------');
 for (const u of [10, 30, 80, 200, 400]) {

@@ -22,14 +22,21 @@
  * ===========================================================================
  * ESTADO + TRECHO NOVO, E UM FECHO QUE RELÊ TUDO
  * ===========================================================================
- * As rodadas parciais mandam o ESTADO já capturado e só o PEDAÇO NOVO da
- * conversa. A correção continua funcionando justamente por causa do estado: o
- * modelo vê `clienteRenda: 2800`, ouve "na verdade são três e meio", e corrige.
- * Não é preciso reler a conversa para isso.
+ * As rodadas parciais mandam o ESTADO já capturado, uma JANELA CURTA do que foi
+ * dito antes (contexto) e o PEDAÇO NOVO da conversa (de onde se extrai). A
+ * correção continua funcionando justamente por causa do estado: o modelo vê
+ * `clienteRenda: 2800`, ouve "na verdade são três e meio", e corrige. Não é
+ * preciso reler a conversa inteira para isso.
  *
  * A primeira versão reenviava a conversa inteira a cada rodada. Funcionava, e
  * custava US$ 2,13 por simulação — mais que a mensalidade do corretor. Hoje o
  * custo é linear na duração da reunião, não quadrático.
+ *
+ * A janela de contexto veio depois, e veio por um erro meu: a primeira versão
+ * econômica mandava SÓ o pedaço novo, e em uso real a LIA não capturava quase
+ * nada — o modelo recebia "duzentos e dez mil" sem nada em volta e obedecia,
+ * corretamente, a regra de não inventar campo para número sem dono. Economia
+ * que quebra a funcionalidade não é economia.
  *
  * O que segura a qualidade é o FECHO: antes de gerar o PDF, a conversa inteira
  * é relida pelo modelo bom, sem filtro nenhum. As rodadas parciais são para a
@@ -68,8 +75,9 @@ import {
   type CapturaBruta,
   type ContextoCatalogo,
 } from './campos';
+import { resolverDoCatalogo, vocabularioDoCatalogo, type ItemCatalogo } from './catalogo';
 import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
-import { extrair, type EmpreendimentoContexto, type ModoExtracao } from './extrair';
+import { extrair, type CampoOuvido, type ModoExtracao } from './extrair';
 import { valeAnalisar } from './gatilho';
 import { temConsentimentoLia } from './consentimento';
 import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
@@ -101,6 +109,23 @@ const SILENCIO_MS = 3000;
  * usuários). Não valia trocar a sensação de "ao vivo" por isso.
  */
 const INTERVALO_MINIMO_MS = 3500;
+
+/**
+ * Quanto da conversa anterior viaja junto como CONTEXTO.
+ *
+ * Este número é o conserto do bug que fez a LIA "não entender nada". Mandando
+ * só o trecho novo, o modelo recebia "duzentos e dez mil" solto e — obedecendo
+ * a regra de não registrar número sem saber de que campo é — devolvia lista
+ * vazia. Certíssimo, e inútil.
+ *
+ * 1.200 caracteres são uns 25 a 30 segundos de fala: o bastante para a frase
+ * anterior ("e o apartamento, quanto tá?") estar lá. Em Haiku, com cache no
+ * prompt fixo, isso sai por menos de um centavo na simulação inteira.
+ *
+ * Vai só nas rodadas parciais. O fecho manda a conversa completa de qualquer
+ * jeito, então repetir contexto ali seria pagar duas vezes pelo mesmo texto.
+ */
+const JANELA_CONTEXTO_CHARS = 1200;
 
 export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
 
@@ -220,9 +245,11 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const usoRef = useRef({ entrada: 0, cacheEscrita: 0, cacheLeitura: 0, saida: 0, chamadas: 0 });
 
   // Catálogo do corretor, carregado uma vez por sessão de escuta.
-  const empreendimentosRef = useRef<EmpreendimentoContexto[]>([]);
+  const empreendimentosRef = useRef<ItemCatalogo[]>([]);
   /** id → nome, para devolver nome onde o modelo devolveu id. */
   const nomesRef = useRef<Record<string, string>>({});
+  /** Palavras dos nomes do catálogo, para o gatilho não descartar "o connect". */
+  const vocabularioRef = useRef<ReadonlySet<string>>(new Set());
   const contextoRef = useRef<ContextoCatalogo>({
     empresaDoEmpreendimento: {},
     correspondentes: [],
@@ -241,12 +268,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       db.developments.list(user.id),
     ]);
 
-    const nomeEmpresa = new Map(empresas.map((e) => [e.id, e.name]));
-    empreendimentosRef.current = empreendimentos.map((d) => ({
-      id: d.id,
-      nome: d.name,
-      empresaNome: nomeEmpresa.get(d.companyId) ?? '',
-    }));
+    empreendimentosRef.current = empreendimentos.map((d) => ({ id: d.id, nome: d.name }));
 
     /*
      * Correspondentes de TODAS as empresas do corretor, não só da empresa já
@@ -264,144 +286,225 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       ...empreendimentos.map((d) => [d.id, d.name]),
       ...correspondentes.map((c) => [c.id, c.nome]),
     ]);
+    vocabularioRef.current = vocabularioDoCatalogo([
+      ...empreendimentos.map((d) => d.name),
+      ...correspondentes.map((c) => c.nome),
+    ]);
   }, [user]);
 
-  const analisar = useCallback(async (modo: ModoExtracao = 'parcial') => {
-    const fecho = modo === 'final';
-    const conversa = fecho ? transcricaoRef.current.trim() : trechoNovoRef.current.trim();
-    if (!conversa) return;
+  /**
+   * O nome que o modelo devolveu vira o id do cadastro — ou não vira nada.
+   *
+   * Campos de empreendimento e correspondente chegam como NOME (é o que o
+   * modelo acerta) e o simulador precisa de id. Casar é local e instantâneo.
+   *
+   * Nome que não casa com ninguém, ou que casa com dois, **não vira campo**: um
+   * empreendimento errado arrasta empresa, gerente, comissão e prazo máximo
+   * junto. O corretor recebe a frase do `aviso` explicando o que foi ouvido, o
+   * que é bem melhor que um campo em branco sem explicação.
+   */
+  const resolverReferencias = useCallback(
+    (campos: CampoOuvido[]): { campos: CampoOuvido[]; avisos: string[] } => {
+      const avisos: string[] = [];
+      const resolvidos: CampoOuvido[] = [];
 
-    /*
-     * O FILTRO MAIS BARATO QUE EXISTE.
-     *
-     * Boa parte do que o microfone capta não tem nenhum dado da simulação:
-     * cumprimento, trânsito, "pois é", o corretor explicando como funciona o
-     * financiamento. Mandar isso ao modelo custa e devolve lista vazia.
-     *
-     * O fecho NUNCA passa por aqui: quando o corretor manda gerar a proposta,
-     * a conversa inteira é relida sem filtro. Assim, um trecho que este gatilho
-     * tenha descartado por engano volta a ser visto antes de virar PDF.
-     */
-    if (!fecho && !valeAnalisar(conversa)) {
-      trechoNovoRef.current = '';
+      for (const c of campos) {
+        const tipo = CAMPOS_POR_CHAVE[c.chave]?.tipo;
+        if (tipo !== 'empreendimento' && tipo !== 'correspondente') {
+          resolvidos.push(c);
+          continue;
+        }
+        // Já é um id do catálogo? Acontece quando o valor veio do estado de uma
+        // rodada anterior; não faz sentido tentar casar o UUID por som.
+        if (nomesRef.current[c.valor]) {
+          resolvidos.push(c);
+          continue;
+        }
+        const itens =
+          tipo === 'empreendimento' ? empreendimentosRef.current : contextoRef.current.correspondentes;
+        const { id, aviso } = resolverDoCatalogo(c.valor, itens);
+        if (id) resolvidos.push({ ...c, valor: id });
+        else if (aviso) avisos.push(aviso);
+      }
+
+      return { campos: resolvidos, avisos };
+    },
+    [],
+  );
+
+  const analisar = useCallback(
+    async (modo: ModoExtracao = 'parcial') => {
+      const fecho = modo === 'final';
+      const conversa = fecho ? transcricaoRef.current.trim() : trechoNovoRef.current.trim();
+      if (!conversa) return;
+
+      /*
+       * O CONTEXTO — o que salva a rodada parcial de ser inútil.
+       *
+       * `transcricaoRef` termina com o trecho novo; o que vem antes dele é o
+       * contexto. Recorta-se o fim porque o começo da reunião não ajuda a
+       * entender a frase de agora — e cada caractere custa.
+       *
+       * No fecho não vai contexto: a conversa inteira já está em `conversa`.
+       */
+      let antes = '';
+      if (!fecho) {
+        const tudo = transcricaoRef.current.trim();
+        const anterior = tudo.endsWith(conversa)
+          ? tudo.slice(0, tudo.length - conversa.length).trim()
+          : tudo;
+        antes = anterior.slice(-JANELA_CONTEXTO_CHARS);
+      }
+
+      /*
+       * O FILTRO MAIS BARATO QUE EXISTE.
+       *
+       * Boa parte do que o microfone capta não tem nenhum dado da simulação:
+       * cumprimento, trânsito, "pois é", o corretor explicando como funciona o
+       * financiamento. Mandar isso ao modelo custa e devolve lista vazia.
+       *
+       * O fecho NUNCA passa por aqui: quando o corretor manda gerar a proposta,
+       * a conversa inteira é relida sem filtro. Assim, um trecho que este gatilho
+       * tenha descartado por engano volta a ser visto antes de virar PDF.
+       */
+      if (!fecho && !valeAnalisar(conversa, vocabularioRef.current)) {
+        trechoNovoRef.current = '';
+        pendenteRef.current = false;
+        return;
+      }
+
+      /*
+       * Uma chamada por vez, e nunca mais rápido que o intervalo mínimo.
+       *
+       * Quando a vez ainda não chegou, a rodada NÃO é descartada: fica agendada
+       * para o instante em que o intervalo fecha. Descartar faria a LIA "perder"
+       * uma frase inteira até a próxima pausa. O fecho fura a fila, porque aí é o
+       * corretor pedindo, e ele não deve esperar por uma regra de custo.
+       */
+      if (analisandoRef.current) {
+        pendenteRef.current = true;
+        return;
+      }
+      const desdeUltima = Date.now() - ultimaChamadaRef.current;
+      if (!fecho && desdeUltima < INTERVALO_MINIMO_MS) {
+        pendenteRef.current = true;
+        if (!timerRefilaRef.current) {
+          timerRefilaRef.current = setTimeout(() => {
+            timerRefilaRef.current = null;
+            if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
+          }, INTERVALO_MINIMO_MS - desdeUltima);
+        }
+        return;
+      }
+
+      analisandoRef.current = true;
+      ultimaChamadaRef.current = Date.now();
       pendenteRef.current = false;
-      return;
-    }
+      // Esvazia JÁ: o que chegar durante a chamada é o trecho da PRÓXIMA rodada.
+      // Esvaziar depois perderia tudo que foi falado enquanto o modelo pensava.
+      if (!fecho) trechoNovoRef.current = '';
+      rodadaRef.current += 1;
+      const rodada = rodadaRef.current;
 
-    /*
-     * Uma chamada por vez, e nunca mais rápido que o intervalo mínimo.
-     *
-     * Quando a vez ainda não chegou, a rodada NÃO é descartada: fica agendada
-     * para o instante em que o intervalo fecha. Descartar faria a LIA "perder"
-     * uma frase inteira até a próxima pausa. O fecho fura a fila, porque aí é o
-     * corretor pedindo, e ele não deve esperar por uma regra de custo.
-     */
-    if (analisandoRef.current) {
-      pendenteRef.current = true;
-      return;
-    }
-    const desdeUltima = Date.now() - ultimaChamadaRef.current;
-    if (!fecho && desdeUltima < INTERVALO_MINIMO_MS) {
-      pendenteRef.current = true;
-      if (!timerRefilaRef.current) {
-        timerRefilaRef.current = setTimeout(() => {
-          timerRefilaRef.current = null;
-          if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
-        }, INTERVALO_MINIMO_MS - desdeUltima);
+      // `sessaoAtivaRef`, e não o `status`: quem encerra a sessão mexe no estado,
+      // e o estado que este callback enxerga é o do instante em que ele foi
+      // criado. Sem a ref, encerrar durante uma análise deixaria a tela dizendo
+      // "ouvindo" com o microfone já fechado.
+      if (sessaoAtivaRef.current) setStatus('entendendo');
+
+      // O estado vai SEM os trechos: o modelo só precisa saber o que já tem para
+      // decidir o que mudou. Os trechos são da tela, e mandá-los dobraria o
+      // tamanho do estado a cada rodada sem servir para nada.
+      const estado = Object.fromEntries(
+        Object.values(capturadosRef.current).map((c) => [c.chave, c.valor]),
+      );
+
+      /*
+       * O estado vai com os NOMES onde ele guarda ids.
+       *
+       * O modelo devolve nome e nunca vê um UUID — mandar `empreendimento:
+       * dev-a1b2…` no estado seria pedir que ele comparasse o que ouviu com uma
+       * string sem significado, e ele registraria o empreendimento de novo a cada
+       * rodada por achar que ainda não tinha sido capturado.
+       */
+      const estadoLegivel = Object.fromEntries(
+        Object.entries(estado).map(([k, v]) => [k, nomesRef.current[v] ?? v]),
+      );
+
+      const r = await extrair({
+        modo,
+        antes,
+        agora: conversa,
+        estado: estadoLegivel,
+        empreendimentos: empreendimentosRef.current.map((e) => e.nome),
+        correspondentes: contextoRef.current.correspondentes.map((c) => c.nome),
+      });
+
+      analisandoRef.current = false;
+
+      // Chegou depois de uma rodada mais nova: descarta. Aplicar isto agora
+      // desfaria uma correção que o corretor já viu na tela.
+      if (rodada < ultimaAplicadaRef.current) return;
+      ultimaAplicadaRef.current = rodada;
+
+      if ('erro' in r) {
+        setErro(r.erro);
+        if (sessaoAtivaRef.current) setStatus('ouvindo');
+        return;
       }
-      return;
-    }
 
-    analisandoRef.current = true;
-    ultimaChamadaRef.current = Date.now();
-    pendenteRef.current = false;
-    // Esvazia JÁ: o que chegar durante a chamada é o trecho da PRÓXIMA rodada.
-    // Esvaziar depois perderia tudo que foi falado enquanto o modelo pensava.
-    if (!fecho) trechoNovoRef.current = '';
-    rodadaRef.current += 1;
-    const rodada = rodadaRef.current;
+      if (r.uso) {
+        const u = usoRef.current;
+        u.entrada += r.uso.entrada;
+        u.cacheEscrita += r.uso.cacheEscrita;
+        u.cacheLeitura += r.uso.cacheLeitura;
+        u.saida += r.uso.saida;
+        u.chamadas += 1;
+      }
 
-    // `sessaoAtivaRef`, e não o `status`: quem encerra a sessão mexe no estado,
-    // e o estado que este callback enxerga é o do instante em que ele foi
-    // criado. Sem a ref, encerrar durante uma análise deixaria a tela dizendo
-    // "ouvindo" com o microfone já fechado.
-    if (sessaoAtivaRef.current) setStatus('entendendo');
+      setErro(null);
 
-    // O estado vai SEM os trechos: o modelo só precisa saber o que já tem para
-    // decidir o que mudou. Os trechos são da tela, e mandá-los dobraria o
-    // tamanho do estado a cada rodada sem servir para nada.
-    const estado = Object.fromEntries(
-      Object.values(capturadosRef.current).map((c) => [c.chave, c.valor]),
-    );
+      // Nome → id, aqui, antes de qualquer coisa olhar para o valor.
+      const { campos: camposResolvidos, avisos } = resolverReferencias(r.campos);
+      setObservacao([r.observacao, ...avisos].filter(Boolean).join(' ') || null);
 
-    const r = await extrair({
-      modo,
-      conversa,
-      estado,
-      empreendimentos: empreendimentosRef.current,
-      correspondentes: contextoRef.current.correspondentes,
-    });
+      /*
+       * FUSÃO, não substituição.
+       *
+       * A resposta traz só o que mudou, então o que já estava capturado
+       * permanece. É o outro lado da economia: sem a fusão, cada rodada teria de
+       * pedir ao modelo que repetisse os catorze campos para não perder nenhum.
+       */
+      setCapturados((antes) => {
+        const agora = Date.now();
+        const novo = { ...antes };
+        for (const chave of r.remover) delete novo[chave];
+        for (const c of camposResolvidos) {
+          if (!CAMPOS_POR_CHAVE[c.chave]) continue;
+          const anterior = antes[c.chave];
+          const mudou = !!anterior && anterior.valor !== c.valor;
+          novo[c.chave] = {
+            chave: c.chave,
+            valor: c.valor,
+            exibicao: exibirValor(c.chave, c.valor, nomesRef.current),
+            trecho: c.trecho,
+            confianca: c.confianca,
+            corrigido: mudou,
+            em: agora,
+          };
+        }
+        capturadosRef.current = novo;
+        return novo;
+      });
 
-    analisandoRef.current = false;
-
-    // Chegou depois de uma rodada mais nova: descarta. Aplicar isto agora
-    // desfaria uma correção que o corretor já viu na tela.
-    if (rodada < ultimaAplicadaRef.current) return;
-    ultimaAplicadaRef.current = rodada;
-
-    if ('erro' in r) {
-      setErro(r.erro);
       if (sessaoAtivaRef.current) setStatus('ouvindo');
-      return;
-    }
 
-    if (r.uso) {
-      const u = usoRef.current;
-      u.entrada += r.uso.entrada;
-      u.cacheEscrita += r.uso.cacheEscrita;
-      u.cacheLeitura += r.uso.cacheLeitura;
-      u.saida += r.uso.saida;
-      u.chamadas += 1;
-    }
-
-    setErro(null);
-    setObservacao(r.observacao);
-
-    /*
-     * FUSÃO, não substituição.
-     *
-     * A resposta traz só o que mudou, então o que já estava capturado
-     * permanece. É o outro lado da economia: sem a fusão, cada rodada teria de
-     * pedir ao modelo que repetisse os catorze campos para não perder nenhum.
-     */
-    setCapturados((antes) => {
-      const agora = Date.now();
-      const novo = { ...antes };
-      for (const chave of r.remover) delete novo[chave];
-      for (const c of r.campos) {
-        if (!CAMPOS_POR_CHAVE[c.chave]) continue;
-        const anterior = antes[c.chave];
-        const mudou = !!anterior && anterior.valor !== c.valor;
-        novo[c.chave] = {
-          chave: c.chave,
-          valor: c.valor,
-          exibicao: exibirValor(c.chave, c.valor, nomesRef.current),
-          trecho: c.trecho,
-          confianca: c.confianca,
-          corrigido: mudou,
-          em: agora,
-        };
-      }
-      capturadosRef.current = novo;
-      return novo;
-    });
-
-    if (sessaoAtivaRef.current) setStatus('ouvindo');
-
-    // Chegou fala nova durante a chamada: reanalisa — passando pelo intervalo
-    // mínimo lá em cima, que é o que impede o laço contínuo.
-    if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
-  }, []);
+      // Chegou fala nova durante a chamada: reanalisa — passando pelo intervalo
+      // mínimo lá em cima, que é o que impede o laço contínuo.
+      if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
+    },
+    [resolverReferencias],
+  );
 
   const iniciar = useCallback(async () => {
     if (suporte !== 'ok') return;

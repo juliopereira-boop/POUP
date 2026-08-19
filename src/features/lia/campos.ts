@@ -85,7 +85,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'imovel',
     essencial: true,
     comoAparece:
-      'O nome do residencial/condomínio/loteamento. Quase nunca vem completo: "o Vila Nova", "aquele lá do Parque das Águas", "no Reserva". Case com a lista de empreendimentos fornecida, mesmo com nome parcial, ordem trocada ou erro de transcrição. Devolva o ID exato da lista.',
+      'O nome do residencial/condomínio/loteamento. Quase nunca vem completo: "o Vila Nova", "aquele lá do Parque das Águas", "no Reserva", "o connect". Devolva o NOME da lista de empreendimentos fornecida, escrito como está lá — casar por pedaço do nome é o normal, não a exceção.',
   },
   {
     chave: 'bloco',
@@ -121,7 +121,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'imovel',
     essencial: true,
     comoAparece:
-      'A pessoa ou empresa que faz o financiamento na Caixa. Case com a lista de correspondentes fornecida e devolva o ID. Se citarem um nome que não está na lista, devolva o nome falado mesmo assim.',
+      'A pessoa ou empresa que faz o financiamento na Caixa. Devolva o NOME da lista de correspondentes fornecida, escrito como está lá. Se citarem alguém que não está na lista, devolva o nome falado mesmo assim.',
   },
 
   // ---------------------------------------------------------------- cliente

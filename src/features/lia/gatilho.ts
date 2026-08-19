@@ -236,7 +236,18 @@ function normalizar(texto: string): string {
 
 const CONHECIDAS = new Set([...NUMEROS, ...VOCABULARIO, ...RETRATACAO]);
 
-export function valeAnalisar(trecho: string): boolean {
+/**
+ * @param extras Palavras do catálogo DESTE corretor (nomes de empreendimento e
+ *   de correspondente), que contam como vocabulário conhecido.
+ *
+ *   Sem isto o filtro tinha um buraco grande: "é o connect, aquele ali" não tem
+ *   dígito nem palavra do vocabulário fixo, então a janela era descartada e o
+ *   modelo nunca via o nome do empreendimento — o campo que puxa empresa,
+ *   gerente, comissão e prazo. O nome cadastrado é, por definição, uma palavra
+ *   que importa nesta conversa; a lista fixa aqui em cima não tem como saber
+ *   disso, porque ela é a mesma para todo mundo.
+ */
+export function valeAnalisar(trecho: string, extras?: ReadonlySet<string>): boolean {
   const limpo = normalizar(trecho);
   if (!limpo) return false;
 
@@ -244,7 +255,7 @@ export function valeAnalisar(trecho: string): boolean {
   if (/\d/.test(limpo)) return true;
 
   const palavras = limpo.split(' ');
-  if (palavras.some((p) => CONHECIDAS.has(p))) return true;
+  if (palavras.some((p) => CONHECIDAS.has(p) || extras?.has(p))) return true;
 
   return palavras.length >= PALAVRAS_SUSPEITAS;
 }
