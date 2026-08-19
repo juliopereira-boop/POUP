@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "checar:funcoes": "node scripts/checar-edge-functions.mjs",
-    "custo:lia": "node scripts/custo-lia.mjs"
+    "custo:lia": "node scripts/custo-lia.mjs",
+    "testar:financiamento": "node scripts/testar-financiamento.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

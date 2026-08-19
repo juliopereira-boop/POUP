@@ -44,7 +44,11 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
     label: 'Gestão de leads: funil configurável, ficha completa e filtros',
     includedIn: TODOS,
   },
-  { key: 'simulador', label: 'Simulador de financiamento', includedIn: TODOS },
+  {
+    key: 'simulador',
+    label: 'Simulador de financiamento habitacional e de poupança',
+    includedIn: TODOS,
+  },
   { key: 'proposta', label: 'Proposta de compra e venda em PDF', includedIn: TODOS },
   { key: 'materialVenda', label: 'Material de venda', includedIn: TODOS },
   { key: 'calendario', label: 'Calendário e agendamentos', includedIn: TODOS },
@@ -53,11 +57,7 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
   { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: TODOS },
   { key: 'vendas', label: 'Vendas realizadas', includedIn: DO_INTERMED },
   { key: 'comissao', label: 'Controle de comissão', includedIn: DO_INTERMED },
-  {
-    key: 'lia',
-    label: 'LIA: a assistente que ouve a negociação e preenche a simulação',
-    includedIn: SO_PRO,
-  },
+  { key: 'lia', label: 'LIA: sua assistente pessoal de corretagem', includedIn: SO_PRO },
 ];
 
 /*
