@@ -115,6 +115,7 @@ export default function ComissaoScreen() {
   if (!canUse('comissao')) {
     return (
       <ProFeatureLock
+        feature="comissao"
         emoji={feature.emoji}
         title={feature.title}
         description={feature.description}

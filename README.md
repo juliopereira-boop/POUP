@@ -95,7 +95,7 @@ src/
     supabase/                      # Implementação concreta (Supabase)
   features/
     registry.ts                    # Fonte única do menu/rotas
-    plans.ts                       # Planos Start/Pro (preço + limites de armazenamento)
+    plans.ts                       # Planos Start/Intermed/Pro (preço, recursos, limites)
     simulador/
       SimuladorProvider.tsx        # Estado do wizard (persistido em disco)
       calc.ts                     # Todas as fórmulas do fluxo de pagamento
@@ -263,12 +263,44 @@ Dois detalhes que parecem miudeza e não são:
 
 ### Planos (`src/features/plans.ts`)
 
-| Plano | Preço        | Armazenamento | Diferenciais                                   |
-| ----- | ------------ | ------------- | ----------------------------------------------- |
-| Start | R$ 59,90/mês | 5 GB          | Simulador, comissões/vendas, material de venda   |
-| Pro   | R$ 99,90/mês | 25 GB         | Tudo do Start + relatórios avançados + suporte prioritário |
+| Plano | Preço | O que acrescenta | Armazenamento |
+| --- | --- | --- | --- |
+| **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, prospecção, calendário, material de venda, cadastros, captação | 5 GB |
+| **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** | 15 GB |
+| **Pro** | R$ 59,90/mês | Tudo do Intermed **+ a LIA** | 25 GB |
+
+**A LIA é o que justifica o topo da escada** — é o único recurso exclusivo do Pro, e o degrau de
+Intermed para Pro custa R$ 10.
+
+> **O armazenamento não aparece mais no paywall nem na landing.** `storageLimitBytes` continua em
+> cada plano porque é ele que o trigger `enforce_storage_quota` usa no banco para recusar upload
+> acima do limite — o que saiu foi a *linha de propaganda*. Gigabyte não vende CRM de corretor, e
+> listar "5 GB" ao lado de "controle de comissão" fazia o plano parecer pacote de hospedagem. Quem
+> quiser saber o consumo vê em Ajustes.
 
 > ⚠️ Os limites de armazenamento estão **duplicados** em dois lugares: `src/features/plans.ts` (para exibição na UI) e `PLAN_LIMITS` dentro do edge function `stripe-webhook/index.ts` (que é o valor realmente gravado no banco). Se mudar um valor, mude os dois.
+
+#### O bloqueio aponta o plano mais barato que resolve
+
+Com dois planos, "assine o Pro" era sempre a resposta certa. Com três, virou a resposta errada na
+maioria das vezes: quem está no Start e esbarrou em **Vendas** precisa do *Intermed* — mandá-lo para
+o Pro é pedir R$ 30 a mais do que o problema dele custa.
+
+`planoMinimoPara(feature)` deriva o plano a partir da funcionalidade (`PLAN_ORDER` está em ordem de
+preço justamente para essa busca), e o `ProFeatureLock` recebe a `feature` que o corretor tentou
+usar. A lista mostrada é **o que aquele plano acrescenta ao que ele já tem** — não a lista inteira,
+que repetiria o que ele usa hoje. Nada é escrito à mão, então acrescentar um plano no meio não deixa
+a tela mentindo.
+
+#### A LIA some inteira fora do Pro
+
+`src/components/lia/Lia.tsx` devolve `null` quando `canUse('lia')` é falso — o botão flutuante nem
+chega a existir. É a diferença entre vender e importunar: quem está no Start ou no Intermed já vê a
+LIA na tela de planos, com preço e descrição; repetir isso num botão que acompanha o corretor por
+todas as telas seria propaganda perseguindo quem já disse não.
+
+Durante o **teste gratuito** `canUse` devolve `true` para tudo, inclusive a LIA. É de propósito: é
+assim que o corretor conhece o topo da escada e decide assinar por causa dele.
 
 ### O que libera acesso
 

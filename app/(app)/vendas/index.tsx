@@ -86,6 +86,7 @@ export default function VendasScreen() {
   if (!canUse('vendas')) {
     return (
       <ProFeatureLock
+        feature="vendas"
         emoji={feature.emoji}
         title={feature.title}
         description={feature.description}

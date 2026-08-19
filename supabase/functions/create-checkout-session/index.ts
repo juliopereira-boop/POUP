@@ -13,7 +13,11 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 });
 
 const ALLOWED_PRICES = new Set(
-  [Deno.env.get('STRIPE_PRICE_START'), Deno.env.get('STRIPE_PRICE_PRO')].filter(
+  [
+    Deno.env.get('STRIPE_PRICE_START'),
+    Deno.env.get('STRIPE_PRICE_INTERMED'),
+    Deno.env.get('STRIPE_PRICE_PRO'),
+  ].filter(
     (v): v is string => typeof v === 'string' && v.length > 0,
   ),
 );

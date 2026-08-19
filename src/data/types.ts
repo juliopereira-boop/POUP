@@ -54,7 +54,13 @@ export type SubscriptionStatus =
   | 'incomplete'
   | 'none';
 
-export type PlanTier = 'start' | 'pro';
+/**
+ * Os três planos.
+ *
+ * A ordem da união é a ordem comercial (mais barato → mais completo), e vários
+ * lugares dependem disso para achar "o plano mais barato que tem tal recurso".
+ */
+export type PlanTier = 'start' | 'intermed' | 'pro';
 
 export interface Subscription {
   status: SubscriptionStatus;

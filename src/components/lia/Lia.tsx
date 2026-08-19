@@ -17,6 +17,7 @@ import { LiaBotao, type HabilidadeLia } from './LiaBotao';
 import { LiaMaterialChat } from './LiaMaterialChat';
 import { LiaPainel } from './LiaPainel';
 import { useLia } from '@/features/lia/LiaProvider';
+import { useFeatureAccess } from '@/features/useFeatureAccess';
 import {
   AVISOS_LIA,
   darConsentimentoLia,
@@ -28,6 +29,7 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 export function Lia() {
   const router = useRouter();
   const lia = useLia();
+  const { canUse } = useFeatureAccess();
 
   const [painelAberto, setPainelAberto] = useState(false);
   const [materialAberto, setMaterialAberto] = useState(false);
@@ -93,6 +95,21 @@ export function Lia() {
      */
     router.push(completo ? '/simulador/fluxo' : '/simulador');
   }, [lia, router]);
+
+  /*
+   * A LIA é do plano Pro, e aqui ela some INTEIRA em vez de virar um botão que
+   * abre um aviso de upgrade.
+   *
+   * É a diferença entre vender e importunar: quem está no Start ou no Intermed
+   * já vê a LIA na tela de planos, com preço e descrição. Repetir isso num
+   * botão flutuante que acompanha o corretor por todas as telas seria propaganda
+   * perseguindo quem já disse não — e ainda ocuparia o canto da tela sem
+   * entregar nada.
+   *
+   * Durante o teste gratuito `canUse` devolve `true`: é justamente assim que o
+   * corretor conhece a LIA e decide assinar o Pro por causa dela.
+   */
+  if (!canUse('lia')) return null;
 
   return (
     <>

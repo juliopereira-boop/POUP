@@ -14,16 +14,29 @@ const admin = createClient(
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 
 const PRICE_START = Deno.env.get('STRIPE_PRICE_START') ?? '';
+const PRICE_INTERMED = Deno.env.get('STRIPE_PRICE_INTERMED') ?? '';
 const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
 
 const GB = 1024 * 1024 * 1024;
 const PLAN_LIMITS: Record<string, number> = {
   start: 5 * GB,
+  intermed: 15 * GB,
   pro: 25 * GB,
 };
 
-function tierForPrice(priceId: string | null | undefined): 'start' | 'pro' {
-  if (priceId && priceId === PRICE_PRO) return 'pro';
+/**
+ * Preço do Stripe → plano.
+ *
+ * O fallback é `start` de propósito, e a escolha importa: se um preço novo for
+ * criado no Stripe e alguém esquecer de configurar a variável aqui, o assinante
+ * cai no plano MAIS BARATO. Errar para baixo gera um chamado de suporte; errar
+ * para cima entrega de graça o que ele deveria pagar, e ninguém reclama de
+ * ganhar recurso — o erro passaria despercebido.
+ */
+function tierForPrice(priceId: string | null | undefined): 'start' | 'intermed' | 'pro' {
+  if (!priceId) return 'start';
+  if (priceId === PRICE_PRO) return 'pro';
+  if (priceId === PRICE_INTERMED) return 'intermed';
   return 'start';
 }
 

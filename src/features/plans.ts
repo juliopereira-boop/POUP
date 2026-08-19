@@ -19,48 +19,56 @@ export type PlanFeatureKey =
   | 'cadastros'
   | 'captacao'
   | 'multiDispositivo'
-  | 'armazenamento'
   | 'vendas'
   | 'comissao'
-  | 'agenteIa';
+  | 'lia';
 
 export interface PlanFeature {
   key: PlanFeatureKey;
   /** Rótulo exibido no paywall. */
   label: string;
-  /** Rótulo alternativo quando o texto muda por plano (ex.: armazenamento). */
-  labelByTier?: Partial<Record<PlanTier, string>>;
   /** Planos que incluem a funcionalidade. */
   includedIn: readonly PlanTier[];
 }
 
-const ALL_TIERS: readonly PlanTier[] = ['start', 'pro'];
-const PRO_ONLY: readonly PlanTier[] = ['pro'];
+const TODOS: readonly PlanTier[] = ['start', 'intermed', 'pro'];
+/** Do Intermed para cima: gestão do que já foi vendido. */
+const DO_INTERMED: readonly PlanTier[] = ['intermed', 'pro'];
+/** Só no Pro. Hoje é a LIA, e é ela que justifica o topo da escada. */
+const SO_PRO: readonly PlanTier[] = ['pro'];
 
 export const PLAN_FEATURES: readonly PlanFeature[] = [
-  { key: 'prospeccao', label: 'Prospecção de leads', includedIn: ALL_TIERS },
+  { key: 'prospeccao', label: 'Prospecção de leads', includedIn: TODOS },
   {
     key: 'leads',
     label: 'Gestão de leads: funil configurável, ficha completa e filtros',
-    includedIn: ALL_TIERS,
+    includedIn: TODOS,
   },
-  { key: 'simulador', label: 'Simulador de financiamento', includedIn: ALL_TIERS },
-  { key: 'proposta', label: 'Proposta de compra e venda em PDF', includedIn: ALL_TIERS },
-  { key: 'materialVenda', label: 'Material de venda', includedIn: ALL_TIERS },
-  { key: 'calendario', label: 'Calendário e agendamentos', includedIn: ALL_TIERS },
-  { key: 'cadastros', label: 'Cadastros de empresas e empreendimentos', includedIn: ALL_TIERS },
-  { key: 'captacao', label: 'Página de captação com QR Code do corretor', includedIn: ALL_TIERS },
-  { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: ALL_TIERS },
+  { key: 'simulador', label: 'Simulador de financiamento', includedIn: TODOS },
+  { key: 'proposta', label: 'Proposta de compra e venda em PDF', includedIn: TODOS },
+  { key: 'materialVenda', label: 'Material de venda', includedIn: TODOS },
+  { key: 'calendario', label: 'Calendário e agendamentos', includedIn: TODOS },
+  { key: 'cadastros', label: 'Cadastros de empresas e empreendimentos', includedIn: TODOS },
+  { key: 'captacao', label: 'Página de captação com QR Code do corretor', includedIn: TODOS },
+  { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: TODOS },
+  { key: 'vendas', label: 'Vendas realizadas', includedIn: DO_INTERMED },
+  { key: 'comissao', label: 'Controle de comissão', includedIn: DO_INTERMED },
   {
-    key: 'armazenamento',
-    label: 'Armazenamento de arquivos',
-    labelByTier: { start: '5 GB de armazenamento', pro: '25 GB de armazenamento' },
-    includedIn: ALL_TIERS,
+    key: 'lia',
+    label: 'LIA: a assistente que ouve a negociação e preenche a simulação',
+    includedIn: SO_PRO,
   },
-  { key: 'vendas', label: 'Vendas realizadas', includedIn: PRO_ONLY },
-  { key: 'comissao', label: 'Controle de comissão', includedIn: PRO_ONLY },
-  { key: 'agenteIa', label: 'Agente de IA de atendimento', includedIn: PRO_ONLY },
 ];
+
+/*
+ * O ARMAZENAMENTO SAIU DA LISTA DE PROPAGANDA — mas continua existindo.
+ *
+ * `storageLimitBytes` segue em cada plano, porque é ele que o trigger
+ * `enforce_storage_quota` usa no banco para recusar upload acima do limite.
+ * O que saiu foi a LINHA no paywall e na landing: gigabyte não vende CRM de
+ * corretor, e listar "5 GB" ao lado de "controle de comissão" faz o plano
+ * parecer pacote de hospedagem. Quem quiser saber o consumo vê em Ajustes.
+ */
 
 export interface PlanFeatureLine {
   key: PlanFeatureKey;
@@ -72,7 +80,7 @@ export interface PlanFeatureLine {
 export function planFeatureLines(tier: PlanTier): PlanFeatureLine[] {
   return PLAN_FEATURES.map((feature) => ({
     key: feature.key,
-    label: feature.labelByTier?.[tier] ?? feature.label,
+    label: feature.label,
     included: feature.includedIn.includes(tier),
   }));
 }
@@ -94,18 +102,28 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   start: {
     tier: 'start',
     name: 'Start',
-    priceLabel: 'R$ 59,90/mês',
+    priceLabel: 'R$ 29,90/mês',
     tagline: 'Para começar a organizar a operação',
     storageLimitBytes: 5 * GB,
     storageLabel: '5 GB',
     stripePriceId: env.stripePriceStart,
     features: planFeatureLines('start'),
   },
+  intermed: {
+    tier: 'intermed',
+    name: 'Intermed',
+    priceLabel: 'R$ 49,90/mês',
+    tagline: 'Para acompanhar a venda até a comissão cair',
+    storageLimitBytes: 15 * GB,
+    storageLabel: '15 GB',
+    stripePriceId: env.stripePriceIntermed,
+    features: planFeatureLines('intermed'),
+  },
   pro: {
     tier: 'pro',
     name: 'Pro',
-    priceLabel: 'R$ 89,90/mês',
-    tagline: 'Tudo do POUP, sem limite de recursos',
+    priceLabel: 'R$ 59,90/mês',
+    tagline: 'Tudo do POUP, com a LIA ouvindo por você',
     storageLimitBytes: 25 * GB,
     storageLabel: '25 GB',
     stripePriceId: env.stripePricePro,
@@ -114,7 +132,22 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   },
 };
 
-export const PLAN_ORDER: PlanTier[] = ['start', 'pro'];
+/** Ordem comercial: do mais barato ao mais completo. */
+export const PLAN_ORDER: PlanTier[] = ['start', 'intermed', 'pro'];
+
+/**
+ * O plano MAIS BARATO que inclui a funcionalidade.
+ *
+ * Existe porque, com três degraus, "assine o Pro" virou resposta errada na
+ * maioria das vezes: quem está no Start e esbarrou em Vendas precisa ouvir
+ * *Intermed*, não Pro — mandar para um plano mais caro do que ele precisa é o
+ * jeito mais rápido de perder a venda do upgrade. `PLAN_ORDER` está em ordem de
+ * preço justamente para esta busca.
+ */
+export function planoMinimoPara(feature: PlanFeatureKey): PlanConfig | null {
+  const tier = PLAN_ORDER.find((t) => canUse(feature, t));
+  return tier ? PLANS[tier] : null;
+}
 
 export function getPlan(tier: PlanTier | null | undefined): PlanConfig | null {
   if (!tier) return null;
@@ -130,9 +163,9 @@ export function storageLimitFor(tier: PlanTier | null | undefined): number {
  *
  * `isTrial`: durante o período de teste gratuito o `plan_tier` gravado é
  * `'start'` (ver `supabase/migrations/0018_trial_campaign.sql`), mas
- * comercialmente o teste libera o produto inteiro — é assim que o corretor
- * conhece os recursos do Pro e decide assinar. Por isso o teste libera tudo e
- * o bloqueio só vale para assinatura paga no Start.
+ * comercialmente o teste libera o produto INTEIRO — inclusive a LIA, que só
+ * existe no Pro. É de propósito: o corretor conhece o topo da escada e decide
+ * assinar por ele. O bloqueio só vale para assinatura paga.
  */
 export function canUse(
   feature: PlanFeatureKey,
