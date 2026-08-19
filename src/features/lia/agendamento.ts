@@ -37,7 +37,10 @@
  * frente do cliente. Por isso a extração devolve `null` sempre que faltar
  * data OU hora com segurança — a mesma regra que rege toda esta aplicação.
  */
+import { db } from '@/data';
+import { localISO } from '@/features/agenda/dates';
 import { supabase } from '@/lib/supabase';
+import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
 import { VERSAO_CONTRATO } from './extrair';
 import { normalizar } from './materialPorVoz';
 
@@ -147,4 +150,126 @@ export async function extrairAgendamento(p: PedidoAgendamento): Promise<Resultad
       clienteNome: a.cliente?.trim() || null,
     },
   };
+}
+
+/* ===========================================================================
+ * DA FRASE AO COMPROMISSO NO BANCO
+ * ===========================================================================
+ * Entender a frase é metade do trabalho; a outra metade é resolver os nomes
+ * contra o cadastro e gravar. Isto mora aqui, e não em cada tela, porque são
+ * DOIS caminhos que fazem exatamente a mesma coisa:
+ *
+ *   1. a **escuta ambiente** — o corretor diz "agenda pro dia 25" no meio da
+ *      negociação e a LIA marca sem interromper nada;
+ *   2. o **item Agenda do leque** — ele abre a LIA só para isso, fala uma
+ *      frase e pronto.
+ *
+ * Duplicar resolveria hoje e divergiria no primeiro ajuste que só um dos dois
+ * recebesse.
+ */
+
+/** O catálogo que o agendamento precisa para resolver nomes falados. */
+export interface CatalogoAgendamento {
+  empreendimentos: ItemCatalogo[];
+  clientes: ItemCatalogo[];
+  /** empreendimentoId → empresaId, para o compromisso já nascer ligado à empresa. */
+  empresaDoEmpreendimento: Record<string, string>;
+}
+
+export type ResultadoCriacao =
+  | { ok: true; resumo: string }
+  | { ok: false; motivo: string };
+
+/**
+ * Ouve a frase, resolve os nomes e cria o compromisso. O caminho inteiro.
+ *
+ * Devolve sempre uma frase pronta para a tela — de sucesso ou de recusa. Quem
+ * chama não precisa saber em qual das quatro etapas parou.
+ */
+export async function agendarPorVoz(
+  userId: string,
+  texto: string,
+  catalogo: CatalogoAgendamento,
+): Promise<ResultadoCriacao> {
+  const r = await extrairAgendamento({
+    texto,
+    hoje: hojeYmdLocal(),
+    empreendimentos: catalogo.empreendimentos.map((e) => e.nome),
+    clientes: catalogo.clientes.map((c) => c.nome),
+  });
+
+  if ('erro' in r) return { ok: false, motivo: r.erro };
+  if (!r.ok) return { ok: false, motivo: r.motivo };
+
+  const { agendamento } = r;
+  const startAt = localISO(agendamento.dataISO, agendamento.hora);
+  if (!startAt) {
+    return {
+      ok: false,
+      motivo: 'Entendi o pedido, mas a data ou o horário saíram num formato inválido. Diga de novo.',
+    };
+  }
+
+  /*
+   * Nome → id, pelo mesmo casamento local que resolve empreendimento e
+   * correspondente na captura de campos. Não casar não impede o agendamento:
+   * o compromisso é criado mesmo assim, só sem o vínculo — perder a visita
+   * inteira porque o nome do cliente não bate seria desproporcional.
+   */
+  const leadId = agendamento.clienteNome
+    ? resolverDoCatalogo(agendamento.clienteNome, catalogo.clientes).id
+    : null;
+  const developmentId = agendamento.empreendimentoNome
+    ? resolverDoCatalogo(agendamento.empreendimentoNome, catalogo.empreendimentos).id
+    : null;
+  const companyId = developmentId
+    ? (catalogo.empresaDoEmpreendimento[developmentId] ?? null)
+    : null;
+
+  const descricao = [
+    agendamento.clienteNome ? `Cliente: ${agendamento.clienteNome}` : null,
+    agendamento.empreendimentoNome ? `Empreendimento: ${agendamento.empreendimentoNome}` : null,
+    'Agendado pela LIA, por voz.',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const res = await db.appointments.create(userId, {
+    title: agendamento.titulo,
+    description: descricao,
+    // "Visita" é o tipo mais próximo de "apresentar um empreendimento", que é o
+    // comando que motivou este recurso.
+    typeId: 'visita',
+    leadId,
+    companyId,
+    developmentId,
+    startAt,
+    source: 'lia',
+  });
+
+  if (!res.ok) return { ok: false, motivo: `Não consegui salvar: ${res.error}` };
+
+  return {
+    ok: true,
+    resumo: `${agendamento.titulo} — ${dataAgendamentoBR(agendamento.dataISO)} às ${agendamento.hora}.`,
+  };
+}
+
+/**
+ * "Hoje", pelas partes LOCAIS do aparelho — nunca `toISOString()`.
+ *
+ * `toISOString()` devolve UTC, e à noite no Brasil isso já é o dia seguinte.
+ * Errar aqui faria "amanhã" virar "depois de amanhã" perto da meia-noite.
+ */
+function hojeYmdLocal(): string {
+  const agora = new Date();
+  const m = String(agora.getMonth() + 1).padStart(2, '0');
+  const d = String(agora.getDate()).padStart(2, '0');
+  return `${agora.getFullYear()}-${m}-${d}`;
+}
+
+/** AAAA-MM-DD → DD/MM, sem passar por `Date` — mesmo motivo de sempre. */
+function dataAgendamentoBR(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return m && d ? `${d}/${m}` : iso;
 }

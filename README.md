@@ -995,8 +995,8 @@ sugere: durante a negociação ela ouve o corretor e o cliente, entende o que fo
 preenchendo a simulação. No fim, o simulador abre pronto.
 
 O botão fica flutuando no canto inferior direito, em qualquer tela de `(app)`. Um toque abre o
-leque de funcionalidades — hoje uma só, e o leque já existe porque a segunda entra sem
-redesenhar nada.
+leque de funcionalidades — hoje **três**: *Simulação de poupança*, *Material de venda* e *Agendar compromisso*.
+Cada nova entra acrescentando uma linha a `FUNCIONALIDADES`, sem redesenhar nada.
 
 ### O ciclo
 
@@ -1208,8 +1208,16 @@ corretor: "agenda pro dia 25 às 10 horas, apresentar o Connect pra Fulana"
 LIA:      [cria o compromisso no calendário e confirma]
 ```
 
-Diferente das duas primeiras, esta roda **dentro** da sessão de escuta ambiente (a mesma da
-"Simulação de poupança"): basta o corretor dizer um comando de agendar no meio da conversa.
+Ela tem **dois caminhos de entrada**, e os dois chamam a mesma `agendarPorVoz`:
+
+1. **O item "Agendar compromisso" do leque** — o caminho normal. O corretor abre a LIA só para isso, aperta o
+   microfone e fala. É o que acontece nove em cada dez vezes: no carro, entre um atendimento e
+   outro, sozinho.
+2. **A escuta ambiente** — o comando dito no meio da negociação, com a LIA já ligada capturando os
+   campos da simulação. Sai de graça, mas exige a sessão inteira aberta.
+
+O segundo, sozinho, era um recurso invisível: ninguém descobre uma capacidade que só existe dentro
+de outra. Daí o item próprio.
 
 **Por que isto não mora na extração de campos.** A captura contínua (`campos.ts`, `extrair.ts`)
 acumula ESTADO ao longo da reunião inteira — dezenas de chamadas, cada uma vendo o que já foi
@@ -1236,7 +1244,26 @@ sua própria chamada:
    contra uma lista curta), então é a mesma solução testada.
 5. O compromisso nasce como tipo **Visita**, com a fonte `lia` (`AppointmentSource`), e a descrição
    registra o cliente e o empreendimento identificados — para quem olha o calendário depois saber
-   que aquele evento foi criado por voz, e a partir de quê.
+   que aquele evento foi criado por voz, e a partir de quê. Nome que não casa com o cadastro **não
+   impede** o agendamento: o compromisso é criado sem o vínculo, porque perder a visita inteira
+   por causa de um nome mal transcrito seria desproporcional.
+
+Duas diferenças do item de menu para a escuta ambiente, e as duas são de propósito:
+
+- **O gatilho `pareceAgendamento` não roda no item de menu.** Quem abriu a tela de agenda e apertou
+  o microfone já disse o que queria fazer; exigir que ele fale a palavra "agendar" de novo seria
+  pedir senha para entrar numa porta que ele acabou de abrir. O gatilho existe para o caminho
+  ambiente, onde a LIA precisa distinguir um comando do resto da negociação.
+- **A pausa é mais longa** (1,4 s contra os 700 ms do material). Ali a resposta é uma palavra
+  ("posts"); aqui é uma frase inteira com dia, hora, empreendimento e cliente — cortar cedo demais
+  mandaria metade do comando para o modelo.
+
+> **Consentimento: só a simulação pede.** O modal de consentimento existe porque a simulação grava
+> uma conversa com o **cliente**, cujos dados não são do corretor. Material e Agenda são o corretor
+> falando sozinho sobre o próprio trabalho. A Agenda **envia a frase** para a IA (é ela que resolve
+> "dia 25 às 10" em data e hora) e diz isso em letras na própria tela — mas sem o peso de um modal
+> sobre dado de terceiro, porque não há terceiro. Repetir o mesmo aviso nas três treinaria o
+> corretor a aceitar sem ler, e é na negociação que ele precisa ler.
 
 `pareceAgendamento` e o casamento de nome (`resolverDoCatalogo`/`casarPorVoz`) são testados em
 Node puro, sem servidor e sem modelo — `npm run testar:lia`.

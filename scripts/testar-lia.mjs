@@ -32,6 +32,15 @@ const SUPABASE_TOCO = {
   },
 };
 
+/**
+ * `agendamento.ts` importa a camada de dados para CRIAR o compromisso. Nada do
+ * que este arquivo testa chega lá — `pareceAgendamento` e o casamento de nome
+ * são puros —, mas o import precisa resolver na hora de compilar o módulo.
+ */
+const DB_TOCO = {
+  db: { appointments: { create: async () => ({ ok: false, error: 'não usado nos testes' }) } },
+};
+
 const cache = new Map();
 function compilar(arquivo, resolverImport) {
   const js = ts.transpileModule(readFileSync(arquivo, 'utf8'), {
@@ -47,6 +56,9 @@ function compilar(arquivo, resolverImport) {
 /** `campos.ts` (puxado por `extrair.ts`) usa `@/lib/masks`. Vai real, não mockado. */
 const masks = compilar(path.join(process.cwd(), 'src/lib/masks.ts'), require);
 
+/** `localISO` — puro, sem imports. Vai real: é ele que monta a data do compromisso. */
+const datas = compilar(path.join(process.cwd(), 'src/features/agenda/dates.ts'), require);
+
 function carregar(nome) {
   if (cache.has(nome)) return cache.get(nome);
   const arquivo = path.join(RAIZ, `${nome}.ts`);
@@ -55,6 +67,8 @@ function carregar(nome) {
     if (spec.startsWith('./')) return carregar(spec.slice(2));
     if (spec === '@/lib/supabase') return SUPABASE_TOCO;
     if (spec === '@/lib/masks') return masks;
+    if (spec === '@/data') return DB_TOCO;
+    if (spec === '@/features/agenda/dates') return datas;
     return require(spec);
   });
   cache.set(nome, exports);

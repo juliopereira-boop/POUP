@@ -13,6 +13,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
+import { LiaAgendaChat } from './LiaAgendaChat';
 import { LiaBotao, type HabilidadeLia } from './LiaBotao';
 import { LiaMaterialChat } from './LiaMaterialChat';
 import { LiaPainel } from './LiaPainel';
@@ -33,6 +34,7 @@ export function Lia() {
 
   const [painelAberto, setPainelAberto] = useState(false);
   const [materialAberto, setMaterialAberto] = useState(false);
+  const [agendaAberta, setAgendaAberta] = useState(false);
   const [pedindoConsentimento, setPedindoConsentimento] = useState(false);
   const [jaConsentiu, setJaConsentiu] = useState<boolean | null>(null);
 
@@ -42,16 +44,25 @@ export function Lia() {
 
   const abrir = useCallback((habilidade: HabilidadeLia) => {
     /*
-     * O material NÃO pede o consentimento da escuta.
+     * SÓ A SIMULAÇÃO PEDE O CONSENTIMENTO DA ESCUTA, E ISSO É DELIBERADO.
      *
-     * São duas coisas diferentes: a simulação abre o microfone numa conversa
-     * com o CLIENTE e manda o texto para um serviço de IA — daí o aviso. O
-     * material é o corretor falando sozinho uma palavra para navegar na
-     * própria pasta, sem nada saindo do aparelho. Pedir o mesmo aviso aqui
-     * seria treinar o corretor a aceitar sem ler, e é justamente na simulação
-     * que ele precisa ler.
+     * O consentimento existe porque a simulação abre o microfone numa conversa
+     * com o CLIENTE — cujos dados não são do corretor — e manda a conversa
+     * inteira para um serviço de IA. As outras duas são o corretor falando
+     * sozinho sobre o próprio trabalho:
+     *
+     *   - **material**: uma palavra para navegar na própria pasta, sem nada
+     *     saindo do aparelho (o casamento é local);
+     *   - **agenda**: uma frase sobre a própria agenda. Ela SAI do aparelho
+     *     para virar data e hora, e a tela diz isso em letras — mas não carrega
+     *     o peso de um modal de consentimento sobre dado de terceiro, porque
+     *     não há terceiro.
+     *
+     * Repetir o mesmo aviso pesado nas três treinaria o corretor a aceitar sem
+     * ler, e é justamente na simulação que ele precisa ler.
      */
     if (habilidade === 'material') setMaterialAberto(true);
+    else if (habilidade === 'agenda') setAgendaAberta(true);
     else setPainelAberto(true);
   }, []);
 
@@ -120,6 +131,7 @@ export function Lia() {
         aoLevarParaSimulador={() => void levarParaSimulador()}
       />
       <LiaMaterialChat visivel={materialAberto} aoFechar={() => setMaterialAberto(false)} />
+      <LiaAgendaChat visivel={agendaAberta} aoFechar={() => setAgendaAberta(false)} />
       <ModalConsentimento
         visivel={pedindoConsentimento}
         aoAceitar={() => void aceitar()}

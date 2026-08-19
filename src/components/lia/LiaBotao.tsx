@@ -2,8 +2,8 @@
  * O botão da LIA — o ponto de entrada da assistente.
  *
  * Fica flutuando acima da barra inferior. Um toque abre o leque de
- * funcionalidades; hoje há uma só ("Simulação de poupança"), e o leque já
- * existe porque a segunda entra sem redesenhar nada.
+ * funcionalidades — hoje três, e cada uma nova entra acrescentando uma linha a
+ * `FUNCIONALIDADES`, sem redesenhar nada.
  *
  * O botão MUDA DE CARA quando a LIA está ouvindo: vira um anel pulsante. Numa
  * ferramenta que abre o microfone, o estado "estou gravando" precisa ser
@@ -20,7 +20,7 @@ import { useLia } from '@/features/lia/LiaProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 
-export type HabilidadeLia = 'simulacao' | 'material';
+export type HabilidadeLia = 'simulacao' | 'material' | 'agenda';
 
 interface Funcionalidade {
   chave: HabilidadeLia;
@@ -41,6 +41,17 @@ const FUNCIONALIDADES: Funcionalidade[] = [
     titulo: 'Material de venda',
     descricao: 'Diga o empreendimento e a pasta. Ela acha a mídia.',
     emoji: '🖼️',
+  },
+  {
+    chave: 'agenda',
+    /*
+     * "Agendar compromisso", e não "Agenda": a barra inferior JÁ tem uma aba
+     * chamada Agenda, que é um lugar. Este é uma ação — e dois rótulos iguais
+     * para coisas diferentes na mesma tela é como o corretor toca no errado.
+     */
+    titulo: 'Agendar compromisso',
+    descricao: 'Diga o dia, a hora e o que é. Ela marca no calendário.',
+    emoji: '📅',
   },
 ];
 

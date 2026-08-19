@@ -66,7 +66,6 @@ import { Animated } from 'react-native';
 import { db } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { sessionStorage } from '@/lib/storage';
-import { localISO } from '@/features/agenda/dates';
 import { PREFILL_KEY } from '@/features/simulador/SimuladorProvider';
 import {
   CAMPOS_POR_CHAVE,
@@ -79,7 +78,7 @@ import {
 import { resolverDoCatalogo, vocabularioDoCatalogo, type ItemCatalogo } from './catalogo';
 import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
 import { extrair, type CampoOuvido, type ModoExtracao } from './extrair';
-import { pareceAgendamento, extrairAgendamento } from './agendamento';
+import { agendarPorVoz, pareceAgendamento } from './agendamento';
 import { valeAnalisar } from './gatilho';
 import { temConsentimentoLia } from './consentimento';
 import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
@@ -549,83 +548,18 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const processarAgendamento = useCallback(
     async (texto: string) => {
       if (!user) return;
-      const r = await extrairAgendamento({
-        texto,
-        hoje: hojeYmdLocal(),
-        empreendimentos: empreendimentosRef.current.map((e) => e.nome),
-        clientes: leadsRef.current.map((l) => l.nome),
+      const r = await agendarPorVoz(user.id, texto, {
+        empreendimentos: empreendimentosRef.current,
+        clientes: leadsRef.current,
+        empresaDoEmpreendimento: contextoRef.current.empresaDoEmpreendimento,
       });
-
-      if ('erro' in r) {
-        setAvisoAgendamento({ tipo: 'erro', texto: r.erro });
-        return;
-      }
-      if (!r.ok) {
-        setAvisoAgendamento({ tipo: 'erro', texto: r.motivo });
-        return;
-      }
-
-      const { agendamento } = r;
-      const startAt = localISO(agendamento.dataISO, agendamento.hora);
-      if (!startAt) {
-        setAvisoAgendamento({
-          tipo: 'erro',
-          texto: 'Entendi o pedido, mas a data ou o horário saíram num formato inválido. Diga de novo.',
-        });
-        return;
-      }
-
-      // Nome → id, do mesmo jeito que `resolverReferencias` faz para os campos
-      // da simulação: casamento local, e sem chutar quando não bate.
-      const leadId = agendamento.clienteNome
-        ? resolverDoCatalogo(agendamento.clienteNome, leadsRef.current).id
-        : null;
-      const developmentId = agendamento.empreendimentoNome
-        ? resolverDoCatalogo(agendamento.empreendimentoNome, empreendimentosRef.current).id
-        : null;
-      const companyId = developmentId
-        ? (contextoRef.current.empresaDoEmpreendimento[developmentId] ?? null)
-        : null;
-
-      const descricao = [
-        agendamento.clienteNome ? `Cliente: ${agendamento.clienteNome}` : null,
-        agendamento.empreendimentoNome ? `Empreendimento: ${agendamento.empreendimentoNome}` : null,
-        'Agendado pela LIA, por voz.',
-      ]
-        .filter(Boolean)
-        .join(' · ');
-
-      const res = await db.appointments.create(user.id, {
-        title: agendamento.titulo,
-        description: descricao,
-        // "Visita" é o tipo mais próximo de "apresentar um empreendimento",
-        // que é o comando que motivou este recurso.
-        typeId: 'visita',
-        leadId,
-        companyId,
-        developmentId,
-        startAt,
-        source: 'lia',
-      });
-
-      if (!res.ok) {
-        setAvisoAgendamento({ tipo: 'erro', texto: `Não consegui salvar: ${res.error}` });
-        return;
-      }
-
-      setAvisoAgendamento({
-        tipo: 'sucesso',
-        texto: `Agendado: ${agendamento.titulo} — ${dataAgendamentoBR(agendamento.dataISO)} às ${agendamento.hora}.`,
-      });
+      setAvisoAgendamento(
+        r.ok ? { tipo: 'sucesso', texto: `Agendado: ${r.resumo}` } : { tipo: 'erro', texto: r.motivo },
+      );
     },
     [user],
   );
 
-  /*
-   * Igual à `processarRef` do `LiaMaterialChat`: a escuta é montada uma vez,
-   * em `iniciar()`, e o callback dela veria para sempre a versão de
-   * `processarAgendamento` daquele instante sem esta ref.
-   */
   const processarAgendamentoRef = useRef(processarAgendamento);
   processarAgendamentoRef.current = processarAgendamento;
 
@@ -829,26 +763,6 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   );
 
   return <LiaContext.Provider value={value}>{children}</LiaContext.Provider>;
-}
-
-/**
- * "Hoje", pelas partes LOCAIS do aparelho — nunca `toISOString()`.
- *
- * Mesmo cuidado de `extrair.ts`: `toISOString()` devolve UTC, e à noite no
- * Brasil isso já é o dia seguinte. Errar aqui faria "amanhã" virar "depois de
- * amanhã" perto da meia-noite.
- */
-function hojeYmdLocal(): string {
-  const agora = new Date();
-  const m = String(agora.getMonth() + 1).padStart(2, '0');
-  const d = String(agora.getDate()).padStart(2, '0');
-  return `${agora.getFullYear()}-${m}-${d}`;
-}
-
-/** AAAA-MM-DD → DD/MM, sem passar por `Date` — mesmo motivo de sempre. */
-function dataAgendamentoBR(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return m && d ? `${d}/${m}` : iso;
 }
 
 export function useLia(): LiaContextValue {
