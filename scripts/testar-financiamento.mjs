@@ -1095,6 +1095,209 @@ secao('PONTE PARA O SIMULADOR DE POUPANÇA');
   );
 }
 
+/* ==========================================================================
+ * PARAMETRIZAÇÃO — o que a especificação de regras exige
+ *
+ * Renda mínima e máxima, entrada mínima efetiva, base do comprometimento,
+ * formato da versão, confiabilidade e a lista honesta de componentes.
+ * ====================================================================== */
+{
+  secao('PARAMETRIZAÇÃO — faixas, bases e procedência');
+
+  /* -------------------------------------------- formato da versão (§10) */
+  checar('2026.08 é válida', R.versaoValida('2026.08'));
+  checar('2026.08.1 (revisão) é válida', R.versaoValida('2026.08.1'));
+  checar('mês 13 é recusado', !R.versaoValida('2026.13'));
+  checar('mês 00 é recusado', !R.versaoValida('2026.00'));
+  checar('ano de dois dígitos é recusado', !R.versaoValida('26.08'));
+  checar('texto livre é recusado', !R.versaoValida('agosto'));
+
+  /* ------------------------------------- entrada mínima efetiva (§2.10) */
+  checar('entrada 10% com quota 80% vira 20%', R.entradaMinimaEfetivaPct(10, 80) === 20);
+  checar('entrada 25% com quota 80% continua 25%', R.entradaMinimaEfetivaPct(25, 80) === 25);
+  checar('sem entrada cadastrada, manda a quota', R.entradaMinimaEfetivaPct(null, 90) === 10);
+  checar('sem quota cadastrada, manda a entrada', R.entradaMinimaEfetivaPct(15, null) === 15);
+  checar('sem nenhum dos dois, não há mínimo', R.entradaMinimaEfetivaPct(null, null) === null);
+  checar('quota de 100% não exige entrada', R.entradaMinimaEfetivaPct(0, 100) === 0);
+
+  /* ------------------------------------------- confiabilidade (§8, §13) */
+  const semNada = { ...REGRAS_PADRAO, statusConfiabilidade: 'oficial_configurado', fonte: null, fonteUrl: null, verificadoEm: null };
+  checar('sem fonte, não é oficial', R.confiabilidadeDaVersao(semNada) === 'estimativa');
+  const semData = { ...REGRAS_PADRAO, statusConfiabilidade: 'oficial_configurado', fonte: 'CAIXA', fonteUrl: 'https://x', verificadoEm: null };
+  checar('sem data de verificação, não é oficial', R.confiabilidadeDaVersao(semData) === 'estimativa');
+  const completa = { ...REGRAS_PADRAO, statusConfiabilidade: 'oficial_configurado', fonte: 'CAIXA', fonteUrl: 'https://x', verificadoEm: '2026-08-19' };
+  checar('com os quatro, é oficial', R.confiabilidadeDaVersao(completa) === 'oficial_configurado');
+  const semDeclarar = { ...REGRAS_PADRAO, fonte: 'CAIXA', fonteUrl: 'https://x', verificadoEm: '2026-08-19' };
+  checar('sem declarar, é estimativa', R.confiabilidadeDaVersao(semDeclarar) === 'estimativa');
+
+  /* -------------------------------------------- faixa pela renda (§2.1) */
+  const comFaixas = {
+    ...REGRAS_PADRAO,
+    produtos: REGRAS_PADRAO.produtos.map((p) => {
+      if (p.id === 'mcmv_1') {
+        return {
+          ...p,
+          faixaRenda: R.oficial({ min: 0, max: 2850 }, 'f', 'u', '2026-08-19'),
+          taxaAnualPct: R.oficial(4.5, 'f', 'u', '2026-08-19'),
+          prazoMaxMeses: R.oficial(420, 'f', 'u', '2026-08-19'),
+          quotaMaxPct: R.oficial(90, 'f', 'u', '2026-08-19'),
+          comprometimentoRendaMaxPct: R.oficial(30, 'f', 'u', '2026-08-19'),
+        };
+      }
+      if (p.id === 'mcmv_2') {
+        return {
+          ...p,
+          faixaRenda: R.oficial({ min: 2850.01, max: 4700 }, 'f', 'u', '2026-08-19'),
+          taxaAnualPct: R.oficial(5.5, 'f', 'u', '2026-08-19'),
+          prazoMaxMeses: R.oficial(420, 'f', 'u', '2026-08-19'),
+          quotaMaxPct: R.oficial(90, 'f', 'u', '2026-08-19'),
+          comprometimentoRendaMaxPct: R.oficial(30, 'f', 'u', '2026-08-19'),
+        };
+      }
+      return p;
+    }),
+  };
+
+  checar('renda de 2.000 cai na Faixa 1', R.faixaPelaRenda(comFaixas, 'caixa', 2000)?.id === 'mcmv_1');
+  checar('renda de 4.000 cai na Faixa 2', R.faixaPelaRenda(comFaixas, 'caixa', 4000)?.id === 'mcmv_2');
+  checar('o limite superior é inclusivo', R.faixaPelaRenda(comFaixas, 'caixa', 4700)?.id === 'mcmv_2');
+  checar('um centavo acima já sai da faixa', R.faixaPelaRenda(comFaixas, 'caixa', 4700.01)?.id !== 'mcmv_2');
+  checar('renda zero não enquadra em nada', R.faixaPelaRenda(comFaixas, 'caixa', 0) === null);
+  checar('renda alta não acha faixa do MCMV', R.faixaPelaRenda(comFaixas, 'caixa', 90000) === null);
+  checar('banco sem linha própria não acha faixa', R.faixaPelaRenda(comFaixas, 'itau', 4000) === null);
+  /*
+   * A trava que mais importa: uma faixa SEM parâmetro cadastrado nunca pode ser
+   * apontada. Apontar para uma faixa que o simulador não consegue calcular
+   * mandaria o corretor para uma tela vazia.
+   */
+  checar(
+    'faixa sem parâmetro não é apontada',
+    R.faixaPelaRenda(REGRAS_PADRAO, 'caixa', 2000)?.id !== 'mcmv_1',
+  );
+  /* A mais estreita ganha: entre "até 4.700" e uma sem teto, vale a primeira. */
+  const comAberta = {
+    ...comFaixas,
+    produtos: comFaixas.produtos.map((p) =>
+      p.id === 'mcmv_3'
+        ? {
+            ...p,
+            faixaRenda: R.oficial({ min: 0, max: null }, 'f', 'u', '2026-08-19'),
+            taxaAnualPct: R.oficial(9, 'f', 'u', '2026-08-19'),
+            prazoMaxMeses: R.oficial(420, 'f', 'u', '2026-08-19'),
+            quotaMaxPct: R.oficial(80, 'f', 'u', '2026-08-19'),
+            comprometimentoRendaMaxPct: R.oficial(30, 'f', 'u', '2026-08-19'),
+          }
+        : p,
+    ),
+  };
+  checar('a faixa mais estreita ganha da aberta', R.faixaPelaRenda(comAberta, 'caixa', 2000)?.id === 'mcmv_1');
+
+  /* ------------------------------- base do comprometimento (§2.7, §12) */
+  const regrasComSeguros = comSeguros();
+  const baseTotal = simular({ ...BASE, produtoId: 'informado' }, regrasComSeguros);
+  const soPrincipal = simular(
+    { ...BASE, produtoId: 'informado' },
+    {
+      ...regrasComSeguros,
+      produtos: regrasComSeguros.produtos.map((p) =>
+        p.id === 'informado' ? { ...p, baseComprometimento: 'principal_juros' } : p,
+      ),
+    },
+  );
+  checar('as duas bases calculam', baseTotal.ok && soPrincipal.ok);
+  checar(
+    'a base "prestação total" exige mais renda que "só o principal"',
+    baseTotal.ok &&
+      soPrincipal.ok &&
+      baseTotal.resultado.rendaMinimaEstimada > soPrincipal.resultado.rendaMinimaEstimada,
+    `(${baseTotal.ok && baseTotal.resultado.rendaMinimaEstimada} vs ${soPrincipal.ok && soPrincipal.resultado.rendaMinimaEstimada})`,
+  );
+
+  /* --------------------------------------- componentes incluídos (§12) */
+  const semApolice = simular({ ...BASE, produtoId: 'informado' }, REGRAS_PADRAO);
+  checar('sem apólice, o MIP não entra', semApolice.ok && semApolice.resultado.componentes.mipIncluido === false);
+  checar('e o resultado diz isso em português', semApolice.ok && semApolice.resultado.componentes.naoIncluidos.some((t) => t.includes('MIP')));
+  checar('juros e amortização sempre entram', semApolice.ok && semApolice.resultado.componentes.incluidos.includes('Juros'));
+
+  const comApolice = simular({ ...BASE, produtoId: 'informado' }, regrasComSeguros);
+  checar('com apólice, o MIP entra', comApolice.ok && comApolice.resultado.componentes.mipIncluido === true);
+
+  /* ------------------------------- linha indexada sem índice cadastrado */
+  const semTr = simular(
+    { ...BASE, produtoId: 'mcmv_classe_media', valorImovel: reais(400000) },
+    REGRAS_PADRAO,
+  );
+  checar('linha com TR sem índice avisa no status', semTr.ok && semTr.resultado.status === 'SEM_CORRECAO');
+  checar('e lista a correção como não incluída', semTr.ok && semTr.resultado.componentes.correcaoAplicada === false);
+
+  const comTr = simular(
+    { ...BASE, produtoId: 'mcmv_classe_media', valorImovel: reais(400000) },
+    comIndice('TR', 0.001),
+  );
+  checar('com o índice cadastrado, a correção entra', comTr.ok && comTr.resultado.componentes.correcaoAplicada === true);
+  checar('e o status deixa de ser SEM_CORRECAO', comTr.ok && comTr.resultado.status !== 'SEM_CORRECAO');
+
+  /* ------------------------------ toda linha declara base e tratamento */
+  checar(
+    'todo produto declara a base do comprometimento',
+    REGRAS_PADRAO.produtos.every((p) =>
+      ['principal_juros', 'principal_juros_dfi', 'prestacao_total'].includes(p.baseComprometimento),
+    ),
+  );
+  checar(
+    'todo produto declara o tratamento da carência',
+    REGRAS_PADRAO.produtos.every((p) =>
+      ['nao_permitida', 'juros_capitalizados', 'juros_pagos_mensalmente'].includes(
+        p.tratamentoCarencia,
+      ),
+    ),
+  );
+}
+
+/* ==========================================================================
+ * RASCUNHO ANTIGO — o defeito que derrubou o simulador no celular
+ *
+ * O formato do formulário mudou entre duas versões: `proponentes` era o texto
+ * '1' e virou a lista das pessoas. Um rascunho velho no aparelho fazia o app
+ * chamar `.map` numa string e quebrar a tela inteira. Estes testes travam o
+ * saneamento para isso não voltar de nenhuma outra forma.
+ * ====================================================================== */
+{
+  secao('RASCUNHO ANTIGO — saneamento do formulário');
+
+  const F = carregar('formulario');
+
+  const velho = F.sanearForm({ proponentes: '1', idade: '34', valorImovel: 'R$ 300.000,00' });
+  checar('proponentes em texto vira lista', Array.isArray(velho.proponentes));
+  checar('e a lista nunca fica vazia', velho.proponentes.length === 1);
+  checar('o que era compatível é aproveitado', velho.valorImovel === 'R$ 300.000,00');
+  checar('o rascunho velho não quebra o motor', Array.isArray(F.paraProponentes(velho.proponentes)));
+
+  checar('nulo vira formulário inicial', F.sanearForm(null).proponentes.length === 1);
+  checar('texto solto vira formulário inicial', F.sanearForm('lixo').proponentes.length === 1);
+  checar('lista solta vira formulário inicial', F.sanearForm([1, 2, 3]).proponentes.length === 1);
+
+  const tipoErrado = F.sanearForm({ valorImovel: 42, block: 'dois', sistema: 'FRANCES', uf: 7 });
+  checar('número onde se espera texto é descartado', tipoErrado.valorImovel === '');
+  checar('texto onde se espera número é descartado', tipoErrado.block === 0);
+  checar('sistema desconhecido volta ao padrão', tipoErrado.sistema === 'SAC');
+  checar('UF de tipo errado volta ao padrão', tipoErrado.uf === null);
+
+  const proponentesSujos = F.sanearForm({
+    proponentes: [null, 'texto', { nome: 'Ana', rendaBruta: 'R$ 5.000,00', idade: 30 }],
+  });
+  checar('itens inválidos da lista somem', proponentesSujos.proponentes.length === 1);
+  checar('o item bom sobrevive', proponentesSujos.proponentes[0].nome === 'Ana');
+  checar('e o campo de tipo errado dentro dele é limpo', proponentesSujos.proponentes[0].idade === '');
+  checar('todo proponente saneado ganha id', proponentesSujos.proponentes[0].id === 'p1');
+
+  const muitos = F.sanearForm({ proponentes: Array.from({ length: 9 }, () => ({ nome: 'x' })) });
+  checar('a lista é limitada a quatro pessoas', muitos.proponentes.length === 4);
+
+  checar('paraProponentes aguenta receber texto', F.paraProponentes('1').length === 0);
+  checar('rendaFamiliar aguenta proponentes inválidos', F.rendaFamiliar({ proponentes: 'x' }) === 0);
+}
+
 /* ===================================================================== */
 
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);

@@ -516,10 +516,75 @@ bancário.
 > qualquer um for cadastrada em `VersaoRegras` com o `bancoId` apontando para
 > ele, passa a ter linha própria **sem uma linha de código nova**.
 
-> **Sobre as logomarcas.** `BancoMarca` desenha um selo com a cor institucional
-> e o nome do banco, e **não** reproduz a arte registrada de ninguém. Quem tiver
-> o arquivo licenciado põe o PNG em `assets/bancos/<id>.png` e acrescenta uma
-> linha ao mapa `LOGOS` do componente; ele passa a usar a imagem sozinho.
+> **Sobre as logomarcas.** `BancoMarca` tenta três caminhos, nesta ordem: o
+> **arquivo oficial** (mapa `LOGOS`), a **marca desenhada em SVG** e, por
+> último, um **ladrilho com o nome** na cor institucional. Só a Caixa tem marca
+> desenhada — o símbolo dela é geometria exata (quatro paralelogramos formando
+> um X) e sai fiel em qualquer tamanho. As do Bradesco e do Santander têm traço
+> orgânico e a do Banco do Brasil é um entrelaçado complexo: reproduzi-las à mão
+> sairia parecido e errado, o que identifica pior que o ladrilho. Para elas o
+> caminho é o arquivo — instruções em `assets/bancos/LEIA-ME.md`. O mapa `LOGOS`
+> nasce vazio porque `require` de arquivo inexistente derruba o build inteiro.
+
+### A faixa acompanha a renda
+
+Digitada a renda familiar, o simulador mostra na hora a faixa em que ela se
+enquadra — e **troca a linha sozinho** para ela. É o que o corretor faria à mão,
+e é o que impede apresentar a condição da Faixa 3 a quem tem direito à Faixa 1.
+
+Havendo mais de uma faixa compatível, ganha a **mais estreita**: entre uma faixa
+"até R$ 4.700" e uma sem teto, quem ganha R$ 4.000 está na primeira, que é a que
+traz o subsídio e a taxa menor. E uma faixa **sem parâmetro cadastrado nunca é
+apontada** — mandar o corretor para uma linha que o motor não calcula seria uma
+tela vazia sem explicação.
+
+### Quem configura é o administrador. O corretor, só em "Outro banco"
+
+Taxa, quota, comprometimento, carência e cenário de indexador **não são campos
+de formulário**: são cadastro versionado, com fonte, data de verificação e
+auditoria. Deixá-los editáveis na simulação permitiria apresentar como condição
+do banco um número que o próprio corretor digitou — que é exatamente o que a
+versão de regras existe para impedir.
+
+Então eles aparecem para duas pessoas: o **administrador**, em qualquer banco, e
+o corretor quando escolhe **"Outro banco"** — onde não há tabela para contrariar
+e informar a condição do correspondente é o comportamento previsto. Um banco
+listado mas ainda sem cadastro diz isso na cara, e aponta o caminho.
+
+### O que entrou nesta prestação, e o que não entrou
+
+Um resultado não é só um número: é o número mais a lista honesta do que ele
+contém. Quando a tábua do MIP não está cadastrada, a prestação sai **menor que a
+real** — e o corretor precisa saber disso antes de mandar o PDF, não depois de o
+banco apresentar a proposta. Daí `componentes.incluidos` e
+`componentes.naoIncluidos`, em português, na tela e no PDF.
+
+Linha indexada calculada sem o índice ganha status próprio (`SEM_CORRECAO`):
+não é "falta um parâmetro", é a tabela inteira saindo abaixo do real, mês a mês,
+com o erro crescendo junto com o prazo.
+
+### "Oficial" é conquistado, não digitado
+
+Uma versão de regras só se apresenta como condição oficial com os **quatro**:
+fonte, URL, data de verificação e a confirmação explícita de quem publicou.
+Faltando qualquer um, ela é `estimativa` — e `confiabilidadeDaVersao()` reconfere
+isso na leitura, então nem um registro gravado com o rótulo errado consegue
+passar. Digitar números não torna nada oficial.
+
+### As três decisões que não são número
+
+Além dos valores, cada linha cadastra:
+
+| decisão | por que não pode ser implícita |
+|---|---|
+| **Regime da taxa** (nominal/efetiva) | 10% nominais = 0,8333% a.m.; 10% efetivos = 0,7974% a.m. Em 35 anos, mais de R$ 18 mil |
+| **Base do comprometimento** | "até 30% da renda" não diz **de qual prestação** — com ou sem seguros, a mesma operação passa ou não passa |
+| **Tratamento da carência** | capitalizar os juros faz o saldo **subir**; pagá-los mês a mês o mantém parado |
+
+A entrada mínima também é resolvida, e não lida crua: vale sempre o **maior**
+entre a cadastrada e a que a quota impõe. Entrada mínima de 10% com quota de 80%
+é, na prática, entrada de 20% — usar o campo isolado aprovaria um negócio que a
+própria quota reprova.
 
 ### O motor segue o pipeline do manual, não uma fórmula única
 
@@ -539,7 +604,7 @@ a mexer no laço de amortização.
 `simular(entrada, regras)` é **função pura** — sem React, sem Supabase, sem
 navegador. Três consequências práticas:
 
-1. **264 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
+1. **319 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
    a lista de cenários que o próprio manual especifica (§76 a §93).
 2. **A LIA pode chamá-lo.** Ela interpreta o número; nunca o produz. É a
    diferença entre um assistente e um chute bem escrito.

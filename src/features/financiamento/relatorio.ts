@@ -247,6 +247,17 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     <div><b>Linha:</b> ${esc(r.produto.nome)}</div>
     <div><b>Indexador:</b> ${esc(r.indexador.nome)}${r.correcao.origem === 'sem_correcao' ? ' (sem correção aplicada)' : r.correcao.origem === 'cenario' ? ' (cenário hipotético)' : ''}</div>
     <div><b>Taxa:</b> ${formatarPct(r.taxaAnualPct)} ao ano ${r.produto.parametrosManuais ? '(informada)' : ''}</div>
+    <div><b>Componentes:</b> ${esc(r.componentes.incluidos.join(' · '))}</div>
+    ${
+      r.componentes.naoIncluidos.length > 0
+        ? `<div><b>Não incluído:</b> ${esc(r.componentes.naoIncluidos.join('; '))}. A prestação real será maior.</div>`
+        : ''
+    }
+    ${
+      r.confiabilidade !== 'oficial_configurado'
+        ? '<div><b>Procedência:</b> parâmetros sem confirmação oficial registrada — trate como estimativa.</div>'
+        : ''
+    }
     <div><b>Corretor:</b> ${esc(p?.fullName) || '—'}</div>
   </div>
 

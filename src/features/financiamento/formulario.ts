@@ -145,6 +145,9 @@ export function inteiro(texto: string): number | null {
 }
 
 export function paraProponentes(lista: FormProponente[]): Proponente[] {
+  // Defesa contra rascunho antigo: ver `sanearForm`. Aqui é a última linha —
+  // este módulo é chamado pelo motor e por testes, sem passar pelo provider.
+  if (!Array.isArray(lista)) return [];
   return lista.map((p) => ({
     id: p.id,
     nome: p.nome.trim(),
@@ -195,8 +198,116 @@ export function paraEntrada(form: FormFinanciamento): EntradaSimulacao {
   };
 }
 
+/**
+ * SANEAMENTO DO RASCUNHO — o conserto da tela branca no celular.
+ *
+ * ===========================================================================
+ * O QUE ACONTECEU
+ * ===========================================================================
+ * O rascunho do simulador é gravado no aparelho como JSON e relido na abertura
+ * seguinte. Só que o formato do formulário MUDOU entre duas versões do POUP:
+ * na primeira, `proponentes` era o texto `'1'` (quantas pessoas compõem
+ * renda); na atual, é a LISTA das pessoas.
+ *
+ * Um `{ ...FORM_INICIAL, ...rascunho }` não percebe isso — ele obedece o
+ * rascunho e põe a string `'1'` onde o código espera um array. Na primeira
+ * linha que chama `.map`, o app quebra inteiro.
+ *
+ * E quebra **só em quem já tinha usado o simulador antes**: no computador em
+ * que o rascunho era novo, tudo funcionava; no celular que tinha o rascunho
+ * velho, tela branca. Foi exatamente esse o relato.
+ *
+ * ===========================================================================
+ * A REGRA QUE ISSO DEIXA
+ * ===========================================================================
+ * **Dado que veio do armazenamento local é entrada não confiável.** Ele foi
+ * escrito por uma versão do aplicativo que não existe mais e nunca vai ser
+ * migrado por ninguém. Então nada dele entra no estado sem passar por aqui:
+ * cada campo é conferido contra o tipo que o formulário espera e, no que não
+ * bater, vale o valor inicial.
+ *
+ * O efeito para o corretor é o melhor possível: em vez de perder a tela, ele
+ * perde no máximo um campo que aquela versão nem sabia preencher.
+ */
+export function sanearForm(bruto: unknown): FormFinanciamento {
+  const base: FormFinanciamento = { ...FORM_INICIAL, proponentes: [proponenteVazio('p1')] };
+  if (!bruto || typeof bruto !== 'object') return base;
+  const d = bruto as Record<string, unknown>;
+
+  const texto = (chave: keyof FormFinanciamento): string => {
+    const v = d[chave];
+    return typeof v === 'string' ? v : (base[chave] as string);
+  };
+  const opcional = (chave: keyof FormFinanciamento): string | null => {
+    const v = d[chave];
+    if (v === null) return null;
+    return typeof v === 'string' ? v : (base[chave] as string | null);
+  };
+  const umDe = <T extends string>(chave: keyof FormFinanciamento, valores: readonly T[]): T => {
+    const v = d[chave];
+    return valores.includes(v as T) ? (v as T) : (base[chave] as T);
+  };
+
+  /*
+   * A lista de proponentes é o campo que causou a queda, e é o único que pode
+   * chegar como string. Ela é reconstruída pessoa a pessoa; se sobrar zero
+   * pessoa válida, entra uma vazia — formulário sem proponente não tem renda,
+   * e sem renda não há simulação.
+   */
+  const crus = Array.isArray(d.proponentes) ? d.proponentes : [];
+  const proponentes: FormProponente[] = crus
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+    .slice(0, 4)
+    .map((p, i) => ({
+      id: typeof p.id === 'string' && p.id ? p.id : `p${i + 1}`,
+      nome: typeof p.nome === 'string' ? p.nome : '',
+      idade: typeof p.idade === 'string' ? p.idade : '',
+      rendaBruta: typeof p.rendaBruta === 'string' ? p.rendaBruta : '',
+      participacao: typeof p.participacao === 'string' ? p.participacao : '',
+    }));
+
+  return {
+    leadId: opcional('leadId'),
+    bancoId: opcional('bancoId'),
+    proponentes: proponentes.length > 0 ? proponentes : [proponenteVazio('p1')],
+
+    companyId: opcional('companyId'),
+    developmentId: opcional('developmentId'),
+    block: typeof d.block === 'number' && Number.isFinite(d.block) ? d.block : base.block,
+    unit: texto('unit'),
+    operacao: umDe('operacao', [
+      'aquisicao_novo',
+      'aquisicao_usado',
+      'construcao',
+      'terreno_e_construcao',
+    ] as const),
+    tipoImovel: umDe('tipoImovel', ['residencial', 'comercial'] as const),
+    uf: opcional('uf'),
+    municipio: texto('municipio'),
+    valorImovel: texto('valorImovel'),
+    valorAvaliacao: texto('valorAvaliacao'),
+
+    entradaPropria: texto('entradaPropria'),
+    fgtsDisponivel: texto('fgtsDisponivel'),
+    fgtsUsado: texto('fgtsUsado'),
+    subsidio: texto('subsidio'),
+
+    produtoId: texto('produtoId'),
+    sistema: umDe('sistema', ['SAC', 'PRICE'] as const),
+    prazoMeses: texto('prazoMeses'),
+    carenciaMeses: texto('carenciaMeses'),
+    cenarioIndexador: texto('cenarioIndexador'),
+
+    taxaAnual: texto('taxaAnual'),
+    regimeTaxa: umDe('regimeTaxa', ['nominal', 'efetiva'] as const),
+    quotaMax: texto('quotaMax'),
+    comprometimento: texto('comprometimento'),
+  };
+}
+
 /** A renda familiar somada, para a tela mostrar sem chamar o motor. */
 export function rendaFamiliar(form: FormFinanciamento): Centavos {
+  if (!Array.isArray(form.proponentes)) return ZERO as Centavos;
   return form.proponentes.reduce(
     (soma, p) => (soma + dinheiro(p.rendaBruta)) as Centavos,
     ZERO as Centavos,

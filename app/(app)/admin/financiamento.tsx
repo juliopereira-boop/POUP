@@ -38,15 +38,24 @@ import { Screen } from '@/components/Screen';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import {
+  BASE_COMPROMETIMENTO_ROTULO,
+  TRATAMENTO_CARENCIA_ROTULO,
   acharProduto,
+  confiabilidadeDaVersao,
   oficial,
   parametrosPendentes,
   produtoCalculavel,
   temValor,
+  versaoValida,
+  type BaseComprometimento,
   type Parametro,
   type ProdutoFinanciamento,
+  type TratamentoCarencia,
   type VersaoRegras,
 } from '@/features/financiamento/regras';
+import type { FaixaMip } from '@/features/financiamento/seguros';
+import type { RegimeTaxa } from '@/features/financiamento/dinheiro';
+import { BANCOS } from '@/features/financiamento/bancos';
 import { REGRAS_PADRAO } from '@/features/financiamento/regrasPadrao';
 import { hojeISO } from '@/features/financiamento/formulario';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -132,10 +141,28 @@ export default function AdminFinanciamento() {
   const [globais, setGlobais] = useState<Record<string, string>>({});
   const [fonte, setFonte] = useState('CAIXA');
   const [fonteUrl, setFonteUrl] = useState('https://www.caixa.gov.br/');
+  const [verificadoEm, setVerificadoEm] = useState('');
   const [versao, setVersao] = useState('');
   const [motivo, setMotivo] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  /*
+   * As três escolhas que não são número.
+   *
+   * Regime da taxa, base do comprometimento e tratamento da carência mudam o
+   * resultado tanto quanto qualquer valor — e presumir qualquer uma delas em
+   * silêncio é o tipo de decisão implícita que a especificação proíbe.
+   */
+  const [regimeTaxa, setRegimeTaxa] = useState<RegimeTaxa>('nominal');
+  const [baseComp, setBaseComp] = useState<BaseComprometimento>('prestacao_total');
+  const [tratCarencia, setTratCarencia] = useState<TratamentoCarencia>('juros_capitalizados');
+  /** A tábua do MIP, editada faixa a faixa. */
+  const [mip, setMip] = useState<{ de: string; ate: string; taxa: string }[]>([]);
+  /**
+   * A confirmação explícita do §8: sem ela, a versão sai como estimativa mesmo
+   * com todos os números preenchidos. Digitar não torna nada oficial.
+   */
+  const [confirmaOficial, setConfirmaOficial] = useState(false);
 
   const carregar = useCallback(async () => {
     const remotas = await db.financing.regrasVigentes();
@@ -172,6 +199,9 @@ export default function AdminFinanciamento() {
     setValores(proximo);
     setFonte(produto.fonte ?? 'CAIXA');
     setFonteUrl(produto.fonteUrl ?? 'https://www.caixa.gov.br/');
+    setRegimeTaxa(produto.regimeTaxa);
+    setBaseComp(produto.baseComprometimento);
+    setTratCarencia(produto.tratamentoCarencia);
   }, [produto]);
 
   // Os globais carregam da versão, e não do produto escolhido.
@@ -183,6 +213,21 @@ export default function AdminFinanciamento() {
       sfh: textoDe(regras.sfh.limiteValorImovel),
       tr: temValor(tr?.taxaMensal) ? String((tr.taxaMensal.valor as number) * 100).replace('.', ',') : '',
     });
+    /*
+     * A tábua do MIP entra como texto em percentual ao mês, e não na fração que
+     * o motor usa. Apólice fala em 0,035% ao mês; ninguém digita 0,00035 sem
+     * errar uma casa — e uma casa aqui multiplica o seguro por dez.
+     */
+    const tabua = temValor(regras.seguros.mipPorIdade) ? regras.seguros.mipPorIdade.valor : [];
+    setMip(
+      tabua.map((f) => ({
+        de: String(f.de),
+        ate: f.ate === null ? '' : String(f.ate),
+        taxa: String(f.taxaMensal * 100).replace('.', ','),
+      })),
+    );
+    setVerificadoEm(regras.verificadoEm ?? '');
+    setConfirmaOficial(confiabilidadeDaVersao(regras) === 'oficial_configurado');
   }, [regras]);
 
   if (loading || carregando) return <LoadingScreen />;
@@ -201,10 +246,60 @@ export default function AdminFinanciamento() {
       setAviso('Explique o motivo da alteração. Ele fica gravado na auditoria.');
       return;
     }
+    /*
+     * O FORMATO DA VERSÃO É VALIDADO ANTES DE QUALQUER COISA.
+     *
+     * AAAA.MM é o que faz a lista ordenar sozinha e o que faz todo mundo falar
+     * a mesma língua ("a regra de agosto"). Uma versão fora do formato quebra a
+     * ordenação e some no meio do histórico.
+     */
+    if (!versaoValida(versao)) {
+      setAviso('A versão precisa estar no formato AAAA.MM — por exemplo 2026.08 (ou 2026.08.1 para uma revisão do mesmo mês).');
+      return;
+    }
     if (!produto) return;
 
+    /*
+     * A VALIDAÇÃO DA QUOTA, ANTES DE GRAVAR.
+     *
+     * Quota fora de (0, 100] não é condição de banco nenhum: zero significa que
+     * nada é financiável, e acima de cem significa financiar mais do que o
+     * imóvel vale. Deixar passar contaminaria toda simulação seguinte.
+     */
+    const quotaDigitada = numeroDe(valores.quotaMaxPct ?? '');
+    if (quotaDigitada !== null && (quotaDigitada <= 0 || quotaDigitada > 100)) {
+      setAviso('A quota máxima financiada precisa ficar entre 0 e 100%.');
+      return;
+    }
+
+    const minRenda = numeroDe(valores.rendaMin ?? '');
+    const maxRenda = numeroDe(valores.rendaMax ?? '');
+    if (minRenda !== null && maxRenda !== null && maxRenda < minRenda) {
+      setAviso('A renda máxima da faixa não pode ser menor que a mínima.');
+      return;
+    }
+
+    /*
+     * "OFICIAL" É CONQUISTADO, NÃO DIGITADO — §8.
+     *
+     * Para a versão sair como `oficial_configurado` são exigidos os quatro:
+     * fonte, URL, data de verificação e a confirmação explícita. Faltando
+     * qualquer um, ela é publicada como estimativa, e o resultado da simulação
+     * carrega esse rótulo até o PDF.
+     */
+    const dataVerificacao = verificadoEm.trim();
+    if (confirmaOficial && (!fonte.trim() || !fonteUrl.trim() || !dataVerificacao)) {
+      setAviso('Para publicar como condição oficial, preencha fonte, URL e data de verificação.');
+      return;
+    }
+
     const hoje = hojeISO();
-    const novoProduto: ProdutoFinanciamento = { ...produto };
+    const novoProduto: ProdutoFinanciamento = {
+      ...produto,
+      regimeTaxa,
+      baseComprometimento: baseComp,
+      tratamentoCarencia: tratCarencia,
+    };
 
     for (const c of CAMPOS) {
       const n = numeroDe(valores[c.chave] ?? '');
@@ -220,14 +315,19 @@ export default function AdminFinanciamento() {
         n,
         fonte.trim(),
         fonteUrl.trim(),
-        hoje,
+        // A data de verificação é a do dia em que alguém LEU a fonte, e fica
+        // congelada. Sem ela informada, sobra a de hoje.
+        dataVerificacao || hoje,
       );
     }
 
-    const min = numeroDe(valores.rendaMin ?? '');
-    const max = numeroDe(valores.rendaMax ?? '');
-    if (min !== null) {
-      novoProduto.faixaRenda = oficial({ min, max }, fonte.trim(), fonteUrl.trim(), hoje);
+    if (minRenda !== null) {
+      novoProduto.faixaRenda = oficial(
+        { min: minRenda, max: maxRenda },
+        fonte.trim(),
+        fonteUrl.trim(),
+        dataVerificacao || hoje,
+      );
     }
     novoProduto.fonte = fonte.trim() || null;
     novoProduto.fonteUrl = fonteUrl.trim() || null;
@@ -239,6 +339,27 @@ export default function AdminFinanciamento() {
      * campo aqui não pode apagar em silêncio uma taxa que alguém cadastrou na
      * semana passada; para remover, o administrador troca o valor.
      */
+    /*
+     * A tábua do MIP, de texto para o formato do motor.
+     *
+     * Uma faixa só entra se tiver idade inicial e taxa; a idade final vazia
+     * significa "sem teto", que é como as apólices costumam terminar a última
+     * faixa. Elas saem ordenadas por idade porque `taxaMipDaIdade` devolve a
+     * PRIMEIRA que casar — fora de ordem, uma faixa larga engoliria as
+     * estreitas seguintes.
+     */
+    const faixasMip: FaixaMip[] = mip
+      .map((f) => {
+        const de = numeroDe(f.de);
+        const taxaPct = numeroDe(f.taxa);
+        if (de === null || taxaPct === null) return null;
+        const ate = f.ate.trim() ? numeroDe(f.ate) : null;
+        if (ate !== null && ate < de) return null;
+        return { de, ate, taxaMensal: taxaPct / 100 } satisfies FaixaMip;
+      })
+      .filter((f): f is FaixaMip => f !== null)
+      .sort((a2, b2) => a2.de - b2.de);
+
     const dfi = numeroDe(globais.dfi ?? '');
     const tarifa = numeroDe(globais.tarifa ?? '');
     const sfhLimite = numeroDe(globais.sfh ?? '');
@@ -255,17 +376,38 @@ export default function AdminFinanciamento() {
         ...regras.seguros,
         dfiPctMensalSobreAvaliacao:
           dfi !== null
-            ? oficial(dfi, fonte.trim(), fonteUrl.trim(), hoje)
+            ? oficial(dfi, fonte.trim(), fonteUrl.trim(), dataVerificacao || hoje)
             : regras.seguros.dfiPctMensalSobreAvaliacao,
         tarifaAdminMensal:
           tarifa !== null
-            ? oficial(tarifa, fonte.trim(), fonteUrl.trim(), hoje)
+            ? oficial(tarifa, fonte.trim(), fonteUrl.trim(), dataVerificacao || hoje)
             : regras.seguros.tarifaAdminMensal,
+        /*
+         * A TÁBUA DO MIP.
+         *
+         * Só é gravada quando houver ao menos uma faixa completa e coerente.
+         * Meia tábua é pior que nenhuma: o motor recusa o MIP inteiro quando um
+         * proponente cai fora das faixas, e uma tábua cadastrada pela metade
+         * faria a prestação variar conforme a idade de quem compra — sem
+         * ninguém entender por quê.
+         *
+         * O percentual digitado vira fração aqui: a apólice fala 0,035% ao mês,
+         * o motor precisa de 0,00035.
+         */
+        mipPorIdade:
+          faixasMip.length > 0
+            ? oficial(
+                faixasMip,
+                fonte.trim() || 'Apólice informada pelo administrador',
+                fonteUrl.trim(),
+                dataVerificacao || hoje,
+              )
+            : regras.seguros.mipPorIdade,
       },
       sfh: {
         limiteValorImovel:
           sfhLimite !== null
-            ? oficial(sfhLimite, fonte.trim(), fonteUrl.trim(), hoje)
+            ? oficial(sfhLimite, fonte.trim(), fonteUrl.trim(), dataVerificacao || hoje)
             : regras.sfh.limiteValorImovel,
       },
       indexadores: regras.indexadores.map((i) =>
@@ -284,6 +426,8 @@ export default function AdminFinanciamento() {
       fonte: fonte.trim() || null,
       fonteUrl: fonteUrl.trim() || null,
       notas: null,
+      statusConfiabilidade: confirmaOficial ? 'oficial_configurado' : 'estimativa',
+      verificadoEm: dataVerificacao || null,
     };
 
     setSalvando(true);
@@ -305,7 +449,11 @@ export default function AdminFinanciamento() {
     }
     setRegras(payload);
     setMotivo('');
-    setAviso(`Versão ${versao} publicada. As próximas simulações já usam estes parâmetros.`);
+    setAviso(
+      `Versão ${versao} publicada como ${
+        confirmaOficial ? 'condição oficial' : 'estimativa'
+      }. As próximas simulações já usam estes parâmetros.`,
+    );
   }
 
   return (
@@ -339,6 +487,11 @@ export default function AdminFinanciamento() {
 
       {/* --------------------------------------------------------- produto */}
       <Text style={styles.secao}>Linha de financiamento</Text>
+      <Text style={styles.texto}>
+        ● já calcula · ○ falta parâmetro. Cada linha pertence a um banco, e é o banco que o corretor
+        escolhe na porta do simulador.
+      </Text>
+      <View style={{ height: spacing.sm }} />
       <View style={styles.chips}>
         {regras.produtos
           .filter((p) => !p.parametrosManuais)
@@ -354,6 +507,9 @@ export default function AdminFinanciamento() {
                 <Text style={[styles.chipTexto, ativo && styles.chipTextoAtivo]}>
                   {completo ? '● ' : '○ '}
                   {p.nome}
+                  {p.bancoId
+                    ? ` · ${BANCOS.find((b2) => b2.id === p.bancoId)?.sigla ?? p.bancoId}`
+                    : ''}
                 </Text>
               </Pressable>
             );
@@ -396,6 +552,40 @@ export default function AdminFinanciamento() {
             />
           ))}
 
+          {/* ------------------------------- as decisões que não são número */}
+          <Escolha
+            titulo="A taxa acima é"
+            ajuda="10% nominais viram 0,8333% ao mês e 10,47% efetivos ao ano; 10% efetivos viram 0,7974% ao mês. Em 35 anos a diferença passa de vinte mil reais."
+            opcoes={[
+              { valor: 'nominal', rotulo: 'Nominal ao ano (÷ 12)' },
+              { valor: 'efetiva', rotulo: 'Efetiva ao ano (raiz 12)' },
+            ]}
+            escolhido={regimeTaxa}
+            aoEscolher={(v) => setRegimeTaxa(v as RegimeTaxa)}
+          />
+
+          <Escolha
+            titulo="O comprometimento de renda compara"
+            ajuda="'Até 30% da renda' não diz de qual prestação se fala — e a mesma operação passa ou não conforme a conta inclua os seguros."
+            opcoes={(Object.keys(BASE_COMPROMETIMENTO_ROTULO) as BaseComprometimento[]).map((k) => ({
+              valor: k,
+              rotulo: BASE_COMPROMETIMENTO_ROTULO[k],
+            }))}
+            escolhido={baseComp}
+            aoEscolher={(v) => setBaseComp(v as BaseComprometimento)}
+          />
+
+          <Escolha
+            titulo="Durante a carência"
+            ajuda="Carência não significa 'não pagar nada'. Capitalizar os juros faz o saldo subir; pagá-los mês a mês mantém o saldo parado."
+            opcoes={(Object.keys(TRATAMENTO_CARENCIA_ROTULO) as TratamentoCarencia[]).map((k) => ({
+              valor: k,
+              rotulo: TRATAMENTO_CARENCIA_ROTULO[k],
+            }))}
+            escolhido={tratCarencia}
+            aoEscolher={(v) => setTratCarencia(v as TratamentoCarencia)}
+          />
+
           <Text style={styles.secao}>Parâmetros globais da versão</Text>
           <Text style={styles.texto}>
             Valem para todas as linhas: os seguros vêm da apólice, a tarifa vem do contrato, e o
@@ -413,10 +603,73 @@ export default function AdminFinanciamento() {
               />
             </View>
           ))}
+          {/* ---------------------------------------------- a tábua do MIP */}
+          <Text style={styles.secao}>MIP — tábua por faixa etária</Text>
+          <Text style={styles.texto}>
+            O MIP não é um número: é uma tábua da apólice, com uma taxa por faixa de idade. Enquanto
+            ela estiver vazia, a prestação sai <Text style={styles.forte}>sem</Text> o seguro de
+            morte e invalidez — e o resultado diz isso ao corretor e no PDF.
+          </Text>
+          <View style={{ height: spacing.md }} />
+
+          {mip.map((f, i) => (
+            <View key={`mip-${i}`} style={styles.faixaMip}>
+              <View style={styles.linha}>
+                <View style={styles.col}>
+                  <Input
+                    label="De (anos)"
+                    value={f.de}
+                    onChangeText={(t) =>
+                      setMip((v) => v.map((x, j) => (j === i ? { ...x, de: t } : x)))
+                    }
+                    placeholder="18"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <Input
+                    label="Até (anos)"
+                    value={f.ate}
+                    onChangeText={(t) =>
+                      setMip((v) => v.map((x, j) => (j === i ? { ...x, ate: t } : x)))
+                    }
+                    placeholder="em branco = sem teto"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <Input
+                    label="Taxa (% ao mês)"
+                    value={f.taxa}
+                    onChangeText={(t) =>
+                      setMip((v) => v.map((x, j) => (j === i ? { ...x, taxa: t } : x)))
+                    }
+                    placeholder="0,035"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              <Pressable
+                onPress={() => setMip((v) => v.filter((_, j) => j !== i))}
+                accessibilityRole="button"
+              >
+                <Text style={styles.remover}>Remover faixa</Text>
+              </Pressable>
+            </View>
+          ))}
+
+          <Pressable
+            onPress={() => setMip((v) => [...v, { de: '', ate: '', taxa: '' }])}
+            accessibilityRole="button"
+            style={styles.adicionar}
+          >
+            <Text style={styles.adicionarTexto}>+ Acrescentar faixa etária</Text>
+          </Pressable>
           <Text style={styles.ajuda}>
-            A tábua do MIP por faixa etária ainda não é editável por esta tela — ela é uma lista de
-            faixas, não um número, e merece um editor próprio. Enquanto isso, a prestação sai sem o
-            seguro de morte e invalidez, e o resultado diz isso.
+            A taxa é sobre o <Text style={styles.forte}>saldo devedor</Text> do mês, multiplicada
+            pela pactuação de renda de cada proponente — por isso o MIP cai ao longo do contrato.
+            Faixa incompleta é descartada na publicação: meia tábua faria a prestação mudar conforme
+            a idade de quem compra, sem ninguém entender por quê.
           </Text>
 
           <Text style={styles.secao}>Procedência</Text>
@@ -428,10 +681,37 @@ export default function AdminFinanciamento() {
             placeholder="https://www.caixa.gov.br/..."
             autoCapitalize="none"
           />
+          <Input
+            label="Data de verificação (AAAA-MM-DD)"
+            value={verificadoEm}
+            onChangeText={setVerificadoEm}
+            placeholder={hojeISO()}
+            autoCapitalize="none"
+          />
           <Text style={styles.ajuda}>
-            O que você digitar acima entra como parâmetro <Text style={styles.forte}>oficial</Text>,
-            com a data de hoje como verificação. É esse carimbo que faz o app apresentar a condição
-            como oficial em vez de estimativa — então só preencha com o que você conferiu na fonte.
+            É o dia em que você <Text style={styles.forte}>abriu a página oficial e leu</Text> os
+            números — não a data de hoje por hábito. Ela fica congelada na versão publicada e não é
+            atualizada depois.
+          </Text>
+
+          <Pressable
+            onPress={() => setConfirmaOficial((v) => !v)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmaOficial }}
+            style={[styles.confirma, confirmaOficial && styles.confirmaAtiva]}
+          >
+            <Text style={[styles.confirmaMarca, confirmaOficial && styles.confirmaMarcaAtiva]}>
+              {confirmaOficial ? '✓' : ''}
+            </Text>
+            <Text style={styles.confirmaTexto}>
+              Confirmo que conferi estes valores na fonte informada, na data acima. Publicar como{' '}
+              <Text style={styles.forte}>condição oficial</Text>.
+            </Text>
+          </Pressable>
+          <Text style={styles.ajuda}>
+            Sem esta confirmação — ou faltando fonte, URL ou data — a versão é publicada como{' '}
+            <Text style={styles.forte}>estimativa</Text>, e a simulação diz isso ao cliente.
+            Digitar números não torna nada oficial.
           </Text>
 
           <Text style={styles.secao}>Publicar</Text>
@@ -469,6 +749,55 @@ export default function AdminFinanciamento() {
         </>
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Um grupo de opções mutuamente exclusivas.
+ *
+ * Existe porque três parâmetros desta tela **não são números** — regime da
+ * taxa, base do comprometimento e tratamento da carência —, e cada um deles
+ * muda o resultado tanto quanto uma taxa. Um `Select` escondia as alternativas
+ * atrás de um toque; aqui elas ficam à vista, com a explicação do que a escolha
+ * significa.
+ */
+function Escolha({
+  titulo,
+  ajuda,
+  opcoes,
+  escolhido,
+  aoEscolher,
+}: {
+  titulo: string;
+  ajuda: string;
+  opcoes: { valor: string; rotulo: string }[];
+  escolhido: string;
+  aoEscolher: (valor: string) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={{ marginBottom: spacing.lg }}>
+      <Text style={styles.rotuloEscolha}>{titulo}</Text>
+      <View style={styles.escolhas}>
+        {opcoes.map((o) => {
+          const ativo = o.valor === escolhido;
+          return (
+            <Pressable
+              key={o.valor}
+              onPress={() => aoEscolher(o.valor)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: ativo }}
+              style={[styles.escolha, ativo && styles.escolhaAtiva]}
+            >
+              <Text style={[styles.escolhaTexto, ativo && styles.escolhaTextoAtivo]}>
+                {o.rotulo}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.ajuda}>{ajuda}</Text>
+    </View>
   );
 }
 
@@ -512,6 +841,61 @@ const makeStyles = (colors: AppColors) =>
     linha: { flexDirection: 'row', gap: spacing.lg },
     col: { flex: 1 },
 
+    faixaMip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.surface,
+    },
+    remover: { ...typography.caption, color: colors.danger },
+    adicionar: { paddingVertical: spacing.sm, marginBottom: spacing.md },
+    adicionarTexto: { ...typography.label, color: colors.primary },
+
+    confirma: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      marginTop: spacing.sm,
+    },
+    confirmaAtiva: { borderColor: colors.success, backgroundColor: colors.successSoft },
+    confirmaMarca: {
+      width: 22,
+      height: 22,
+      borderRadius: radius.sm,
+      borderWidth: 1.5,
+      borderColor: colors.borderStrong,
+      textAlign: 'center',
+      lineHeight: 20,
+      color: 'transparent',
+      fontWeight: '800',
+    },
+    confirmaMarcaAtiva: { borderColor: colors.success, color: colors.success },
+    confirmaTexto: { ...typography.caption, color: colors.ink, flex: 1, lineHeight: 19 },
+
+    rotuloEscolha: {
+      ...typography.label,
+      color: colors.ink,
+      marginBottom: spacing.sm,
+    },
+    escolhas: { gap: spacing.sm },
+    escolha: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    escolhaAtiva: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    escolhaTexto: { ...typography.caption, color: colors.inkMuted },
+    escolhaTextoAtivo: { color: colors.primary, fontWeight: '700' },
     ajuda: {
       ...typography.caption,
       color: colors.inkMuted,

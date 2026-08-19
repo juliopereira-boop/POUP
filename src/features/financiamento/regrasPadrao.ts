@@ -125,6 +125,15 @@ function faixaMcmv(id: string, nome: string, descricao: string): ProdutoFinancia
     descricao,
     bancoId: 'caixa',
     parametrosManuais: false,
+    /*
+     * A base do comprometimento e o tratamento da carência são DECISÕES, não
+     * números: sem elas cadastradas, o motor teria de presumir uma das
+     * opções em silêncio. O padrão é o mais conservador de cada uma — a
+     * prestação total (a maior, que é a que o banco compara) e a carência
+     * com juros capitalizados (a que faz o saldo subir).
+     */
+    baseComprometimento: 'prestacao_total',
+    tratamentoCarencia: 'juros_capitalizados',
     operacoes: ['aquisicao_novo', 'aquisicao_usado', 'construcao'],
     tiposImovel: ['residencial'],
     ufs: null,
@@ -203,6 +212,15 @@ export const REGRAS_PADRAO: VersaoRegras = {
       descricao:
         'Você informa a taxa, o prazo e a quota que o correspondente bancário aprovou para este cliente. É a condição real da negociação — o cálculo é feito em cima dela.',
       parametrosManuais: true,
+      /*
+       * A base do comprometimento e o tratamento da carência são DECISÕES, não
+       * números: sem elas cadastradas, o motor teria de presumir uma das
+       * opções em silêncio. O padrão é o mais conservador de cada uma — a
+       * prestação total (a maior, que é a que o banco compara) e a carência
+       * com juros capitalizados (a que faz o saldo subir).
+       */
+      baseComprometimento: 'prestacao_total',
+      tratamentoCarencia: 'juros_capitalizados',
       operacoes: ['aquisicao_novo', 'aquisicao_usado', 'construcao', 'terreno_e_construcao'],
       tiposImovel: ['residencial', 'comercial'],
       ufs: null,
@@ -240,6 +258,15 @@ export const REGRAS_PADRAO: VersaoRegras = {
       descricao:
         'Faixa do programa para a classe média: sem subsídio, com juros abaixo do mercado tradicional e prazo estendido.',
       parametrosManuais: false,
+      /*
+       * A base do comprometimento e o tratamento da carência são DECISÕES, não
+       * números: sem elas cadastradas, o motor teria de presumir uma das
+       * opções em silêncio. O padrão é o mais conservador de cada uma — a
+       * prestação total (a maior, que é a que o banco compara) e a carência
+       * com juros capitalizados (a que faz o saldo subir).
+       */
+      baseComprometimento: 'prestacao_total',
+      tratamentoCarencia: 'juros_capitalizados',
       operacoes: ['aquisicao_novo', 'aquisicao_usado'],
       tiposImovel: ['residencial'],
       ufs: null,
@@ -341,6 +368,15 @@ export const REGRAS_PADRAO: VersaoRegras = {
       descricao:
         'Financiamento tradicional, fora do MCMV. Para quem passa do teto de renda do programa ou compra imóvel acima do limite.',
       parametrosManuais: false,
+      /*
+       * A base do comprometimento e o tratamento da carência são DECISÕES, não
+       * números: sem elas cadastradas, o motor teria de presumir uma das
+       * opções em silêncio. O padrão é o mais conservador de cada uma — a
+       * prestação total (a maior, que é a que o banco compara) e a carência
+       * com juros capitalizados (a que faz o saldo subir).
+       */
+      baseComprometimento: 'prestacao_total',
+      tratamentoCarencia: 'juros_capitalizados',
       operacoes: ['aquisicao_novo', 'aquisicao_usado', 'construcao', 'terreno_e_construcao'],
       tiposImovel: ['residencial', 'comercial'],
       ufs: null,
@@ -404,6 +440,15 @@ export const REGRAS_PADRAO: VersaoRegras = {
       descricao:
         'Taxa fixa, sem atualização por TR ou IPCA. A parcela varia apenas pelo sistema de amortização.',
       parametrosManuais: false,
+      /*
+       * A base do comprometimento e o tratamento da carência são DECISÕES, não
+       * números: sem elas cadastradas, o motor teria de presumir uma das
+       * opções em silêncio. O padrão é o mais conservador de cada uma — a
+       * prestação total (a maior, que é a que o banco compara) e a carência
+       * com juros capitalizados (a que faz o saldo subir).
+       */
+      baseComprometimento: 'prestacao_total',
+      tratamentoCarencia: 'juros_capitalizados',
       operacoes: ['aquisicao_novo', 'aquisicao_usado'],
       tiposImovel: ['residencial', 'comercial'],
       ufs: null,

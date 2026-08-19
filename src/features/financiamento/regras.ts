@@ -130,6 +130,55 @@ export const OPERACAO_ROTULO: Record<TipoOperacao, string> = {
 
 export type TipoImovel = 'residencial' | 'comercial';
 
+/**
+ * QUAL PRESTAÇÃO É COMPARADA COM O LIMITE DE RENDA.
+ *
+ * "Comprometimento de até 30% da renda" não diz **de que prestação** se fala, e
+ * a diferença é grande: a mesma operação passa ou não passa conforme a conta
+ * inclua ou não os seguros e a tarifa. Deixar isso implícito no código é o tipo
+ * de ambiguidade que só aparece quando o banco recusa uma proposta que o
+ * simulador aprovou.
+ *
+ * Então a base é do PRODUTO, cadastrada e versionada como qualquer parâmetro.
+ */
+export type BaseComprometimento = 'principal_juros' | 'principal_juros_dfi' | 'prestacao_total';
+
+export const BASE_COMPROMETIMENTO_ROTULO: Record<BaseComprometimento, string> = {
+  principal_juros: 'Só o encargo principal (juros + amortização)',
+  principal_juros_dfi: 'Encargo principal + DFI',
+  prestacao_total: 'Prestação total (com seguros e tarifa)',
+};
+
+/**
+ * O QUE ACONTECE COM OS JUROS DURANTE A CARÊNCIA — §37.
+ *
+ * Carência **não** significa "não pagar nada". Ela pode capitalizar os juros no
+ * saldo (que por isso sobe) ou exigir o pagamento mensal só dos juros, sem
+ * amortizar. Presumir uma das duas muda o saldo devedor ao fim do período e,
+ * com ele, todas as parcelas seguintes.
+ */
+export type TratamentoCarencia =
+  | 'nao_permitida'
+  | 'juros_capitalizados'
+  | 'juros_pagos_mensalmente';
+
+export const TRATAMENTO_CARENCIA_ROTULO: Record<TratamentoCarencia, string> = {
+  nao_permitida: 'Não permite carência',
+  juros_capitalizados: 'Juros capitalizados no saldo',
+  juros_pagos_mensalmente: 'Juros pagos mês a mês, sem amortizar',
+};
+
+/**
+ * O QUANTO A VERSÃO PODE SE CHAMAR DE OFICIAL — §8 da especificação de regras.
+ *
+ * "O sistema não deve chamar automaticamente uma condição de oficial apenas
+ * porque alguém digitou números." Para ser `oficial_configurado` a versão
+ * precisa de fonte, URL, data de verificação e a confirmação explícita de quem
+ * publicou. Faltando qualquer um, ela é `estimativa` — e o resultado da
+ * simulação diz isso ao corretor e ao cliente.
+ */
+export type StatusConfiabilidade = 'oficial_configurado' | 'estimativa';
+
 export const IMOVEL_ROTULO: Record<TipoImovel, string> = {
   residencial: 'Residencial',
   comercial: 'Comercial',
@@ -203,8 +252,12 @@ export interface ProdutoFinanciamento {
   /** O produto admite carência para início da amortização? — §37 */
   permiteCarencia: Parametro<boolean>;
   carenciaMaxMeses: Parametro<number>;
+  /** O que acontece com os juros durante a carência. Ver `TratamentoCarencia`. */
+  tratamentoCarencia: TratamentoCarencia;
   /** % da renda bruta familiar que a prestação pode consumir. */
   comprometimentoRendaMaxPct: Parametro<number>;
+  /** QUAL prestação é comparada com esse limite. Ver `BaseComprometimento`. */
+  baseComprometimento: BaseComprometimento;
   /** Idade do proponente + prazo do contrato não pode passar disto. */
   idadeMaisPrazoMaxAnos: Parametro<number>;
   /** Teto do subsídio/desconto. `0` é resposta legítima (faixa sem subsídio). */
@@ -280,6 +333,115 @@ export interface VersaoRegras {
   fonte: string | null;
   fonteUrl: string | null;
   notas: string | null;
+
+  /**
+   * A versão pode ser apresentada como condição oficial?
+   *
+   * `oficial_configurado` exige fonte, URL, data de verificação e a confirmação
+   * explícita de quem publicou. Sem os quatro, é `estimativa` — e o resultado
+   * da simulação carrega esse rótulo até o PDF. Digitar números não torna nada
+   * oficial.
+   *
+   * Opcional no tipo porque versões gravadas antes deste campo existir
+   * continuam sendo lidas do banco; `confiabilidadeDaVersao` trata a ausência
+   * como `estimativa`, que é o lado seguro.
+   */
+  statusConfiabilidade?: StatusConfiabilidade;
+  /**
+   * A data em que os valores foram conferidos na fonte.
+   *
+   * Fica CONGELADA na versão publicada. Não é a data de hoje nem a data da
+   * consulta: é o dia em que alguém realmente abriu a página oficial e leu os
+   * números.
+   */
+  verificadoEm?: string | null;
+}
+
+/**
+ * A confiabilidade real da versão, sem confiar no que foi gravado.
+ *
+ * Mesmo que o campo diga `oficial_configurado`, se faltar fonte, URL ou data,
+ * a resposta é `estimativa`. É a trava do §8: o rótulo "oficial" não pode ser
+ * conquistado só por ter sido digitado.
+ */
+export function confiabilidadeDaVersao(regras: VersaoRegras): StatusConfiabilidade {
+  if (regras.statusConfiabilidade !== 'oficial_configurado') return 'estimativa';
+  if (!regras.fonte?.trim()) return 'estimativa';
+  if (!regras.fonteUrl?.trim()) return 'estimativa';
+  if (!regras.verificadoEm?.trim()) return 'estimativa';
+  return 'oficial_configurado';
+}
+
+/**
+ * A versão está no formato AAAA.MM (ou AAAA.MM.N para revisão)?
+ *
+ * O formato não é capricho: é ele que faz a lista de versões ordenar sozinha e
+ * que faz o corretor e o administrador falarem a mesma língua ("a regra de
+ * agosto"). A revisão com sufixo existe para o caso de precisar corrigir uma
+ * publicação dentro do mesmo mês sem sobrescrever o histórico.
+ */
+export function versaoValida(v: string): boolean {
+  const m = /^(\d{4})\.(\d{2})(?:\.(\d+))?$/.exec(v.trim());
+  if (!m) return false;
+  const mes = Number(m[2]);
+  return mes >= 1 && mes <= 12;
+}
+
+/**
+ * A ENTRADA MÍNIMA QUE REALMENTE VALE — §2.10 da especificação de regras.
+ *
+ * Entrada mínima e quota máxima são duas formas de dizer a mesma coisa, e podem
+ * se contradizer no cadastro: entrada mínima de 10% com quota máxima de 80%
+ * significa, na prática, entrada de 20% — porque o banco não financia mais que
+ * 80% de jeito nenhum.
+ *
+ * Vale sempre o MAIOR dos dois. Usar o campo "entrada mínima" isolado
+ * aprovaria um negócio que o próprio limite de financiamento reprova.
+ */
+export function entradaMinimaEfetivaPct(
+  entradaMinimaPct: number | null,
+  quotaMaxPct: number | null,
+): number | null {
+  const porQuota = quotaMaxPct === null ? null : Math.max(0, 100 - quotaMaxPct);
+  if (entradaMinimaPct === null) return porQuota;
+  if (porQuota === null) return entradaMinimaPct;
+  return Math.max(entradaMinimaPct, porQuota);
+}
+
+/**
+ * A LINHA EM QUE A RENDA DO CLIENTE SE ENQUADRA.
+ *
+ * É o que faz a tela dizer "Faixa 2" no instante em que o corretor digita a
+ * renda. Só considera linhas do banco escolhido, com faixa de renda cadastrada
+ * e parâmetros suficientes para calcular — apontar para uma faixa que o
+ * simulador não consegue usar seria pior que não apontar nada.
+ *
+ * Havendo mais de uma faixa compatível, ganha a MAIS ESTREITA: entre uma faixa
+ * "até 4.700" e uma "sem teto", quem ganha R$ 4.000 está na primeira, que é a
+ * que traz o subsídio e a taxa menor.
+ */
+export function faixaPelaRenda(
+  regras: VersaoRegras,
+  bancoId: string | null,
+  rendaMensalReais: number,
+): ProdutoFinanciamento | null {
+  if (!(rendaMensalReais > 0)) return null;
+  const candidatos = regras.produtos.filter((p) => {
+    if (p.parametrosManuais) return false;
+    if (p.bancoId !== null && p.bancoId !== bancoId) return false;
+    if (!temValor(p.faixaRenda)) return false;
+    if (!produtoCalculavel(p)) return false;
+    const { min, max } = p.faixaRenda.valor;
+    if (rendaMensalReais < min) return false;
+    if (max !== null && rendaMensalReais > max) return false;
+    return true;
+  });
+  if (candidatos.length === 0) return null;
+  const largura = (p: ProdutoFinanciamento) => {
+    const f = p.faixaRenda.valor as { min: number; max: number | null };
+    return f.max === null ? Number.POSITIVE_INFINITY : f.max - f.min;
+  };
+  return candidatos.reduce((melhor, p) => (largura(p) < largura(melhor) ? p : melhor));
 }
 
 /**

@@ -83,6 +83,8 @@ export default function SimularFinanciamento() {
     resultado,
     erro,
     exigeCondicaoInformada,
+    podeConfigurar,
+    faixaDaRenda,
     escolherCliente,
     escolherEmpreendimento,
     adicionarProponente,
@@ -268,6 +270,17 @@ export default function SimularFinanciamento() {
               placeholder="R$ 0,00"
               keyboardType="numeric"
             />
+            {/*
+              A faixa aparece no instante em que a renda é digitada, embaixo do
+              próprio campo. É a informação que o corretor mais quer nessa hora
+              — e ele não deveria precisar cruzar tabela na cabeça para saber a
+              que o cliente tem direito.
+            */}
+            {faixaDaRenda ? (
+              <View style={styles.faixaChip}>
+                <Text style={styles.faixaChipTexto}>{faixaDaRenda.nome}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.col}>
             <Input
@@ -295,12 +308,29 @@ export default function SimularFinanciamento() {
        * elas não existe conta a fazer — e chutá-las é exatamente o que a §74
        * proíbe.
        */}
-      {exigeCondicaoInformada ? (
+      {exigeCondicaoInformada && !podeConfigurar ? (
+        /*
+         * Banco sem tabela e corretor sem permissão de configurar: não há
+         * simulação possível, e dizer isso é melhor que mostrar campos que ele
+         * não pode preencher. O caminho é "Outro banco", onde informar a
+         * condição é o comportamento previsto.
+         */
+        <View style={styles.alerta}>
+          <Text style={styles.alertaTitulo}>Condições ainda não cadastradas</Text>
+          <Text style={styles.alertaTexto}>
+            As taxas e limites deste banco são cadastrados pelo administrador do POUP e ainda não
+            estão disponíveis. Para simular com a condição que o correspondente aprovou, volte e
+            escolha <Text style={styles.forte}>Outro banco</Text>.
+          </Text>
+        </View>
+      ) : null}
+
+      {exigeCondicaoInformada && podeConfigurar ? (
         <>
           <View style={styles.destaque}>
             <Text style={styles.destaqueTexto}>
-              As condições deste banco não estão cadastradas. Informe a que o correspondente
-              bancário aprovou para este cliente — é ela que vale, e não a tabela genérica do site.
+              Informe a condição que o correspondente bancário aprovou para este cliente — é ela que
+              vale, e não a tabela genérica do site.
             </Text>
           </View>
           <View style={styles.linha}>
@@ -573,11 +603,60 @@ export default function SimularFinanciamento() {
 
           {/* ------------------------------------------------- a condição */}
           <Secao
-            titulo="A condição do banco"
-            nota="Já preenchida pelo cadastro. Mexa só se este cliente tiver uma condição diferente."
+            titulo="Sistema de amortização"
+            nota="A escolha entre parcela decrescente e parcela fixa é do cliente, não do banco."
           />
 
-          {produtos.length > 1 ? (
+          <View style={styles.segmentado}>
+            {(['SAC', 'PRICE'] as SistemaAmortizacao[]).map((s) => {
+              const ativo = form.sistema === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => set('sistema', s)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: ativo }}
+                  style={[styles.segmento, ativo && styles.segmentoAtivo]}
+                >
+                  <Text style={[styles.segmentoTexto, ativo && styles.segmentoTextoAtivo]}>
+                    {SISTEMA_ROTULO[s]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/*
+            A CONDIÇÃO DO BANCO É CADASTRO, NÃO FORMULÁRIO.
+            
+            Linha, comprometimento, carência e cenário de indexador saem da
+            versão de regras publicada pelo administrador, com fonte e
+            auditoria. Deixá-los editáveis aqui permitiria ao corretor
+            apresentar como condição do banco um número que ele mesmo digitou —
+            que é exatamente o que a versão de regras existe para impedir.
+            
+            Quem vê estes campos: o administrador, em qualquer banco, e o
+            corretor quando escolheu "Outro banco", onde não há tabela para
+            contrariar.
+          */}
+          {!podeConfigurar && produtoAtual && !produtoAtual.parametrosManuais ? (
+            <View style={styles.destaque}>
+              <Text style={styles.destaqueTexto}>
+                {`${produtoAtual.nome}: taxa ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}`}
+                {resultado ? ` (${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos)` : ''}
+                {`, quota máxima ${formatarPct(produtoAtual.quotaMaxPct.valor ?? 0)}. Fonte: ${produtoAtual.fonte ?? 'não informada'}.`}
+              </Text>
+            </View>
+          ) : null}
+
+          {podeConfigurar ? (
+            <Secao
+              titulo="Condição do banco"
+              nota="Cadastro do administrador. Mexa só se este cliente tiver uma condição diferente."
+            />
+          ) : null}
+
+          {podeConfigurar && produtos.length > 1 ? (
             <>
               <Select
                 label="Linha de financiamento"
@@ -599,35 +678,7 @@ export default function SimularFinanciamento() {
             </>
           ) : null}
 
-          <Text style={styles.rotulo}>Sistema de amortização</Text>
-          <View style={styles.segmentado}>
-            {(['SAC', 'PRICE'] as SistemaAmortizacao[]).map((s) => {
-              const ativo = form.sistema === s;
-              return (
-                <Pressable
-                  key={s}
-                  onPress={() => set('sistema', s)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: ativo }}
-                  style={[styles.segmento, ativo && styles.segmentoAtivo]}
-                >
-                  <Text style={[styles.segmentoTexto, ativo && styles.segmentoTextoAtivo]}>
-                    {SISTEMA_ROTULO[s]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {!exigeCondicaoInformada && produtoAtual ? (
-            <View style={styles.destaque}>
-              <Text style={styles.destaqueTexto}>
-                {`Taxa ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}`}
-                {resultado ? ` (${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos)` : ''}
-                {`. Quota máxima ${formatarPct(produtoAtual.quotaMaxPct.valor ?? 0)}. Fonte: ${produtoAtual.fonte ?? 'não informada'}.`}
-              </Text>
-            </View>
-          ) : (
+          {podeConfigurar && exigeCondicaoInformada ? (
             <Input
               label="Comprometimento máximo de renda (%)"
               value={form.comprometimento}
@@ -635,22 +686,26 @@ export default function SimularFinanciamento() {
               placeholder="Ex.: 30"
               keyboardType="numeric"
             />
-          )}
+          ) : null}
 
-          <Input
-            label="Carência (meses)"
-            value={form.carenciaMeses}
-            onChangeText={(t) => set('carenciaMeses', t.replace(/\D/g, '').slice(0, 3))}
-            placeholder="0"
-            keyboardType="numeric"
-          />
-          <Text style={styles.ajuda}>
-            Durante a carência não há amortização: os juros e a correção entram no saldo devedor,
-            que por isso <Text style={styles.forte}>sobe</Text> no período. A amortização começa
-            depois, sobre um saldo maior.
-          </Text>
+          {podeConfigurar ? (
+            <>
+              <Input
+                label="Carência (meses)"
+                value={form.carenciaMeses}
+                onChangeText={(t) => set('carenciaMeses', t.replace(/\D/g, '').slice(0, 3))}
+                placeholder="0"
+                keyboardType="numeric"
+              />
+              <Text style={styles.ajuda}>
+                Durante a carência não há amortização: os juros e a correção entram no saldo
+                devedor, que por isso <Text style={styles.forte}>sobe</Text> no período. A
+                amortização começa depois, sobre um saldo maior.
+              </Text>
+            </>
+          ) : null}
 
-          {indexadorAtual && indexadorAtual.tipo !== 'nenhum' ? (
+          {podeConfigurar && indexadorAtual && indexadorAtual.tipo !== 'nenhum' ? (
             <>
               <Select
                 label={`Cenário para ${indexadorAtual.nome}`}
@@ -712,6 +767,34 @@ const makeStyles = (colors: AppColors) =>
     faixaNome: { ...typography.label, color: colors.ink, fontWeight: '700' },
     faixaLinha: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5 },
     trocar: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+
+    faixaChip: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.successSoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginTop: -spacing.md,
+      marginBottom: spacing.md,
+    },
+    faixaChipTexto: {
+      ...typography.caption,
+      color: colors.success,
+      fontSize: 11.5,
+      fontWeight: '700',
+    },
+
+    alerta: {
+      backgroundColor: colors.warningSoft,
+      borderRadius: radius.md,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.warning,
+      padding: spacing.lg,
+      marginBottom: spacing.lg,
+      gap: spacing.sm,
+    },
+    alertaTitulo: { ...typography.label, color: colors.warning, fontWeight: '700' },
+    alertaTexto: { ...typography.caption, color: colors.ink, lineHeight: 19 },
 
     bancoLista: { gap: spacing.md, marginTop: spacing.lg },
     bancoItem: {

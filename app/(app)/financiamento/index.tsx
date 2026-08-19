@@ -34,15 +34,14 @@
  * "informe a condição que o correspondente aprovou". O motor é o mesmo — muda
  * só de onde vêm os números.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { BancoMarca } from '@/components/BancoMarca';
 import { Icon, type IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
-import { db } from '@/data';
-import { BANCOS } from '@/features/financiamento/bancos';
+import { BANCO_OUTRO, BANCOS } from '@/features/financiamento/bancos';
 import { useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { AVISO_LEGAL } from '@/features/financiamento/motor';
 import { produtoPadraoDoBanco } from '@/features/financiamento/regras';
@@ -78,12 +77,7 @@ export default function EscolherBanco() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { regras, escolherBanco, form } = useFinanciamento();
-  const [admin, setAdmin] = useState(false);
-
-  useEffect(() => {
-    void db.settings.isAdmin().then(setAdmin);
-  }, []);
+  const { regras, escolherBanco, form, admin } = useFinanciamento();
 
   /*
    * O selo de cada banco sai do cadastro de regras, não de uma lista à parte:
@@ -98,11 +92,27 @@ export default function EscolherBanco() {
         .map((banco) => {
           const produto = produtoPadraoDoBanco(regras, banco.id);
           const proprio = produto !== null && !produto.parametrosManuais;
+          /*
+           * Três estados, e a diferença importa para o corretor saber onde
+           * consegue simular:
+           *   - linha cadastrada  → entra e simula, sem digitar condição;
+           *   - "Outro banco"     → ele mesmo informa taxa, prazo e quota;
+           *   - os demais sem     → dependem do administrador cadastrar.
+           */
+          const aberto = banco.id === BANCO_OUTRO;
           return {
             banco,
-            selo: proprio ? 'Condições cadastradas' : 'Você informa a condição',
             proprio,
-            detalhe: proprio ? (produto?.nome ?? '') : banco.linha,
+            selo: proprio
+              ? 'Condições cadastradas'
+              : aberto
+                ? 'Você informa a condição'
+                : 'Aguardando cadastro',
+            detalhe: proprio
+              ? (produto?.nome ?? '')
+              : aberto
+                ? banco.linha
+                : 'As condições deste banco ainda não foram cadastradas pelo administrador.',
           };
         }),
     [regras],
@@ -146,7 +156,9 @@ export default function EscolherBanco() {
 
       <Text style={styles.nota}>
         As condições cadastradas entram sozinhas — taxa, prazo, quota e limite de renda ficam por
-        trás. Você preenche só o valor do imóvel, o que o cliente tem, a renda e o prazo.
+        trás. Você preenche só o valor do imóvel, o que o cliente tem, a renda e o prazo. Para
+        digitar a condição que o correspondente aprovou, escolha{' '}
+        <Text style={styles.forte}>Outro banco</Text>.
       </Text>
 
       {/* -------------------------------------------------- outras ferramentas */}
@@ -236,6 +248,7 @@ const makeStyles = (colors: AppColors) =>
       marginTop: spacing.lg,
       lineHeight: 18,
     },
+    forte: { fontWeight: '700', color: colors.ink },
     divisor: {
       height: 1,
       backgroundColor: colors.border,

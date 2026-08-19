@@ -41,6 +41,7 @@ import {
 } from 'react';
 
 import { db, type Company, type Development, type Lead } from '@/data';
+import { useIsAdmin } from '@/features/admin';
 import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -53,19 +54,22 @@ import {
   paraEntrada,
   proponenteVazio,
   rendaFamiliar,
+  sanearForm,
   type FormFinanciamento,
   type FormProponente,
 } from './formulario';
 import { simular, type ResultadoSimulacao } from './motor';
 import {
   acharProduto,
+  faixaPelaRenda,
   produtoCalculavel,
   produtoPadraoDoBanco,
   produtosDoBanco,
+  type ProdutoFinanciamento,
   type VersaoRegras,
 } from './regras';
 import { REGRAS_PADRAO } from './regrasPadrao';
-import { acharBanco, type Banco } from './bancos';
+import { BANCO_OUTRO, acharBanco, type Banco } from './bancos';
 
 /**
  * Rascunho no aparelho.
@@ -103,6 +107,26 @@ interface FinanciamentoContextValue {
   /** O produto escolhido exige que o corretor informe taxa, prazo e quota. */
   exigeCondicaoInformada: boolean;
 
+  /**
+   * Quem está usando é administrador do POUP.
+   *
+   * As regras do banco são cadastro, não campo de formulário: só o
+   * administrador as edita, e só ele vê os controles que as sobrescrevem. O
+   * corretor comum digita condição apenas quando escolhe "Outro banco", onde
+   * não há tabela para sobrescrever.
+   */
+  admin: boolean;
+  /** O corretor pode digitar taxa, quota e comprometimento nesta simulação? */
+  podeConfigurar: boolean;
+
+  /**
+   * A faixa em que a renda informada se encaixa, se alguma.
+   *
+   * É o que faz a tela dizer "Faixa 2" enquanto o corretor digita a renda.
+   * `null` quando nenhuma faixa cadastrada cobre aquele valor.
+   */
+  faixaDaRenda: ProdutoFinanciamento | null;
+
   /** O banco escolhido na porta do simulador. `null` = nenhum ainda. */
   banco: Banco | null;
   /**
@@ -132,6 +156,7 @@ const Ctx = createContext<FinanciamentoContextValue | undefined>(undefined);
 export function FinanciamentoProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { profile } = useProfile();
+  const { isAdmin: admin } = useIsAdmin();
 
   const [form, setForm] = useState<FormFinanciamento>(FORM_INICIAL);
   const [regras, setRegras] = useState<VersaoRegras>(REGRAS_PADRAO);
@@ -175,11 +200,21 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let vivo = true;
     void (async () => {
-      let proximo = { ...FORM_INICIAL };
+      /*
+       * TUDO QUE VEM DO APARELHO PASSA POR `sanearForm`.
+       *
+       * O rascunho foi gravado por uma versão do POUP que pode não existir
+       * mais — e um formato antigo derrubou o simulador inteiro no celular de
+       * quem já o tinha usado (`proponentes` era texto, virou lista). Ler o
+       * JSON e espalhar por cima do inicial obedece o formato velho; sanear
+       * confere campo a campo e descarta o que não bate.
+       */
+      let cru: Record<string, unknown> = {};
       const rascunho = await sessionStorage.getItem(FINANCIAMENTO_DRAFT_KEY);
       if (rascunho) {
         try {
-          proximo = { ...proximo, ...(JSON.parse(rascunho) as Partial<FormFinanciamento>) };
+          const lido: unknown = JSON.parse(rascunho);
+          if (lido && typeof lido === 'object') cru = { ...(lido as Record<string, unknown>) };
         } catch {
           // Rascunho corrompido não pode impedir o corretor de simular.
         }
@@ -188,13 +223,14 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       if (prefill) {
         await sessionStorage.removeItem(FINANCIAMENTO_PREFILL_KEY);
         try {
-          proximo = { ...proximo, ...(JSON.parse(prefill) as Partial<FormFinanciamento>) };
+          const lido: unknown = JSON.parse(prefill);
+          if (lido && typeof lido === 'object') cru = { ...cru, ...(lido as Record<string, unknown>) };
         } catch {
           // idem
         }
       }
       if (!vivo) return;
-      setForm(proximo);
+      setForm(sanearForm(cru));
       setHidratado(true);
     })();
     return () => {
@@ -348,11 +384,48 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  /* ------------------------------------------------- a faixa pela renda */
+
+  const rendaFamiliarBruta = rendaFamiliar(form);
+  const faixaDaRenda = useMemo(
+    () => faixaPelaRenda(regras, form.bancoId, centavosParaReais(rendaFamiliarBruta)),
+    [regras, form.bancoId, rendaFamiliarBruta],
+  );
+
+  /*
+   * A LINHA ACOMPANHA A RENDA.
+   *
+   * Digitada a renda, o simulador troca sozinho para a faixa que aquela renda
+   * alcança — é o que o corretor faria à mão, e é o que evita apresentar a
+   * condição da Faixa 3 para quem tem direito à Faixa 1, que é mais barata.
+   *
+   * Duas travas para isso não atrapalhar:
+   *   - nunca mexe em "Condições informadas": ali quem manda é o corretor;
+   *   - não age antes de o rascunho hidratar, senão trocaria a linha salva
+   *     durante o carregamento da tela.
+   */
+  useEffect(() => {
+    if (!hidratado) return;
+    if (!faixaDaRenda) return;
+    if (faixaDaRenda.id === form.produtoId) return;
+    const atual = acharProduto(regras, form.produtoId);
+    if (atual?.parametrosManuais) return;
+    setForm((f) => ({ ...f, produtoId: faixaDaRenda.id }));
+  }, [hidratado, faixaDaRenda, form.produtoId, regras]);
+
   /* -------------------------------------------------------- o resultado */
 
   const produto = acharProduto(regras, form.produtoId);
   const exigeCondicaoInformada = produto?.parametrosManuais ?? false;
   const banco = acharBanco(form.bancoId);
+  /*
+   * "Outro banco" é o único lugar onde o corretor digita condição — e é
+   * coerente: ali não existe tabela cadastrada para ele contrariar. Nos bancos
+   * com linha própria, quem muda taxa e quota é o administrador, no cadastro,
+   * com fonte e auditoria. O administrador enxerga os campos em qualquer banco,
+   * porque é dele o trabalho de conferir.
+   */
+  const podeConfigurar = admin || form.bancoId === BANCO_OUTRO;
 
   /*
    * O rascunho pode ter sido salvo antes de a lista de bancos existir, ou o
@@ -435,6 +508,9 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       resultado,
       erro,
       exigeCondicaoInformada,
+      admin,
+      podeConfigurar,
+      faixaDaRenda,
       banco,
       escolherBanco,
       escolherCliente,
@@ -442,7 +518,7 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       adicionarProponente,
       removerProponente,
       atualizarProponente,
-      rendaFamiliarBruta: rendaFamiliar(form),
+      rendaFamiliarBruta,
       salvar,
     }),
     [
@@ -459,6 +535,9 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       resultado,
       erro,
       exigeCondicaoInformada,
+      admin,
+      podeConfigurar,
+      faixaDaRenda,
       banco,
       escolherBanco,
       escolherCliente,
@@ -466,6 +545,7 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       adicionarProponente,
       removerProponente,
       atualizarProponente,
+      rendaFamiliarBruta,
       salvar,
     ],
   );

@@ -252,6 +252,36 @@ export default function ResultadoFinanciamento() {
           {formatarPct(r.taxaAnualEfetivaPct)} efetivos · {r.enquadramentoSfh} ·{' '}
           {r.restricaoQueMandou}
         </Text>
+        {/*
+          A versão de regras só pode ser chamada de oficial quando tem fonte,
+          URL, data de verificação e a confirmação de quem publicou. Sem os
+          quatro, o cliente precisa ver que aquilo é estimativa — e vê aqui e no
+          PDF, não escondido num rodapé.
+        */}
+        {r.confiabilidade !== 'oficial_configurado' ? (
+          <Text style={styles.procedenciaAlerta}>
+            Parâmetros sem procedência oficial confirmada — trate como estimativa.
+          </Text>
+        ) : null}
+      </View>
+
+      {/* ------------------------------- o que entrou e o que ficou de fora */}
+      <View style={styles.componentes}>
+        <Text style={styles.componentesTitulo}>O que está nesta prestação</Text>
+        <Text style={styles.componentesLinha}>{r.componentes.incluidos.join(' · ')}</Text>
+        {r.componentes.naoIncluidos.length > 0 ? (
+          <>
+            <Text style={styles.componentesTituloFora}>O que NÃO está incluído</Text>
+            {r.componentes.naoIncluidos.map((c) => (
+              <Text key={c} style={styles.componentesFora}>
+                • {c}
+              </Text>
+            ))}
+            <Text style={styles.componentesNota}>
+              A prestação real será maior que a mostrada aqui.
+            </Text>
+          </>
+        ) : null}
       </View>
 
       {/* ------------------------------------------------- o negócio */}
@@ -556,6 +586,34 @@ function Bloco({ rotulo, valor }: { rotulo: string; valor: string }) {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    procedenciaAlerta: {
+      ...typography.caption,
+      color: colors.warning,
+      fontWeight: '700',
+      marginTop: 2,
+    },
+    componentes: {
+      backgroundColor: colors.surfaceAlt,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+      gap: 3,
+    },
+    componentesTitulo: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    componentesLinha: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
+    componentesTituloFora: {
+      ...typography.label,
+      color: colors.warning,
+      fontWeight: '700',
+      marginTop: spacing.sm,
+    },
+    componentesFora: { ...typography.caption, color: colors.ink, lineHeight: 18 },
+    componentesNota: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      fontStyle: 'italic',
+      marginTop: 2,
+    },
     faixaBanco: {
       flexDirection: 'row',
       alignItems: 'center',

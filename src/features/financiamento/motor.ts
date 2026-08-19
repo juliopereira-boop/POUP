@@ -58,16 +58,41 @@ import { resolverCorrecao, type CorrecaoAplicada } from './indexador';
 import { montarQuadro, type Proponente, type QuadroDeProponentes } from './proponentes';
 import { verificarElegibilidade, type ResultadoElegibilidade } from './elegibilidade';
 import {
+  BASE_COMPROMETIMENTO_ROTULO,
   acharIndexador,
   acharProduto,
   classificarSfh,
+  confiabilidadeDaVersao,
+  entradaMinimaEfetivaPct,
   temValor,
+  type BaseComprometimento,
   type Enquadramento,
   type ProdutoFinanciamento,
+  type StatusConfiabilidade,
   type TipoImovel,
   type TipoOperacao,
   type VersaoRegras,
 } from './regras';
+
+/**
+ * A prestação que vale para o teste de comprometimento de renda.
+ *
+ * As três bases são as do cadastro (`BaseComprometimento`). Quando um
+ * componente da base escolhida não está cadastrado — DFI sem apólice, por
+ * exemplo —, o que sobra é somado assim mesmo: o número fica menor que o real,
+ * e é justamente por isso que o resultado carrega o aviso de parcial. Fingir
+ * que o componente vale zero seria mentir; recusar-se a calcular deixaria o
+ * corretor sem nada.
+ */
+function prestacaoDaBase(base: BaseComprometimento, crono: Cronograma): Centavos {
+  const p = crono.primeira;
+  if (!p) return ZERO;
+  if (base === 'principal_juros') return p.encargoPrincipal;
+  if (base === 'principal_juros_dfi') {
+    return (p.encargoPrincipal + (p.dfi ?? 0)) as Centavos;
+  }
+  return p.prestacaoTotal;
+}
 
 /* ---------------------------------------------------------------- entrada */
 
@@ -130,15 +155,43 @@ export interface NaoCalculado {
 }
 
 /** §95 e §120 — a classificação de confiabilidade do resultado. */
-export type StatusCalculo = 'OFICIAL' | 'ESTIMADO' | 'INFORMADO' | 'PROJECAO' | 'REQUER_VALIDACAO';
+export type StatusCalculo =
+  | 'OFICIAL'
+  | 'ESTIMADO'
+  | 'INFORMADO'
+  | 'PROJECAO'
+  | 'SEM_CORRECAO'
+  | 'REQUER_VALIDACAO';
 
 export const STATUS_ROTULO: Record<StatusCalculo, string> = {
   OFICIAL: 'Condições oficiais cadastradas',
   ESTIMADO: 'Estimativa calculada',
   INFORMADO: 'Condição informada pelo corretor',
   PROJECAO: 'Projeção — cenário hipotético',
+  SEM_CORRECAO: 'Calculada sem a correção monetária',
   REQUER_VALIDACAO: 'Requer validação da instituição',
 };
+
+/**
+ * O QUE ENTROU E O QUE FICOU DE FORA DESTE NÚMERO.
+ *
+ * Um resultado não é só um valor: é um valor mais a lista honesta do que ele
+ * contém. Quando a tábua do MIP não está cadastrada, a prestação sai **menor
+ * que a real** — e o corretor precisa saber disso antes de mostrar ao cliente,
+ * não depois de o banco apresentar a proposta.
+ *
+ * Daí duas listas em português, prontas para a tela e para o PDF, e os
+ * booleanos para quem precisa decidir por código.
+ */
+export interface ComponentesDoCalculo {
+  incluidos: string[];
+  naoIncluidos: string[];
+  mipIncluido: boolean;
+  dfiIncluido: boolean;
+  tarifaIncluida: boolean;
+  /** A linha usa indexador E ele foi aplicado (observado ou cenário). */
+  correcaoAplicada: boolean;
+}
 
 /** §69 — "como o sistema chegou a este valor?". Uma linha por etapa. */
 export interface PassoTrace {
@@ -152,6 +205,16 @@ export interface ResultadoSimulacao {
   versaoRegras: string;
   vigenciaRegras: string;
   status: StatusCalculo;
+  /**
+   * A versão de regras pode ser apresentada como oficial?
+   *
+   * Independe do status acima: uma condição pode ser calculável e completa e
+   * ainda assim vir de uma versão sem fonte registrada. Digitar números não
+   * torna nada oficial.
+   */
+  confiabilidade: StatusConfiabilidade;
+  /** O que entrou e o que ficou de fora desta prestação. */
+  componentes: ComponentesDoCalculo;
   /**
    * A linha usada, e de qual banco ela é.
    *
@@ -455,16 +518,24 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
   /* --------------------------------------------- 10. renda e capacidade */
 
   const comprometimentoMaxPct = resolverComprometimento(produto, entrada);
-  const primeiraTotal = crono.primeira?.prestacaoTotal ?? ZERO;
+  /*
+   * A PRESTAÇÃO COMPARADA COM O LIMITE DE RENDA DEPENDE DO CADASTRO.
+   *
+   * "Comprometimento de até 30%" não diz de qual prestação se fala, e a mesma
+   * operação passa ou não passa conforme a conta inclua os seguros. O produto
+   * declara a base (`baseComprometimento`) e é ela que manda aqui — nunca uma
+   * convenção implícita deste arquivo.
+   */
+  const baseParaRenda = prestacaoDaBase(produto.baseComprometimento, crono);
   const comprometimentoMaximo =
     comprometimentoMaxPct !== null
       ? percentualDe(quadro.rendaFamiliarBruta, comprometimentoMaxPct)
       : null;
   const comprometimentoRendaPct =
-    quadro.rendaFamiliarBruta > 0 ? (primeiraTotal / quadro.rendaFamiliarBruta) * 100 : null;
+    quadro.rendaFamiliarBruta > 0 ? (baseParaRenda / quadro.rendaFamiliarBruta) * 100 : null;
   const rendaMinimaEstimada =
     comprometimentoMaxPct !== null && comprometimentoMaxPct > 0
-      ? (Math.ceil((primeiraTotal * 100) / comprometimentoMaxPct) as Centavos)
+      ? (Math.ceil((baseParaRenda * 100) / comprometimentoMaxPct) as Centavos)
       : null;
 
   if (rendaMinimaEstimada === null) {
@@ -476,7 +547,7 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     passo(
       'Renda mínima estimada',
       formatarBRL(rendaMinimaEstimada),
-      `1ª prestação ÷ ${formatarPct(comprometimentoMaxPct!, 0)}`,
+      `${BASE_COMPROMETIMENTO_ROTULO[produto.baseComprometimento].toLowerCase()} ÷ ${formatarPct(comprometimentoMaxPct!, 0)}`,
     );
   }
 
@@ -493,7 +564,7 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     entradaPropria: naoNegativo(entrada.entradaPropria),
     entradaTotal,
     rendaFamiliarBruta: quadro.rendaFamiliarBruta,
-    primeiraPrestacao: primeiraTotal,
+    primeiraPrestacao: baseParaRenda,
     prazoMeses: entrada.prazoMeses,
     idadeMaisAlta: quadro.idadeMaisAlta,
     fgtsUsado,
@@ -502,12 +573,38 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     comprometimentoMaxPct,
     quotaMaxPct: restricoes.quotaMaxPct,
     prazoMaxMeses: temValor(produto.prazoMaxMeses) ? produto.prazoMaxMeses.valor : null,
-    entradaMinimaPct: temValor(produto.entradaMinimaPct) ? produto.entradaMinimaPct.valor : null,
+    /*
+     * A entrada mínima que vale é a MAIOR entre a cadastrada e a que a quota
+     * impõe. Entrada mínima de 10% com quota de 80% é, na prática, entrada de
+     * 20% — usar o campo isolado aprovaria um negócio que a quota reprova.
+     */
+    entradaMinimaPct: entradaMinimaEfetivaPct(
+      temValor(produto.entradaMinimaPct) ? produto.entradaMinimaPct.valor : null,
+      restricoes.quotaMaxPct,
+    ),
   });
 
   /* ------------------------------------------------------- 12. o status */
 
-  const status = classificarStatus(produto, correcao, crono, naoCalculados);
+  /*
+   * A LISTA DO QUE ENTROU E DO QUE FALTOU.
+   *
+   * É montada da primeira parcela porque é ela que o corretor mostra. Um
+   * componente ausente vira uma frase em português — e a mesma frase vai para o
+   * PDF, para o cliente ver que a prestação apresentada é um piso, não o
+   * número final.
+   */
+  const usaIndexador = (idx?.tipo ?? 'nenhum') !== 'nenhum';
+  const componentes = montarComponentes(crono.primeira, idx?.nome ?? null, usaIndexador, correcao);
+  if (usaIndexador && correcao.origem === 'sem_correcao') {
+    naoCalculados.push({
+      o_que: `Correção monetária pela ${idx?.nome ?? 'índice da linha'}`,
+      motivo:
+        'O índice não está cadastrado nesta versão de regras. A tabela sai SEM correção, e a prestação real será maior. Para ver o efeito, escolha um cenário na simulação.',
+    });
+  }
+
+  const status = classificarStatus(produto, correcao, crono, naoCalculados, usaIndexador);
 
   return {
     ok: true,
@@ -515,6 +612,8 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
       versaoRegras: regras.versao,
       vigenciaRegras: regras.vigenciaInicio,
       status,
+      confiabilidade: confiabilidadeDaVersao(regras),
+      componentes,
       produto: {
         id: produto.id,
         nome: produto.nome,
@@ -725,15 +824,54 @@ function registrarAcessoriosPendentes(regras: VersaoRegras, naoCalculados: NaoCa
  * continua sendo projeção mesmo que todos os outros parâmetros sejam oficiais,
  * porque o índice hipotético contamina todos os números derivados dele.
  */
+/** As duas listas do §12: o que entrou nesta prestação e o que não entrou. */
+function montarComponentes(
+  primeira: ParcelaCronograma | null,
+  nomeIndexador: string | null,
+  usaIndexador: boolean,
+  correcao: CorrecaoAplicada,
+): ComponentesDoCalculo {
+  const incluidos: string[] = ['Juros', 'Amortização'];
+  const naoIncluidos: string[] = [];
+
+  const mipIncluido = primeira?.mip !== null && primeira?.mip !== undefined;
+  const dfiIncluido = primeira?.dfi !== null && primeira?.dfi !== undefined;
+  const tarifaIncluida = primeira?.tarifa !== null && primeira?.tarifa !== undefined;
+
+  if (mipIncluido) incluidos.push('MIP (morte e invalidez)');
+  else naoIncluidos.push('MIP — a tábua de taxas por faixa etária não está cadastrada');
+
+  if (dfiIncluido) incluidos.push('DFI (danos ao imóvel)');
+  else naoIncluidos.push('DFI — a taxa da apólice não está cadastrada');
+
+  if (tarifaIncluida) incluidos.push('Tarifa de administração');
+  else naoIncluidos.push('Tarifa de administração — não está cadastrada');
+
+  const correcaoAplicada = usaIndexador && correcao.origem !== 'sem_correcao';
+  if (usaIndexador) {
+    if (correcaoAplicada) incluidos.push(`Correção por ${nomeIndexador ?? 'índice'}`);
+    else naoIncluidos.push(`Correção por ${nomeIndexador ?? 'índice'} — o índice não está cadastrado`);
+  }
+
+  return { incluidos, naoIncluidos, mipIncluido, dfiIncluido, tarifaIncluida, correcaoAplicada };
+}
+
 function classificarStatus(
   produto: ProdutoFinanciamento,
   correcao: CorrecaoAplicada,
   crono: Cronograma,
   naoCalculados: NaoCalculado[],
+  usaIndexador: boolean,
 ): StatusCalculo {
   // Projeção contamina tudo que vem depois dela: o índice hipotético entra no
   // saldo, e o saldo entra em todos os outros números.
   if (correcao.origem === 'cenario') return 'PROJECAO';
+  /*
+   * Linha indexada calculada sem o índice é um caso à parte, e mais grave que
+   * "falta um parâmetro": TODA a tabela sai abaixo do real, mês a mês, e o erro
+   * cresce com o prazo. Merece rótulo próprio em vez de se diluir no genérico.
+   */
+  if (usaIndexador && correcao.origem === 'sem_correcao') return 'SEM_CORRECAO';
   // Faltando parâmetro, o resultado pede validação MESMO com condição
   // informada pelo corretor — a taxa pode ser a real e a prestação continuar
   // incompleta por falta do seguro.
