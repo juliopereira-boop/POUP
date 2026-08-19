@@ -27,11 +27,20 @@ export const FEATURES: Feature[] = [
     ready: true,
   },
   {
+    key: 'financiamento',
+    title: 'Simulador de financiamento',
+    emoji: '🏦',
+    route: '/(app)/financiamento',
+    description:
+      'Quanto o banco empresta, qual a parcela e se enquadra. SAC ou PRICE, com poder de compra.',
+    ready: true,
+  },
+  {
     key: 'simulador',
     title: 'Simulador de poupança',
     emoji: '🏡',
     route: '/(app)/simulador',
-    description: 'Simule rendimentos e projeções de poupança para seus clientes.',
+    description: 'Ato, mensais e reforços à construtora — e a proposta em PDF no fim.',
     ready: true,
   },
   {

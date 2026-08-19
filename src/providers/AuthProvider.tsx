@@ -5,6 +5,7 @@ import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
 import { clearScanConsent } from '@/features/scan/consent';
 import { limparConsentimentoLia } from '@/features/lia/consentimento';
+import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/FinanciamentoProvider';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
 import { sessionStorage } from '@/lib/storage';
 
@@ -41,8 +42,17 @@ async function clearLocalUserData(): Promise<void> {
   // microfone numa negociação foi uma pessoa, não este celular.
   await clearScanConsent();
   await limparConsentimentoLia();
+  /*
+   * Os rascunhos dos DOIS simuladores guardam nome, CPF, telefone e renda de
+   * um cliente — e as chaves não são separadas por usuário. Sem apagar na
+   * saída, o próximo corretor a entrar no mesmo aparelho abriria o simulador
+   * preenchido com o cliente do anterior. Vazamento de dado pessoal entre
+   * contas, e no Brasil problema de LGPD.
+   */
   await Promise.all(
-    SIMULADOR_LOCAL_KEYS.map((key) => sessionStorage.removeItem(key).catch(() => undefined)),
+    [...SIMULADOR_LOCAL_KEYS, ...FINANCIAMENTO_LOCAL_KEYS].map((key) =>
+      sessionStorage.removeItem(key).catch(() => undefined),
+    ),
   );
 }
 

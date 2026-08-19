@@ -16,7 +16,7 @@ import type { Development } from '../types';
  */
 export const DEVELOPMENT_SELECT =
   'id, company_id, name, description, delivery_date, manager_name, photo_url, uf, ' +
-  'created_at, updated_at, companies(name, is_catalog)';
+  'unit_value_from, created_at, updated_at, companies(name, is_catalog)';
 
 export interface DevelopmentJoinRow {
   id: string;
@@ -27,6 +27,7 @@ export interface DevelopmentJoinRow {
   manager_name: string | null;
   photo_url: string | null;
   uf: string | null;
+  unit_value_from: number | null;
   created_at: string;
   updated_at: string;
   companies: { name: string; is_catalog: boolean } | null;
@@ -43,6 +44,7 @@ export function mapDevelopment(row: DevelopmentJoinRow): Development {
     managerName: row.manager_name,
     uf: row.uf,
     photoUrl: row.photo_url,
+    unitValueFrom: row.unit_value_from,
     // Empresa do catálogo => empreendimento somente leitura para o corretor.
     isCatalog: row.companies?.is_catalog ?? false,
     createdAt: row.created_at,

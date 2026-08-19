@@ -41,6 +41,7 @@ import { useIsAdmin } from '@/features/admin';
 import { MONTHS } from '@/features/agenda/dates';
 import { pickImage } from '@/features/files/pick';
 import { UF_OPTIONS } from '@/features/uf';
+import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -125,6 +126,7 @@ export default function CatalogoAdminScreen() {
   const [devDelivery, setDevDelivery] = useState<string | null>(null);
   const [devManager, setDevManager] = useState('');
   const [devUf, setDevUf] = useState<string | null>(null);
+  const [devValor, setDevValor] = useState('');
   const [devSaving, setDevSaving] = useState(false);
   const [devError, setDevError] = useState<string | null>(null);
 
@@ -357,6 +359,7 @@ export default function CatalogoAdminScreen() {
     setDevDelivery(null);
     setDevManager('');
     setDevUf(null);
+    setDevValor('');
     setDevError(null);
   }
 
@@ -373,6 +376,9 @@ export default function CatalogoAdminScreen() {
     setDevDelivery(dev.deliveryDate);
     setDevManager(dev.managerName ?? '');
     setDevUf(dev.uf);
+    setDevValor(
+      dev.unitValueFrom ? formatCurrencyBRL(String(Math.round(dev.unitValueFrom * 100))) : '',
+    );
     setDevError(null);
   }
 
@@ -391,6 +397,7 @@ export default function CatalogoAdminScreen() {
       deliveryDate: devDelivery,
       managerName: devManager.trim() || null,
       uf: devUf,
+      unitValueFrom: devValor.trim() ? currencyToNumber(devValor) : null,
     };
     const result = devEditingId
       ? await db.developments.update(devEditingId, payload)
@@ -748,6 +755,17 @@ export default function CatalogoAdminScreen() {
                   <Text style={styles.hint}>
                     Só corretores que atuam neste estado veem este empreendimento. Em branco, ele
                     aparece para todo mundo.
+                  </Text>
+                  <Input
+                    label="Valor a partir de (opcional)"
+                    value={devValor}
+                    onChangeText={(t) => setDevValor(formatCurrencyBRL(t))}
+                    placeholder="R$ 0,00"
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.hint}>
+                    Alimenta a lista de empreendimentos compatíveis no poder de compra do
+                    simulador de financiamento.
                   </Text>
                   <View style={styles.formActions}>
                     <Button

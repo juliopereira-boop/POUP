@@ -1,4 +1,5 @@
 export { BarChart, type BarChartDatum } from './BarChart';
 export { RankingBars, type RankingDatum } from './RankingBars';
 export { StackedShare, type ShareDatum } from './StackedShare';
+export { EvolutionChart, type SerieEvolucao } from './EvolutionChart';
 export { abbreviateBRL, formatCompactBRL, formatCurrencyBRL, formatPercent } from './format';

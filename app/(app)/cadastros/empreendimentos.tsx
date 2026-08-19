@@ -10,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { db, type Company, type Development } from '@/data';
 import { UF_OPTIONS } from '@/features/uf';
+import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -30,6 +31,7 @@ export default function EmpreendimentosScreen() {
   const [deliveryDate, setDeliveryDate] = useState<string | null>(null);
   const [managerName, setManagerName] = useState('');
   const [uf, setUf] = useState<string | null>(null);
+  const [valorUnidade, setValorUnidade] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +66,7 @@ export default function EmpreendimentosScreen() {
     setDeliveryDate(null);
     setManagerName('');
     setUf(null);
+    setValorUnidade('');
     setError(null);
   }
 
@@ -75,6 +78,9 @@ export default function EmpreendimentosScreen() {
     setDeliveryDate(dev.deliveryDate);
     setManagerName(dev.managerName ?? '');
     setUf(dev.uf);
+    setValorUnidade(
+      dev.unitValueFrom ? formatCurrencyBRL(String(Math.round(dev.unitValueFrom * 100))) : '',
+    );
     setError(null);
   }
 
@@ -97,6 +103,7 @@ export default function EmpreendimentosScreen() {
       deliveryDate,
       managerName: managerName.trim() || null,
       uf,
+      unitValueFrom: valorUnidade.trim() ? currencyToNumber(valorUnidade) : null,
     };
     const result = editingId
       ? await db.developments.update(editingId, payload)
@@ -198,6 +205,24 @@ export default function EmpreendimentosScreen() {
           onChange={setUf}
           searchable
         />
+        <Input
+          label="Valor a partir de (opcional)"
+          value={valorUnidade}
+          onChangeText={(t) => setValorUnidade(formatCurrencyBRL(t))}
+          placeholder="R$ 0,00"
+          keyboardType="numeric"
+        />
+        {/*
+          Este valor é o que faz o "poder de compra" terminar mostrando QUAIS
+          empreendimentos seus cabem no bolso do cliente. Sem ele, o
+          empreendimento simplesmente não aparece naquela lista — nem como
+          compatível nem como incompatível, porque sem preço não dá para
+          afirmar nenhum dos dois.
+        */}
+        <Text style={styles.hint}>
+          Usado no simulador de financiamento para mostrar quais empreendimentos cabem no poder de
+          compra do cliente.
+        </Text>
 
         <View style={styles.formActions}>
           {editingId ? (
@@ -283,6 +308,13 @@ const makeStyles = (colors: AppColors) =>
       letterSpacing: 0.5,
       marginTop: spacing.md,
       marginBottom: spacing.md,
+    },
+    hint: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      marginTop: -spacing.md,
+      marginBottom: spacing.lg,
+      lineHeight: 18,
     },
     textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
     formActions: { flexDirection: 'row', gap: spacing.md },

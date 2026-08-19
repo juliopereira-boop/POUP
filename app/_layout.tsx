@@ -65,6 +65,12 @@ function ThemedNavigator() {
         <Stack.Screen name="(app)" />
         <Stack.Screen name="captar" />
         {/*
+          A simulação compartilhada com o CLIENTE. Fora de `(app)` porque ele
+          não tem conta nem assinatura — lá dentro o link viraria uma tela de
+          login na cara dele.
+        */}
+        <Stack.Screen name="simulacao/[token]" />
+        {/*
           Fora de `(auth)` de propósito: o link do e-mail já autentica o
           visitante, e o `(auth)/_layout` expulsa todo mundo autenticado para
           `/`. Dentro daquele grupo, a tela de trocar a senha nunca apareceria.

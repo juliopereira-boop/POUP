@@ -22,6 +22,9 @@ import type {
   InvoiceStatus,
   Development,
   DevelopmentInput,
+  FinancingShareLink,
+  FinancingSimulation,
+  FinancingSimulationInput,
   Lead,
   LeadPatch,
   LeadSource,
@@ -264,6 +267,80 @@ export interface SimulationRepository {
    * sinalizar `venda_realizada` sem reescrever o resto da simulação.
    */
   setStatus(id: string, status: SimulationStatus): Promise<Result<void>>;
+}
+
+/**
+ * Simulações de financiamento habitacional e as regras que as produzem.
+ *
+ * ---------------------------------------------------------------------------
+ * AS REGRAS SÃO GLOBAIS; AS SIMULAÇÕES SÃO DO CORRETOR
+ * ---------------------------------------------------------------------------
+ * `regrasVigentes` devolve a mesma coisa para todo mundo — é a condição que o
+ * POUP apresenta. Quem escreve é só o admin, e a autorização é do banco
+ * (`is_app_admin()` na policy), nunca da tela.
+ *
+ * `list`, `get`, `create` operam sobre as simulações do próprio corretor, com
+ * RLS por `user_id`.
+ */
+export interface FinancingRepository {
+  /**
+   * A versão de regras vigente hoje.
+   *
+   * Devolve `null` quando o administrador ainda não cadastrou nenhuma — e aí o
+   * aplicativo usa `REGRAS_PADRAO`, que traz os parâmetros oficiais marcados
+   * como pendentes. Nunca devolve regra inventada.
+   */
+  regrasVigentes(): Promise<unknown | null>;
+
+  /** Todas as versões, para o painel do administrador. */
+  listarVersoes(): Promise<
+    { id: string; versao: string; vigenciaInicio: string; status: string; payload: unknown }[]
+  >;
+
+  /**
+   * Grava uma versão de regras e registra a auditoria do que mudou.
+   *
+   * `motivo` é obrigatório: uma condição financeira que muda sem explicação é
+   * uma condição que ninguém consegue justificar seis meses depois.
+   */
+  salvarVersao(input: {
+    versao: string;
+    vigenciaInicio: string;
+    vigenciaFim: string | null;
+    status: string;
+    payload: unknown;
+    motivo: string;
+    fonte?: string | null;
+    fonteUrl?: string | null;
+    notas?: string | null;
+  }): Promise<Result<void>>;
+
+  /** A trilha de auditoria de uma versão. */
+  listarAuditoria(
+    versao: string,
+  ): Promise<{ campo: string; anterior: unknown; novo: unknown; motivo: string | null; em: string }[]>;
+
+  list(userId: string, filtros?: { leadId?: string | null }): Promise<FinancingSimulation[]>;
+  get(id: string): Promise<FinancingSimulation | null>;
+  /** A última simulação de um cliente. É a que abastece o simulador de poupança. */
+  ultimaDoCliente(userId: string, leadId: string): Promise<FinancingSimulation | null>;
+  create(userId: string, data: FinancingSimulationInput): Promise<Result<FinancingSimulation>>;
+  update(id: string, data: Partial<FinancingSimulationInput>): Promise<Result<FinancingSimulation>>;
+  remove(id: string): Promise<Result<void>>;
+
+  /**
+   * Cria um link público e expirável para o cliente ver a simulação.
+   *
+   * O token em claro só existe no retorno desta chamada: o banco guarda o
+   * hash. Se o banco vazar, os links já emitidos continuam inúteis.
+   */
+  criarLink(
+    userId: string,
+    simulationId: string,
+    validadeDias: number,
+  ): Promise<Result<FinancingShareLink>>;
+
+  revogarLink(id: string): Promise<Result<void>>;
 }
 
 /**

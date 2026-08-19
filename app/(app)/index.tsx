@@ -27,7 +27,7 @@ interface ServiceItem {
 
 const SERVICES: ServiceItem[] = [
   { key: 'leads', label: 'Leads', icon: 'contacts', route: '/(app)/leads' },
-  { key: 'simulador', label: 'Simulador', icon: 'house', route: '/(app)/simulador' },
+  { key: 'simulador', label: 'Simulador', icon: 'house', route: '/(app)/simuladores' },
   { key: 'relatorios', label: 'Relatórios', icon: 'chart', route: '/(app)/relatorios' },
   {
     key: 'material',

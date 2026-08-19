@@ -6,6 +6,7 @@ import type {
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
+  FinancingRepository,
   LeadRepository,
   MaterialRepository,
   ProfileRepository,
@@ -19,6 +20,7 @@ import { SupabaseBillingRepository } from './supabase/SupabaseBillingRepository'
 import { SupabaseCompanyRepository } from './supabase/SupabaseCompanyRepository';
 import { SupabaseCatalogRepository } from './supabase/SupabaseCatalogRepository';
 import { SupabaseDevelopmentRepository } from './supabase/SupabaseDevelopmentRepository';
+import { SupabaseFinancingRepository } from './supabase/SupabaseFinancingRepository';
 import { SupabaseSimulationRepository } from './supabase/SupabaseSimulationRepository';
 import { SupabaseMaterialRepository } from './supabase/SupabaseMaterialRepository';
 import { SupabaseLeadRepository } from './supabase/SupabaseLeadRepository';
@@ -36,6 +38,8 @@ export interface DataLayer {
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;
   simulations: SimulationRepository;
+  /** Simulador de financiamento habitacional: regras versionadas e simulações. */
+  financing: FinancingRepository;
   material: MaterialRepository;
   leads: LeadRepository;
   appointments: AppointmentRepository;
@@ -59,6 +63,7 @@ function createDataLayer(provider: Provider): DataLayer {
         developments: new SupabaseDevelopmentRepository(),
         catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
+        financing: new SupabaseFinancingRepository(),
         material: new SupabaseMaterialRepository(),
         leads: new SupabaseLeadRepository(),
         appointments: new SupabaseAppointmentRepository(),
@@ -80,6 +85,7 @@ export type {
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
+  FinancingRepository,
   LeadRepository,
   MaterialRepository,
   ProfileRepository,

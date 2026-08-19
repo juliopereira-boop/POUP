@@ -17,6 +17,7 @@ function payload(data: DevelopmentInput) {
     delivery_date: data.deliveryDate,
     manager_name: data.managerName,
     uf: data.uf,
+    unit_value_from: data.unitValueFrom,
   };
 }
 

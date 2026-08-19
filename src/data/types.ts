@@ -253,6 +253,18 @@ export interface Development {
   /** Foto redonda do empreendimento (URL pública do bucket `catalog`). */
   photoUrl: string | null;
   /**
+   * Valor "a partir de" da unidade, em reais. `null` = não cadastrado.
+   *
+   * É preço do EMPREENDIMENTO, não da unidade: o POUP não tem espelho de
+   * vendas, e a unidade é digitada livre na simulação. Uma coluna resolve a
+   * pergunta comercial que importa — "o que cabe em R$ 250 mil?" — sem
+   * arrastar um módulo inteiro de estoque.
+   *
+   * Sem valor, o empreendimento fica FORA da lista de unidades compatíveis do
+   * poder de compra: não dá para afirmar que cabe nem que não cabe.
+   */
+  unitValueFrom: number | null;
+  /**
    * Pertence a uma empresa do catálogo do sistema — logo, é somente leitura
    * para o corretor. Derivado da empresa, não é coluna própria no banco.
    */
@@ -278,6 +290,8 @@ export interface DevelopmentInput {
   managerName: string | null;
   /** UF do empreendimento. `null` = aparece para corretor de qualquer estado. */
   uf: string | null;
+  /** Valor "a partir de" da unidade, em reais. `null` = não cadastrado. */
+  unitValueFrom: number | null;
 }
 
 export interface CompanyMaterial {
@@ -312,6 +326,78 @@ export type SimulationInput = Omit<
   Simulation,
   'id' | 'status' | 'createdAt' | 'updatedAt'
 >;
+
+/* ------------------------------------------------------------------------- *
+ * Simulação de FINANCIAMENTO habitacional
+ * ------------------------------------------------------------------------- *
+ * É outra tabela, e não um campo a mais em `Simulation`, porque são duas
+ * perguntas diferentes:
+ *
+ *   `Simulation`          — o fluxo de pagamento da CONSTRUTORA (a poupança):
+ *                           ato, mensais, semestrais, anuais.
+ *   `FinancingSimulation` — o financiamento do BANCO: quota, prazo, sistema de
+ *                           amortização, enquadramento.
+ *
+ * As duas se encontram no CLIENTE (`leadId`), e é por isso que o vínculo com o
+ * lead está nas duas: feito o financiamento, o simulador de poupança já abre
+ * com o valor aprovado, o subsídio e o FGTS preenchidos.
+ * ------------------------------------------------------------------------- */
+
+export interface FinancingSimulation {
+  id: string;
+  /** O cliente. É por ele que os dados viajam entre os dois simuladores. */
+  leadId: string | null;
+  clientName: string | null;
+  companyId: string | null;
+  developmentId: string | null;
+  developmentName: string | null;
+  block: number | null;
+  unit: string | null;
+
+  /** `EntradaSimulacao` serializada (centavos como número). */
+  input: unknown;
+  /** `ResultadoSimulacao` sem a tabela de parcelas, que é regerada. */
+  result: unknown;
+  /**
+   * A versão de regras congelada no momento da simulação.
+   *
+   * Redundante de propósito: sem ela, mudar a taxa amanhã recalcularia em
+   * silêncio a proposta que o cliente recebeu ontem.
+   */
+  rulesSnapshot: unknown;
+  ruleVersion: string;
+
+  /* espelhados do resultado, para listar e filtrar sem abrir o JSON */
+  propertyValue: number | null;
+  financedValue: number | null;
+  firstInstallment: number | null;
+  termMonths: number | null;
+  amortization: string | null;
+  eligible: boolean | null;
+
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FinancingSimulationInput = Omit<
+  FinancingSimulation,
+  'id' | 'status' | 'createdAt' | 'updatedAt'
+>;
+
+/** Link público e expirável de uma simulação de financiamento. */
+export interface FinancingShareLink {
+  id: string;
+  simulationId: string;
+  /**
+   * A URL completa, montada com o token em claro.
+   *
+   * Só existe no INSTANTE da criação: o banco guarda apenas o hash, então esta
+   * é a única vez em que o link pode ser lido. Perdeu, gera outro.
+   */
+  url: string;
+  expiresAt: string;
+}
 
 /* ------------------------------------------------------------------------- *
  * Comissão — regras (ficam no cadastro da construtora)

@@ -46,7 +46,10 @@ export default function AppLayout() {
           <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} />
           <Stack.Screen name="campanhas" options={{ title: 'Período de teste' }} />
           <Stack.Screen name="admin/catalogo" options={{ title: 'Catálogo do sistema' }} />
+          <Stack.Screen name="simuladores" options={{ title: 'Simulador' }} />
           <Stack.Screen name="simulador" options={{ headerShown: false }} />
+          <Stack.Screen name="financiamento" options={{ headerShown: false }} />
+          <Stack.Screen name="admin/financiamento" options={{ title: 'Regras de financiamento' }} />
           <Stack.Screen name="relatorios/index" options={{ title: 'Relatórios' }} />
           <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} />
           <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />

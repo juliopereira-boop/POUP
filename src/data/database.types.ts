@@ -219,6 +219,7 @@ export interface Database {
           /** URL pública da foto redonda, no bucket `catalog`. */
           photo_url: string | null;
           uf: string | null;
+          unit_value_from: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -232,6 +233,7 @@ export interface Database {
           manager_name?: string | null;
           photo_url?: string | null;
           uf?: string | null;
+          unit_value_from?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -243,6 +245,7 @@ export interface Database {
           manager_name?: string | null;
           photo_url?: string | null;
           uf?: string | null;
+          unit_value_from?: number | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -812,6 +815,184 @@ export interface Database {
         };
         Relationships: [];
       };
+      /**
+       * Regras de financiamento, versionadas e globais.
+       * Leitura para todo autenticado; escrita só para o admin do app (RLS).
+       */
+      financing_rule_versions: {
+        Row: {
+          id: string;
+          version: string;
+          effective_from: string;
+          effective_to: string | null;
+          status: string;
+          payload: Json;
+          source: string | null;
+          source_url: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          version: string;
+          effective_from: string;
+          effective_to?: string | null;
+          status?: string;
+          payload: Json;
+          source?: string | null;
+          source_url?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          version?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          status?: string;
+          payload?: Json;
+          source?: string | null;
+          source_url?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      financing_rule_audit: {
+        Row: {
+          id: string;
+          version_id: string | null;
+          version: string;
+          campo: string;
+          valor_anterior: Json | null;
+          valor_novo: Json | null;
+          motivo: string | null;
+          changed_by: string | null;
+          changed_at: string;
+        };
+        Insert: {
+          id?: string;
+          version_id?: string | null;
+          version: string;
+          campo: string;
+          valor_anterior?: Json | null;
+          valor_novo?: Json | null;
+          motivo?: string | null;
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      /**
+       * Simulações de financiamento. `rules_snapshot` congela a versão de
+       * regras que produziu a linha — mudar a taxa depois não a recalcula.
+       */
+      financing_simulations: {
+        Row: {
+          id: string;
+          user_id: string;
+          lead_id: string | null;
+          company_id: string | null;
+          development_id: string | null;
+          block: number | null;
+          unit: string | null;
+          client_name: string | null;
+          development_name: string | null;
+          input: Json;
+          result: Json;
+          rules_snapshot: Json;
+          rule_version: string;
+          property_value: number | null;
+          financed_value: number | null;
+          first_installment: number | null;
+          term_months: number | null;
+          amortization: string | null;
+          eligible: boolean | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          lead_id?: string | null;
+          company_id?: string | null;
+          development_id?: string | null;
+          block?: number | null;
+          unit?: string | null;
+          client_name?: string | null;
+          development_name?: string | null;
+          input: Json;
+          result: Json;
+          rules_snapshot: Json;
+          rule_version: string;
+          property_value?: number | null;
+          financed_value?: number | null;
+          first_installment?: number | null;
+          term_months?: number | null;
+          amortization?: string | null;
+          eligible?: boolean | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          lead_id?: string | null;
+          company_id?: string | null;
+          development_id?: string | null;
+          block?: number | null;
+          unit?: string | null;
+          client_name?: string | null;
+          development_name?: string | null;
+          input?: Json;
+          result?: Json;
+          rules_snapshot?: Json;
+          rule_version?: string;
+          property_value?: number | null;
+          financed_value?: number | null;
+          first_installment?: number | null;
+          term_months?: number | null;
+          amortization?: string | null;
+          eligible?: boolean | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      financing_share_tokens: {
+        Row: {
+          id: string;
+          simulation_id: string;
+          user_id: string;
+          token_hash: string;
+          expires_at: string;
+          revoked_at: string | null;
+          views: number;
+          last_viewed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          simulation_id: string;
+          user_id: string;
+          token_hash: string;
+          expires_at: string;
+          revoked_at?: string | null;
+          views?: number;
+          last_viewed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          revoked_at?: string | null;
+          views?: number;
+          last_viewed_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -837,6 +1018,15 @@ export interface Database {
       ensure_my_trial: {
         Args: Record<string, never>;
         Returns: boolean;
+      };
+      /**
+       * A versão de regras de financiamento vigente hoje, ou `null`.
+       * Devolvendo `null`, o app cai na versão de fábrica (REGRAS_PADRAO),
+       * que traz os parâmetros oficiais marcados como pendentes.
+       */
+      financing_active_rules: {
+        Args: Record<string, never>;
+        Returns: Json | null;
       };
     };
     Enums: Record<string, never>;

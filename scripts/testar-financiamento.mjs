@@ -478,6 +478,90 @@ checar('nenhum parâmetro pendente carrega valor',
       .every((k) => p[k].origem !== 'pendente' || p[k].valor === null)));
 
 /* ===================================================================== */
+secao('PONTE PARA O SIMULADOR DE POUPANÇA');
+
+{
+  // A ponte importa de '@/lib/masks', que o carregador local não resolve.
+  // Registrar o módulo real do projeto mantém o teste honesto: a conversão de
+  // centavos para a máscara é justamente o que pode errar por um fator de cem.
+  const ts = require('typescript');
+  const fsp = require('node:fs');
+  const jsMasks = ts.transpileModule(fsp.readFileSync('src/lib/masks.ts', 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const mMasks = new Module('masks');
+  mMasks._compile(jsMasks, 'masks.ts');
+  cache.set('__masks', mMasks.exports);
+
+  const arquivo = 'src/features/financiamento/ponte.ts';
+  const js = ts.transpileModule(fsp.readFileSync(arquivo, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const m = new Module(arquivo);
+  m.filename = arquivo;
+  m.require = (spec) => {
+    if (spec === '@/lib/masks') return mMasks.exports;
+    if (spec.startsWith('@/features/simulador')) return {};
+    return require(spec);
+  };
+  m._compile(js, arquivo);
+  const { pontePoupanca } = m.exports;
+
+  const simSalva = {
+    leadId: 'lead-1',
+    clientName: 'Maria Souza',
+    companyId: 'emp-1',
+    developmentId: 'dev-1',
+    block: 2,
+    unit: '304',
+    // input em CENTAVOS, como o motor guarda
+    input: {
+      valorImovel: reais(300000),
+      subsidio: reais(12000),
+      fgts: reais(20000),
+      rendaFamiliarMensal: reais(5500),
+    },
+    // coluna do banco, em REAIS
+    financedValue: 220000,
+  };
+  const cliente = { cpf: '12345678901', email: 'maria@ex.com', phone: '98999990000', name: 'Maria' };
+  const p = pontePoupanca(simSalva, cliente);
+
+  checar('o lead viaja', p.leadId === 'lead-1');
+  checar('a empresa viaja', p.estado.companyId === 'emp-1');
+  checar('o empreendimento viaja', p.estado.developmentId === 'dev-1');
+  checar('bloco e unidade viajam', p.estado.block === 2 && p.estado.unit === '304');
+
+  // As três conversões que podem errar por 100x
+  checar('valor do imóvel: centavos -> máscara', p.estado.unitValue === 'R$ 300.000,00',
+    `(deu ${p.estado.unitValue})`);
+  checar('financiado: REAIS -> máscara', p.estado.financingApproved === 'R$ 220.000,00',
+    `(deu ${p.estado.financingApproved})`);
+  checar('subsídio: centavos -> máscara', p.estado.subsidy === 'R$ 12.000,00',
+    `(deu ${p.estado.subsidy})`);
+  checar('FGTS: centavos -> máscara', p.estado.fgts === 'R$ 20.000,00', `(deu ${p.estado.fgts})`);
+  checar('renda: centavos -> máscara', p.estado.proponent1.rendaBruta === 'R$ 5.500,00',
+    `(deu ${p.estado.proponent1.rendaBruta})`);
+
+  checar('o CPF do cliente viaja', p.estado.proponent1.cpf === '12345678901');
+  checar('o nome da simulação ganha do nome do lead', p.estado.proponent1.name === 'Maria Souza');
+
+  // O que NÃO pode viajar: o fluxo de pagamento é negociação com a construtora
+  checar('o ato não viaja', p.estado.ato === undefined);
+  checar('as mensais não viajam', p.estado.mensaisCount === undefined);
+  checar('as semestrais não viajam', p.estado.semestralCount === undefined);
+
+  // Zero e ausência viram vazio, nunca "R$ 0,00" preenchido por engano
+  const vazia = pontePoupanca(
+    { ...simSalva, input: { valorImovel: reais(300000) }, financedValue: null },
+    null,
+  );
+  checar('subsídio ausente vira vazio', vazia.estado.subsidy === '');
+  checar('financiado nulo vira vazio', vazia.estado.financingApproved === '');
+  checar('sem cliente não quebra', vazia.estado.proponent1.cpf === '');
+}
+
+/* ===================================================================== */
 
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);
 for (const f of falhas) console.log(`  FALHOU: ${f}`);
