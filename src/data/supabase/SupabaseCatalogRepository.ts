@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import {
-  DEVELOPMENT_SELECT,
+  comFallbackDeColuna,
   mapDevelopment,
   type DevelopmentJoinRow,
 } from './developmentRow';
@@ -201,11 +201,13 @@ export class SupabaseCatalogRepository implements CatalogRepository {
    * A RLS já autoriza (`is_catalog_company`); o filtro que estorvava era do app.
    */
   async listDevelopments(companyId: string): Promise<Development[]> {
-    const { data, error } = await supabase
-      .from('developments')
-      .select(DEVELOPMENT_SELECT)
-      .eq('company_id', companyId)
-      .order('name', { ascending: true });
+    const { data, error } = await comFallbackDeColuna((sel) =>
+      supabase
+        .from('developments')
+        .select(sel)
+        .eq('company_id', companyId)
+        .order('name', { ascending: true }),
+    );
     if (error || !data) return [];
     return (data as unknown as DevelopmentJoinRow[]).map(mapDevelopment);
   }

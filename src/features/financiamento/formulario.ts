@@ -35,6 +35,15 @@ export interface FormProponente {
 export interface FormFinanciamento {
   leadId: string | null;
 
+  /**
+   * O banco escolhido na porta do simulador.
+   *
+   * É ele que decide, sozinho, qual linha de financiamento vale — e por isso o
+   * corretor não precisa mais escolher produto. `null` só acontece em rascunho
+   * antigo, salvo antes de a lista de bancos existir.
+   */
+  bancoId: string | null;
+
   /* proponentes */
   proponentes: FormProponente[];
 
@@ -78,6 +87,7 @@ export function proponenteVazio(id: string): FormProponente {
 
 export const FORM_INICIAL: FormFinanciamento = {
   leadId: null,
+  bancoId: null,
   proponentes: [proponenteVazio('p1')],
 
   companyId: null,
@@ -171,6 +181,7 @@ export function paraEntrada(form: FormFinanciamento): EntradaSimulacao {
 
     proponentes: paraProponentes(form.proponentes),
 
+    bancoId: form.bancoId,
     produtoId: form.produtoId,
     sistema: form.sistema,
     prazoMeses: inteiro(form.prazoMeses) ?? 0,

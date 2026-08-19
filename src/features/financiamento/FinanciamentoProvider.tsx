@@ -57,8 +57,15 @@ import {
   type FormProponente,
 } from './formulario';
 import { simular, type ResultadoSimulacao } from './motor';
-import { acharProduto, produtoCalculavel, type VersaoRegras } from './regras';
+import {
+  acharProduto,
+  produtoCalculavel,
+  produtoPadraoDoBanco,
+  produtosDoBanco,
+  type VersaoRegras,
+} from './regras';
 import { REGRAS_PADRAO } from './regrasPadrao';
+import { acharBanco, type Banco } from './bancos';
 
 /**
  * Rascunho no aparelho.
@@ -96,6 +103,16 @@ interface FinanciamentoContextValue {
   /** O produto escolhido exige que o corretor informe taxa, prazo e quota. */
   exigeCondicaoInformada: boolean;
 
+  /** O banco escolhido na porta do simulador. `null` = nenhum ainda. */
+  banco: Banco | null;
+  /**
+   * Escolhe o banco e aplica, calado, a linha de financiamento dele.
+   *
+   * É este método que cumpre "as regras fixas do banco já ficam preenchidas
+   * por trás, nem aparecem na tela": ele troca o produto, e com o produto vêm
+   * taxa, quota, prazo máximo, comprometimento, indexador e sistema.
+   */
+  escolherBanco: (bancoId: string) => void;
   escolherCliente: (leadId: string | null) => void;
   escolherEmpreendimento: (developmentId: string | null) => void;
 
@@ -222,6 +239,30 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
   }, [profile?.uf]);
 
   /**
+   * Escolher o banco é a única decisão de produto que o corretor toma.
+   *
+   * A linha, o sistema de amortização e o indexador saem daqui. O sistema só
+   * é trocado quando o banco escolhido não oferece o que estava selecionado —
+   * trocar SAC por PRICE só porque o corretor mudou de banco seria mexer numa
+   * escolha que é dele.
+   */
+  const escolherBanco = useCallback(
+    (bancoId: string) => {
+      const produto = produtoPadraoDoBanco(regras, bancoId);
+      setForm((f) => ({
+        ...f,
+        bancoId,
+        produtoId: produto?.id ?? f.produtoId,
+        sistema:
+          produto && !produto.sistemas.includes(f.sistema)
+            ? (produto.sistemas[0] ?? f.sistema)
+            : f.sistema,
+      }));
+    },
+    [regras],
+  );
+
+  /**
    * Escolher o cliente traz o que a ficha dele já sabe.
    *
    * Só preenche campo VAZIO. Sobrescrever o que o corretor acabou de digitar
@@ -311,6 +352,21 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
 
   const produto = acharProduto(regras, form.produtoId);
   const exigeCondicaoInformada = produto?.parametrosManuais ?? false;
+  const banco = acharBanco(form.bancoId);
+
+  /*
+   * O rascunho pode ter sido salvo antes de a lista de bancos existir, ou o
+   * administrador pode ter tirado do ar a linha que estava selecionada. Nos
+   * dois casos, a linha volta a ser a padrão do banco — sem isso, o simulador
+   * abriria apontando para um produto inexistente e não calcularia nada, sem
+   * dizer por quê.
+   */
+  useEffect(() => {
+    if (!form.bancoId) return;
+    if (acharProduto(regras, form.produtoId)) return;
+    const padrao = produtoPadraoDoBanco(regras, form.bancoId);
+    if (padrao) setForm((f) => ({ ...f, produtoId: padrao.id }));
+  }, [regras, form.bancoId, form.produtoId]);
 
   const { resultado, erro } = useMemo(() => {
     const entrada = paraEntrada(form);
@@ -379,6 +435,8 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       resultado,
       erro,
       exigeCondicaoInformada,
+      banco,
+      escolherBanco,
       escolherCliente,
       escolherEmpreendimento,
       adicionarProponente,
@@ -401,6 +459,8 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       resultado,
       erro,
       exigeCondicaoInformada,
+      banco,
+      escolherBanco,
       escolherCliente,
       escolherEmpreendimento,
       adicionarProponente,
@@ -419,9 +479,15 @@ export function useFinanciamento(): FinanciamentoContextValue {
   return ctx;
 }
 
-/** As linhas que o corretor pode escolher, com o motivo de cada uma indisponível. */
-export function opcoesDeProduto(regras: VersaoRegras) {
-  return regras.produtos.map((p) => ({
+/**
+ * As linhas que o corretor pode escolher, com o motivo de cada uma indisponível.
+ *
+ * Filtrada pelo banco quando há um escolhido: mostrar a linha do MCMV a quem
+ * disse que vai levar no Itaú é oferecer uma condição que aquele banco não tem.
+ */
+export function opcoesDeProduto(regras: VersaoRegras, bancoId: string | null = null) {
+  const lista = bancoId ? produtosDoBanco(regras, bancoId) : regras.produtos;
+  return lista.map((p) => ({
     value: p.id,
     label: produtoCalculavel(p) ? p.nome : `${p.nome} — sem parâmetros cadastrados`,
     disponivel: produtoCalculavel(p),

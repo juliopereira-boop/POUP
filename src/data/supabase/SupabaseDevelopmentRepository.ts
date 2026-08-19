@@ -4,8 +4,9 @@ import { type Development, type DevelopmentInput, type Result, err, ok } from '.
 import { fetchAdoptedCompanyIds } from './SupabaseCatalogRepository';
 import { matchesUF } from '@/features/uf';
 import {
-  DEVELOPMENT_SELECT,
+  comFallbackDeColuna,
   mapDevelopment,
+  payloadValorInicial,
   type DevelopmentJoinRow,
 } from './developmentRow';
 
@@ -17,7 +18,8 @@ function payload(data: DevelopmentInput) {
     delivery_date: data.deliveryDate,
     manager_name: data.managerName,
     uf: data.uf,
-    unit_value_from: data.unitValueFrom,
+    // Some no modo degradado: ver o comentário de `developmentRow.ts`.
+    ...payloadValorInicial(data.unitValueFrom),
   };
 }
 
@@ -61,9 +63,13 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
     ]);
 
     const [own, adopted] = await Promise.all([
-      supabase.from('developments').select(DEVELOPMENT_SELECT).eq('user_id', userId),
+      comFallbackDeColuna((sel) =>
+        supabase.from('developments').select(sel).eq('user_id', userId),
+      ),
       adoptedIds.length > 0
-        ? supabase.from('developments').select(DEVELOPMENT_SELECT).in('company_id', adoptedIds)
+        ? comFallbackDeColuna((sel) =>
+            supabase.from('developments').select(sel).in('company_id', adoptedIds),
+          )
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -89,22 +95,26 @@ export class SupabaseDevelopmentRepository implements DevelopmentRepository {
   }
 
   async create(userId: string, data: DevelopmentInput): Promise<Result<Development>> {
-    const { data: row, error } = await supabase
-      .from('developments')
-      .insert({ user_id: userId, ...payload(data) })
-      .select(DEVELOPMENT_SELECT)
-      .single();
+    const { data: row, error } = await comFallbackDeColuna((sel) =>
+      supabase
+        .from('developments')
+        .insert({ user_id: userId, ...payload(data) })
+        .select(sel)
+        .single(),
+    );
     if (error || !row) return err(error?.message ?? 'Falha ao salvar empreendimento.');
     return ok(mapDevelopment(row as unknown as DevelopmentJoinRow));
   }
 
   async update(id: string, data: DevelopmentInput): Promise<Result<Development>> {
-    const { data: row, error } = await supabase
-      .from('developments')
-      .update({ ...payload(data), updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select(DEVELOPMENT_SELECT)
-      .single();
+    const { data: row, error } = await comFallbackDeColuna((sel) =>
+      supabase
+        .from('developments')
+        .update({ ...payload(data), updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select(sel)
+        .single(),
+    );
     if (error || !row) return err(error?.message ?? 'Falha ao atualizar empreendimento.');
     return ok(mapDevelopment(row as unknown as DevelopmentJoinRow));
   }

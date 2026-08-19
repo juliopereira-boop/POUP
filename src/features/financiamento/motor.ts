@@ -99,6 +99,14 @@ export interface EntradaSimulacao {
   proponentes: Proponente[];
 
   /* --- condição --- */
+  /**
+   * O banco escolhido na porta do simulador.
+   *
+   * Vem separado de `produtoId` porque a linha "Condições informadas" serve a
+   * qualquer instituição: sem este campo, uma simulação feita no Itaú com
+   * condição informada não teria como dizer que foi no Itaú.
+   */
+  bancoId?: string | null;
   produtoId: string;
   sistema: SistemaAmortizacao;
   prazoMeses: number;
@@ -144,7 +152,14 @@ export interface ResultadoSimulacao {
   versaoRegras: string;
   vigenciaRegras: string;
   status: StatusCalculo;
-  produto: { id: string; nome: string; parametrosManuais: boolean };
+  /**
+   * A linha usada, e de qual banco ela é.
+   *
+   * `bancoId` viaja com o resultado porque o PDF e o histórico precisam dizer
+   * em qual instituição a simulação foi feita — e o snapshot de regras, que é o
+   * que congela a condição, não guarda a escolha do corretor.
+   */
+  produto: { id: string; nome: string; parametrosManuais: boolean; bancoId: string | null };
   enquadramentoSfh: Enquadramento;
 
   /* --- indexador --- */
@@ -500,7 +515,12 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
       versaoRegras: regras.versao,
       vigenciaRegras: regras.vigenciaInicio,
       status,
-      produto: { id: produto.id, nome: produto.nome, parametrosManuais: produto.parametrosManuais },
+      produto: {
+        id: produto.id,
+        nome: produto.nome,
+        parametrosManuais: produto.parametrosManuais,
+        bancoId: entrada.bancoId ?? produto.bancoId,
+      },
       enquadramentoSfh: enquadramento,
 
       indexador: { id: idx?.id ?? 'NONE', nome: idx?.nome ?? 'Prefixado' },

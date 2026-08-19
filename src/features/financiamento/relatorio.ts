@@ -32,6 +32,7 @@
  * marco a cada cinco anos — que é o recorte que responde as perguntas reais
  * ("quanto tá pagando daqui a dez anos?").
  */
+import { nomeDoBanco } from './bancos';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
@@ -242,6 +243,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     <div><b>Operação:</b> ${esc(OPERACAO_ROTULO[ctx.operacao])}</div>
     <div><b>Imóvel:</b> ${esc(imovel) || '—'}</div>
     <div><b>Construtora:</b> ${esc(ctx.empresaNome) || '—'}</div>
+    <div><b>Banco:</b> ${esc(nomeDoBanco(r.produto.bancoId))}</div>
     <div><b>Linha:</b> ${esc(r.produto.nome)}</div>
     <div><b>Indexador:</b> ${esc(r.indexador.nome)}${r.correcao.origem === 'sem_correcao' ? ' (sem correção aplicada)' : r.correcao.origem === 'cenario' ? ' (cenário hipotético)' : ''}</div>
     <div><b>Taxa:</b> ${formatarPct(r.taxaAnualPct)} ao ano ${r.produto.parametrosManuais ? '(informada)' : ''}</div>

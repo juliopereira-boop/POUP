@@ -82,6 +82,7 @@ const SEG = carregar('seguros');
 const PROP = carregar('proponentes');
 const CRONO = carregar('cronograma');
 const { REGRAS_PADRAO } = carregar('regrasPadrao');
+const BANCOS_MOD = carregar('bancos');
 const { simular, STATUS_ROTULO } = carregar('motor');
 const REV = carregar('reverso');
 const C = carregar('cenarios');
@@ -1010,6 +1011,88 @@ secao('PONTE PARA O SIMULADOR DE POUPANÇA');
   checar('subsídio ausente vira vazio', vazia.estado.subsidy === '');
   checar('financiado nulo vira vazio', vazia.estado.financingApproved === '');
   checar('sem cliente não quebra', vazia.estado.proponent1.cpf === '');
+}
+
+/* ==========================================================================
+ * BANCOS — a porta do simulador
+ *
+ * O corretor escolhe o BANCO, e o simulador escolhe a linha. Estes testes
+ * travam o contrato: um banco com tabela cadastrada abre numa linha oficial;
+ * um banco sem tabela abre em "Condições informadas"; e o banco escolhido
+ * viaja com o resultado, para o PDF saber onde a simulação foi feita.
+ * ====================================================================== */
+{
+  secao('BANCOS — a porta do simulador');
+
+  const bancos = BANCOS_MOD.BANCOS;
+  checar('a Caixa é o primeiro da lista', [...bancos].sort((a, b) => a.ordem - b.ordem)[0].id === 'caixa');
+  checar('todo banco tem nome, sigla e cor', bancos.every((b) => b.nome && b.sigla && /^#[0-9A-F]{6}$/i.test(b.cor)));
+  checar('todo id de banco é único', new Set(bancos.map((b) => b.id)).size === bancos.length);
+  checar('acharBanco devolve null para id desconhecido', BANCOS_MOD.acharBanco('banco-que-nao-existe') === null);
+  checar('acharBanco devolve null para null', BANCOS_MOD.acharBanco(null) === null);
+  checar('nomeDoBanco nunca devolve vazio', BANCOS_MOD.nomeDoBanco(null).length > 0);
+  checar('nomeDoBanco resolve a Caixa', BANCOS_MOD.nomeDoBanco('caixa') === 'Caixa Econômica Federal');
+
+  /* ---------------------------------------------- vínculo com as regras */
+  const daCaixa = R.produtosDoBanco(REGRAS_PADRAO, 'caixa');
+  checar('a Caixa tem linhas próprias', daCaixa.some((p) => p.bancoId === 'caixa'));
+  checar('a linha genérica também aparece na Caixa', daCaixa.some((p) => p.bancoId === null));
+  checar(
+    'as próprias vêm antes das genéricas',
+    daCaixa.findIndex((p) => p.bancoId === 'caixa') < daCaixa.findIndex((p) => p.bancoId === null),
+  );
+
+  const doItau = R.produtosDoBanco(REGRAS_PADRAO, 'itau');
+  checar('banco sem tabela só enxerga a linha genérica', doItau.every((p) => p.bancoId === null));
+  checar('e ela existe', doItau.length >= 1);
+
+  /* ------------------------------------------------- a linha automática */
+  const padraoCaixa = R.produtoPadraoDoBanco(REGRAS_PADRAO, 'caixa');
+  checar('a Caixa abre numa linha oficial', padraoCaixa !== null && padraoCaixa.parametrosManuais === false);
+  checar('e essa linha é calculável', padraoCaixa !== null && R.produtoCalculavel(padraoCaixa));
+
+  const padraoItau = R.produtoPadraoDoBanco(REGRAS_PADRAO, 'itau');
+  checar('banco sem tabela abre em condições informadas', padraoItau !== null && padraoItau.parametrosManuais === true);
+
+  /*
+   * O ponto que mais importa: uma linha SEM parâmetro cadastrado nunca pode
+   * ser a escolhida sozinha. Abrir o simulador nela mostraria uma tela vazia
+   * sem explicar por quê.
+   */
+  const soPendentes = {
+    ...REGRAS_PADRAO,
+    produtos: REGRAS_PADRAO.produtos.filter((p) => p.bancoId === 'caixa' && !R.produtoCalculavel(p)),
+  };
+  const semNadaCalculavel = R.produtoPadraoDoBanco(soPendentes, 'caixa');
+  checar(
+    'sem linha calculável, ainda devolve algo em vez de null',
+    soPendentes.produtos.length === 0 ? semNadaCalculavel === null : semNadaCalculavel !== null,
+  );
+  checar('banco desconhecido cai na linha genérica', R.produtoPadraoDoBanco(REGRAS_PADRAO, 'inexistente')?.parametrosManuais === true);
+
+  /* ----------------------------------------- o banco viaja no resultado */
+  const comBanco = simular({ ...BASE, bancoId: 'caixa', produtoId: 'mcmv_classe_media', valorImovel: reais(400000) }, REGRAS_PADRAO);
+  checar('simulação com banco calcula', comBanco.ok === true);
+  checar('o banco escolhido viaja no resultado', comBanco.ok && comBanco.resultado.produto.bancoId === 'caixa');
+
+  const outroBanco = simular({ ...BASE, bancoId: 'itau', produtoId: 'informado' }, REGRAS_PADRAO);
+  checar(
+    'condição informada guarda o banco do corretor, não null',
+    outroBanco.ok && outroBanco.resultado.produto.bancoId === 'itau',
+  );
+
+  const semBanco = simular({ ...BASE, produtoId: 'informado' }, REGRAS_PADRAO);
+  checar('sem banco informado, cai no banco do produto', semBanco.ok && semBanco.resultado.produto.bancoId === null);
+
+  /* -------------------------------------------- todo produto tem bancoId */
+  checar(
+    'todo produto cadastrado declara a que banco pertence',
+    REGRAS_PADRAO.produtos.every((p) => p.bancoId === null || typeof p.bancoId === 'string'),
+  );
+  checar(
+    'todo bancoId de produto existe na lista de bancos',
+    REGRAS_PADRAO.produtos.every((p) => p.bancoId === null || bancos.some((b) => b.id === p.bancoId)),
+  );
 }
 
 /* ===================================================================== */

@@ -29,6 +29,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
+import { BancoMarca } from '@/components/BancoMarca';
 import { Screen } from '@/components/Screen';
 import { EvolutionChart, StackedShare } from '@/components/charts';
 import { useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
@@ -39,6 +40,7 @@ import {
   formatarPrazo,
 } from '@/features/financiamento/dinheiro';
 import { SISTEMA_ROTULO } from '@/features/financiamento/amortizacao';
+import { acharBanco } from '@/features/financiamento/bancos';
 import { AVISO_LEGAL, STATUS_ROTULO } from '@/features/financiamento/motor';
 import { compararCenarios, montarCenarios, variacoesPadrao, vencedores } from '@/features/financiamento/cenarios';
 import { paraEntrada } from '@/features/financiamento/formulario';
@@ -208,8 +210,23 @@ export default function ResultadoFinanciamento() {
     Alert.alert('Resumo para o cliente', texto);
   }
 
+  // De qual instituição é este resultado — para o corretor não confundir duas
+  // simulações do mesmo cliente em bancos diferentes.
+  const bancoDoResultado = acharBanco(r.produto.bancoId);
+
   return (
     <Screen>
+      {/* --------------------------------------------- em qual banco */}
+      {bancoDoResultado ? (
+        <View style={styles.faixaBanco}>
+          <BancoMarca banco={bancoDoResultado} tamanho={36} />
+          <View style={styles.faixaTexto}>
+            <Text style={styles.faixaNome}>{bancoDoResultado.nome}</Text>
+            <Text style={styles.faixaLinha}>{r.produto.nome}</Text>
+          </View>
+        </View>
+      ) : null}
+
       {/* -------------------------------------------------- a parcela */}
       <View style={styles.herói}>
         <Text style={styles.heroiRotulo}>Primeira parcela estimada</Text>
@@ -539,6 +556,21 @@ function Bloco({ rotulo, valor }: { rotulo: string; valor: string }) {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    faixaBanco: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: spacing.md,
+    },
+    faixaTexto: { flex: 1, gap: 1 },
+    faixaNome: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    faixaLinha: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5 },
+
     titulo: { ...typography.title, color: colors.primary },
     texto: { ...typography.body, color: colors.inkMuted },
 

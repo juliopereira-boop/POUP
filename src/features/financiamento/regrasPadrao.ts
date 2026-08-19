@@ -123,6 +123,7 @@ function faixaMcmv(id: string, nome: string, descricao: string): ProdutoFinancia
     id,
     nome,
     descricao,
+    bancoId: 'caixa',
     parametrosManuais: false,
     operacoes: ['aquisicao_novo', 'aquisicao_usado', 'construcao'],
     tiposImovel: ['residencial'],
@@ -197,6 +198,8 @@ export const REGRAS_PADRAO: VersaoRegras = {
     {
       id: 'informado',
       nome: 'Condições informadas',
+      // Sem banco: vale para a instituição que o corretor estiver atendendo.
+      bancoId: null,
       descricao:
         'Você informa a taxa, o prazo e a quota que o correspondente bancário aprovou para este cliente. É a condição real da negociação — o cálculo é feito em cima dela.',
       parametrosManuais: true,
@@ -232,6 +235,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
     /* ------------------------------------------- MCMV Classe Média (§47) */
     {
       id: 'mcmv_classe_media',
+      bancoId: 'caixa',
       nome: 'MCMV Classe Média',
       descricao:
         'Faixa do programa para a classe média: sem subsídio, com juros abaixo do mercado tradicional e prazo estendido.',
@@ -332,6 +336,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
     /* ------------------------------------------------------------- SBPE */
     {
       id: 'sbpe_tr',
+      bancoId: 'caixa',
       nome: 'SBPE — corrigido pela TR',
       descricao:
         'Financiamento tradicional, fora do MCMV. Para quem passa do teto de renda do programa ou compra imóvel acima do limite.',
@@ -394,6 +399,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
     },
     {
       id: 'sbpe_prefixado',
+      bancoId: 'caixa',
       nome: 'SBPE — prefixado',
       descricao:
         'Taxa fixa, sem atualização por TR ou IPCA. A parcela varia apenas pelo sistema de amortização.',

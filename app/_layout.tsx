@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { BackendMissingScreen } from '@/components/BackendMissingScreen';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplashGate } from '@/components/SplashGate';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { SubscriptionProvider } from '@/providers/SubscriptionProvider';
@@ -30,21 +31,30 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <ProfileProvider>
-              <SubscriptionProvider>
-                <SplashGate>
-                  <ThemedNavigator />
-                </SplashGate>
-              </SubscriptionProvider>
-            </ProfileProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    /*
+     * A fronteira de erro fica POR FORA de todos os providers.
+     *
+     * Se ela ficasse por dentro, um erro no `AuthProvider` ou no
+     * `ThemeProvider` passaria por cima dela e a tela voltaria a ficar branca —
+     * que é exatamente o problema que ela existe para eliminar.
+     */
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <ProfileProvider>
+                <SubscriptionProvider>
+                  <SplashGate>
+                    <ThemedNavigator />
+                  </SplashGate>
+                </SubscriptionProvider>
+              </ProfileProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

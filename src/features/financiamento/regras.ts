@@ -147,6 +147,19 @@ export interface ProdutoFinanciamento {
   descricao: string;
 
   /**
+   * De qual banco é esta linha. `null` = serve a qualquer um.
+   *
+   * É o que permite a tela perguntar "qual banco?" em vez de "qual linha?".
+   * Escolhido o banco, o simulador filtra por aqui e aplica a linha calculável
+   * sozinho — sem mostrar ao corretor uma decisão que o cadastro já tomou.
+   *
+   * `null` é o caso de "Condições informadas": quem fornece taxa, prazo e
+   * quota é o correspondente bancário, então a linha vale para o banco que
+   * for.
+   */
+  bancoId: string | null;
+
+  /**
    * Quando `true`, os números vêm do que o CORRETOR digitou na simulação, e
    * não deste cadastro. É o produto que funciona sem depender de parâmetro
    * oficial nenhum — o corretor recebe a condição aprovada do correspondente
@@ -362,6 +375,42 @@ export function parametrosPendentes(regras: VersaoRegras): { onde: string; motiv
   push('Enquadramento · limite SFH', regras.sfh.limiteValorImovel);
 
   return saida;
+}
+
+/**
+ * As linhas de um banco — as dele mais as que servem a qualquer um.
+ *
+ * A ordem devolve primeiro as linhas próprias do banco e só depois as
+ * genéricas ("Condições informadas"). É a ordem em que o corretor quer: a
+ * condição oficial cadastrada vale mais que a digitada à mão, e por isso é ela
+ * que o simulador escolhe sozinho quando existe.
+ */
+export function produtosDoBanco(
+  regras: VersaoRegras,
+  bancoId: string | null,
+): ProdutoFinanciamento[] {
+  const proprios = regras.produtos.filter((p) => p.bancoId !== null && p.bancoId === bancoId);
+  const genericos = regras.produtos.filter((p) => p.bancoId === null);
+  return [...proprios, ...genericos];
+}
+
+/**
+ * A linha que o simulador assume ao entrar no banco.
+ *
+ * Primeira linha própria do banco que consegue ser calculada; não havendo
+ * nenhuma, a genérica de condições informadas. Nunca devolve uma linha sem
+ * parâmetro cadastrado: abrir o simulador já num produto que não calcula
+ * mostraria uma tela vazia sem explicar por quê.
+ */
+export function produtoPadraoDoBanco(
+  regras: VersaoRegras,
+  bancoId: string | null,
+): ProdutoFinanciamento | null {
+  const candidatos = produtosDoBanco(regras, bancoId);
+  return candidatos.find((p) => !p.parametrosManuais && produtoCalculavel(p))
+    ?? candidatos.find(produtoCalculavel)
+    ?? candidatos[0]
+    ?? null;
 }
 
 /** O produto consegue ser simulado sem parâmetro faltando? */

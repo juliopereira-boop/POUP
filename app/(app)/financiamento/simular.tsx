@@ -2,36 +2,47 @@
  * A TELA DE SIMULAÇÃO.
  *
  * ===========================================================================
- * UMA ROLAGEM, NÃO CINCO ETAPAS
+ * SEIS CAMPOS NA TELA. O RESTO ESTÁ NO CADASTRO.
  * ===========================================================================
- * O simulador de poupança tem cinco etapas, e ali faz sentido: monta um
- * documento com dezenas de campos interdependentes. Aqui não. O corretor está
- * **com o cliente na frente**, mexendo no prazo e na entrada para ver a parcela
- * mudar. Passo a passo isso vira quatro toques por ajuste.
+ * A versão anterior desta tela pedia trinta coisas: tipo de operação, tipo de
+ * imóvel, UF, empresa, empreendimento, bloco, unidade, linha de financiamento,
+ * sistema de amortização, regime da taxa, quota, comprometimento de renda.
+ * Tudo isso é verdade — e quase nada disso o corretor deveria digitar.
  *
- * Então: uma rolagem, com o RESULTADO GRUDADO NO TOPO, atualizando a cada
- * tecla. O cronograma de 420 meses é aritmética; custa microssegundos.
+ * Escolhido o banco na tela anterior, **as regras dele entram por trás**: taxa,
+ * quota máxima, prazo máximo, teto de renda, comprometimento, indexador e
+ * sistema saem do cadastro de regras versionado e nem aparecem aqui.
+ *
+ * O que fica na tela é só o que o cadastro não tem como saber:
+ *
+ *     1. quanto custa o imóvel
+ *     2. quanto o cliente tem de entrada
+ *     3. quanto ele tem de FGTS
+ *     4. quanto a família ganha
+ *     5. a idade do proponente
+ *     6. em quantos anos
  *
  * ===========================================================================
- * A ORDEM DOS BLOCOS SEGUE A CONVERSA, NÃO O BANCO
+ * A ÚNICA EXCEÇÃO: BANCO SEM TABELA CADASTRADA
  * ===========================================================================
- * Imóvel → recursos → proponentes → condição. É a ordem em que a negociação
- * acontece: fala-se do apartamento, depois de quanto o cliente tem, depois de
- * quem compra e quanto ganha, e por último de como o banco financia. Um
- * formulário de banco começaria pelo CPF.
+ * Para um banco cuja tabela não está cadastrada, taxa e quota **precisam** ser
+ * digitadas — não existe simulação sem elas, e a §74 proíbe inventá-las. Nesse
+ * caso os campos aparecem, com o aviso de que quem manda é a condição que o
+ * correspondente aprovou, e não a tabela do site.
  *
  * ===========================================================================
- * O QUE É AVANÇADO FICA DOBRADO
+ * O RESTO CONTINUA EXISTINDO, DOBRADO
  * ===========================================================================
- * Avaliação do imóvel, carência, cenário de indexador e pactuação de renda são
- * campos que a maioria das simulações não usa. Deixá-los sempre abertos faria a
- * tela ter trinta campos e o corretor desistir no meio. Ficam atrás de "Opções
- * avançadas" — presentes, mas fora do caminho.
+ * Cliente, empreendimento, unidade, subsídio, segundo proponente, avaliação,
+ * carência, cenário de indexador: nada foi removido. Tudo isso mora atrás de
+ * "Mais detalhes" — presente para quem precisa, fora do caminho de quem só
+ * quer a parcela.
  */
 import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { BancoMarca } from '@/components/BancoMarca';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { NumberPickerField } from '@/components/NumberPickerField';
@@ -39,6 +50,7 @@ import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { formatCurrencyBRL } from '@/lib/masks';
 import { opcoesDeProduto, useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
+import { BANCOS } from '@/features/financiamento/bancos';
 import { formatarBRL, formatarPct } from '@/features/financiamento/dinheiro';
 import { PRAZOS_COMUNS, REGIMES_TAXA } from '@/features/financiamento/formulario';
 import { CENARIOS_INDEXADOR } from '@/features/financiamento/indexador';
@@ -63,6 +75,8 @@ export default function SimularFinanciamento() {
     set,
     limpar,
     regras,
+    banco,
+    escolherBanco,
     clientes,
     empresas,
     empreendimentos,
@@ -77,11 +91,15 @@ export default function SimularFinanciamento() {
     rendaFamiliarBruta,
   } = useFinanciamento();
 
-  const [avancado, setAvancado] = useState(false);
+  const [detalhes, setDetalhes] = useState(false);
 
-  const produtos = useMemo(() => opcoesDeProduto(regras), [regras]);
+  const produtos = useMemo(
+    () => opcoesDeProduto(regras, form.bancoId),
+    [regras, form.bancoId],
+  );
   const produtoAtual = regras.produtos.find((p) => p.id === form.produtoId) ?? null;
   const indexadorAtual = regras.indexadores.find((i) => i.id === produtoAtual?.indexadorId) ?? null;
+  const principal = form.proponentes[0] ?? null;
 
   const empreendimentosDaEmpresa = useMemo(
     () =>
@@ -91,8 +109,61 @@ export default function SimularFinanciamento() {
     [empreendimentos, form.companyId],
   );
 
+  /*
+   * Sem banco escolhido não há simulação: a tela mostra a lista curta em vez de
+   * redirecionar. Redirecionar aqui daria pau de corrida — o rascunho é
+   * hidratado por I/O assíncrono, e o corretor que voltasse de um resultado
+   * seria chutado para trás antes de o banco dele carregar.
+   */
+  if (!banco) {
+    return (
+      <Screen>
+        <Text style={styles.secaoTitulo}>Escolha o banco</Text>
+        <Text style={styles.secaoNota}>
+          As condições daquele banco entram sozinhas — você preenche só o essencial.
+        </Text>
+        <View style={styles.bancoLista}>
+          {[...BANCOS]
+            .sort((a, b) => a.ordem - b.ordem)
+            .map((b) => (
+              <Pressable
+                key={b.id}
+                onPress={() => escolherBanco(b.id)}
+                accessibilityRole="button"
+                accessibilityLabel={b.nome}
+                style={({ pressed }) => [styles.bancoItem, pressed && styles.pressionado]}
+              >
+                <BancoMarca banco={b} tamanho={40} />
+                <Text style={styles.bancoNome}>{b.nome}</Text>
+              </Pressable>
+            ))}
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
+      {/* ------------------------------------------------------- o banco */}
+      <View style={styles.faixaBanco}>
+        <BancoMarca banco={banco} tamanho={40} />
+        <View style={styles.faixaTexto}>
+          <Text style={styles.faixaNome}>{banco.nome}</Text>
+          <Text style={styles.faixaLinha}>
+            {produtoAtual && !produtoAtual.parametrosManuais
+              ? `${produtoAtual.nome} · ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}`
+              : 'Condição informada por você'}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.replace('/(app)/financiamento')}
+          accessibilityRole="button"
+          accessibilityLabel="Trocar de banco"
+        >
+          <Text style={styles.trocar}>Trocar</Text>
+        </Pressable>
+      </View>
+
       {/* ---------------------------------------------------- resultado vivo */}
       <View style={styles.painel}>
         {resultado ? (
@@ -154,100 +225,20 @@ export default function SimularFinanciamento() {
         )}
       </View>
 
-      {/* --------------------------------------------------------- o imóvel */}
-      <Secao titulo="O imóvel" />
-
-      <Select
-        label="Tipo de operação"
-        value={form.operacao}
-        options={(Object.keys(OPERACAO_ROTULO) as TipoOperacao[]).map((k) => ({
-          value: k,
-          label: OPERACAO_ROTULO[k],
-        }))}
-        onChange={(v) => set('operacao', v as TipoOperacao)}
-      />
-
-      <View style={styles.linha}>
-        <View style={styles.col}>
-          <Select
-            label="Tipo de imóvel"
-            value={form.tipoImovel}
-            options={(Object.keys(IMOVEL_ROTULO) as TipoImovel[]).map((k) => ({
-              value: k,
-              label: IMOVEL_ROTULO[k],
-            }))}
-            onChange={(v) => set('tipoImovel', v as TipoImovel)}
-          />
-        </View>
-        <View style={styles.col}>
-          <Select
-            label="UF"
-            placeholder="Estado"
-            value={form.uf}
-            options={UF_OPTIONS}
-            onChange={(v) => set('uf', v)}
-            searchable
-          />
-        </View>
-      </View>
-
-      <Select
-        label="Empresa (opcional)"
-        placeholder="Vincular a uma construtora"
-        value={form.companyId}
-        options={empresas.map((c) => ({ value: c.id, label: c.name }))}
-        onChange={(v) => set('companyId', v)}
-        emptyHint="Cadastre uma empresa em Cadastros."
-      />
-
-      <Select
-        label="Empreendimento (opcional)"
-        placeholder="Vincular a um empreendimento"
-        value={form.developmentId}
-        options={empreendimentosDaEmpresa}
-        onChange={escolherEmpreendimento}
-        emptyHint="Nenhum empreendimento para esta empresa."
-      />
-
-      <View style={styles.linha}>
-        <View style={styles.col}>
-          <NumberPickerField
-            label="Bloco / Quadra"
-            min={0}
-            max={100}
-            value={form.block}
-            onChange={(n) => set('block', n)}
-          />
-        </View>
-        <View style={styles.col}>
-          <Input
-            label="Unidade"
-            value={form.unit}
-            onChangeText={(t) => set('unit', t)}
-            placeholder="Ex.: 304"
-            keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
-          />
-        </View>
-      </View>
+      {/* ======================================================== o essencial */}
 
       <Input
-        label="Valor do imóvel (preço de venda)"
+        label="Valor do imóvel"
         value={form.valorImovel}
         onChangeText={(t) => set('valorImovel', formatCurrencyBRL(t))}
         placeholder="R$ 0,00"
         keyboardType="numeric"
       />
 
-      {/* ------------------------------------------------------ os recursos */}
-      <Secao
-        titulo="O que o cliente tem"
-        nota="A entrada, o FGTS e o subsídio somam. O que sobra é o valor financiado."
-      />
-
       <View style={styles.linha}>
         <View style={styles.col}>
           <Input
-            label="Entrada própria"
+            label="Entrada"
             value={form.entradaPropria}
             onChangeText={(t) => set('entradaPropria', formatCurrencyBRL(t))}
             placeholder="R$ 0,00"
@@ -256,7 +247,7 @@ export default function SimularFinanciamento() {
         </View>
         <View style={styles.col}>
           <Input
-            label="Saldo de FGTS"
+            label="FGTS"
             value={form.fgtsDisponivel}
             onChangeText={(t) => set('fgtsDisponivel', formatCurrencyBRL(t))}
             placeholder="R$ 0,00"
@@ -264,141 +255,33 @@ export default function SimularFinanciamento() {
           />
         </View>
       </View>
-      <Text style={styles.ajuda}>
-        O saldo informado é somado por inteiro à entrada. Para usar só uma parte, abra as opções
-        avançadas. O direito de usar o FGTS depende de análise da Caixa.
-      </Text>
 
-      <Input
-        label="Subsídio / desconto"
-        value={form.subsidio}
-        onChangeText={(t) => set('subsidio', formatCurrencyBRL(t))}
-        placeholder="R$ 0,00"
-        keyboardType="numeric"
-      />
-
-      {/* ----------------------------------------------------- proponentes */}
-      <Secao
-        titulo="Quem compra"
-        nota="A renda familiar é a soma das rendas informadas. A idade de cada um entra no cálculo do seguro e no limite de idade mais prazo."
-      />
-
-      <Select
-        label="Cliente cadastrado"
-        placeholder="Selecionar um lead (opcional)"
-        value={form.leadId}
-        options={clientes.map((c) => ({ value: c.id, label: c.name }))}
-        onChange={escolherCliente}
-        emptyHint="Nenhum lead cadastrado ainda."
-        searchable
-      />
-
-      {form.proponentes.map((p, i) => (
-        <View key={p.id} style={styles.proponente}>
-          <View style={styles.proponenteTopo}>
-            <Text style={styles.proponenteTitulo}>
-              {i === 0 ? 'Proponente principal' : `${i + 1}º proponente`}
-            </Text>
-            {i > 0 ? (
-              <Pressable onPress={() => removerProponente(p.id)} accessibilityRole="button">
-                <Text style={styles.remover}>Remover</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          <Input
-            label="Nome"
-            value={p.nome}
-            onChangeText={(t) => atualizarProponente(p.id, { nome: t })}
-            placeholder="Nome completo"
-          />
-          <View style={styles.linha}>
-            <View style={styles.col}>
-              <Input
-                label="Renda bruta"
-                value={p.rendaBruta}
-                onChangeText={(t) =>
-                  atualizarProponente(p.id, { rendaBruta: formatCurrencyBRL(t) })
-                }
-                placeholder="R$ 0,00"
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.col}>
-              <Input
-                label="Idade"
-                value={p.idade}
-                onChangeText={(t) =>
-                  atualizarProponente(p.id, { idade: t.replace(/\D/g, '').slice(0, 3) })
-                }
-                placeholder="anos"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          {avancado ? (
+      {principal ? (
+        <View style={styles.linha}>
+          <View style={styles.col}>
             <Input
-              label="Pactuação de renda (%)"
-              value={p.participacao}
+              label="Renda bruta familiar"
+              value={principal.rendaBruta}
               onChangeText={(t) =>
-                atualizarProponente(p.id, { participacao: t.replace(/[^\d,.]/g, '').slice(0, 6) })
+                atualizarProponente(principal.id, { rendaBruta: formatCurrencyBRL(t) })
               }
-              placeholder="em branco = proporcional à renda"
+              placeholder="R$ 0,00"
               keyboardType="numeric"
             />
-          ) : null}
+          </View>
+          <View style={styles.col}>
+            <Input
+              label="Idade"
+              value={principal.idade}
+              onChangeText={(t) =>
+                atualizarProponente(principal.id, { idade: t.replace(/\D/g, '').slice(0, 3) })
+              }
+              placeholder="anos"
+              keyboardType="numeric"
+            />
+          </View>
         </View>
-      ))}
-
-      {form.proponentes.length < 4 ? (
-        <Pressable onPress={adicionarProponente} accessibilityRole="button" style={styles.adicionar}>
-          <Text style={styles.adicionarTexto}>+ Compor renda com outra pessoa</Text>
-        </Pressable>
       ) : null}
-
-      <Text style={styles.rendaTotal}>
-        Renda familiar bruta: <Text style={styles.forte}>{formatarBRL(rendaFamiliarBruta)}</Text>
-      </Text>
-
-      {/* ------------------------------------------------------- a condição */}
-      <Secao titulo="A condição do banco" />
-
-      <Select
-        label="Linha de financiamento"
-        value={form.produtoId}
-        options={produtos.map((p) => ({ value: p.value, label: p.label }))}
-        onChange={(v) => {
-          const escolhido = produtos.find((p) => p.value === v);
-          // Linha sem parâmetro cadastrado não é escolhível: deixar escolher
-          // levaria a uma tela de erro em vez de a um resultado, e o corretor
-          // não saberia que o problema não é dele.
-          if (escolhido && !escolhido.disponivel) return;
-          set('produtoId', v);
-        }}
-      />
-      <Text style={styles.ajuda}>
-        {produtos.find((p) => p.value === form.produtoId)?.descricao ?? ''}
-      </Text>
-
-      <Text style={styles.rotulo}>Sistema de amortização</Text>
-      <View style={styles.segmentado}>
-        {(['SAC', 'PRICE'] as SistemaAmortizacao[]).map((s) => {
-          const ativo = form.sistema === s;
-          return (
-            <Pressable
-              key={s}
-              onPress={() => set('sistema', s)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: ativo }}
-              style={[styles.segmento, ativo && styles.segmentoAtivo]}
-            >
-              <Text style={[styles.segmentoTexto, ativo && styles.segmentoTextoAtivo]}>
-                {SISTEMA_ROTULO[s]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       <Select
         label="Prazo"
@@ -407,12 +290,17 @@ export default function SimularFinanciamento() {
         onChange={(v) => set('prazoMeses', v)}
       />
 
+      {/*
+       * Banco sem tabela cadastrada: taxa e quota são obrigatórias, porque sem
+       * elas não existe conta a fazer — e chutá-las é exatamente o que a §74
+       * proíbe.
+       */}
       {exigeCondicaoInformada ? (
         <>
           <View style={styles.destaque}>
             <Text style={styles.destaqueTexto}>
-              Informe a condição que o correspondente bancário aprovou para este cliente. É ela que
-              vale — e não a tabela genérica do site do banco.
+              As condições deste banco não estão cadastradas. Informe a que o correspondente
+              bancário aprovou para este cliente — é ela que vale, e não a tabela genérica do site.
             </Text>
           </View>
           <View style={styles.linha}>
@@ -435,7 +323,6 @@ export default function SimularFinanciamento() {
               />
             </View>
           </View>
-
           <Select
             label="A taxa informada é"
             value={form.regimeTaxa}
@@ -445,47 +332,137 @@ export default function SimularFinanciamento() {
           <Text style={styles.ajuda}>
             Não é detalhe: 10% <Text style={styles.forte}>nominais</Text> viram 0,8333% ao mês e
             10,47% efetivos ao ano; 10% <Text style={styles.forte}>efetivos</Text> viram 0,7974% ao
-            mês. Em 35 anos a diferença passa de vinte mil reais. Pergunte ao correspondente qual
-            das duas ele passou.
+            mês. Em 35 anos a diferença passa de vinte mil reais.
             {resultado
               ? ` Com o que está informado: ${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos ao ano.`
               : ''}
           </Text>
-
-          <Input
-            label="Comprometimento máximo de renda (%)"
-            value={form.comprometimento}
-            onChangeText={(t) => set('comprometimento', t.replace(/[^\d,.]/g, '').slice(0, 5))}
-            placeholder="Ex.: 30"
-            keyboardType="numeric"
-          />
         </>
-      ) : (
-        <View style={styles.destaque}>
-          <Text style={styles.destaqueTexto}>
-            {produtoAtual
-              ? `Taxa ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}${
-                  resultado ? ` (${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos)` : ''
-                }. Fonte: ${produtoAtual.fonte ?? 'não informada'}.`
-              : ''}
-          </Text>
-        </View>
-      )}
+      ) : null}
 
-      {/* ------------------------------------------------------- avançadas */}
+      <Button
+        label="Ver resultado completo"
+        onPress={() => router.push('/(app)/financiamento/resultado')}
+        disabled={!resultado}
+        style={styles.cta}
+      />
+
+      {/* ====================================================== mais detalhes */}
       <Pressable
-        onPress={() => setAvancado((v) => !v)}
+        onPress={() => setDetalhes((v) => !v)}
         accessibilityRole="button"
+        accessibilityState={{ expanded: detalhes }}
         style={styles.expandir}
       >
         <Text style={styles.expandirTexto}>
-          {avancado ? '− Esconder' : '+ Opções avançadas'} (avaliação, FGTS parcial, carência,
-          indexador)
+          {detalhes ? '− Esconder detalhes' : '+ Mais detalhes'} (cliente, unidade, subsídio, 2º
+          proponente, avaliação, carência)
         </Text>
       </Pressable>
 
-      {avancado ? (
+      {detalhes ? (
         <>
+          {/* ------------------------------------------------------ cliente */}
+          <Secao
+            titulo="O cliente"
+            nota="Ligar a simulação ao cliente é o que faz o simulador de poupança já abrir com esses números."
+          />
+
+          <Select
+            label="Cliente cadastrado"
+            placeholder="Selecionar um lead"
+            value={form.leadId}
+            options={clientes.map((c) => ({ value: c.id, label: c.name }))}
+            onChange={escolherCliente}
+            emptyHint="Nenhum lead cadastrado ainda."
+            searchable
+          />
+
+          {principal ? (
+            <Input
+              label="Nome do proponente"
+              value={principal.nome}
+              onChangeText={(t) => atualizarProponente(principal.id, { nome: t })}
+              placeholder="Nome completo"
+            />
+          ) : null}
+
+          {/* --------------------------------------------------- o imóvel */}
+          <Secao titulo="O imóvel" />
+
+          <Select
+            label="Empresa"
+            placeholder="Vincular a uma construtora"
+            value={form.companyId}
+            options={empresas.map((c) => ({ value: c.id, label: c.name }))}
+            onChange={(v) => set('companyId', v)}
+            emptyHint="Cadastre uma empresa em Cadastros."
+          />
+
+          <Select
+            label="Empreendimento"
+            placeholder="Vincular a um empreendimento"
+            value={form.developmentId}
+            options={empreendimentosDaEmpresa}
+            onChange={escolherEmpreendimento}
+            emptyHint="Nenhum empreendimento para esta empresa."
+          />
+
+          <View style={styles.linha}>
+            <View style={styles.col}>
+              <NumberPickerField
+                label="Bloco / Quadra"
+                min={0}
+                max={100}
+                value={form.block}
+                onChange={(n) => set('block', n)}
+              />
+            </View>
+            <View style={styles.col}>
+              <Input
+                label="Unidade"
+                value={form.unit}
+                onChangeText={(t) => set('unit', t)}
+                placeholder="Ex.: 304"
+                keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
+              />
+            </View>
+          </View>
+
+          <View style={styles.linha}>
+            <View style={styles.col}>
+              <Select
+                label="Tipo de operação"
+                value={form.operacao}
+                options={(Object.keys(OPERACAO_ROTULO) as TipoOperacao[]).map((k) => ({
+                  value: k,
+                  label: OPERACAO_ROTULO[k],
+                }))}
+                onChange={(v) => set('operacao', v as TipoOperacao)}
+              />
+            </View>
+            <View style={styles.col}>
+              <Select
+                label="Tipo de imóvel"
+                value={form.tipoImovel}
+                options={(Object.keys(IMOVEL_ROTULO) as TipoImovel[]).map((k) => ({
+                  value: k,
+                  label: IMOVEL_ROTULO[k],
+                }))}
+                onChange={(v) => set('tipoImovel', v as TipoImovel)}
+              />
+            </View>
+          </View>
+
+          <Select
+            label="UF"
+            placeholder="Estado"
+            value={form.uf}
+            options={UF_OPTIONS}
+            onChange={(v) => set('uf', v)}
+            searchable
+          />
+
           <Input
             label="Valor de avaliação do imóvel"
             value={form.valorAvaliacao}
@@ -498,6 +475,20 @@ export default function SimularFinanciamento() {
             costuma vir abaixo do negociado. O seguro do imóvel (DFI) também incide sobre ela.
           </Text>
 
+          {/* ------------------------------------------------- os recursos */}
+          <Secao
+            titulo="Recursos"
+            nota="A entrada, o FGTS e o subsídio somam. O que sobra é o valor financiado."
+          />
+
+          <Input
+            label="Subsídio / desconto"
+            value={form.subsidio}
+            onChangeText={(t) => set('subsidio', formatCurrencyBRL(t))}
+            placeholder="R$ 0,00"
+            keyboardType="numeric"
+          />
+
           <Input
             label="FGTS a utilizar"
             value={form.fgtsUsado}
@@ -505,6 +496,146 @@ export default function SimularFinanciamento() {
             placeholder="em branco = usar o saldo inteiro"
             keyboardType="numeric"
           />
+          <Text style={styles.ajuda}>
+            O saldo informado é somado por inteiro à entrada, salvo se você limitar aqui. O direito
+            de usar o FGTS depende de análise do banco.
+          </Text>
+
+          {/* ----------------------------------------------- proponentes */}
+          <Secao
+            titulo="Quem mais compõe renda"
+            nota="A idade de cada um entra no cálculo do seguro e no limite de idade mais prazo."
+          />
+
+          {form.proponentes.slice(1).map((p, i) => (
+            <View key={p.id} style={styles.proponente}>
+              <View style={styles.proponenteTopo}>
+                <Text style={styles.proponenteTitulo}>{i + 2}º proponente</Text>
+                <Pressable onPress={() => removerProponente(p.id)} accessibilityRole="button">
+                  <Text style={styles.remover}>Remover</Text>
+                </Pressable>
+              </View>
+              <Input
+                label="Nome"
+                value={p.nome}
+                onChangeText={(t) => atualizarProponente(p.id, { nome: t })}
+                placeholder="Nome completo"
+              />
+              <View style={styles.linha}>
+                <View style={styles.col}>
+                  <Input
+                    label="Renda bruta"
+                    value={p.rendaBruta}
+                    onChangeText={(t) =>
+                      atualizarProponente(p.id, { rendaBruta: formatCurrencyBRL(t) })
+                    }
+                    placeholder="R$ 0,00"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.col}>
+                  <Input
+                    label="Idade"
+                    value={p.idade}
+                    onChangeText={(t) =>
+                      atualizarProponente(p.id, { idade: t.replace(/\D/g, '').slice(0, 3) })
+                    }
+                    placeholder="anos"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              <Input
+                label="Pactuação de renda (%)"
+                value={p.participacao}
+                onChangeText={(t) =>
+                  atualizarProponente(p.id, { participacao: t.replace(/[^\d,.]/g, '').slice(0, 6) })
+                }
+                placeholder="em branco = proporcional à renda"
+                keyboardType="numeric"
+              />
+            </View>
+          ))}
+
+          {form.proponentes.length < 4 ? (
+            <Pressable
+              onPress={adicionarProponente}
+              accessibilityRole="button"
+              style={styles.adicionar}
+            >
+              <Text style={styles.adicionarTexto}>+ Compor renda com outra pessoa</Text>
+            </Pressable>
+          ) : null}
+
+          <Text style={styles.rendaTotal}>
+            Renda familiar bruta: <Text style={styles.forte}>{formatarBRL(rendaFamiliarBruta)}</Text>
+          </Text>
+
+          {/* ------------------------------------------------- a condição */}
+          <Secao
+            titulo="A condição do banco"
+            nota="Já preenchida pelo cadastro. Mexa só se este cliente tiver uma condição diferente."
+          />
+
+          {produtos.length > 1 ? (
+            <>
+              <Select
+                label="Linha de financiamento"
+                value={form.produtoId}
+                options={produtos.map((p) => ({ value: p.value, label: p.label }))}
+                onChange={(v) => {
+                  const escolhido = produtos.find((p) => p.value === v);
+                  // Linha sem parâmetro cadastrado não é escolhível: deixar
+                  // escolher levaria a uma tela de erro em vez de a um
+                  // resultado, e o corretor não saberia que o problema não é
+                  // dele.
+                  if (escolhido && !escolhido.disponivel) return;
+                  set('produtoId', v);
+                }}
+              />
+              <Text style={styles.ajuda}>
+                {produtos.find((p) => p.value === form.produtoId)?.descricao ?? ''}
+              </Text>
+            </>
+          ) : null}
+
+          <Text style={styles.rotulo}>Sistema de amortização</Text>
+          <View style={styles.segmentado}>
+            {(['SAC', 'PRICE'] as SistemaAmortizacao[]).map((s) => {
+              const ativo = form.sistema === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => set('sistema', s)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: ativo }}
+                  style={[styles.segmento, ativo && styles.segmentoAtivo]}
+                >
+                  <Text style={[styles.segmentoTexto, ativo && styles.segmentoTextoAtivo]}>
+                    {SISTEMA_ROTULO[s]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {!exigeCondicaoInformada && produtoAtual ? (
+            <View style={styles.destaque}>
+              <Text style={styles.destaqueTexto}>
+                {`Taxa ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}`}
+                {resultado ? ` (${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos)` : ''}
+                {`. Quota máxima ${formatarPct(produtoAtual.quotaMaxPct.valor ?? 0)}. Fonte: ${produtoAtual.fonte ?? 'não informada'}.`}
+              </Text>
+            </View>
+          ) : (
+            <Input
+              label="Comprometimento máximo de renda (%)"
+              value={form.comprometimento}
+              onChangeText={(t) => set('comprometimento', t.replace(/[^\d,.]/g, '').slice(0, 5))}
+              placeholder="Ex.: 30"
+              keyboardType="numeric"
+            />
+          )}
 
           <Input
             label="Carência (meses)"
@@ -537,12 +668,6 @@ export default function SimularFinanciamento() {
         </>
       ) : null}
 
-      <Button
-        label="Ver resultado completo"
-        onPress={() => router.push('/(app)/financiamento/resultado')}
-        disabled={!resultado}
-        style={styles.cta}
-      />
       <Pressable onPress={limpar} accessibilityRole="button" style={styles.limpar}>
         <Text style={styles.limparTexto}>Limpar e começar outra</Text>
       </Pressable>
@@ -572,6 +697,36 @@ function Mini({ rotulo, valor }: { rotulo: string; valor: string }) {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    faixaBanco: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: spacing.lg,
+    },
+    faixaTexto: { flex: 1, gap: 1 },
+    faixaNome: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    faixaLinha: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5 },
+    trocar: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+
+    bancoLista: { gap: spacing.md, marginTop: spacing.lg },
+    bancoItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    bancoNome: { ...typography.label, color: colors.ink, flex: 1 },
+    pressionado: { opacity: 0.85 },
+
     painel: {
       backgroundColor: colors.surface,
       borderRadius: radius.lg,

@@ -1,29 +1,51 @@
 /**
- * A porta do módulo de financiamento.
+ * A PORTA DO SIMULADOR: QUAL BANCO.
  *
- * Quatro caminhos, na ordem em que a venda acontece de verdade:
+ * ===========================================================================
+ * A PERGUNTA QUE O CORRETOR JÁ SABE RESPONDER
+ * ===========================================================================
+ * A primeira versão desta tela oferecia quatro ferramentas e, lá dentro, um
+ * formulário com "linha de financiamento", "sistema de amortização", "regime da
+ * taxa", "quota", "comprometimento". São os termos do banco, não os da venda —
+ * e cada um deles é uma chance de o corretor travar ou errar.
  *
- *   1. **Simulação rápida** — cinco campos, resultado em trinta segundos. É o
- *      que o corretor abre com o cliente na frente.
- *   2. **Poder de compra** — a pergunta invertida ("ganho X, compro o quê?"),
- *      que costuma vir ANTES de existir um imóvel escolhido.
- *   3. **Minhas simulações** — o histórico, ligado ao cliente.
- *   4. **Regras** — só para o administrador, e por isso só aparece para ele.
+ * Agora a tela faz uma pergunta só, e é a que ele responde sem pensar: **em
+ * qual banco você vai levar essa proposta?**
  *
- * O aviso de regras de fábrica fica no topo e é deliberadamente difícil de
- * ignorar: enquanto ninguém cadastrar os parâmetros oficiais, o corretor
- * precisa saber que as linhas do MCMV e do SBPE não estão disponíveis e que o
- * caminho é informar a condição aprovada pelo correspondente.
+ * Escolhido o banco, tudo o que é regra daquele banco — taxa, quota máxima,
+ * prazo máximo, teto de renda, comprometimento, indexador, sistema — entra
+ * sozinho e **não aparece na tela**. Sobra o que só o corretor sabe: quanto
+ * custa o imóvel, quanto o cliente tem, quanto ganha e em quantos anos.
+ *
+ * ===========================================================================
+ * POR QUE A CAIXA É A PRIMEIRA
+ * ===========================================================================
+ * Não é ordem alfabética: é a instituição que opera o FGTS e o Minha Casa
+ * Minha Vida, e é por onde passa a maior parte do financiamento residencial no
+ * Brasil. Ela vem primeiro e é a única que já chega com as condições
+ * documentadas cadastradas.
+ *
+ * ===========================================================================
+ * OS OUTROS BANCOS NÃO CHEGAM COM TABELA — E ISSO É DE PROPÓSITO
+ * ===========================================================================
+ * Não temos as tabelas do BB, do Itaú, do Bradesco e do Santander, e a §74
+ * proíbe inventar taxa, quota ou prazo. Eles aparecem porque o corretor
+ * trabalha com eles de verdade; ao escolhê-los, o simulador vai direto para
+ * "informe a condição que o correspondente aprovou". O motor é o mesmo — muda
+ * só de onde vêm os números.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
+import { BancoMarca } from '@/components/BancoMarca';
 import { Icon, type IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
+import { BANCOS } from '@/features/financiamento/bancos';
 import { useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { AVISO_LEGAL } from '@/features/financiamento/motor';
+import { produtoPadraoDoBanco } from '@/features/financiamento/regras';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 
@@ -36,13 +58,6 @@ interface Atalho {
 }
 
 const ATALHOS: Atalho[] = [
-  {
-    chave: 'simular',
-    titulo: 'Simular financiamento',
-    descricao: 'Valor do imóvel, entrada, renda e prazo. O resultado aparece enquanto você digita.',
-    icone: 'calculator',
-    rota: '/(app)/financiamento/simular',
-  },
   {
     chave: 'poder',
     titulo: 'Poder de compra',
@@ -59,37 +74,83 @@ const ATALHOS: Atalho[] = [
   },
 ];
 
-export default function FinanciamentoHome() {
+export default function EscolherBanco() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { regrasDeFabrica, carregando } = useFinanciamento();
+  const { regras, escolherBanco, form } = useFinanciamento();
   const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     void db.settings.isAdmin().then(setAdmin);
   }, []);
 
+  /*
+   * O selo de cada banco sai do cadastro de regras, não de uma lista à parte:
+   * é ele que sabe se aquele banco tem linha própria calculável ou se o
+   * caminho é a condição informada. No dia em que alguém cadastrar a tabela do
+   * Itaú, o selo dele muda sozinho.
+   */
+  const linhas = useMemo(
+    () =>
+      [...BANCOS]
+        .sort((a, b) => a.ordem - b.ordem)
+        .map((banco) => {
+          const produto = produtoPadraoDoBanco(regras, banco.id);
+          const proprio = produto !== null && !produto.parametrosManuais;
+          return {
+            banco,
+            selo: proprio ? 'Condições cadastradas' : 'Você informa a condição',
+            proprio,
+            detalhe: proprio ? (produto?.nome ?? '') : banco.linha,
+          };
+        }),
+    [regras],
+  );
+
+  const abrir = (bancoId: string) => {
+    escolherBanco(bancoId);
+    router.push('/(app)/financiamento/simular');
+  };
+
   return (
     <Screen>
-      <Text style={styles.titulo}>Financiamento habitacional</Text>
-      <Text style={styles.sub}>
-        Simulação estimada, com a matemática de SAC e PRICE feita por inteiro. As condições finais
-        dependem da instituição financeira.
+      <Text style={styles.titulo}>Simulador de financiamento</Text>
+      <Text style={styles.sub}>Em qual banco você vai levar essa proposta?</Text>
+
+      <View style={styles.lista}>
+        {linhas.map(({ banco, selo, proprio, detalhe }) => (
+          <Pressable
+            key={banco.id}
+            onPress={() => abrir(banco.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Simular no ${banco.nome}`}
+            style={({ pressed }) => [
+              styles.cartao,
+              form.bancoId === banco.id && styles.cartaoAtual,
+              pressed && styles.pressionado,
+            ]}
+          >
+            <BancoMarca banco={banco} tamanho={52} />
+            <View style={styles.texto}>
+              <Text style={styles.nome}>{banco.nome}</Text>
+              <Text style={styles.detalhe}>{detalhe}</Text>
+              <View style={[styles.selo, proprio ? styles.seloForte : styles.seloFraco]}>
+                <Text style={[styles.seloTexto, proprio && styles.seloTextoForte]}>{selo}</Text>
+              </View>
+            </View>
+            <Icon name="chevronRight" size={18} color={colors.inkSubtle} />
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.nota}>
+        As condições cadastradas entram sozinhas — taxa, prazo, quota e limite de renda ficam por
+        trás. Você preenche só o valor do imóvel, o que o cliente tem, a renda e o prazo.
       </Text>
 
-      {!carregando && regrasDeFabrica ? (
-        <View style={styles.aviso}>
-          <Text style={styles.avisoTitulo}>As linhas oficiais ainda não foram cadastradas</Text>
-          <Text style={styles.avisoTexto}>
-            Taxa, faixa de renda, teto do imóvel e prazo do Minha Casa Minha Vida e do SBPE são
-            condições oficiais e mudam por normativo — elas precisam ser lidas na fonte e
-            cadastradas. Enquanto isso, use <Text style={styles.forte}>Condições informadas</Text> e
-            digite a condição que o correspondente bancário aprovou para o cliente. O cálculo é o
-            mesmo.
-          </Text>
-        </View>
-      ) : null}
+      {/* -------------------------------------------------- outras ferramentas */}
+      <View style={styles.divisor} />
 
       <View style={styles.lista}>
         {ATALHOS.map((a) => (
@@ -98,14 +159,14 @@ export default function FinanciamentoHome() {
             onPress={() => router.push(a.rota)}
             accessibilityRole="button"
             accessibilityLabel={a.titulo}
-            style={({ pressed }) => [styles.cartao, pressed && styles.pressionado]}
+            style={({ pressed }) => [styles.atalho, pressed && styles.pressionado]}
           >
             <View style={styles.icone}>
-              <Icon name={a.icone} size={22} color={colors.primary} strokeWidth={1.8} />
+              <Icon name={a.icone} size={20} color={colors.primary} strokeWidth={1.8} />
             </View>
             <View style={styles.texto}>
-              <Text style={styles.cartaoTitulo}>{a.titulo}</Text>
-              <Text style={styles.cartaoDesc}>{a.descricao}</Text>
+              <Text style={styles.atalhoTitulo}>{a.titulo}</Text>
+              <Text style={styles.detalhe}>{a.descricao}</Text>
             </View>
             <Icon name="chevronRight" size={18} color={colors.inkSubtle} />
           </Pressable>
@@ -116,14 +177,14 @@ export default function FinanciamentoHome() {
             onPress={() => router.push('/(app)/admin/financiamento')}
             accessibilityRole="button"
             accessibilityLabel="Regras de financiamento"
-            style={({ pressed }) => [styles.cartao, styles.cartaoAdmin, pressed && styles.pressionado]}
+            style={({ pressed }) => [styles.atalho, styles.atalhoAdmin, pressed && styles.pressionado]}
           >
             <View style={[styles.icone, styles.iconeAdmin]}>
-              <Icon name="gear" size={22} color={colors.inkMuted} strokeWidth={1.8} />
+              <Icon name="gear" size={20} color={colors.inkMuted} strokeWidth={1.8} />
             </View>
             <View style={styles.texto}>
-              <Text style={styles.cartaoTitulo}>Regras de financiamento</Text>
-              <Text style={styles.cartaoDesc}>
+              <Text style={styles.atalhoTitulo}>Regras de financiamento</Text>
+              <Text style={styles.detalhe}>
                 Taxas, faixas, quotas, prazos e encargos — versionados, com fonte e auditoria.
               </Text>
             </View>
@@ -140,19 +201,7 @@ export default function FinanciamentoHome() {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     titulo: { ...typography.title, color: colors.primary },
-    sub: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg, lineHeight: 19 },
-    aviso: {
-      backgroundColor: colors.warningSoft,
-      borderRadius: radius.md,
-      borderLeftWidth: 3,
-      borderLeftColor: colors.warning,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
-      gap: spacing.sm,
-    },
-    avisoTitulo: { ...typography.label, color: colors.warning, fontWeight: '700' },
-    avisoTexto: { ...typography.caption, color: colors.ink, lineHeight: 19 },
-    forte: { fontWeight: '700' },
+    sub: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.lg },
     lista: { gap: spacing.md },
     cartao: {
       flexDirection: 'row',
@@ -165,20 +214,54 @@ const makeStyles = (colors: AppColors) =>
       borderColor: colors.border,
       ...shadow.card,
     },
-    cartaoAdmin: { backgroundColor: colors.surfaceAlt },
+    cartaoAtual: { borderColor: colors.primary, borderWidth: 1.5 },
     pressionado: { opacity: 0.85 },
-    icone: {
-      width: 46,
-      height: 46,
+    texto: { flex: 1, gap: 3 },
+    nome: { ...typography.heading, color: colors.ink, fontSize: 16 },
+    detalhe: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
+    selo: {
+      alignSelf: 'flex-start',
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginTop: 2,
+    },
+    seloForte: { backgroundColor: colors.successSoft },
+    seloFraco: { backgroundColor: colors.surfaceAlt },
+    seloTexto: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5, fontWeight: '600' },
+    seloTextoForte: { color: colors.success },
+    nota: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      marginTop: spacing.lg,
+      lineHeight: 18,
+    },
+    divisor: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: spacing.xl,
+    },
+    atalho: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.md,
       borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    atalhoAdmin: { backgroundColor: colors.surfaceAlt },
+    atalhoTitulo: { ...typography.label, color: colors.ink },
+    icone: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.sm,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primarySoft,
     },
     iconeAdmin: { backgroundColor: colors.border },
-    texto: { flex: 1, gap: 2 },
-    cartaoTitulo: { ...typography.heading, color: colors.ink, fontSize: 16 },
-    cartaoDesc: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
     legal: {
       ...typography.caption,
       color: colors.inkSubtle,

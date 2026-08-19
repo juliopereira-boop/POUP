@@ -485,6 +485,42 @@ porque são duas perguntas de momentos diferentes da venda:
 | **Financiamento** | quanto o BANCO empresta, qual a parcela, se enquadra | antes, quando o cliente ainda decide se consegue comprar |
 | **Poupança** | como o saldo é pago à CONSTRUTORA | depois, quando ele já decidiu |
 
+### A primeira pergunta é o BANCO — e é a única decisão de produto
+
+Dentro do simulador de financiamento a tela não pergunta "qual linha?", nem
+"SAC ou PRICE?", nem "qual o regime da taxa?". Ela pergunta **em qual banco você
+vai levar essa proposta**, com a Caixa em primeiro e um selo de identificação
+para cada instituição (`src/components/BancoMarca.tsx`).
+
+Escolhido o banco, `escolherBanco()` aplica a linha dele — e com a linha vêm
+taxa, quota máxima, prazo máximo, teto de renda, comprometimento, indexador e
+sistema de amortização. **Nada disso aparece na tela.** Sobram seis campos, que
+são os que o cadastro não tem como saber:
+
+> valor do imóvel · entrada · FGTS · renda familiar · idade · prazo
+
+Todo o resto (cliente, empreendimento, unidade, subsídio, 2º proponente,
+avaliação, carência, cenário de indexador) continua existindo atrás de **"Mais
+detalhes"**.
+
+O vínculo entre banco e regra é o campo `bancoId` do produto, em `regras.ts`.
+`bancoId: null` significa "serve a qualquer instituição" — é o caso de
+**Condições informadas**, em que quem fornece os números é o correspondente
+bancário.
+
+> **Por que só a Caixa chega com tabela.** Não temos as tabelas do BB, do Itaú,
+> do Bradesco e do Santander, e a §74 do manual proíbe inventar taxa, quota ou
+> prazo. Eles aparecem na lista porque o corretor trabalha com eles de verdade;
+> ao escolhê-los, o simulador vai direto para "informe a condição aprovada". O
+> motor é o mesmo — muda só de onde vêm os números. No dia em que a tabela de
+> qualquer um for cadastrada em `VersaoRegras` com o `bancoId` apontando para
+> ele, passa a ter linha própria **sem uma linha de código nova**.
+
+> **Sobre as logomarcas.** `BancoMarca` desenha um selo com a cor institucional
+> e o nome do banco, e **não** reproduz a arte registrada de ninguém. Quem tiver
+> o arquivo licenciado põe o PNG em `assets/bancos/<id>.png` e acrescenta uma
+> linha ao mapa `LOGOS` do componente; ele passa a usar a imagem sozinho.
+
 ### O motor segue o pipeline do manual, não uma fórmula única
 
 O módulo foi construído sobre um **manual técnico** que especifica o motor de
@@ -503,7 +539,7 @@ a mexer no laço de amortização.
 `simular(entrada, regras)` é **função pura** — sem React, sem Supabase, sem
 navegador. Três consequências práticas:
 
-1. **241 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
+1. **264 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
    a lista de cenários que o próprio manual especifica (§76 a §93).
 2. **A LIA pode chamá-lo.** Ela interpreta o número; nunca o produz. É a
    diferença entre um assistente e um chute bem escrito.
@@ -1796,6 +1832,7 @@ Vale também explicar na nota de revisão o que é a prospecção (consulta ao c
 
 ## 🛠️ Utilitários
 
+- **`src/components/ErrorBoundary.tsx`** — a rede contra a **tela branca**. Quando um componente quebra durante a renderização e ninguém captura, o React desmonta a árvore inteira e sobra uma tela em branco: sem aviso, sem botão, e com um relato de bug que não diz nada. A fronteira troca isso por uma tela que **mostra a mensagem do erro** (selecionável, para tirar print) e oferece "tentar de novo" e "voltar ao início". Há duas: uma em `app/_layout.tsx`, **por fora de todos os providers** (um erro no `AuthProvider` passaria por cima de uma fronteira interna), e outra em `app/(app)/_layout.tsx` em volta só das telas, para uma tela quebrada não levar junto a barra de navegação. Ela não usa o tema nem nenhum contexto de propósito — cores literais, `View`/`Text`/`Pressable` e nada mais, porque é a última linha.
 - **`src/lib/masks.ts`** — `formatPhone`, `formatCNPJ`, `formatCPF`, `formatCurrencyBRL` (formata dígitos digitados como centavos → `R$ 350.000,00`) e `currencyToNumber` (inverso).
 - **`src/lib/storage.ts`** — `sessionStorage` (`getItem`/`setItem`/`removeItem`): usa `AsyncStorage` no nativo e na web, com fallback em memória fora do browser (SSR/build). Usado tanto para a sessão do Supabase quanto para o rascunho do Simulador.
 - **`src/theme/`** — paletas clara/escura (`AppColors`), `spacing` (escala de 4pt), `radius`, `typography`, `shadow`, `layout.maxContentWidth` (640, usado para não esticar o conteúdo em telas largas).
