@@ -1107,6 +1107,26 @@ secao('PONTE PARA O SIMULADOR DE POUPANÇA');
 }
 
 /* ==========================================================================
+ * VISIBILIDADE DE BANCO — só a Caixa vem pronta
+ *
+ * BB, Itaú, Bradesco e Santander nascem visíveis só para o administrador; o
+ * corretor comum só os enxerga depois que `bancosLiberados` da versão inclui
+ * o id. Caixa e "Outro banco" são sempre visíveis, para qualquer um.
+ * ====================================================================== */
+{
+  secao('VISIBILIDADE DE BANCO — só a Caixa vem pronta');
+
+  checar('a Caixa é sempre visível, sem nada liberado', BANCOS_MOD.bancoVisivelParaCorretor('caixa', undefined, false));
+  checar('"Outro banco" é sempre visível, sem nada liberado', BANCOS_MOD.bancoVisivelParaCorretor(BANCOS_MOD.BANCO_OUTRO, undefined, false));
+  checar('BB fica invisível para o corretor comum sem liberação', !BANCOS_MOD.bancoVisivelParaCorretor('bb', undefined, false));
+  checar('BB fica invisível mesmo com a lista vazia', !BANCOS_MOD.bancoVisivelParaCorretor('bb', [], false));
+  checar('liberado o BB, ele aparece para o corretor comum', BANCOS_MOD.bancoVisivelParaCorretor('bb', ['bb'], false));
+  checar('liberar o BB não libera o Itaú', !BANCOS_MOD.bancoVisivelParaCorretor('itau', ['bb'], false));
+  checar('o administrador vê tudo, liberado ou não', BANCOS_MOD.bancoVisivelParaCorretor('itau', undefined, true));
+  checar('o administrador vê a Caixa também, é claro', BANCOS_MOD.bancoVisivelParaCorretor('caixa', undefined, true));
+}
+
+/* ==========================================================================
  * PARAMETRIZAÇÃO — o que a especificação de regras exige
  *
  * Renda mínima e máxima, entrada mínima efetiva, base do comprometimento,

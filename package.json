@@ -15,7 +15,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "checar:funcoes": "node scripts/checar-edge-functions.mjs",
     "custo:lia": "node scripts/custo-lia.mjs",
-    "testar:financiamento": "node scripts/testar-financiamento.mjs"
+    "testar:financiamento": "node scripts/testar-financiamento.mjs",
+    "testar:lia": "node scripts/testar-lia.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

@@ -60,7 +60,7 @@ const RAIZ = 'material';
 /** Pausa curta: aqui a fala é uma palavra, não uma negociação. */
 const PAUSA_MS = 700;
 
-type Etapa = 'empreendimento' | 'pasta' | 'midias';
+type Etapa = 'empresa' | 'empreendimento' | 'pasta' | 'midias';
 
 interface Fala {
   de: 'lia' | 'corretor';
@@ -76,13 +76,22 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
 
+  /*
+   * A ETAPA INICIAL DEPENDE DE QUANTAS EMPRESAS O CORRETOR TEM.
+   *
+   * Com uma só, perguntar "qual empresa?" seria óbvio e chato de responder —
+   * ele só trabalha com uma. Com mais de uma, pular direto para "qual
+   * empreendimento?" é o oposto: a LIA lista empreendimentos de construtoras
+   * diferentes misturados, e o corretor não sabe qual é de qual até ler o
+   * nome inteiro. Por isso a etapa e a primeira fala nascem vazias e só se
+   * decidem depois que as empresas chegam do banco — ver o efeito abaixo.
+   */
   const [etapa, setEtapa] = useState<Etapa>('empreendimento');
-  const [falas, setFalas] = useState<Fala[]>([
-    { de: 'lia', texto: 'Qual empreendimento você quer?' },
-  ]);
+  const [falas, setFalas] = useState<Fala[]>([]);
 
   const [empresas, setEmpresas] = useState<Company[]>([]);
   const [empreendimentos, setEmpreendimentos] = useState<Development[]>([]);
+  const [empresaEscolhida, setEmpresaEscolhida] = useState<Company | null>(null);
   const [escolhido, setEscolhido] = useState<Development | null>(null);
 
   const [itens, setItens] = useState<StorageEntry[]>([]);
@@ -114,6 +123,28 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
 
   /* ---------------------------------------------------------- carregar */
 
+  /**
+   * Decide a primeira pergunta a partir de quantas empresas existem.
+   *
+   * Uma empresa só: pula direto para "qual empreendimento?", que é a mesma
+   * conversa de sempre. Mais de uma: pergunta a empresa primeiro, porque sem
+   * isso a lista de empreendimentos mistura obras de construtoras diferentes
+   * e o corretor não tem como saber qual é de qual.
+   */
+  const iniciarConversa = useCallback((emps: Company[]) => {
+    setEmpresaEscolhida(null);
+    setEscolhido(null);
+    setItens([]);
+    setMiniaturas({});
+    if (emps.length > 1) {
+      setEtapa('empresa');
+      setFalas([{ de: 'lia', texto: 'Qual empresa?' }]);
+    } else {
+      setEtapa('empreendimento');
+      setFalas([{ de: 'lia', texto: 'Qual empreendimento você quer?' }]);
+    }
+  }, []);
+
   useEffect(() => {
     if (!visivel || !user) return;
     void (async () => {
@@ -123,8 +154,9 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
       ]);
       setEmpresas(emps);
       setEmpreendimentos(devs);
+      iniciarConversa(emps);
     })();
-  }, [visivel, user]);
+  }, [visivel, user, iniciarConversa]);
 
   const listarPasta = useCallback(
     async (dev: Development, subPasta: string | null) => {
@@ -152,6 +184,22 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
 
   /* ------------------------------------------------------------ passos */
 
+  /**
+   * Escolher a empresa filtra os empreendimentos e SÓ ENTÃO pergunta qual.
+   *
+   * É a etapa nova: sem ela, com mais de uma construtora, a LIA listaria os
+   * empreendimentos de todas juntos e o corretor precisaria ler o nome
+   * inteiro para saber de qual empresa é cada um.
+   */
+  const escolherEmpresa = useCallback(
+    (empresa: Company) => {
+      setEmpresaEscolhida(empresa);
+      setEtapa('empreendimento');
+      dizer('lia', `${empresa.name}. Qual empreendimento?`);
+    },
+    [dizer],
+  );
+
   const escolherEmpreendimento = useCallback(
     async (dev: Development) => {
       setEscolhido(dev);
@@ -177,17 +225,39 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
     [escolhido, dizer, listarPasta],
   );
 
+  /*
+   * Os empreendimentos LISTADOS, filtrados pela empresa escolhida.
+   *
+   * Sem empresa escolhida (caso de uma construtora só, que pula a etapa), vale
+   * a lista inteira — é o comportamento de sempre.
+   */
+  const empreendimentosDaEmpresa = useMemo(
+    () =>
+      empresaEscolhida
+        ? empreendimentos.filter((d) => d.companyId === empresaEscolhida.id)
+        : empreendimentos,
+    [empreendimentos, empresaEscolhida],
+  );
+
   /* ------------------------------------------------------------- ouvir */
 
   const opcoesAtuais = useMemo(() => {
+    if (etapa === 'empresa') {
+      return empresas.map((e) => ({ item: e as Company | Development | string, nome: e.name }));
+    }
     if (etapa === 'empreendimento') {
-      return empreendimentos.map((d) => ({ item: d as Development | string, nome: d.name }));
+      return empreendimentosDaEmpresa.map((d) => ({
+        item: d as Company | Development | string,
+        nome: d.name,
+      }));
     }
     if (etapa === 'pasta') {
-      return itens.filter((e) => e.isFolder).map((e) => ({ item: e.name as Development | string, nome: e.name }));
+      return itens
+        .filter((e) => e.isFolder)
+        .map((e) => ({ item: e.name as Company | Development | string, nome: e.name }));
     }
     return [];
-  }, [etapa, empreendimentos, itens]);
+  }, [etapa, empresas, empreendimentosDaEmpresa, itens]);
 
   const processarFala = useCallback(
     (texto: string) => {
@@ -203,9 +273,12 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
         return;
       }
       if (typeof r.achado === 'string') void escolherPasta(r.achado);
-      else void escolherEmpreendimento(r.achado);
+      // `Development` tem `companyId`; `Company` não. É o que separa os dois
+      // sem precisar de um discriminante próprio no casamento por voz.
+      else if ('companyId' in r.achado) void escolherEmpreendimento(r.achado);
+      else void escolherEmpresa(r.achado);
     },
-    [dizer, opcoesAtuais, escolherEmpreendimento, escolherPasta],
+    [dizer, opcoesAtuais, escolherEmpresa, escolherEmpreendimento, escolherPasta],
   );
 
   /*
@@ -268,11 +341,7 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   }, [falas]);
 
   function recomecar() {
-    setEtapa('empreendimento');
-    setEscolhido(null);
-    setItens([]);
-    setMiniaturas({});
-    setFalas([{ de: 'lia', texto: 'Qual empreendimento você quer?' }]);
+    iniciarConversa(empresas);
   }
 
   const pastas = itens.filter((e) => e.isFolder);
@@ -316,9 +385,19 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
             {carregando ? <ActivityIndicator style={styles.carregando} /> : null}
 
             {/* As opções são sempre tocáveis: voz é o caminho rápido, não o único. */}
-            {etapa === 'empreendimento' && empreendimentos.length > 0 ? (
+            {etapa === 'empresa' && empresas.length > 0 ? (
               <View style={styles.opcoes}>
-                {empreendimentos.map((d) => (
+                {empresas.map((e) => (
+                  <Pressable key={e.id} style={styles.opcao} onPress={() => escolherEmpresa(e)}>
+                    <Text style={styles.opcaoTexto}>{e.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {etapa === 'empreendimento' && empreendimentosDaEmpresa.length > 0 ? (
+              <View style={styles.opcoes}>
+                {empreendimentosDaEmpresa.map((d) => (
                   <Pressable
                     key={d.id}
                     style={styles.opcao}
@@ -374,7 +453,12 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
               variant={ouvindo ? 'secondary' : 'primary'}
               onPress={alternarEscuta}
             />
-            {etapa !== 'empreendimento' ? (
+            {/*
+              "Começar de novo" fica de fora só na primeira etapa — que é
+              'empresa' quando há mais de uma construtora, e 'empreendimento'
+              quando há só uma (a etapa de empresa nem existe nesse caso).
+            */}
+            {(empresas.length > 1 ? etapa !== 'empresa' : etapa !== 'empreendimento') ? (
               <Button label="Começar de novo" variant="ghost" onPress={recomecar} />
             ) : null}
           </View>

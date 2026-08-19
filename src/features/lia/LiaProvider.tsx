@@ -66,6 +66,7 @@ import { Animated } from 'react-native';
 import { db } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { sessionStorage } from '@/lib/storage';
+import { localISO } from '@/features/agenda/dates';
 import { PREFILL_KEY } from '@/features/simulador/SimuladorProvider';
 import {
   CAMPOS_POR_CHAVE,
@@ -78,6 +79,7 @@ import {
 import { resolverDoCatalogo, vocabularioDoCatalogo, type ItemCatalogo } from './catalogo';
 import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
 import { extrair, type CampoOuvido, type ModoExtracao } from './extrair';
+import { pareceAgendamento, extrairAgendamento } from './agendamento';
 import { valeAnalisar } from './gatilho';
 import { temConsentimentoLia } from './consentimento';
 import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
@@ -186,6 +188,16 @@ interface LiaContextValue {
    * corretor cai direto no botão de gerar o PDF ou na primeira etapa.
    */
   levarParaSimulador: () => Promise<boolean>;
+
+  /**
+   * O último agendamento que a LIA tentou criar por voz — sucesso ou erro.
+   *
+   * `null` quando nada foi tentado ainda nesta sessão. Fica até a próxima
+   * tentativa ou até a sessão encerrar; não é um toast que some sozinho,
+   * porque o corretor pode estar de costas para a tela no instante em que
+   * o agendamento aconteceu.
+   */
+  avisoAgendamento: { tipo: 'sucesso' | 'erro'; texto: string } | null;
 }
 
 const LiaContext = createContext<LiaContextValue | undefined>(undefined);
@@ -201,6 +213,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   const [observacao, setObservacao] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [cobrando, setCobrando] = useState(false);
+  const [avisoAgendamento, setAvisoAgendamento] = useState<
+    { tipo: 'sucesso' | 'erro'; texto: string } | null
+  >(null);
 
   const escutaRef = useRef<Escuta | null>(null);
   const medidorRef = useRef<MedidorDeVoz | null>(null);
@@ -246,6 +261,8 @@ export function LiaProvider({ children }: { children: ReactNode }) {
 
   // Catálogo do corretor, carregado uma vez por sessão de escuta.
   const empreendimentosRef = useRef<ItemCatalogo[]>([]);
+  /** Os clientes do corretor — só para o agendamento casar "cliente fulana". */
+  const leadsRef = useRef<ItemCatalogo[]>([]);
   /** id → nome, para devolver nome onde o modelo devolveu id. */
   const nomesRef = useRef<Record<string, string>>({});
   /** Palavras dos nomes do catálogo, para o gatilho não descartar "o connect". */
@@ -263,12 +280,15 @@ export function LiaProvider({ children }: { children: ReactNode }) {
   /** Junta empresas, empreendimentos e correspondentes do corretor. */
   const carregarCatalogo = useCallback(async () => {
     if (!user) return;
-    const [empresas, empreendimentos] = await Promise.all([
+    const [empresas, empreendimentos, leads] = await Promise.all([
       db.companies.list(user.id),
       db.developments.list(user.id),
+      db.leads.list(user.id),
     ]);
 
     empreendimentosRef.current = empreendimentos.map((d) => ({ id: d.id, nome: d.name }));
+    // Só para o agendamento resolver "cliente fulana" — o resto da LIA não usa.
+    leadsRef.current = leads.map((l) => ({ id: l.id, nome: l.name }));
 
     /*
      * Correspondentes de TODAS as empresas do corretor, não só da empresa já
@@ -506,6 +526,109 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     [resolverReferencias],
   );
 
+  /**
+   * AGENDAR — um caminho lateral, sem interferir na captura de campos.
+   *
+   * ===========================================================================
+   * POR QUE ISTO NÃO USA `analisar`
+   * ===========================================================================
+   * `analisar` acumula ESTADO ao longo da reunião inteira (o que já foi
+   * capturado, corrigido, removido) e decide o que virou o simulador no fim.
+   * Agendar não acumula nada: é uma frase, um compromisso, criado na hora.
+   * Misturar os dois faria uma correção de agendamento ("na verdade é às 15h,
+   * não às 14h") brigar com o modelo de fusão que existe para os CAMPOS da
+   * simulação — que é outra coisa.
+   *
+   * ===========================================================================
+   * NÃO BLOQUEIA A ESCUTA
+   * ===========================================================================
+   * Chamado a partir de `aoFechar`, sem `await` no chamador: enquanto o
+   * agendamento processa (uma chamada de rede), o corretor continua falando e
+   * a captura de campos continua endendo normalmente.
+   */
+  const processarAgendamento = useCallback(
+    async (texto: string) => {
+      if (!user) return;
+      const r = await extrairAgendamento({
+        texto,
+        hoje: hojeYmdLocal(),
+        empreendimentos: empreendimentosRef.current.map((e) => e.nome),
+        clientes: leadsRef.current.map((l) => l.nome),
+      });
+
+      if ('erro' in r) {
+        setAvisoAgendamento({ tipo: 'erro', texto: r.erro });
+        return;
+      }
+      if (!r.ok) {
+        setAvisoAgendamento({ tipo: 'erro', texto: r.motivo });
+        return;
+      }
+
+      const { agendamento } = r;
+      const startAt = localISO(agendamento.dataISO, agendamento.hora);
+      if (!startAt) {
+        setAvisoAgendamento({
+          tipo: 'erro',
+          texto: 'Entendi o pedido, mas a data ou o horário saíram num formato inválido. Diga de novo.',
+        });
+        return;
+      }
+
+      // Nome → id, do mesmo jeito que `resolverReferencias` faz para os campos
+      // da simulação: casamento local, e sem chutar quando não bate.
+      const leadId = agendamento.clienteNome
+        ? resolverDoCatalogo(agendamento.clienteNome, leadsRef.current).id
+        : null;
+      const developmentId = agendamento.empreendimentoNome
+        ? resolverDoCatalogo(agendamento.empreendimentoNome, empreendimentosRef.current).id
+        : null;
+      const companyId = developmentId
+        ? (contextoRef.current.empresaDoEmpreendimento[developmentId] ?? null)
+        : null;
+
+      const descricao = [
+        agendamento.clienteNome ? `Cliente: ${agendamento.clienteNome}` : null,
+        agendamento.empreendimentoNome ? `Empreendimento: ${agendamento.empreendimentoNome}` : null,
+        'Agendado pela LIA, por voz.',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
+      const res = await db.appointments.create(user.id, {
+        title: agendamento.titulo,
+        description: descricao,
+        // "Visita" é o tipo mais próximo de "apresentar um empreendimento",
+        // que é o comando que motivou este recurso.
+        typeId: 'visita',
+        leadId,
+        companyId,
+        developmentId,
+        startAt,
+        source: 'lia',
+      });
+
+      if (!res.ok) {
+        setAvisoAgendamento({ tipo: 'erro', texto: `Não consegui salvar: ${res.error}` });
+        return;
+      }
+
+      setAvisoAgendamento({
+        tipo: 'sucesso',
+        texto: `Agendado: ${agendamento.titulo} — ${dataAgendamentoBR(agendamento.dataISO)} às ${agendamento.hora}.`,
+      });
+    },
+    [user],
+  );
+
+  /*
+   * Igual à `processarRef` do `LiaMaterialChat`: a escuta é montada uma vez,
+   * em `iniciar()`, e o callback dela veria para sempre a versão de
+   * `processarAgendamento` daquele instante sem esta ref.
+   */
+  const processarAgendamentoRef = useRef(processarAgendamento);
+  processarAgendamentoRef.current = processarAgendamento;
+
   const iniciar = useCallback(async () => {
     if (suporte !== 'ok') return;
     if (!(await temConsentimentoLia())) return;
@@ -519,6 +642,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     setErro(null);
     setObservacao(null);
     setCobrando(false);
+    setAvisoAgendamento(null);
     sessaoAtivaRef.current = true;
     transcricaoRef.current = '';
     trechoNovoRef.current = '';
@@ -541,6 +665,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
         pendenteRef.current = true;
         // Voltou a falar: some a cobrança, como pedido.
         setCobrando(false);
+        // Agendar é um caminho À PARTE da captura de campos — ver o
+        // comentário de `processarAgendamento`. Não bloqueia nem espera.
+        if (pareceAgendamento(texto)) void processarAgendamentoRef.current(texto);
       },
       // Frase fechada: pensa já, sem esperar a conversa parar.
       aoPausar: () => {
@@ -680,6 +807,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       entenderAgora,
       descartar,
       levarParaSimulador,
+      avisoAgendamento,
     }),
     [
       suporte,
@@ -696,10 +824,31 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       entenderAgora,
       descartar,
       levarParaSimulador,
+      avisoAgendamento,
     ],
   );
 
   return <LiaContext.Provider value={value}>{children}</LiaContext.Provider>;
+}
+
+/**
+ * "Hoje", pelas partes LOCAIS do aparelho — nunca `toISOString()`.
+ *
+ * Mesmo cuidado de `extrair.ts`: `toISOString()` devolve UTC, e à noite no
+ * Brasil isso já é o dia seguinte. Errar aqui faria "amanhã" virar "depois de
+ * amanhã" perto da meia-noite.
+ */
+function hojeYmdLocal(): string {
+  const agora = new Date();
+  const m = String(agora.getMonth() + 1).padStart(2, '0');
+  const d = String(agora.getDate()).padStart(2, '0');
+  return `${agora.getFullYear()}-${m}-${d}`;
+}
+
+/** AAAA-MM-DD → DD/MM, sem passar por `Date` — mesmo motivo de sempre. */
+function dataAgendamentoBR(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return m && d ? `${d}/${m}` : iso;
 }
 
 export function useLia(): LiaContextValue {

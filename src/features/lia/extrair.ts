@@ -56,7 +56,14 @@ export type ModoExtracao = 'parcial' | 'final';
  * A resposta agora ecoa a versão. Sem eco, a função no ar é velha, e o
  * aplicativo diz isso em português em vez de fingir que ouviu.
  */
-export const VERSAO_CONTRATO = 2;
+/**
+ * Foi para 3 quando a LIA ganhou a capacidade de AGENDAR compromissos
+ * (`agendamento.ts`) — uma chamada estruturalmente diferente da captura de
+ * campos, mas atendida pela MESMA função. Bumping aqui garante que uma função
+ * publicada ainda na versão 2 (sem o branch de agendamento) seja detectada
+ * como desatualizada em vez de responder `{campos:[]}` silenciosamente.
+ */
+export const VERSAO_CONTRATO = 3;
 
 export interface CampoOuvido {
   chave: string;

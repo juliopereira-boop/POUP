@@ -50,7 +50,7 @@ import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { formatCurrencyBRL } from '@/lib/masks';
 import { opcoesDeProduto, useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
-import { BANCOS } from '@/features/financiamento/bancos';
+import { BANCOS, bancoVisivelParaCorretor } from '@/features/financiamento/bancos';
 import { formatarBRL, formatarPct } from '@/features/financiamento/dinheiro';
 import { PRAZOS_COMUNS, REGIMES_TAXA } from '@/features/financiamento/formulario';
 import { CENARIOS_INDEXADOR } from '@/features/financiamento/indexador';
@@ -75,6 +75,7 @@ export default function SimularFinanciamento() {
     set,
     limpar,
     regras,
+    admin,
     banco,
     escolherBanco,
     clientes,
@@ -126,6 +127,7 @@ export default function SimularFinanciamento() {
         </Text>
         <View style={styles.bancoLista}>
           {[...BANCOS]
+            .filter((b) => bancoVisivelParaCorretor(b.id, regras.bancosLiberados, admin))
             .sort((a, b) => a.ordem - b.ordem)
             .map((b) => (
               <Pressable

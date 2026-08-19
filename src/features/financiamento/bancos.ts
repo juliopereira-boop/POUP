@@ -131,3 +131,25 @@ export function acharBanco(id: string | null): Banco | null {
 export function nomeDoBanco(id: string | null): string {
   return acharBanco(id)?.nome ?? 'Instituição informada';
 }
+
+/**
+ * O banco aparece para o corretor comum, ou só para o administrador?
+ *
+ * Três casos sempre visíveis, e por razões diferentes:
+ *   - **Caixa**: é o único com condições cadastradas de fábrica.
+ *   - **Outro banco**: é o escape genérico para condição informada — não é
+ *     uma instituição específica sem cadastro, então não faz sentido escondê-lo.
+ *   - **administrador**: precisa ver tudo, para poder testar e liberar.
+ *
+ * O resto só aparece depois que `bancosLiberados` da versão de regras incluir
+ * o id — e é o administrador, na tela de regras, quem decide isso.
+ */
+export function bancoVisivelParaCorretor(
+  bancoId: string,
+  liberados: readonly string[] | undefined,
+  admin: boolean,
+): boolean {
+  if (admin) return true;
+  if (bancoId === 'caixa' || bancoId === BANCO_OUTRO) return true;
+  return (liberados ?? []).includes(bancoId);
+}

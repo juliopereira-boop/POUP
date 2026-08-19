@@ -85,6 +85,25 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
               <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
                 {lia.erro ? <Text style={styles.erro}>{lia.erro}</Text> : null}
 
+                {/*
+                  O resultado de um "agenda para o dia X..." — sucesso ou erro.
+                  Fica até a próxima tentativa: o corretor pode estar de olho
+                  no cliente, não na tela, no instante em que isso acontece.
+                */}
+                {lia.avisoAgendamento ? (
+                  <View
+                    style={[
+                      styles.agendamento,
+                      lia.avisoAgendamento.tipo === 'erro' && styles.agendamentoErro,
+                    ]}
+                  >
+                    <Text style={styles.agendamentoIcone}>
+                      {lia.avisoAgendamento.tipo === 'erro' ? '⚠️' : '📅'}
+                    </Text>
+                    <Text style={styles.agendamentoTexto}>{lia.avisoAgendamento.texto}</Text>
+                  </View>
+                ) : null}
+
                 {lia.cobrando && lia.faltando.length > 0 ? (
                   <View style={styles.faltando}>
                     <Text style={styles.faltandoTitulo}>Ainda falta perguntar</Text>
@@ -335,6 +354,20 @@ const makeStyles = (colors: AppColors) =>
       borderColor: colors.border,
     },
     observacaoTexto: { ...typography.caption, color: colors.inkMuted },
+
+    agendamento: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      alignItems: 'flex-start',
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.successSoft,
+      borderWidth: 1,
+      borderColor: colors.success,
+    },
+    agendamentoErro: { backgroundColor: colors.warningSoft, borderColor: colors.warning },
+    agendamentoIcone: { fontSize: 18 },
+    agendamentoTexto: { ...typography.caption, color: colors.ink, flex: 1, lineHeight: 18 },
 
     grupo: { gap: spacing.sm },
     grupoTitulo: { ...typography.caption, color: colors.inkSubtle, textTransform: 'uppercase' },

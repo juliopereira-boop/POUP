@@ -129,13 +129,24 @@ export default function ResultadoFinanciamento() {
    * o trabalho existindo só na sessão do aparelho.
    */
   async function aoLevarParaPoupanca() {
+    /*
+     * OS DADOS ATRAVESSAM SEMPRE — SALVAR É TENTATIVA À PARTE.
+     *
+     * Antes, esta função dependia de `salvar()` ter sucesso para montar o
+     * prefill: se o banco recusasse (migração ainda não aplicada, rede
+     * momentaneamente fora, qualquer erro), o corretor via "recurso
+     * indisponível" e perdia TUDO o que preencheu — exatamente o retrabalho
+     * que a ponte existe para eliminar.
+     *
+     * O prefill não depende de nada salvo: ele nasce do `form` e do `r` que já
+     * estão na tela. Salvar continua sendo tentado, porque é o que liga a
+     * simulação ao histórico do cliente — mas seu resultado vira aviso, nunca
+     * bloqueio.
+     */
     setSalvando(true);
     const res = await salvar();
     setSalvando(false);
-    if (!res.ok) {
-      setAviso(res.erro);
-      return;
-    }
+
     const prefill = pontePoupanca(
       {
         leadId: form.leadId,
@@ -153,6 +164,15 @@ export default function ResultadoFinanciamento() {
       null,
     );
     await sessionStorage.setItem(PREFILL_KEY, JSON.stringify(prefill));
+
+    if (!res.ok) {
+      // Avisa e segue mesmo assim: o corretor não pode ficar sem o simulador
+      // de poupança por causa de uma falha que é nossa, não dele.
+      Alert.alert(
+        'Simulação não foi salva',
+        `Os dados foram levados para o simulador de poupança, mas não deu para salvar o histórico agora: ${res.erro}`,
+      );
+    }
     router.push('/(app)/simulador');
   }
 

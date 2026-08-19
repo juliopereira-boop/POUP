@@ -516,6 +516,18 @@ bancário.
 > qualquer um for cadastrada em `VersaoRegras` com o `bancoId` apontando para
 > ele, passa a ter linha própria **sem uma linha de código nova**.
 
+> **E até lá, eles só aparecem para o administrador.** Um banco listado mas
+> sem tabela cadastrada é uma porta que ainda não leva a lugar nenhum — mostrar
+> isso a todo o time seria confuso sem necessidade. `bancosLiberados`, um campo
+> a mais na versão de regras, guarda quais bancos além da Caixa já foram
+> liberados; `bancoVisivelParaCorretor(bancoId, liberados, admin)` decide, e o
+> administrador liga isso com um botão por banco na tela de Regras de
+> financiamento — sem passar pelo formulário pesado de publicação (fonte, URL,
+> confirmação de oficialidade), porque visibilidade não é uma condição
+> financeira. A Caixa e "Outro banco" nunca precisam ser liberados: são sempre
+> visíveis, por motivos diferentes — a Caixa por ter tabela pronta, "Outro
+> banco" por ser o escape genérico de condição informada.
+
 > **Sobre as logomarcas.** `BancoMarca` tenta três caminhos, nesta ordem: o
 > **arquivo oficial** (mapa `LOGOS`), a **marca desenhada em SVG** e, por
 > último, um **ladrilho com o nome** na cor institucional. Só a Caixa tem marca
@@ -578,6 +590,15 @@ quantas mensais), o vínculo do segundo proponente (cônjuge, parente, fiador) e
 parcelamento da taxa da CEF. Nenhum dos três é conhecido pelo financiamento, e
 chutá-los daria ao corretor campos a desfazer — o retrabalho que a ponte existe
 para eliminar.
+
+> **Salvar é tentativa; atravessar não é.** `aoLevarParaPoupanca` monta o
+> prefill do `form` e do resultado que já estão na tela — nunca do que foi
+> gravado no banco. `salvar()` continua sendo chamado, porque é ele que liga a
+> simulação ao histórico do cliente, mas uma falha ali (rede fora, uma
+> migração ainda não aplicada) vira só um aviso. Antes, o método dependia do
+> salvamento ter sucesso para montar o prefill: qualquer erro do lado do banco
+> jogava fora tudo o que o corretor tinha acabado de preencher — exatamente o
+> retrabalho que a ponte existe para eliminar.
 
 ### A faixa acompanha a renda
 
@@ -1172,6 +1193,60 @@ correção que só uma recebesse.
 > material é o corretor falando sozinho uma palavra para navegar na própria pasta, sem nada saindo
 > do aparelho. Pedir o mesmo aviso nos dois treinaria o corretor a aceitar sem ler — e é justamente
 > na simulação que ele precisa ler.
+
+**Empresa antes de empreendimento, quando há mais de uma.** Um corretor com uma construtora só
+entra direto em "Qual empreendimento?" — é a mesma conversa de sempre. Com mais de uma, a primeira
+pergunta vira "Qual empresa?": sem isso, a lista de empreendimentos mistura obras de construtoras
+diferentes e o corretor precisa ler o nome inteiro para saber de qual é cada um. A etapa nasce
+vazia e só se decide depois que as empresas chegam do banco (`iniciarConversa` em
+`LiaMaterialChat.tsx`), porque a decisão depende de quantas existem.
+
+### Agendamento por voz — a terceira habilidade
+
+```
+corretor: "agenda pro dia 25 às 10 horas, apresentar o Connect pra Fulana"
+LIA:      [cria o compromisso no calendário e confirma]
+```
+
+Diferente das duas primeiras, esta roda **dentro** da sessão de escuta ambiente (a mesma da
+"Simulação de poupança"): basta o corretor dizer um comando de agendar no meio da conversa.
+
+**Por que isto não mora na extração de campos.** A captura contínua (`campos.ts`, `extrair.ts`)
+acumula ESTADO ao longo da reunião inteira — dezenas de chamadas, cada uma vendo o que já foi
+capturado. Agendar não acumula nada: é uma frase, um compromisso, criado na hora. E, ao contrário
+dos catorze campos da simulação, a lista de clientes só interessa para isto — colocá-la na captura
+contínua faria toda sessão pagar pelo catálogo de leads, mesmo as que nunca agendam nada.
+
+Por isso o agendamento é um **caminho isolado** (`agendamento.ts`), com seu próprio gatilho local e
+sua própria chamada:
+
+1. **`pareceAgendamento`** — o mesmo princípio de `gatilho.ts`: um filtro grosso que roda no
+   aparelho, de graça. "agend" (agenda/agendar/agendado) sozinho já dispara — ninguém diz essa raiz
+   por acaso. "marc"/"marqu" (marca/marque/marcar) é comum demais para disparar sozinho ("é a marca
+   do carro dela"), então só passa acompanhado de uma pista de data ou hora.
+2. Disparado o gatilho, uma chamada **isolada e barata** (sempre Haiku) manda só a frase, a data de
+   hoje, os nomes dos empreendimentos e dos clientes — sem o prompt de catorze campos, sem
+   ANTES/AGORA, sem cache compartilhada, porque é raro o bastante para não precisar de nenhum dos
+   dois.
+3. **Nunca chuta data nem hora.** Faltando qualquer um dos dois com segurança, o modelo devolve
+   `null` e um motivo, e a LIA pede para o corretor repetir — a mesma regra que rege todo o resto do
+   aplicativo: um compromisso na data errada é pior que nenhum compromisso.
+4. Nome de empreendimento e de cliente casam com o cadastro pelo mesmo `resolverDoCatalogo` que já
+   resolve empreendimento e correspondente na captura principal — é o mesmo problema (nome falado
+   contra uma lista curta), então é a mesma solução testada.
+5. O compromisso nasce como tipo **Visita**, com a fonte `lia` (`AppointmentSource`), e a descrição
+   registra o cliente e o empreendimento identificados — para quem olha o calendário depois saber
+   que aquele evento foi criado por voz, e a partir de quê.
+
+`pareceAgendamento` e o casamento de nome (`resolverDoCatalogo`/`casarPorVoz`) são testados em
+Node puro, sem servidor e sem modelo — `npm run testar:lia`.
+
+> **Isto muda o contrato com a Edge Function.** `VERSAO_CONTRATO` foi de 2 para 3 — o modo
+> `agendamento` é atendido por um branch inteiramente à parte dentro de `lia-extract`, com
+> ferramenta e prompt próprios. **A função precisa ser republicada** antes de qualquer uma das duas
+> capacidades (captura de campos ou agendamento) voltar a funcionar: sem o eco de versão bater, o
+> aplicativo mostra "A LIA no servidor está desatualizada" em vez de fingir que ouviu — ver a seção
+> de Edge Functions abaixo.
 
 ### O custo, e o redesenho que o cortou 17×
 

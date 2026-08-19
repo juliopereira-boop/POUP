@@ -768,7 +768,9 @@ export type AppointmentSource =
   | 'lead'
   | 'venda'
   | 'comissao'
-  | 'financeiro';
+  | 'financeiro'
+  /** Criado pela LIA a partir de um comando de voz ("agenda para o dia..."). */
+  | 'lia';
 
 export interface Appointment {
   id: string;

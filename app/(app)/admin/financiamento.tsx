@@ -55,7 +55,7 @@ import {
 } from '@/features/financiamento/regras';
 import type { FaixaMip } from '@/features/financiamento/seguros';
 import type { RegimeTaxa } from '@/features/financiamento/dinheiro';
-import { BANCOS } from '@/features/financiamento/bancos';
+import { BANCO_OUTRO, BANCOS } from '@/features/financiamento/bancos';
 import { REGRAS_PADRAO } from '@/features/financiamento/regrasPadrao';
 import { hojeISO } from '@/features/financiamento/formulario';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -163,6 +163,8 @@ export default function AdminFinanciamento() {
    * com todos os números preenchidos. Digitar não torna nada oficial.
    */
   const [confirmaOficial, setConfirmaOficial] = useState(false);
+  /** Qual banco está sendo liberado/ocultado agora — desabilita o botão dele. */
+  const [salvandoBanco, setSalvandoBanco] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     const remotas = await db.financing.regrasVigentes();
@@ -456,6 +458,55 @@ export default function AdminFinanciamento() {
     );
   }
 
+  /**
+   * Liga/desliga um banco para TODOS os corretores.
+   *
+   * ===========================================================================
+   * POR QUE ISTO NÃO PASSA PELO FORMULÁRIO DE PUBLICAÇÃO
+   * ===========================================================================
+   * O botão de liberar é uma decisão de visibilidade, não uma condição
+   * financeira — não exige fonte, URL, data de verificação nem a confirmação
+   * de oficialidade que a §8 cobra dos NÚMEROS da versão. Pedir tudo isso para
+   * simplesmente mostrar ou esconder um banco seria atrito sem propósito.
+   *
+   * Ainda assim ele reaproveita `salvarVersao`: fica na mesma versão vigente,
+   * datado e com motivo gravado na auditoria — "quem liberou o quê e quando"
+   * continua sendo uma pergunta respondível.
+   */
+  async function alternarBanco(bancoId: string) {
+    setSalvandoBanco(bancoId);
+    const liberados = regras.bancosLiberados ?? [];
+    const vaiLiberar = !liberados.includes(bancoId);
+    const proximos = vaiLiberar ? [...liberados, bancoId] : liberados.filter((b) => b !== bancoId);
+    const nomeDoBancoAlvo = BANCOS.find((b) => b.id === bancoId)?.nome ?? bancoId;
+
+    const payload: VersaoRegras = { ...regras, bancosLiberados: proximos };
+    const r = await db.financing.salvarVersao({
+      versao: regras.versao,
+      vigenciaInicio: regras.vigenciaInicio,
+      vigenciaFim: regras.vigenciaFim,
+      status: regras.status,
+      payload,
+      motivo: vaiLiberar
+        ? `Banco liberado para todos os corretores: ${nomeDoBancoAlvo}.`
+        : `Banco ocultado dos corretores: ${nomeDoBancoAlvo}.`,
+      fonte: regras.fonte,
+      fonteUrl: regras.fonteUrl,
+    });
+    setSalvandoBanco(null);
+
+    if (!r.ok) {
+      setAviso(r.error);
+      return;
+    }
+    setRegras(payload);
+    setAviso(
+      vaiLiberar
+        ? `${nomeDoBancoAlvo} liberado: todos os corretores já enxergam esta linha.`
+        : `${nomeDoBancoAlvo} ocultado: só você continua vendo.`,
+    );
+  }
+
   return (
     <Screen>
       <Text style={styles.titulo}>Regras de financiamento</Text>
@@ -464,6 +515,35 @@ export default function AdminFinanciamento() {
         {regras.vigenciaInicio}). Alterar aqui NÃO recalcula simulação já salva — cada uma guarda
         as regras do dia em que foi feita.
       </Text>
+
+      {/* --------------------------------------------- bancos liberados */}
+      <Text style={styles.secao}>Bancos visíveis para os corretores</Text>
+      <Text style={styles.texto}>
+        A Caixa e "Outro banco" aparecem sempre. Os demais só depois de você liberar — enquanto
+        isso, só você os vê.
+      </Text>
+      <View style={{ height: spacing.sm }} />
+      <View style={styles.bancosLista}>
+        {BANCOS.filter((b) => b.id !== 'caixa' && b.id !== BANCO_OUTRO).map((b) => {
+          const liberado = (regras.bancosLiberados ?? []).includes(b.id);
+          return (
+            <View key={b.id} style={styles.bancoLinha}>
+              <Text style={styles.bancoNome}>{b.nome}</Text>
+              <Pressable
+                onPress={() => void alternarBanco(b.id)}
+                disabled={salvandoBanco !== null}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: liberado }}
+                style={[styles.bancoBotao, liberado && styles.bancoBotaoLiberado]}
+              >
+                <Text style={[styles.bancoBotaoTexto, liberado && styles.bancoBotaoTextoLiberado]}>
+                  {salvandoBanco === b.id ? 'Salvando…' : liberado ? 'Liberado ✓' : 'Liberar'}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
 
       {/* ------------------------------------------------------ pendências */}
       <Text style={styles.secao}>O que falta confirmar ({pendencias.length})</Text>
@@ -878,6 +958,30 @@ const makeStyles = (colors: AppColors) =>
     },
     confirmaMarcaAtiva: { borderColor: colors.success, color: colors.success },
     confirmaTexto: { ...typography.caption, color: colors.ink, flex: 1, lineHeight: 19 },
+
+    bancosLista: { gap: spacing.sm },
+    bancoLinha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    bancoNome: { ...typography.label, color: colors.ink },
+    bancoBotao: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+    },
+    bancoBotaoLiberado: { borderColor: colors.success, backgroundColor: colors.successSoft },
+    bancoBotaoTexto: { ...typography.caption, color: colors.inkMuted, fontWeight: '700' },
+    bancoBotaoTextoLiberado: { color: colors.success },
 
     rotuloEscolha: {
       ...typography.label,

@@ -41,7 +41,7 @@ import { useRouter, type Href } from 'expo-router';
 import { BancoMarca } from '@/components/BancoMarca';
 import { Icon, type IconName } from '@/components/Icon';
 import { Screen } from '@/components/Screen';
-import { BANCO_OUTRO, BANCOS } from '@/features/financiamento/bancos';
+import { BANCO_OUTRO, BANCOS, bancoVisivelParaCorretor } from '@/features/financiamento/bancos';
 import { useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { AVISO_LEGAL } from '@/features/financiamento/motor';
 import { produtoPadraoDoBanco } from '@/features/financiamento/regras';
@@ -88,6 +88,7 @@ export default function EscolherBanco() {
   const linhas = useMemo(
     () =>
       [...BANCOS]
+        .filter((banco) => bancoVisivelParaCorretor(banco.id, regras.bancosLiberados, admin))
         .sort((a, b) => a.ordem - b.ordem)
         .map((banco) => {
           const produto = produtoPadraoDoBanco(regras, banco.id);
@@ -100,14 +101,21 @@ export default function EscolherBanco() {
            *   - os demais sem     → dependem do administrador cadastrar.
            */
           const aberto = banco.id === BANCO_OUTRO;
+          // Só existe para o administrador enxergar: um banco liberado só para
+          // ele, e ainda invisível para os corretores.
+          const ocultoDoCorretor =
+            admin && !bancoVisivelParaCorretor(banco.id, regras.bancosLiberados, false);
           return {
             banco,
             proprio,
-            selo: proprio
-              ? 'Condições cadastradas'
-              : aberto
-                ? 'Você informa a condição'
-                : 'Aguardando cadastro',
+            ocultoDoCorretor,
+            selo: ocultoDoCorretor
+              ? 'Só você vê (não liberado)'
+              : proprio
+                ? 'Condições cadastradas'
+                : aberto
+                  ? 'Você informa a condição'
+                  : 'Aguardando cadastro',
             detalhe: proprio
               ? (produto?.nome ?? '')
               : aberto
@@ -115,7 +123,7 @@ export default function EscolherBanco() {
                 : 'As condições deste banco ainda não foram cadastradas pelo administrador.',
           };
         }),
-    [regras],
+    [regras, admin],
   );
 
   const abrir = (bancoId: string) => {
@@ -128,8 +136,15 @@ export default function EscolherBanco() {
       <Text style={styles.titulo}>Simulador de financiamento</Text>
       <Text style={styles.sub}>Em qual banco você vai levar essa proposta?</Text>
 
+      {admin ? (
+        <Text style={styles.avisoAdmin}>
+          Você é administrador: vê todos os bancos, mesmo os que os corretores ainda não veem.
+          Libere um banco na tela de Regras de financiamento.
+        </Text>
+      ) : null}
+
       <View style={styles.lista}>
-        {linhas.map(({ banco, selo, proprio, detalhe }) => (
+        {linhas.map(({ banco, selo, proprio, ocultoDoCorretor, detalhe }) => (
           <Pressable
             key={banco.id}
             onPress={() => abrir(banco.id)}
@@ -137,6 +152,7 @@ export default function EscolherBanco() {
             accessibilityLabel={`Simular no ${banco.nome}`}
             style={({ pressed }) => [
               styles.cartao,
+              ocultoDoCorretor && styles.cartaoOculto,
               form.bancoId === banco.id && styles.cartaoAtual,
               pressed && styles.pressionado,
             ]}
@@ -145,8 +161,21 @@ export default function EscolherBanco() {
             <View style={styles.texto}>
               <Text style={styles.nome}>{banco.nome}</Text>
               <Text style={styles.detalhe}>{detalhe}</Text>
-              <View style={[styles.selo, proprio ? styles.seloForte : styles.seloFraco]}>
-                <Text style={[styles.seloTexto, proprio && styles.seloTextoForte]}>{selo}</Text>
+              <View
+                style={[
+                  styles.selo,
+                  ocultoDoCorretor ? styles.seloOculto : proprio ? styles.seloForte : styles.seloFraco,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.seloTexto,
+                    ocultoDoCorretor && styles.seloTextoOculto,
+                    proprio && styles.seloTextoForte,
+                  ]}
+                >
+                  {selo}
+                </Text>
               </View>
             </View>
             <Icon name="chevronRight" size={18} color={colors.inkSubtle} />
@@ -227,6 +256,7 @@ const makeStyles = (colors: AppColors) =>
       ...shadow.card,
     },
     cartaoAtual: { borderColor: colors.primary, borderWidth: 1.5 },
+    cartaoOculto: { opacity: 0.7, borderStyle: 'dashed' },
     pressionado: { opacity: 0.85 },
     texto: { flex: 1, gap: 3 },
     nome: { ...typography.heading, color: colors.ink, fontSize: 16 },
@@ -240,8 +270,19 @@ const makeStyles = (colors: AppColors) =>
     },
     seloForte: { backgroundColor: colors.successSoft },
     seloFraco: { backgroundColor: colors.surfaceAlt },
+    seloOculto: { backgroundColor: colors.warningSoft },
     seloTexto: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5, fontWeight: '600' },
     seloTextoForte: { color: colors.success },
+    seloTextoOculto: { color: colors.warning },
+    avisoAdmin: {
+      ...typography.caption,
+      color: colors.warning,
+      backgroundColor: colors.warningSoft,
+      borderRadius: radius.sm,
+      padding: spacing.sm,
+      marginBottom: spacing.md,
+      lineHeight: 17,
+    },
     nota: {
       ...typography.caption,
       color: colors.inkMuted,

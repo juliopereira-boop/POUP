@@ -348,6 +348,27 @@ export interface VersaoRegras {
    */
   statusConfiabilidade?: StatusConfiabilidade;
   /**
+   * Bancos, além da Caixa, já liberados para TODOS os corretores.
+   *
+   * ===========================================================================
+   * SÓ A CAIXA VEM PRONTA — OS OUTROS ESPERAM O ADMINISTRADOR
+   * ===========================================================================
+   * BB, Itaú, Bradesco e Santander aparecem na lista de bancos porque o
+   * corretor trabalha com eles de verdade, mas sem tabela cadastrada e sem
+   * revisão do administrador, mostrá-los a todo mundo seria oferecer uma porta
+   * que ainda não leva a lugar nenhum.
+   *
+   * Então eles nascem visíveis só para o administrador — é ele quem decide
+   * quando um banco está pronto para o time inteiro, com um botão só, na tela
+   * de regras. `null`/ausente equivale a lista vazia: nenhum banco extra
+   * liberado, e só a Caixa aparece para o corretor comum.
+   *
+   * A Caixa nunca precisa estar nesta lista: `bancoVisivelParaCorretor` a
+   * libera sempre, e o "Outro banco" também — ele é o escape genérico para
+   * condição informada, não uma instituição específica sem cadastro.
+   */
+  bancosLiberados?: string[];
+  /**
    * A data em que os valores foram conferidos na fonte.
    *
    * Fica CONGELADA na versão publicada. Não é a data de hoje nem a data da
