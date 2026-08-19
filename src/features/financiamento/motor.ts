@@ -53,6 +53,7 @@ import {
   type RegimeTaxa,
 } from './dinheiro';
 import type { SistemaAmortizacao } from './amortizacao';
+import { maiorFinanciamentoQueCabe } from './capacidade';
 import { gerarCronograma, type Cronograma, type ParcelaCronograma } from './cronograma';
 import { resolverCorrecao, type CorrecaoAplicada } from './indexador';
 import { montarQuadro, type Proponente, type QuadroDeProponentes } from './proponentes';
@@ -114,7 +115,30 @@ export interface EntradaSimulacao {
   valorAvaliacao: Centavos;
 
   /* --- recursos --- */
+  /**
+   * A entrada de recursos próprios — a POUPANÇA que a construtora vai parcelar.
+   *
+   * Quando `entradaAutomatica` é verdadeiro, este número é IGNORADO na entrada e
+   * **calculado** pelo motor: veja o comentário do campo abaixo.
+   */
   entradaPropria: Centavos;
+  /**
+   * A ENTRADA É RESULTADO, NÃO PERGUNTA.
+   *
+   * O simulador de financiamento responde "quanto o banco empresta". O que
+   * sobra — valor do imóvel menos financiamento, menos FGTS, menos subsídio —
+   * **é** a entrada, e é exatamente a poupança que a construtora vai parcelar.
+   * Pedi-la ao corretor era pedir a resposta junto com a pergunta.
+   *
+   * Com este campo ligado, o motor calcula o maior financiamento possível
+   * (limitado por quota, teto do produto e capacidade de pagamento) e devolve a
+   * entrada em `entradaCalculada`.
+   *
+   * Desligado, vale o que o corretor digitou: é o caso em que o cliente QUER
+   * dar mais entrada do que o mínimo, e aí o financiamento encolhe na mesma
+   * medida.
+   */
+  entradaAutomatica?: boolean;
   fgtsDisponivel: Centavos;
   /** Quanto do FGTS será usado. Nunca maior que o disponível (§10). */
   fgtsUsado: Centavos;
@@ -235,6 +259,16 @@ export interface ResultadoSimulacao {
   /** MIN(venda, avaliação) — a base de tudo (§8). */
   valorBase: Centavos;
   entradaPropria: Centavos;
+  /**
+   * A entrada de recursos próprios que o negócio EXIGE — a poupança.
+   *
+   * `valor base − financiado − FGTS − subsídio`. É o número que atravessa para
+   * o simulador de poupança como saldo a distribuir, e é o que o cliente vai
+   * parcelar com a construtora.
+   */
+  entradaCalculada: Centavos;
+  /** A entrada acima foi calculada pelo motor (e não digitada pelo corretor). */
+  entradaAutomatica: boolean;
   fgtsUsado: Centavos;
   subsidio: Centavos;
   entradaTotal: Centavos;
@@ -422,33 +456,13 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     `→ ${(taxaMensal * 100).toFixed(6).replace('.', ',')}% a.m. · efetiva anual ${formatarPct(efetivaAnualDe(taxa, regimeTaxa))}`,
   );
 
-  /* --------------------------------------------------- 6. o valor financiado */
+  /* -------------------------------------- 6. o indexador e a carência
 
-  const necessarioAposEntrada = naoNegativo(subtrair(valorBase, entradaTotal));
-  const restricoes = calcularRestricoes({
-    produto,
-    entrada,
-    valorBase,
-    entradaTotal,
-    quadro,
-    taxaMensal,
-    regras,
-  });
-  const valorFinanciado = restricoes.valor;
-  const quotaAplicadaPct = valorBase > 0 ? (valorFinanciado / valorBase) * 100 : 0;
-
-  passo(
-    'Valor financiado',
-    formatarBRL(valorFinanciado),
-    `MIN(${restricoes.detalhe})`,
-  );
-
-  if (valorFinanciado <= 0) {
-    avisos.push('A entrada já cobre o imóvel inteiro: não há financiamento a simular.');
-  }
-  for (const n of restricoes.naoCalculados) naoCalculados.push(n);
-
-  /* ---------------------------------------------------- 7. o indexador */
+     Eles vêm ANTES do valor financiado porque o valor financiado passou a
+     depender deles: no modo de entrada automática, o teto do financiamento sai
+     da capacidade de pagamento, e a prestação que se testa contra a renda
+     inclui a correção monetária e respeita a carência. Calcular o financiamento
+     antes seria testá-lo contra uma parcela que não é a real. */
 
   const idx = acharIndexador(regras, produto.indexadorId);
   const correcao = resolverCorrecao({
@@ -473,9 +487,79 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     );
   }
 
-  /* ------------------------------------------------------ 8. a carência */
-
   const carenciaMeses = resolverCarencia(produto, entrada, avisos);
+
+  /* --------------------------------------------------- 7. o valor financiado */
+
+  const entradaAutomatica = entrada.entradaAutomatica === true;
+  const restricoes = calcularRestricoes({
+    produto,
+    entrada,
+    valorBase,
+    entradaTotal,
+    quadro,
+    taxaMensal,
+    regras,
+    entradaAutomatica,
+    valorAvaliacao: avaliacao,
+    correcaoMensal: correcao.taxaMensal,
+    carenciaMeses,
+  });
+  const valorFinanciado = restricoes.valor;
+  const quotaAplicadaPct = valorBase > 0 ? (valorFinanciado / valorBase) * 100 : 0;
+
+  passo(
+    'Valor financiado',
+    formatarBRL(valorFinanciado),
+    `MIN(${restricoes.detalhe})`,
+  );
+
+  if (valorFinanciado <= 0) {
+    avisos.push('A entrada já cobre o imóvel inteiro: não há financiamento a simular.');
+  }
+  for (const n of restricoes.naoCalculados) naoCalculados.push(n);
+
+  /* ------------------------------------------------- 8. a entrada que sobra
+
+     ESTE É O NÚMERO QUE O CORRETOR VEIO BUSCAR.
+
+     O que o banco não cobre é o que o cliente paga com recursos próprios — e,
+     numa venda de construtora, é exatamente a poupança que ela vai parcelar em
+     ato, mensais, semestrais e anuais. Ele sai por subtração, e não por
+     pergunta. */
+
+  const entradaCalculada = naoNegativo(
+    subtrair(valorBase, somar(valorFinanciado, fgtsUsado, naoNegativo(entrada.subsidio))),
+  );
+  /*
+   * No modo automático a entrada própria do resultado É a calculada — não faria
+   * sentido devolver o zero que veio do formulário vazio. No modo informado
+   * vale o que o corretor digitou, e `entradaCalculada` mostra o mínimo que o
+   * negócio exige (que pode ser menor, se ele quis dar mais).
+   */
+  const entradaPropriaFinal = entradaAutomatica
+    ? entradaCalculada
+    : naoNegativo(entrada.entradaPropria);
+  const entradaTotalFinal = somar(entradaPropriaFinal, fgtsUsado, naoNegativo(entrada.subsidio));
+  /*
+   * O QUE AINDA FALTARIA FINANCIAR, JÁ CONTANDO A ENTRADA QUE VALE.
+   *
+   * É a base da reprovação por falta de entrada: se o que falta é maior que o
+   * que o banco empresta, o negócio não fecha e o buraco é de entrada.
+   *
+   * No modo automático isso dá exatamente o valor financiado, e o buraco é
+   * zero — como tem de ser: a entrada se ajustou para fechar a conta. Calculá-lo
+   * antes, com a entrada ainda em zero, reprovava toda simulação automática por
+   * falta de uma entrada que o próprio motor acabara de calcular.
+   */
+  const necessarioAposEntrada = naoNegativo(subtrair(valorBase, entradaTotalFinal));
+  passo(
+    'Entrada de recursos próprios',
+    formatarBRL(entradaCalculada),
+    entradaAutomatica
+      ? 'calculada: valor base − financiado − FGTS − subsídio. É a poupança a parcelar com a construtora.'
+      : 'informada pelo corretor',
+  );
 
   /* ------------------------------------------------------ 9. o cronograma */
 
@@ -561,8 +645,11 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
     valorBase,
     valorFinanciado,
     necessarioAposEntrada,
-    entradaPropria: naoNegativo(entrada.entradaPropria),
-    entradaTotal,
+    // A elegibilidade julga a entrada QUE VALE — a calculada no modo
+    // automático, a digitada no modo informado. Julgar o zero do formulário
+    // vazio reprovaria toda simulação automática por falta de entrada.
+    entradaPropria: entradaPropriaFinal,
+    entradaTotal: entradaTotalFinal,
     rendaFamiliarBruta: quadro.rendaFamiliarBruta,
     primeiraPrestacao: baseParaRenda,
     prazoMeses: entrada.prazoMeses,
@@ -628,10 +715,12 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
       valorImovel: entrada.valorImovel,
       valorAvaliacao: avaliacao,
       valorBase,
-      entradaPropria: naoNegativo(entrada.entradaPropria),
+      entradaPropria: entradaPropriaFinal,
+      entradaCalculada,
+      entradaAutomatica,
       fgtsUsado,
       subsidio: naoNegativo(entrada.subsidio),
-      entradaTotal,
+      entradaTotal: entradaTotalFinal,
       valorFinanciado,
       quotaAplicadaPct,
       restricaoQueMandou: restricoes.mandou,
@@ -689,6 +778,11 @@ function calcularRestricoes(ctx: {
   quadro: QuadroDeProponentes;
   taxaMensal: number;
   regras: VersaoRegras;
+  /** A entrada é calculada pelo motor — e aí a renda também limita. */
+  entradaAutomatica: boolean;
+  valorAvaliacao: Centavos;
+  correcaoMensal: number;
+  carenciaMeses: number;
 }): {
   valor: Centavos;
   mandou: string;
@@ -732,6 +826,47 @@ function calcularRestricoes(ctx: {
       nome: `teto do produto ${formatarBRL(teto)} = ${formatarBRL(porTeto)}`,
       valor: porTeto,
     });
+  }
+
+  /*
+   * d) A CAPACIDADE DE PAGAMENTO — só no modo de entrada automática.
+   *
+   * A diferença entre os dois modos não é de gosto:
+   *
+   *   - Com a entrada INFORMADA, o financiamento é o que falta para fechar o
+   *     negócio. Se ele não couber na renda, isso é uma REPROVAÇÃO — o cliente
+   *     precisa de mais entrada, de mais prazo ou de compor renda, e a tela
+   *     precisa dizer isso.
+   *
+   *   - Com a entrada AUTOMÁTICA, a pergunta é outra: "até quanto o banco
+   *     empresta?". A renda é um dos tetos, ao lado da quota — e o que sobra
+   *     vira a poupança. Reprovar aqui não faria sentido: nunca há excesso,
+   *     porque a entrada se ajusta.
+   *
+   * Sem comprometimento ou sem renda cadastrados, o teto não existe e a linha
+   * simplesmente não entra na disputa — em vez de virar zero e travar tudo.
+   */
+  if (ctx.entradaAutomatica) {
+    const comprometimentoPct = resolverComprometimento(produto, entrada);
+    if (comprometimentoPct !== null && comprometimentoPct > 0 && ctx.quadro.rendaFamiliarBruta > 0) {
+      const parcelaMaxima = percentualDe(ctx.quadro.rendaFamiliarBruta, comprometimentoPct);
+      const porRenda = maiorFinanciamentoQueCabe({
+        parcelaMaxima,
+        prazoMeses: entrada.prazoMeses,
+        sistema: entrada.sistema,
+        taxaMensal: ctx.taxaMensal,
+        correcaoMensal: ctx.correcaoMensal,
+        carenciaMeses: ctx.carenciaMeses,
+        valorAvaliacao: ctx.valorAvaliacao,
+        proponentes: ctx.quadro.proponentes,
+        seguros: ctx.regras.seguros,
+        politica: ctx.regras.politicaArredondamento,
+      });
+      candidatos.push({
+        nome: `renda (parcela até ${formatarBRL(parcelaMaxima)}) = ${formatarBRL(porRenda)}`,
+        valor: porRenda,
+      });
+    }
   }
 
   const vencedor = candidatos.reduce((a, b) => (b.valor < a.valor ? b : a));

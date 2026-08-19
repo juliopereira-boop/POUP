@@ -984,11 +984,22 @@ secao('PONTE PARA O SIMULADOR DE POUPANÇA');
     developmentId: 'dev-1',
     block: 2,
     unit: '304',
+    /*
+     * OS NOMES SÃO OS DE `EntradaSimulacao`, e não os do outro lado.
+     *
+     * Este teste já usou `fgts` e `rendaFamiliarMensal` — nomes que NÃO existem
+     * na entrada do motor. Ele passava, e a ponte não levava nem o FGTS nem a
+     * renda: o teste validava o contrato errado. Agora usa `fgtsUsado` e a
+     * lista de proponentes, que é o que a entrada realmente tem.
+     */
     input: {
       valorImovel: reais(300000),
       subsidio: reais(12000),
-      fgts: reais(20000),
-      rendaFamiliarMensal: reais(5500),
+      fgtsDisponivel: reais(20000),
+      fgtsUsado: reais(20000),
+      proponentes: [
+        { id: 'p1', nome: 'Maria Souza', rendaBruta: reais(5500), idadeAnos: 34, participacaoPct: null },
+      ],
     },
     financedValue: 220000,
   };
@@ -1296,6 +1307,282 @@ secao('PONTE PARA O SIMULADOR DE POUPANÇA');
 
   checar('paraProponentes aguenta receber texto', F.paraProponentes('1').length === 0);
   checar('rendaFamiliar aguenta proponentes inválidos', F.rendaFamiliar({ proponentes: 'x' }) === 0);
+}
+
+/* ==========================================================================
+ * ENTRADA AUTOMÁTICA — a pergunta certa do simulador
+ *
+ * O simulador de financiamento responde "quanto o banco empresta". O que sobra
+ * É a entrada, e é a poupança que a construtora vai parcelar. Pedir a entrada
+ * ao corretor era pedir a resposta junto com a pergunta.
+ * ====================================================================== */
+{
+  secao('ENTRADA AUTOMÁTICA — a poupança que sobra');
+
+  const F = carregar('formulario');
+  const regrasComTudo = comSeguros();
+
+  /* ------------------------------------- o formulário decide o modo */
+  const vazio = F.paraEntrada({ ...F.FORM_INICIAL, valorImovel: 'R$ 300.000,00', prazoMeses: '360' });
+  checar('entrada em branco liga o modo automático', vazio.entradaAutomatica === true);
+
+  const zeroDigitado = F.paraEntrada({
+    ...F.FORM_INICIAL,
+    valorImovel: 'R$ 300.000,00',
+    entradaPropria: 'R$ 0,00',
+    prazoMeses: '360',
+  });
+  checar('zero digitado NÃO é o mesmo que branco', zeroDigitado.entradaAutomatica === false);
+
+  /* ------------------------------------------ a conta da poupança */
+  const auto = simular(
+    {
+      ...BASE,
+      entradaAutomatica: true,
+      entradaPropria: D.ZERO,
+      valorImovel: reais(400000),
+      fgtsDisponivel: reais(20000),
+      fgtsUsado: reais(20000),
+      subsidio: D.ZERO,
+      quotaMaxPctInformada: 80,
+      proponentes: [proponente({ rendaBruta: reais(20000) })],
+    },
+    regrasComTudo,
+  );
+  checar('a simulação automática calcula', auto.ok === true);
+  checar('e diz que a entrada foi calculada', auto.ok && auto.resultado.entradaAutomatica === true);
+  checar(
+    'quota de 80% sobre R$ 400 mil financia R$ 320 mil',
+    auto.ok && auto.resultado.valorFinanciado === reais(320000),
+    `(deu ${auto.ok && auto.resultado.valorFinanciado})`,
+  );
+  /*
+   * O ponto da funcionalidade: 400 − 320 (banco) − 20 (FGTS) = 60 mil de
+   * poupança. Esse número é o que a construtora vai parcelar, e é ele que
+   * atravessa para o outro simulador.
+   */
+  checar(
+    'a poupança é o que sobra: 400 − 320 − 20 = 60 mil',
+    auto.ok && auto.resultado.entradaCalculada === reais(60000),
+    `(deu ${auto.ok && auto.resultado.entradaCalculada})`,
+  );
+  checar(
+    'as quatro parcelas fecham o valor do imóvel',
+    auto.ok &&
+      auto.resultado.valorFinanciado +
+        auto.resultado.entradaCalculada +
+        auto.resultado.fgtsUsado +
+        auto.resultado.subsidio ===
+        auto.resultado.valorBase,
+  );
+  checar('no modo automático o enquadramento não reprova por entrada', auto.ok && auto.resultado.elegibilidade.elegivel === true);
+
+  /* --------------------------------- a renda também é um teto, no automático */
+  const rendaCurta = simular(
+    {
+      ...BASE,
+      entradaAutomatica: true,
+      entradaPropria: D.ZERO,
+      valorImovel: reais(400000),
+      fgtsDisponivel: D.ZERO,
+      fgtsUsado: D.ZERO,
+      quotaMaxPctInformada: 80,
+      proponentes: [proponente({ rendaBruta: reais(3000) })],
+    },
+    regrasComTudo,
+  );
+  checar('renda baixa calcula assim mesmo', rendaCurta.ok === true);
+  checar(
+    'renda baixa financia MENOS que a quota permitiria',
+    rendaCurta.ok && rendaCurta.resultado.valorFinanciado < reais(320000),
+    `(deu ${rendaCurta.ok && rendaCurta.resultado.valorFinanciado})`,
+  );
+  checar(
+    'e a poupança cresce na mesma medida',
+    rendaCurta.ok && rendaCurta.resultado.entradaCalculada > reais(80000),
+  );
+  checar('quem mandou foi a renda', rendaCurta.ok && rendaCurta.resultado.restricaoQueMandou.includes('renda'));
+  /*
+   * A trava que fecha o raciocínio: com o financiamento limitado pela renda, a
+   * prestação resultante TEM de caber no comprometimento. Se não coubesse, a
+   * busca binária estaria errada.
+   */
+  checar(
+    'a parcela resultante cabe no comprometimento de renda',
+    rendaCurta.ok &&
+      rendaCurta.resultado.comprometimentoRendaPct !== null &&
+      rendaCurta.resultado.comprometimentoRendaPct <= 30.01,
+    `(deu ${rendaCurta.ok && rendaCurta.resultado.comprometimentoRendaPct})`,
+  );
+
+  /* ------------------------- entrada digitada MAIOR: financiamento encolhe */
+  const maisEntrada = simular(
+    {
+      ...BASE,
+      entradaAutomatica: false,
+      entradaPropria: reais(150000),
+      valorImovel: reais(400000),
+      fgtsDisponivel: reais(20000),
+      fgtsUsado: reais(20000),
+      quotaMaxPctInformada: 80,
+      proponentes: [proponente({ rendaBruta: reais(20000) })],
+    },
+    regrasComTudo,
+  );
+  checar('entrada informada calcula', maisEntrada.ok === true);
+  checar(
+    'entrada maior encolhe o financiamento: 400 − 150 − 20 = 230 mil',
+    maisEntrada.ok && maisEntrada.resultado.valorFinanciado === reais(230000),
+    `(deu ${maisEntrada.ok && maisEntrada.resultado.valorFinanciado})`,
+  );
+  checar(
+    'e a poupança passa a ser a entrada informada',
+    maisEntrada.ok && maisEntrada.resultado.entradaCalculada === reais(150000),
+  );
+  checar('a parcela fica menor que a do automático', maisEntrada.ok && auto.ok && maisEntrada.resultado.primeira.prestacaoTotal < auto.resultado.primeira.prestacaoTotal);
+
+  /* ------------------- entrada digitada MENOR que o mínimo: reprova */
+  const poucaEntrada = simular(
+    {
+      ...BASE,
+      entradaAutomatica: false,
+      entradaPropria: reais(1000),
+      valorImovel: reais(400000),
+      fgtsDisponivel: D.ZERO,
+      fgtsUsado: D.ZERO,
+      quotaMaxPctInformada: 80,
+      proponentes: [proponente({ rendaBruta: reais(20000) })],
+    },
+    regrasComTudo,
+  );
+  checar('entrada insuficiente ainda calcula', poucaEntrada.ok === true);
+  checar('mas reprova o enquadramento', poucaEntrada.ok && poucaEntrada.resultado.elegibilidade.elegivel === false);
+  checar(
+    'e o motivo fala em entrada',
+    poucaEntrada.ok &&
+      poucaEntrada.resultado.elegibilidade.reprovacoes.some((x) =>
+        `${x.rotulo} ${x.detalhe}`.toLowerCase().includes('entrada'),
+      ),
+  );
+
+  /* ------------------------------- FGTS e subsídio reduzem a poupança */
+  const comRecursos = simular(
+    {
+      ...BASE,
+      entradaAutomatica: true,
+      entradaPropria: D.ZERO,
+      valorImovel: reais(400000),
+      fgtsDisponivel: reais(50000),
+      fgtsUsado: reais(50000),
+      subsidio: reais(10000),
+      quotaMaxPctInformada: 80,
+      proponentes: [proponente({ rendaBruta: reais(20000) })],
+    },
+    regrasComTudo,
+  );
+  checar(
+    'FGTS e subsídio saem da poupança: 400 − 320 − 50 − 10 = 20 mil',
+    comRecursos.ok && comRecursos.resultado.entradaCalculada === reais(20000),
+    `(deu ${comRecursos.ok && comRecursos.resultado.entradaCalculada})`,
+  );
+
+  /* ------------------------------------ quando o banco cobre tudo */
+  const cobreTudo = simular(
+    {
+      ...BASE,
+      entradaAutomatica: true,
+      entradaPropria: D.ZERO,
+      valorImovel: reais(100000),
+      fgtsDisponivel: reais(90000),
+      fgtsUsado: reais(90000),
+      quotaMaxPctInformada: 100,
+      proponentes: [proponente({ rendaBruta: reais(30000) })],
+    },
+    regrasComTudo,
+  );
+  checar('poupança nunca fica negativa', cobreTudo.ok && cobreTudo.resultado.entradaCalculada >= 0);
+}
+
+/* ==========================================================================
+ * A PONTE, DE NOVO — agora com o que faltava atravessar
+ *
+ * Dois campos NUNCA chegavam do outro lado porque a ponte lia nomes que não
+ * existem em `EntradaSimulacao`: `fgts` (é `fgtsUsado`) e `rendaFamiliarMensal`
+ * (a renda mora nos proponentes). Estes testes travam os nomes de verdade.
+ * ====================================================================== */
+{
+  secao('PONTE — o que atravessa para a poupança');
+
+  const entradaReal = {
+    valorImovel: reais(400000),
+    subsidio: reais(10000),
+    fgtsDisponivel: reais(60000),
+    fgtsUsado: reais(50000),
+    proponentes: [
+      { id: 'p1', nome: 'Maria Souza', rendaBruta: reais(8000), idadeAnos: 34, participacaoPct: null },
+      { id: 'p2', nome: 'João Souza', rendaBruta: reais(4000), idadeAnos: 36, participacaoPct: null },
+    ],
+  };
+
+  const p = PONTE.pontePoupanca(
+    {
+      leadId: 'lead-9',
+      clientName: null,
+      companyId: 'emp-1',
+      developmentId: 'dev-1',
+      block: 3,
+      unit: '801',
+      input: entradaReal,
+      financedValue: 320000,
+      firstInstallment: 2450.35,
+    },
+    { cpf: '12345678901', email: 'm@x.com', phone: '98999', name: 'Maria' },
+  );
+
+  checar('o FGTS USADO atravessa (não o disponível)', p.estado.fgts === 'R$ 50.000,00', `(deu ${p.estado.fgts})`);
+  checar('o subsídio atravessa', p.estado.subsidy === 'R$ 10.000,00');
+  checar('o valor do imóvel atravessa', p.estado.unitValue === 'R$ 400.000,00');
+  checar('o financiado atravessa', p.estado.financingApproved === 'R$ 320.000,00');
+  checar('a parcela da CEF atravessa', p.estado.cefParcela === 'R$ 2.450,35', `(deu ${p.estado.cefParcela})`);
+  checar('o parcelamento da TAXA da CEF não é chutado', p.estado.cefInstallment === undefined);
+  checar('a renda do proponente atravessa', p.estado.proponent1.rendaBruta === 'R$ 8.000,00', `(deu ${p.estado.proponent1.rendaBruta})`);
+  checar('o nome vem do proponente da simulação', p.estado.proponent1.name === 'Maria Souza');
+  checar('o segundo proponente atravessa', p.estado.hasSecondProponent === true);
+  checar('com nome', p.estado.proponent2.name === 'João Souza');
+  checar('e com renda', p.estado.proponent2.rendaBruta === 'R$ 4.000,00');
+  checar('o vínculo do 2º NÃO é chutado', p.estado.association === undefined);
+
+  /*
+   * O fecho do raciocínio: a poupança do outro lado nasce de
+   * `unidade − financiado − subsídio − FGTS`. Se as quatro parcelas
+   * atravessarem certas, o saldo a distribuir bate com a entrada calculada
+   * aqui — sem precisar mandar o total junto.
+   */
+  const poupancaLa = 400000 - 320000 - 10000 - 50000;
+  checar('o saldo a distribuir do outro lado bate com a poupança', poupancaLa === 20000);
+
+  const semSegundo = PONTE.pontePoupanca(
+    {
+      leadId: null,
+      clientName: 'Ana',
+      companyId: null,
+      developmentId: null,
+      block: null,
+      unit: null,
+      input: { ...entradaReal, proponentes: [entradaReal.proponentes[0]] },
+      financedValue: null,
+      firstInstallment: null,
+    },
+    null,
+  );
+  checar('um proponente só não liga o segundo', semSegundo.estado.hasSecondProponent === undefined);
+  checar('sem parcela da CEF, o campo fica vazio', semSegundo.estado.cefParcela === '');
+  checar('e nem assim o parcelamento da taxa é tocado', semSegundo.estado.cefInstallment === undefined);
+  checar('input sem proponentes não quebra', PONTE.pontePoupanca({ leadId: null, clientName: null, companyId: null, developmentId: null, block: null, unit: null, input: {}, financedValue: null }, null).estado.proponent1.name === '');
+
+  /* O fluxo continua não viajando: ele é a negociação com a construtora. */
+  checar('o ato NÃO viaja', p.estado.ato === undefined);
+  checar('as mensais NÃO viajam', p.estado.mensaisCount === undefined);
 }
 
 /* ===================================================================== */

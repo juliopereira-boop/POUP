@@ -169,6 +169,19 @@ export function paraEntrada(form: FormFinanciamento): EntradaSimulacao {
   const usadoDigitado = form.fgtsUsado.trim() ? dinheiro(form.fgtsUsado) : null;
   const fgtsUsado = usadoDigitado ?? disponivel;
 
+  /*
+   * ENTRADA EM BRANCO SIGNIFICA "CALCULE PARA MIM".
+   *
+   * É o estado normal do simulador: o corretor quer saber quanto o banco
+   * empresta, e a entrada é o que sobra — não é uma pergunta, é a resposta.
+   * Ele só digita quando o cliente QUER dar mais que o mínimo, e aí o
+   * financiamento encolhe na mesma medida.
+   *
+   * Zero digitado ("R$ 0,00") não é o mesmo que branco: é o corretor afirmando
+   * que não há entrada nenhuma, e o motor obedece.
+   */
+  const entradaAutomatica = form.entradaPropria.trim() === '';
+
   return {
     operacao: form.operacao,
     tipoImovel: form.tipoImovel,
@@ -178,6 +191,7 @@ export function paraEntrada(form: FormFinanciamento): EntradaSimulacao {
     valorAvaliacao: dinheiro(form.valorAvaliacao),
 
     entradaPropria: dinheiro(form.entradaPropria),
+    entradaAutomatica,
     fgtsDisponivel: disponivel,
     fgtsUsado,
     subsidio: dinheiro(form.subsidio),

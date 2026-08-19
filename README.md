@@ -526,6 +526,59 @@ bancário.
 > caminho é o arquivo — instruções em `assets/bancos/LEIA-ME.md`. O mapa `LOGOS`
 > nasce vazio porque `require` de arquivo inexistente derruba o build inteiro.
 
+### A entrada não é pergunta — é resposta
+
+O simulador de financiamento existe para responder **quanto o banco empresta**.
+O que sobra — valor do imóvel menos financiamento, menos FGTS, menos subsídio —
+**é** a entrada, e numa venda de construtora ela é exatamente a **poupança** que
+será parcelada em ato, mensais, semestrais e anuais. Pedir a entrada ao corretor
+era pedir a resposta junto com a pergunta.
+
+Então o campo nasce **vazio**, e vazio significa "calcule para mim":
+
+```
+financiado  = MIN(quota · valor, teto do produto, capacidade de pagamento)
+poupança    = valor base − financiado − FGTS − subsídio
+```
+
+O corretor só digita quando o cliente **quer dar mais** que o mínimo — e aí o
+financiamento encolhe na mesma medida, ao vivo. Digitar menos que o mínimo
+continua reprovando, com o valor que falta.
+
+> **Zero digitado não é o mesmo que vazio.** `R$ 0,00` é o corretor afirmando que
+> não há entrada nenhuma, e o motor obedece. Vazio é ele perguntando.
+
+A capacidade de pagamento entra como teto **apenas no modo automático**, e a
+diferença não é de gosto. Com entrada informada, o financiamento é o que falta
+para fechar o negócio: não cabendo na renda, isso é uma **reprovação**, e a tela
+precisa dizer. No automático a pergunta é "até quanto o banco empresta?" — a
+renda é um teto ao lado da quota, e nunca há excesso, porque a entrada se ajusta.
+`restricaoQueMandou` diz qual dos tetos decidiu.
+
+A busca de "quanto cabe na renda" mora em `capacidade.ts`, usada pelas **duas**
+telas que fazem essa pergunta (poder de compra e entrada automática). Ela precisa
+ser busca binária e não fórmula: a prestação inclui o MIP, que é taxa sobre o
+saldo devedor — a incógnita aparece dos dois lados da equação.
+
+### A ponte leva tudo que já se sabe
+
+"Levar para o simulador de poupança" atravessa imóvel, unidade, valor, o que o
+banco cobre (financiado + subsídio + **FGTS usado**), a **parcela da CEF** e os
+**proponentes com renda**. Cada campo que não atravessa é um campo que o corretor
+digita de novo com o cliente esperando.
+
+O saldo a parcelar **não** atravessa, e é de propósito: `computePoupanca` do
+outro lado faz `unidade − financiado − subsídio − FGTS`, que é exatamente a
+`entradaCalculada` daqui. Mandando as quatro parcelas certas, a conta bate
+sozinha — mandar o total junto criaria uma quinta fonte de verdade para o mesmo
+número.
+
+O que continua **não** atravessando: a distribuição do fluxo (quanto no ato,
+quantas mensais), o vínculo do segundo proponente (cônjuge, parente, fiador) e o
+parcelamento da taxa da CEF. Nenhum dos três é conhecido pelo financiamento, e
+chutá-los daria ao corretor campos a desfazer — o retrabalho que a ponte existe
+para eliminar.
+
 ### A faixa acompanha a renda
 
 Digitada a renda familiar, o simulador mostra na hora a faixa em que ela se
@@ -604,7 +657,7 @@ a mexer no laço de amortização.
 `simular(entrada, regras)` é **função pura** — sem React, sem Supabase, sem
 navegador. Três consequências práticas:
 
-1. **319 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
+1. **360 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
    a lista de cenários que o próprio manual especifica (§76 a §93).
 2. **A LIA pode chamá-lo.** Ela interpreta o número; nunca o produz. É a
    diferença entre um assistente e um chute bem escrito.

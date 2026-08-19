@@ -146,6 +146,9 @@ export default function ResultadoFinanciamento() {
         unit: form.unit.trim() || null,
         input: paraEntrada(form),
         financedValue: centavosParaReais(r.valorFinanciado),
+        // A parcela da CEF entra na proposta impressa lado a lado com o que o
+        // cliente paga à construtora — por isso ela atravessa junto.
+        firstInstallment: centavosParaReais(r.primeira?.prestacaoTotal ?? (0 as never)),
       },
       null,
     );
@@ -287,8 +290,20 @@ export default function ResultadoFinanciamento() {
       {/* ------------------------------------------------- o negócio */}
       <View style={styles.grade}>
         <Bloco rotulo="🏠 Imóvel" valor={formatarBRL(r.valorImovel)} />
-        <Bloco rotulo="💰 Entrada total" valor={formatarBRL(r.entradaTotal)} />
-        <Bloco rotulo="🏦 Financiamento" valor={formatarBRL(r.valorFinanciado)} />
+        <Bloco rotulo="🏦 O banco financia" valor={formatarBRL(r.valorFinanciado)} />
+        {/*
+          A ENTRADA É A POUPANÇA.
+          
+          Numa venda de construtora, o que o banco não cobre é exatamente o que
+          ela vai parcelar em ato, mensais, semestrais e anuais. Chamar isso de
+          "entrada total" escondia a informação que o corretor leva para a mesa.
+        */}
+        <Bloco
+          rotulo="💰 Entrada (poupança)"
+          valor={formatarBRL(r.entradaCalculada)}
+          nota="a construtora parcela"
+        />
+        <Bloco rotulo="🤝 FGTS + subsídio" valor={formatarBRL((r.fgtsUsado + r.subsidio) as never)} />
         <Bloco rotulo="📅 Prazo" valor={`${r.prazoMeses} meses`} />
         <Bloco rotulo="📉 Última parcela" valor={formatarBRL(ult?.prestacaoTotal ?? (0 as never))} />
         <Bloco
@@ -574,18 +589,20 @@ function Titulo({ texto }: { texto: string }) {
   return <Text style={styles.secao}>{texto}</Text>;
 }
 
-function Bloco({ rotulo, valor }: { rotulo: string; valor: string }) {
+function Bloco({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.bloco}>
       <Text style={styles.blocoRotulo}>{rotulo}</Text>
       <Text style={styles.blocoValor}>{valor}</Text>
+      {nota ? <Text style={styles.blocoNota}>{nota}</Text> : null}
     </View>
   );
 }
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    blocoNota: { ...typography.caption, color: colors.inkSubtle, fontSize: 10.5 },
     procedenciaAlerta: {
       ...typography.caption,
       color: colors.warning,

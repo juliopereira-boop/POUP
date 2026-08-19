@@ -29,12 +29,21 @@
  * ===========================================================================
  * O QUE VIAJA, E O QUE NÃO
  * ===========================================================================
- * Viaja o que os dois compartilham: imóvel, valor, o que o banco cobre
- * (financiado + subsídio + FGTS) e o proponente.
+ * Viaja **tudo o que o financiamento já sabe**: imóvel, unidade, valor, o que o
+ * banco cobre (financiado + subsídio + FGTS), a parcela da CEF, e os
+ * proponentes com renda. Cada campo que não atravessa é um campo que o corretor
+ * digita de novo com o cliente esperando.
  *
- * **Não viaja o fluxo de pagamento** — ato, mensais, semestrais, anuais. Isso é
- * negociação com a construtora e é justamente o que o corretor vai montar na
- * tela seguinte. Preencher aquilo com um chute faria ele apagar campo por campo.
+ * O SALDO A PARCELAR NÃO PRECISA ATRAVESSAR — ele nasce do outro lado.
+ * `computePoupanca` faz `unidade − financiado − subsídio − FGTS`, que é
+ * exatamente a `entradaCalculada` do simulador de financiamento. Mandando as
+ * quatro parcelas certas, a conta bate sozinha; mandar o total junto seria
+ * criar uma quinta fonte de verdade para o mesmo número.
+ *
+ * **Não viaja a DISTRIBUIÇÃO do fluxo** — quanto vai no ato, quantas mensais,
+ * semestrais e anuais. Isso é negociação com a construtora e é justamente o que
+ * o corretor vai montar na tela seguinte. Preencher aquilo com um chute o faria
+ * apagar campo por campo.
  */
 import { formatCurrencyBRL } from '@/lib/masks';
 import type { LeadPrefill, SimuladorState } from '@/features/simulador/SimuladorProvider';
@@ -51,6 +60,20 @@ export interface SimulacaoParaPonte {
   input: unknown;
   /** Coluna do banco, em REAIS. */
   financedValue: number | null;
+  /**
+   * A primeira prestação do financiamento, em REAIS — a "parcela CEF".
+   *
+   * O simulador de poupança tem campo próprio para ela porque ela entra na
+   * proposta impressa: o cliente precisa ver, lado a lado, o que paga ao banco
+   * e o que paga à construtora.
+   */
+  firstInstallment?: number | null;
+}
+
+/** Um proponente do financiamento, do jeito que ele viaja. */
+interface ProponenteDaEntrada {
+  nome?: unknown;
+  rendaBruta?: unknown;
 }
 
 export interface ClienteParaPonte {
@@ -72,11 +95,22 @@ function deReais(valor: number | null | undefined): string {
   return formatCurrencyBRL(String(Math.round(valor * 100)));
 }
 
+function nomeDoProponente(p: ProponenteDaEntrada | undefined): string {
+  return typeof p?.nome === 'string' ? p.nome.trim() : '';
+}
+
+function rendaDe(p: ProponenteDaEntrada | undefined): unknown {
+  return p?.rendaBruta;
+}
+
 export function pontePoupanca(
   sim: SimulacaoParaPonte,
   cliente: ClienteParaPonte | null,
 ): LeadPrefill {
   const entrada = (sim.input ?? {}) as Record<string, unknown>;
+  const proponentes: ProponenteDaEntrada[] = Array.isArray(entrada.proponentes)
+    ? (entrada.proponentes as ProponenteDaEntrada[])
+    : [];
 
   const estado: Partial<SimuladorState> = {
     companyId: sim.companyId,
@@ -94,15 +128,57 @@ export function pontePoupanca(
      */
     financingApproved: deReais(sim.financedValue),
     subsidy: deCentavos(entrada.subsidio),
-    fgts: deCentavos(entrada.fgts),
+    /*
+     * `fgtsUsado`, e não `fgtsDisponivel`.
+     *
+     * O que entra no negócio é o que foi USADO. O saldo disponível pode ser
+     * maior — e mandá-lo faria a poupança sair menor do que é, subestimando
+     * justamente o valor que a construtora vai parcelar.
+     */
+    fgts: deCentavos(entrada.fgtsUsado),
+
+    /*
+     * A PARCELA DA CEF — e só ela.
+     *
+     * Ela não é dedução da poupança: é o que o cliente vai pagar ao banco em
+     * paralelo ao que paga à construtora, e entra lado a lado na proposta.
+     *
+     * `cefInstallment` fica de fora de propósito. Apesar do nome, ele não é
+     * "tem parcela do banco": é "a TAXA da CEF será parcelada?", uma decisão
+     * comercial que o simulador de financiamento não pergunta. Ligá-lo daria
+     * ao corretor um campo a desligar — exatamente o retrabalho que a ponte
+     * existe para eliminar.
+     */
+    cefParcela: deReais(sim.firstInstallment),
 
     proponent1: {
-      name: sim.clientName ?? cliente?.name ?? '',
+      name: nomeDoProponente(proponentes[0]) || (sim.clientName ?? cliente?.name ?? ''),
       cpf: cliente?.cpf ?? '',
       email: cliente?.email ?? '',
       contact: cliente?.phone ?? '',
-      rendaBruta: deCentavos(entrada.rendaFamiliarMensal),
+      rendaBruta: deCentavos(rendaDe(proponentes[0])),
     },
+
+    /*
+     * O SEGUNDO PROPONENTE ATRAVESSA JUNTO.
+     *
+     * Compor renda é decisão tomada no financiamento — quem compôs lá compõe
+     * aqui. `association` fica em branco de propósito: o vínculo (cônjuge,
+     * parente, fiador, sócio) é informação jurídica que o simulador de
+     * financiamento não pergunta, e chutá-la entraria num documento assinado.
+     */
+    ...(proponentes.length > 1
+      ? {
+          hasSecondProponent: true,
+          proponent2: {
+            name: nomeDoProponente(proponentes[1]),
+            cpf: '',
+            email: '',
+            contact: '',
+            rendaBruta: deCentavos(rendaDe(proponentes[1])),
+          },
+        }
+      : {}),
   };
 
   return {

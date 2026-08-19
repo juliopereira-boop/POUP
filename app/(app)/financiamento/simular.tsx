@@ -182,8 +182,16 @@ export default function SimularFinanciamento() {
               ) : null}
             </View>
             <View style={styles.painelGrade}>
-              <Mini rotulo="Financiado" valor={formatarBRL(resultado.valorFinanciado)} />
-              <Mini rotulo="Entrada total" valor={formatarBRL(resultado.entradaTotal)} />
+              <Mini rotulo="O banco financia" valor={formatarBRL(resultado.valorFinanciado)} />
+              <Mini
+                rotulo="Entrada (poupança)"
+                valor={formatarBRL(resultado.entradaCalculada)}
+                nota={
+                  resultado.entradaAutomatica
+                    ? 'a construtora parcela'
+                    : 'informada por você'
+                }
+              />
               <Mini
                 rotulo="Última prestação"
                 valor={formatarBRL(resultado.ultima?.prestacaoTotal ?? (0 as never))}
@@ -237,26 +245,40 @@ export default function SimularFinanciamento() {
         keyboardType="numeric"
       />
 
-      <View style={styles.linha}>
-        <View style={styles.col}>
-          <Input
-            label="Entrada"
-            value={form.entradaPropria}
-            onChangeText={(t) => set('entradaPropria', formatCurrencyBRL(t))}
-            placeholder="R$ 0,00"
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={styles.col}>
-          <Input
-            label="FGTS"
-            value={form.fgtsDisponivel}
-            onChangeText={(t) => set('fgtsDisponivel', formatCurrencyBRL(t))}
-            placeholder="R$ 0,00"
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
+      <Input
+        label="FGTS"
+        value={form.fgtsDisponivel}
+        onChangeText={(t) => set('fgtsDisponivel', formatCurrencyBRL(t))}
+        placeholder="R$ 0,00"
+        keyboardType="numeric"
+      />
+
+      {/*
+        A ENTRADA VEM DEPOIS, E VEM VAZIA.
+
+        Ela é o resultado da conta, não um dado da pergunta: o banco empresta
+        até X, e o que sobra é a poupança que a construtora parcela. O campo
+        existe para o caso em que o cliente QUER dar mais que o mínimo — aí o
+        financiamento encolhe na mesma medida, e a tela mostra isso na hora.
+      */}
+      <Input
+        label="Entrada (opcional)"
+        value={form.entradaPropria}
+        onChangeText={(t) => set('entradaPropria', formatCurrencyBRL(t))}
+        placeholder={
+          resultado && resultado.entradaAutomatica
+            ? `calculada: ${formatarBRL(resultado.entradaCalculada)}`
+            : 'deixe vazio para calcular'
+        }
+        keyboardType="numeric"
+      />
+      <Text style={styles.ajuda}>
+        {resultado
+          ? resultado.entradaAutomatica
+            ? `Deixando vazio, o simulador calcula: o banco financia ${formatarBRL(resultado.valorFinanciado)} e sobram ${formatarBRL(resultado.entradaCalculada)} de poupança para a construtora parcelar. Preencha só se o cliente quiser dar mais que isso.`
+            : `Entrada informada. Sem ela, o banco financiaria mais e a poupança seria menor — apague o campo para ver o cálculo automático.`
+          : 'Deixe vazio: o simulador calcula quanto o banco financia e quanto sobra de poupança.'}
+      </Text>
 
       {principal ? (
         <View style={styles.linha}>
@@ -740,12 +762,13 @@ function Secao({ titulo, nota }: { titulo: string; nota?: string }) {
   );
 }
 
-function Mini({ rotulo, valor }: { rotulo: string; valor: string }) {
+function Mini({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.mini}>
       <Text style={styles.miniRotulo}>{rotulo}</Text>
       <Text style={styles.miniValor}>{valor}</Text>
+      {nota ? <Text style={styles.miniNota}>{nota}</Text> : null}
     </View>
   );
 }
@@ -829,6 +852,7 @@ const makeStyles = (colors: AppColors) =>
     mini: { minWidth: 130, flexGrow: 1, gap: 1 },
     miniRotulo: { ...typography.caption, color: colors.inkSubtle, fontSize: 11.5 },
     miniValor: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    miniNota: { ...typography.caption, color: colors.inkSubtle, fontSize: 10.5 },
     selo: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.sm },
     seloOk: { backgroundColor: colors.successSoft },
     seloRuim: { backgroundColor: colors.dangerSoft },

@@ -118,7 +118,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   const destaques = `
     <div class="destaques">
       ${caixa('Imóvel', formatarBRL(r.valorImovel))}
-      ${caixa('Entrada total', formatarBRL(r.entradaTotal))}
+      ${caixa('Entrada (poupança)', formatarBRL(r.entradaCalculada))}
       ${caixa('Financiamento', formatarBRL(r.valorFinanciado))}
       ${caixa('Prazo', formatarPrazo(r.prazoMeses))}
       ${caixa('1ª parcela', money(pri?.prestacaoTotal ?? null), true)}
@@ -319,7 +319,7 @@ export function resumoParaWhatsapp(ctx: ContextoRelatorio): string {
     ctx.empreendimentoNome ? `Imóvel: ${ctx.empreendimentoNome}` : null,
     ``,
     `Valor do imóvel: ${formatarBRL(r.valorImovel)}`,
-    `Entrada total: ${formatarBRL(r.entradaTotal)}`,
+    `Entrada (poupança a parcelar): ${formatarBRL(r.entradaCalculada)}`,
     `Financiamento: ${formatarBRL(r.valorFinanciado)}`,
     `Prazo: ${formatarPrazo(r.prazoMeses)} (${r.sistema})`,
     `1ª parcela: ${formatarBRL(r.primeira?.prestacaoTotal ?? (0 as never))}${r.primeira?.parcial ? ' (sem seguros)' : ''}`,
