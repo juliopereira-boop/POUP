@@ -1,63 +1,68 @@
 /**
- * O MOTOR DE SIMULAÇÃO.
+ * O MOTOR DE SIMULAÇÃO — o pipeline inteiro.
  *
  * ===========================================================================
- * ENTRA DADO, SAI RESULTADO. SÓ ISSO.
+ * A ARQUITETURA É A DO §3 E DO §121
  * ===========================================================================
- * Uma função pura: nenhuma chamada de rede, nenhum acesso a banco, nenhum
- * componente de tela, nenhuma dependência do React. Recebe a entrada e a versão
- * de regras, devolve o resultado.
+ *     DADOS → REGRAS → ENQUADRAMENTO → CÁLCULO → VALIDAÇÃO → RESULTADO
  *
- * Isso importa por três motivos práticos:
+ * E nunca:
  *
- *   1. **Dá para testar de verdade.** `scripts/testar-financiamento.mjs` roda
- *      o motor inteiro em Node, sem simulador, sem navegador.
- *   2. **A LIA pode chamá-lo.** Quando ela precisar responder "quanto esse
- *      cliente consegue financiar?", ela chama ESTE motor e interpreta o
- *      resultado. O modelo de linguagem nunca faz a conta — ele só lê o número
- *      que a matemática produziu. É a diferença entre um assistente e um
- *      chute bem escrito.
- *   3. **Outro banco entra sem reescrever nada.** Ver `FinancingProvider` em
- *      `provider.ts`: este motor é a implementação interna; uma futura
- *      integração com a CAIXA seria outra implementação da mesma interface.
+ *     DADOS → FÓRMULA ÚNICA → PARCELA
+ *
+ * Por isso o motor é uma orquestração de módulos com uma responsabilidade cada
+ * — `indexador.ts`, `seguros.ts`, `proponentes.ts`, `cronograma.ts`,
+ * `elegibilidade.ts` — e não um arquivo que faz tudo. Trocar a apólice do MIP
+ * não pode obrigar ninguém a mexer no laço de amortização.
  *
  * ===========================================================================
- * A PRESTAÇÃO NÃO É "JUROS + AMORTIZAÇÃO"
+ * FUNÇÃO PURA — sem React, sem rede, sem banco
  * ===========================================================================
- * A CAIXA informa que a prestação pode ter encargo principal (amortização +
- * juros) e encargos acessórios — MIP, DFI e tarifa de administração. O motor
- * modela os quatro separadamente e mostra a composição.
+ *   1. Os testes rodam em Node puro (`npm run testar:financiamento`).
+ *   2. A LIA pode CHAMÁ-LO em vez de calcular por conta própria (§36 do
+ *      briefing original): o modelo interpreta o número, nunca o produz.
+ *   3. Um provedor de banco entra como outra implementação de
+ *      `FinancingProvider` sem tela nenhuma mudar.
  *
- * Quando um encargo não tem parâmetro cadastrado, ele **não é chutado**: sai
- * `null`, a prestação é marcada como parcial e o resultado ganha uma entrada em
- * `naoCalculados` explicando o que falta. Uma prestação com um seguro inventado
- * é pior do que uma prestação assumidamente incompleta, porque a primeira o
- * corretor apresenta como definitiva.
+ * ===========================================================================
+ * TRÊS COISAS QUE ESTE MOTOR SE RECUSA A FAZER
+ * ===========================================================================
+ *   - **Inventar parâmetro** (§74, §75). Faltou, sai `null` e entra em
+ *     `naoCalculados` com o motivo.
+ *   - **Dizer "aprovado"** (§96). O vocabulário é *enquadramento estimado*, e o
+ *     aviso legal viaja no resultado, não em cada tela.
+ *   - **Misturar simulação com projeção** (§111). Cenário de indexador escolhido
+ *     pelo corretor marca o resultado inteiro como projeção.
  */
 import {
   ZERO,
-  centavos,
+  centavosParaReais,
+  efetivaAnualDe,
   formatarBRL,
+  formatarPct,
+  formatarPrazo,
+  maior,
+  menor,
   naoNegativo,
   percentualDe,
   reaisParaCentavos,
   somar,
   subtrair,
-  taxaAnualParaMensal,
-  taxaMensalParaAnualEfetiva,
+  taxaMensalDe,
   type Centavos,
+  type RegimeTaxa,
 } from './dinheiro';
-import {
-  gerarTabela,
-  type LinhaAmortizacao,
-  type SistemaAmortizacao,
-  type TabelaAmortizacao,
-} from './amortizacao';
+import type { SistemaAmortizacao } from './amortizacao';
+import { gerarCronograma, type Cronograma, type ParcelaCronograma } from './cronograma';
+import { resolverCorrecao, type CorrecaoAplicada } from './indexador';
+import { montarQuadro, type Proponente, type QuadroDeProponentes } from './proponentes';
 import { verificarElegibilidade, type ResultadoElegibilidade } from './elegibilidade';
 import {
   acharIndexador,
   acharProduto,
+  classificarSfh,
   temValor,
+  type Enquadramento,
   type ProdutoFinanciamento,
   type TipoImovel,
   type TipoOperacao,
@@ -67,40 +72,48 @@ import {
 /* ---------------------------------------------------------------- entrada */
 
 export interface EntradaSimulacao {
-  /* imóvel */
+  /* --- imóvel --- */
   operacao: TipoOperacao;
   tipoImovel: TipoImovel;
   uf: string | null;
   municipio: string | null;
+  /** Preço de venda negociado. */
   valorImovel: Centavos;
+  /**
+   * Valor de AVALIAÇÃO do imóvel — §8.
+   *
+   * "Não assumir automaticamente que valor financiável = preço de venda." A
+   * base do financiamento é o MENOR entre venda e avaliação, e o DFI incide
+   * sobre a avaliação. Zero = não informada, e aí a venda vale para os dois.
+   */
+  valorAvaliacao: Centavos;
 
-  /* recursos do cliente */
+  /* --- recursos --- */
   entradaPropria: Centavos;
-  fgts: Centavos;
-  /** Subsídio/desconto informado. O motor não inventa subsídio. */
+  fgtsDisponivel: Centavos;
+  /** Quanto do FGTS será usado. Nunca maior que o disponível (§10). */
+  fgtsUsado: Centavos;
   subsidio: Centavos;
 
-  /* cliente */
-  rendaFamiliarMensal: Centavos;
-  quantidadeProponentes: number;
-  idadeAnos: number | null;
+  /* --- cliente --- */
+  proponentes: Proponente[];
 
-  /* condição */
+  /* --- condição --- */
   produtoId: string;
   sistema: SistemaAmortizacao;
   prazoMeses: number;
+  carenciaMeses: number;
+  /** Cenário hipotético para o indexador, em % ao mês. `null` = usar o cadastro. */
+  cenarioIndexadorPct?: number | null;
 
-  /**
-   * Só valem quando o produto é de parâmetros manuais ("Condições
-   * informadas"). É o corretor repassando a condição que o correspondente
-   * bancário aprovou para este cliente.
-   */
+  /** Só valem em produto de parâmetros manuais. */
   taxaAnualPctInformada?: number | null;
+  regimeTaxaInformado?: RegimeTaxa | null;
   quotaMaxPctInformada?: number | null;
   comprometimentoMaxPctInformado?: number | null;
 }
 
-/* ---------------------------------------------------------------- saída */
+/* ------------------------------------------------------------------ saída */
 
 /** Um valor que o motor se recusou a inventar. */
 export interface NaoCalculado {
@@ -108,73 +121,93 @@ export interface NaoCalculado {
   motivo: string;
 }
 
-export interface ComposicaoPrestacao {
-  numero: number;
-  amortizacao: Centavos;
-  juros: Centavos;
-  /** amortização + juros */
-  encargoPrincipal: Centavos;
-  /** `null` = parâmetro não cadastrado, e não zero. */
-  mip: Centavos | null;
-  dfi: Centavos | null;
-  tarifa: Centavos | null;
-  /** A soma do que existe. */
-  total: Centavos;
-  /** `true` quando algum encargo ficou de fora por falta de parâmetro. */
-  parcial: boolean;
+/** §95 e §120 — a classificação de confiabilidade do resultado. */
+export type StatusCalculo = 'OFICIAL' | 'ESTIMADO' | 'INFORMADO' | 'PROJECAO' | 'REQUER_VALIDACAO';
+
+export const STATUS_ROTULO: Record<StatusCalculo, string> = {
+  OFICIAL: 'Condições oficiais cadastradas',
+  ESTIMADO: 'Estimativa calculada',
+  INFORMADO: 'Condição informada pelo corretor',
+  PROJECAO: 'Projeção — cenário hipotético',
+  REQUER_VALIDACAO: 'Requer validação da instituição',
+};
+
+/** §69 — "como o sistema chegou a este valor?". Uma linha por etapa. */
+export interface PassoTrace {
+  etapa: string;
+  valor: string;
+  detalhe: string;
 }
 
-export type Confiabilidade = 'oficial' | 'estimativa' | 'informada';
-
 export interface ResultadoSimulacao {
-  /* procedência */
+  /* --- procedência --- */
   versaoRegras: string;
   vigenciaRegras: string;
-  confiabilidade: Confiabilidade;
-
+  status: StatusCalculo;
   produto: { id: string; nome: string; parametrosManuais: boolean };
-  indexador: { id: string; nome: string; correcaoAplicada: boolean };
+  enquadramentoSfh: Enquadramento;
 
-  /* composição do negócio */
+  /* --- indexador --- */
+  indexador: { id: string; nome: string };
+  correcao: CorrecaoAplicada;
+
+  /* --- composição do negócio --- */
   valorImovel: Centavos;
+  valorAvaliacao: Centavos;
+  /** MIN(venda, avaliação) — a base de tudo (§8). */
+  valorBase: Centavos;
   entradaPropria: Centavos;
-  fgts: Centavos;
+  fgtsUsado: Centavos;
   subsidio: Centavos;
   entradaTotal: Centavos;
   valorFinanciado: Centavos;
   quotaAplicadaPct: number;
+  /** §12 — qual restrição definiu o valor financiado. */
+  restricaoQueMandou: string;
 
-  /* condição */
+  /* --- condição --- */
   sistema: SistemaAmortizacao;
   prazoMeses: number;
+  carenciaMeses: number;
   taxaAnualPct: number;
+  regimeTaxa: RegimeTaxa;
   taxaAnualEfetivaPct: number;
   taxaMensal: number;
 
-  /* números que o corretor mostra */
-  primeira: ComposicaoPrestacao;
-  ultima: ComposicaoPrestacao;
+  /* --- os números --- */
+  primeira: ParcelaCronograma | null;
+  ultima: ParcelaCronograma | null;
   totalJuros: Centavos;
-  /** Soma dos encargos principais. Sem seguros (que podem estar pendentes). */
+  totalAmortizado: Centavos;
+  totalCorrecao: Centavos;
   totalEncargoPrincipal: Centavos;
-  /** Encargo principal + acessórios que deu para calcular. */
+  totalSeguros: Centavos | null;
+  totalTarifas: Centavos | null;
   totalPago: Centavos;
-  /** `true` quando o total pago ficou incompleto por falta de parâmetro. */
   totalPagoParcial: boolean;
+
+  rendaFamiliarBruta: Centavos;
+  comprometimentoMaximo: Centavos | null;
   rendaMinimaEstimada: Centavos | null;
   comprometimentoRendaPct: number | null;
 
-  tabela: LinhaAmortizacao[];
+  /**
+   * §64 — o CET tem campo, e NÃO é calculado.
+   *
+   * Calcular o Custo Efetivo Total exige todos os componentes contratuais
+   * (tarifas de contratação, avaliação, registro, seguros efetivos). Sem eles,
+   * qualquer número seria um CET falso — e CET falso é o tipo de informação que
+   * o cliente usa para comparar bancos.
+   */
+  cet: null;
+
+  tabela: ParcelaCronograma[];
   elegibilidade: ResultadoElegibilidade;
   naoCalculados: NaoCalculado[];
   avisos: string[];
+  trace: PassoTrace[];
 
-  /**
-   * As regras EXATAS que produziram este resultado, congeladas.
-   *
-   * É o que impede que mudar a taxa amanhã recalcule silenciosamente a
-   * proposta de ontem. Vai gravado junto com a simulação.
-   */
+  /** As regras EXATAS que produziram este resultado, congeladas (§68). */
   snapshot: VersaoRegras;
 }
 
@@ -182,7 +215,7 @@ export type SaidaSimulacao =
   | { ok: true; resultado: ResultadoSimulacao }
   | { ok: false; erro: string };
 
-/* ---------------------------------------------------------------- motor */
+/* ------------------------------------------------------------------ motor */
 
 export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaSimulacao {
   const produto = acharProduto(regras, entrada.produtoId);
@@ -192,154 +225,329 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
 
   const naoCalculados: NaoCalculado[] = [];
   const avisos: string[] = [];
+  const trace: PassoTrace[] = [];
+  const passo = (etapa: string, valor: string, detalhe = '') =>
+    void trace.push({ etapa, valor, detalhe });
 
-  /* ------------------------------------------------------------ a taxa */
+  /* ---------------------------------------------------- 1. os proponentes */
 
-  const taxa = resolverTaxa(produto, entrada, naoCalculados);
+  const quadro = montarQuadro(entrada.proponentes);
+  if (quadro.participacaoNormalizada) {
+    avisos.push(
+      'Os percentuais de pactuação de renda não somavam 100% e foram normalizados proporcionalmente.',
+    );
+  }
+  passo(
+    'Proponentes',
+    `${quadro.proponentes.length}`,
+    quadro.proponentes
+      .map(
+        (p) =>
+          `${p.nome || 'sem nome'}: ${formatarBRL(p.rendaBruta)} (${p.participacaoEfetivaPct.toFixed(2)}%)`,
+      )
+      .join(' · ') || 'nenhum informado',
+  );
+  passo('Renda familiar bruta', formatarBRL(quadro.rendaFamiliarBruta));
+
+  /* ------------------------------------------- 2. o valor base do imóvel */
+
+  /*
+   * §8: "o sistema deverá trabalhar com o menor valor". Sem avaliação
+   * informada, a venda vale para os dois — mas a tela avisa, porque a
+   * avaliação do banco costuma vir ABAIXO do preço negociado, e é ela que
+   * define quanto entra de financiamento.
+   */
+  const avaliacao = entrada.valorAvaliacao > 0 ? entrada.valorAvaliacao : entrada.valorImovel;
+  const valorBase = menor(entrada.valorImovel, avaliacao);
+  if (entrada.valorAvaliacao <= 0) {
+    avisos.push(
+      'Sem o valor de avaliação, a conta usa o preço de venda. A avaliação do banco costuma vir abaixo do preço negociado — e é ela que limita o financiamento.',
+    );
+  } else if (avaliacao < entrada.valorImovel) {
+    avisos.push(
+      `A avaliação (${formatarBRL(avaliacao)}) é menor que o preço de venda (${formatarBRL(entrada.valorImovel)}). O financiamento é calculado sobre a avaliação, e a diferença sai do bolso do cliente.`,
+    );
+  }
+  passo(
+    'Valor base',
+    formatarBRL(valorBase),
+    `MIN(venda ${formatarBRL(entrada.valorImovel)}, avaliação ${formatarBRL(avaliacao)})`,
+  );
+
+  /* --------------------------------------------------- 3. SFH ou SFI */
+
+  const { enquadramento, limite } = classificarSfh(regras, centavosParaReais(avaliacao));
+  passo(
+    'Enquadramento',
+    enquadramento,
+    limite === null
+      ? 'Limite SFH não cadastrado'
+      : `Limite SFH: ${formatarBRL(reaisParaCentavos(limite))}`,
+  );
+  if (enquadramento === 'indefinido') {
+    naoCalculados.push({
+      o_que: 'Enquadramento SFH/SFI',
+      motivo:
+        regras.sfh.limiteValorImovel.observacao ?? 'O limite de enquadramento não está cadastrado.',
+    });
+  }
+
+  /* ----------------------------------------------------------- 4. o FGTS */
+
+  /*
+   * §10: "nunca permitir fgtsUsed > fgtsAvailable". O motor CORTA em vez de
+   * recusar — recusar a simulação inteira por causa de um campo mal digitado
+   * seria hostil no meio de um atendimento —, mas o corte aparece em aviso.
+   */
+  let fgtsUsado = naoNegativo(entrada.fgtsUsado);
+  const fgtsDisponivel = naoNegativo(entrada.fgtsDisponivel);
+  if (fgtsDisponivel > 0 && fgtsUsado > fgtsDisponivel) {
+    avisos.push(
+      `O FGTS usado (${formatarBRL(fgtsUsado)}) passava do saldo informado (${formatarBRL(fgtsDisponivel)}) e foi limitado ao saldo.`,
+    );
+    fgtsUsado = fgtsDisponivel;
+  }
+  const fgtsPermitido = temValor(regras.fgts.permitidoNaEntrada)
+    ? regras.fgts.permitidoNaEntrada.valor
+    : null;
+  if (fgtsUsado > 0 && fgtsPermitido === false) {
+    avisos.push('As regras cadastradas não permitem FGTS nesta operação.');
+    fgtsUsado = ZERO;
+  }
+
+  const entradaTotal = somar(naoNegativo(entrada.entradaPropria), fgtsUsado, naoNegativo(entrada.subsidio));
+  passo(
+    'Entrada total',
+    formatarBRL(entradaTotal),
+    `próprio ${formatarBRL(entrada.entradaPropria)} + FGTS ${formatarBRL(fgtsUsado)} + subsídio ${formatarBRL(entrada.subsidio)}`,
+  );
+
+  /* ------------------------------------------- 5. a taxa e o regime dela */
+
+  const regimeTaxa: RegimeTaxa = produto.parametrosManuais
+    ? (entrada.regimeTaxaInformado ?? 'nominal')
+    : produto.regimeTaxa;
+
+  const taxa = resolverTaxa(produto, entrada);
   if (taxa === null) {
     return {
       ok: false,
-      erro: `A taxa desta linha ainda não foi cadastrada. Use "Condições informadas" e digite a taxa aprovada pelo correspondente, ou cadastre a linha em Ajustes → Financiamento.`,
+      erro: produto.parametrosManuais
+        ? 'Informe a taxa ao ano que o correspondente bancário aprovou para este cliente.'
+        : `A taxa da linha "${produto.nome}" ainda não foi cadastrada. Use "Condições informadas" e digite a taxa aprovada, ou cadastre a linha em Ajustes → Financiamento.`,
     };
   }
-  const taxaMensal = taxaAnualParaMensal(taxa, regras.conversaoTaxa);
-
-  /* --------------------------------------------------- o valor financiado */
-
-  const entradaTotal = somar(
-    naoNegativo(entrada.entradaPropria),
-    naoNegativo(entrada.fgts),
-    naoNegativo(entrada.subsidio),
+  const taxaMensal = taxaMensalDe(taxa, regimeTaxa);
+  passo(
+    'Taxa',
+    `${formatarPct(taxa)} a.a. ${regimeTaxa}`,
+    `→ ${(taxaMensal * 100).toFixed(6).replace('.', ',')}% a.m. · efetiva anual ${formatarPct(efetivaAnualDe(taxa, regimeTaxa))}`,
   );
-  const valorFinanciado = naoNegativo(subtrair(entrada.valorImovel, entradaTotal));
-  const quotaAplicadaPct =
-    entrada.valorImovel > 0 ? (valorFinanciado / entrada.valorImovel) * 100 : 0;
+
+  /* --------------------------------------------------- 6. o valor financiado */
+
+  const necessarioAposEntrada = naoNegativo(subtrair(valorBase, entradaTotal));
+  const restricoes = calcularRestricoes({
+    produto,
+    entrada,
+    valorBase,
+    entradaTotal,
+    quadro,
+    taxaMensal,
+    regras,
+  });
+  const valorFinanciado = restricoes.valor;
+  const quotaAplicadaPct = valorBase > 0 ? (valorFinanciado / valorBase) * 100 : 0;
+
+  passo(
+    'Valor financiado',
+    formatarBRL(valorFinanciado),
+    `MIN(${restricoes.detalhe})`,
+  );
 
   if (valorFinanciado <= 0) {
     avisos.push('A entrada já cobre o imóvel inteiro: não há financiamento a simular.');
   }
+  for (const n of restricoes.naoCalculados) naoCalculados.push(n);
 
-  /* ---------------------------------------------------------- indexador */
+  /* ---------------------------------------------------- 7. o indexador */
 
-  const indexador = acharIndexador(regras, produto.indexadorId);
-  const projecao = indexador && temValor(indexador.projecaoMensal) ? indexador.projecaoMensal.valor : null;
-  const correcaoAplicada = projecao !== null && projecao > 0;
-  if (indexador && indexador.id !== 'FIXA' && !correcaoAplicada) {
+  const idx = acharIndexador(regras, produto.indexadorId);
+  const correcao = resolverCorrecao({
+    indexador: idx,
+    cenarioMensalPct: entrada.cenarioIndexadorPct ?? null,
+  });
+  passo(
+    'Indexador',
+    idx?.nome ?? 'Prefixado',
+    correcao.explicacao,
+  );
+  if (correcao.origem === 'sem_correcao' && idx && idx.tipo !== 'nenhum') {
     naoCalculados.push({
-      o_que: `Correção monetária pelo ${indexador.nome}`,
-      motivo:
-        indexador.projecaoMensal.observacao ??
-        'A projeção do indexador não está cadastrada. A tabela abaixo é SEM correção monetária.',
+      o_que: `Correção monetária pelo ${idx.nome}`,
+      motivo: correcao.explicacao,
     });
+    avisos.push(correcao.explicacao);
+  }
+  if (correcao.origem === 'cenario') {
     avisos.push(
-      `A tabela não inclui correção pelo ${indexador.nome}: o saldo devedor de um contrato indexado sobe com o índice, e a projeção não está cadastrada.`,
+      'Este resultado é uma PROJEÇÃO: o índice usado é um cenário que você escolheu, não o índice observado.',
     );
   }
 
-  /* ------------------------------------------------------------- tabela */
+  /* ------------------------------------------------------ 8. a carência */
 
-  const tabela = gerarTabela({
-    principal: valorFinanciado,
-    taxaMensal,
+  const carenciaMeses = resolverCarencia(produto, entrada, avisos);
+
+  /* ------------------------------------------------------ 9. o cronograma */
+
+  const crono: Cronograma = gerarCronograma({
+    financiado: valorFinanciado,
     prazoMeses: entrada.prazoMeses,
     sistema: entrada.sistema,
+    taxaMensal,
+    correcaoMensal: correcao.taxaMensal,
+    carenciaMeses,
+    carenciaCapitalizaJuros: true,
+    valorAvaliacao: avaliacao,
+    proponentes: quadro.proponentes,
+    seguros: regras.seguros,
+    politica: regras.politicaArredondamento,
   });
 
-  /* ----------------------------------------------------------- encargos */
+  registrarAcessoriosPendentes(regras, naoCalculados);
+  if (crono.primeira?.parcial) {
+    avisos.push(
+      'A prestação mostrada é o encargo principal (amortização + juros). Os seguros e a tarifa não estão cadastrados e não foram somados — a prestação real será maior.',
+    );
+  }
 
-  const primeira = compor(tabela, 0, entrada.valorImovel, regras, naoCalculados);
-  const ultima = compor(tabela, tabela.linhas.length - 1, entrada.valorImovel, regras, naoCalculados);
-  const acessorios = totalAcessorios(tabela, entrada.valorImovel, regras);
+  passo(
+    '1ª prestação',
+    crono.primeira ? formatarBRL(crono.primeira.prestacaoTotal) : '—',
+    crono.primeira
+      ? `amortização ${formatarBRL(crono.primeira.amortizacao)} + juros ${formatarBRL(crono.primeira.juros)}${crono.primeira.mip !== null ? ` + MIP ${formatarBRL(crono.primeira.mip)}` : ''}${crono.primeira.dfi !== null ? ` + DFI ${formatarBRL(crono.primeira.dfi)}` : ''}${crono.primeira.tarifa !== null ? ` + tarifa ${formatarBRL(crono.primeira.tarifa)}` : ''}`
+      : '',
+  );
+  passo('Última prestação', crono.ultima ? formatarBRL(crono.ultima.prestacaoTotal) : '—');
+  passo('Total de juros', formatarBRL(crono.totalJuros));
+  passo(
+    'Total pago',
+    formatarBRL(crono.totalPago),
+    crono.totalPagoParcial ? 'parcial: faltam seguros e/ou tarifa' : 'inclui seguros e tarifa',
+  );
 
-  /* ------------------------------------------------------ renda e limites */
+  /* --------------------------------------------- 10. renda e capacidade */
 
   const comprometimentoMaxPct = resolverComprometimento(produto, entrada);
-  const quotaMaxPct = resolverQuota(produto, entrada);
-  const prazoMaxMeses = temValor(produto.prazoMaxMeses) ? produto.prazoMaxMeses.valor : null;
+  const primeiraTotal = crono.primeira?.prestacaoTotal ?? ZERO;
+  const comprometimentoMaximo =
+    comprometimentoMaxPct !== null
+      ? percentualDe(quadro.rendaFamiliarBruta, comprometimentoMaxPct)
+      : null;
   const comprometimentoRendaPct =
-    entrada.rendaFamiliarMensal > 0 ? (primeira.total / entrada.rendaFamiliarMensal) * 100 : null;
+    quadro.rendaFamiliarBruta > 0 ? (primeiraTotal / quadro.rendaFamiliarBruta) * 100 : null;
   const rendaMinimaEstimada =
     comprometimentoMaxPct !== null && comprometimentoMaxPct > 0
-      ? (Math.ceil((primeira.total * 100) / comprometimentoMaxPct) as Centavos)
+      ? (Math.ceil((primeiraTotal * 100) / comprometimentoMaxPct) as Centavos)
       : null;
 
   if (rendaMinimaEstimada === null) {
     naoCalculados.push({
       o_que: 'Renda mínima estimada',
-      motivo:
-        'Depende do comprometimento máximo de renda, que ainda não foi cadastrado nesta linha.',
+      motivo: 'Depende do comprometimento máximo de renda, que não está cadastrado nesta linha.',
     });
+  } else {
+    passo(
+      'Renda mínima estimada',
+      formatarBRL(rendaMinimaEstimada),
+      `1ª prestação ÷ ${formatarPct(comprometimentoMaxPct!, 0)}`,
+    );
   }
 
-  /* ------------------------------------------------------ enquadramento */
+  /* ------------------------------------------------ 11. o enquadramento */
 
   const elegibilidade = verificarElegibilidade({
     produto,
     regras,
     valorImovel: entrada.valorImovel,
+    valorAvaliacao: avaliacao,
+    valorBase,
     valorFinanciado,
+    necessarioAposEntrada,
+    entradaPropria: naoNegativo(entrada.entradaPropria),
     entradaTotal,
-    rendaFamiliarMensal: entrada.rendaFamiliarMensal,
-    primeiraPrestacao: primeira.total,
+    rendaFamiliarBruta: quadro.rendaFamiliarBruta,
+    primeiraPrestacao: primeiraTotal,
     prazoMeses: entrada.prazoMeses,
-    idadeAnos: entrada.idadeAnos,
-    usaFgts: entrada.fgts > 0,
+    idadeMaisAlta: quadro.idadeMaisAlta,
+    fgtsUsado,
+    fgtsDisponivel,
+    enquadramentoSfh: enquadramento,
     comprometimentoMaxPct,
-    quotaMaxPct,
-    prazoMaxMeses,
+    quotaMaxPct: restricoes.quotaMaxPct,
+    prazoMaxMeses: temValor(produto.prazoMaxMeses) ? produto.prazoMaxMeses.valor : null,
+    entradaMinimaPct: temValor(produto.entradaMinimaPct) ? produto.entradaMinimaPct.valor : null,
   });
 
-  if (primeira.parcial) {
-    avisos.push(
-      'A prestação mostrada é o encargo principal (amortização + juros). Seguros e tarifa ainda não estão cadastrados e não foram somados.',
-    );
-  }
+  /* ------------------------------------------------------- 12. o status */
+
+  const status = classificarStatus(produto, correcao, crono, naoCalculados);
 
   return {
     ok: true,
     resultado: {
       versaoRegras: regras.versao,
       vigenciaRegras: regras.vigenciaInicio,
-      confiabilidade: produto.parametrosManuais
-        ? 'informada'
-        : produto.taxaAnualPct.origem === 'oficial'
-          ? 'oficial'
-          : 'estimativa',
-
+      status,
       produto: { id: produto.id, nome: produto.nome, parametrosManuais: produto.parametrosManuais },
-      indexador: {
-        id: indexador?.id ?? 'FIXA',
-        nome: indexador?.nome ?? 'Taxa fixa',
-        correcaoAplicada,
-      },
+      enquadramentoSfh: enquadramento,
+
+      indexador: { id: idx?.id ?? 'NONE', nome: idx?.nome ?? 'Prefixado' },
+      correcao,
 
       valorImovel: entrada.valorImovel,
+      valorAvaliacao: avaliacao,
+      valorBase,
       entradaPropria: naoNegativo(entrada.entradaPropria),
-      fgts: naoNegativo(entrada.fgts),
+      fgtsUsado,
       subsidio: naoNegativo(entrada.subsidio),
       entradaTotal,
       valorFinanciado,
       quotaAplicadaPct,
+      restricaoQueMandou: restricoes.mandou,
 
       sistema: entrada.sistema,
       prazoMeses: entrada.prazoMeses,
+      carenciaMeses,
       taxaAnualPct: taxa,
-      taxaAnualEfetivaPct: taxaMensalParaAnualEfetiva(taxaMensal),
+      regimeTaxa,
+      taxaAnualEfetivaPct: efetivaAnualDe(taxa, regimeTaxa),
       taxaMensal,
 
-      primeira,
-      ultima,
-      totalJuros: tabela.totalJuros,
-      totalEncargoPrincipal: tabela.totalEncargoPrincipal,
-      totalPago: somar(tabela.totalEncargoPrincipal, acessorios.total),
-      totalPagoParcial: acessorios.parcial,
+      primeira: crono.primeira,
+      ultima: crono.ultima,
+      totalJuros: crono.totalJuros,
+      totalAmortizado: crono.totalAmortizado,
+      totalCorrecao: crono.totalCorrecao,
+      totalEncargoPrincipal: crono.totalEncargoPrincipal,
+      totalSeguros: crono.totalSeguros,
+      totalTarifas: crono.totalTarifas,
+      totalPago: crono.totalPago,
+      totalPagoParcial: crono.totalPagoParcial,
+
+      rendaFamiliarBruta: quadro.rendaFamiliarBruta,
+      comprometimentoMaximo,
       rendaMinimaEstimada,
       comprometimentoRendaPct,
 
-      tabela: tabela.linhas,
+      cet: null,
+
+      tabela: crono.parcelas,
       elegibilidade,
       naoCalculados,
       avisos,
+      trace,
       snapshot: regras,
     },
   };
@@ -348,46 +556,82 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
 /* ------------------------------------------------------------- auxiliares */
 
 /**
- * Qual taxa vale: a informada pelo corretor ou a cadastrada na linha.
+ * §12 — o valor financiado é o MENOR de várias restrições, não só da quota.
  *
- * A informada só é aceita em produto de parâmetros manuais. Deixar o corretor
- * sobrescrever a taxa de uma linha oficial transformaria "MCMV Faixa 2" numa
- * etiqueta sem significado — e o PDF sairia com o nome do programa e um número
- * que não é do programa.
+ * E o motor guarda **qual delas mandou**, porque é essa a informação que o
+ * corretor usa: travou na quota, ele negocia mais entrada; travou na renda, ele
+ * compõe renda; travou no teto do produto, ele muda de linha.
  */
-function resolverTaxa(
-  produto: ProdutoFinanciamento,
-  entrada: EntradaSimulacao,
-  naoCalculados: NaoCalculado[],
-): number | null {
+function calcularRestricoes(ctx: {
+  produto: ProdutoFinanciamento;
+  entrada: EntradaSimulacao;
+  valorBase: Centavos;
+  entradaTotal: Centavos;
+  quadro: QuadroDeProponentes;
+  taxaMensal: number;
+  regras: VersaoRegras;
+}): {
+  valor: Centavos;
+  mandou: string;
+  detalhe: string;
+  quotaMaxPct: number | null;
+  naoCalculados: NaoCalculado[];
+} {
+  const { produto, entrada, valorBase, entradaTotal } = ctx;
+  const naoCalculados: NaoCalculado[] = [];
+
+  const candidatos: { nome: string; valor: Centavos }[] = [];
+
+  // a) o que sobra depois da entrada
+  const porEntrada = naoNegativo(subtrair(valorBase, entradaTotal));
+  candidatos.push({ nome: `necessário após a entrada ${formatarBRL(porEntrada)}`, valor: porEntrada });
+
+  // b) a quota do produto
+  const quotaMaxPct = produto.parametrosManuais
+    ? (typeof entrada.quotaMaxPctInformada === 'number' && entrada.quotaMaxPctInformada > 0
+        ? entrada.quotaMaxPctInformada
+        : null)
+    : temValor(produto.quotaMaxPct)
+      ? produto.quotaMaxPct.valor
+      : null;
+
+  if (quotaMaxPct !== null) {
+    const porQuota = percentualDe(valorBase, quotaMaxPct);
+    candidatos.push({ nome: `quota ${formatarPct(quotaMaxPct, 0)} = ${formatarBRL(porQuota)}`, valor: porQuota });
+  } else {
+    naoCalculados.push({
+      o_que: 'Percentual máximo financiável (quota)',
+      motivo: produto.quotaMaxPct.observacao ?? 'A quota desta linha não está cadastrada.',
+    });
+  }
+
+  // c) o teto de valor do imóvel do produto — vira teto de financiamento
+  if (!produto.parametrosManuais && temValor(produto.valorImovelMax) && produto.valorImovelMax.valor > 0) {
+    const teto = reaisParaCentavos(produto.valorImovelMax.valor);
+    const porTeto = naoNegativo(subtrair(menor(valorBase, teto), entradaTotal));
+    candidatos.push({
+      nome: `teto do produto ${formatarBRL(teto)} = ${formatarBRL(porTeto)}`,
+      valor: porTeto,
+    });
+  }
+
+  const vencedor = candidatos.reduce((a, b) => (b.valor < a.valor ? b : a));
+  return {
+    valor: maior(vencedor.valor, ZERO),
+    mandou: vencedor.nome,
+    detalhe: candidatos.map((c) => c.nome).join(' | '),
+    quotaMaxPct,
+    naoCalculados,
+  };
+}
+
+function resolverTaxa(produto: ProdutoFinanciamento, entrada: EntradaSimulacao): number | null {
   if (produto.parametrosManuais) {
     const informada = entrada.taxaAnualPctInformada;
-    if (informada === null || informada === undefined || !Number.isFinite(informada)) {
-      naoCalculados.push({
-        o_que: 'Taxa de juros',
-        motivo: 'Informe a taxa ao ano que o correspondente bancário aprovou para este cliente.',
-      });
-      return null;
-    }
+    if (informada === null || informada === undefined || !Number.isFinite(informada)) return null;
     return Math.max(0, informada);
   }
   return temValor(produto.taxaAnualPct) ? produto.taxaAnualPct.valor : null;
-}
-
-/**
- * A quota que vale: a informada ou a cadastrada.
- *
- * Mesma regra da taxa — só produto de parâmetros manuais aceita a informada.
- * Sem esta resolução, "Condições informadas" caía nos 100% do cadastro e
- * aprovava financiamento sem entrada nenhuma, ignorando os 80% que o corretor
- * tinha digitado.
- */
-function resolverQuota(produto: ProdutoFinanciamento, entrada: EntradaSimulacao): number | null {
-  if (produto.parametrosManuais) {
-    const informada = entrada.quotaMaxPctInformada;
-    if (typeof informada === 'number' && informada > 0) return informada;
-  }
-  return temValor(produto.quotaMaxPct) ? produto.quotaMaxPct.valor : null;
 }
 
 function resolverComprometimento(
@@ -404,117 +648,92 @@ function resolverComprometimento(
 }
 
 /**
- * A composição de UMA prestação: encargo principal + acessórios.
+ * §37 — carência só onde o produto a permite.
  *
- * MIP incide sobre o saldo devedor daquele mês (por isso cai ao longo do
- * contrato); DFI incide sobre o valor do imóvel (por isso é constante); a
- * tarifa é fixa. Encargo sem parâmetro cadastrado vira `null` — nunca zero,
- * porque zero é uma afirmação ("não custa nada") e `null` é a verdade ("não
- * sei quanto custa").
+ * Não sabendo se o produto permite (parâmetro pendente), o motor **aceita** a
+ * carência pedida e avisa que ela depende de confirmação. Recusar seria
+ * transformar uma lacuna do nosso cadastro numa negativa ao corretor.
  */
-function compor(
-  tabela: TabelaAmortizacao,
-  indice: number,
-  valorImovel: Centavos,
-  regras: VersaoRegras,
-  naoCalculados: NaoCalculado[],
-): ComposicaoPrestacao {
-  const linha = tabela.linhas[indice];
-  if (!linha) {
-    return {
-      numero: 0,
-      amortizacao: ZERO,
-      juros: ZERO,
-      encargoPrincipal: ZERO,
-      mip: null,
-      dfi: null,
-      tarifa: null,
-      total: ZERO,
-      parcial: true,
-    };
+function resolverCarencia(
+  produto: ProdutoFinanciamento,
+  entrada: EntradaSimulacao,
+  avisos: string[],
+): number {
+  const pedida = Math.max(0, Math.floor(entrada.carenciaMeses || 0));
+  if (pedida === 0) return 0;
+
+  const permite = temValor(produto.permiteCarencia) ? produto.permiteCarencia.valor : null;
+  if (permite === false) {
+    avisos.push('Esta linha não permite carência: a simulação foi feita sem ela.');
+    return 0;
   }
+  if (permite === null) {
+    avisos.push(
+      'A carência foi aplicada, mas a possibilidade de carência nesta linha ainda não foi confirmada nas regras. Confirme com o correspondente.',
+    );
+  }
+  const teto = temValor(produto.carenciaMaxMeses) ? produto.carenciaMaxMeses.valor : null;
+  if (teto !== null && pedida > teto) {
+    avisos.push(`A carência foi limitada ao máximo desta linha (${teto} meses).`);
+    return teto;
+  }
+  avisos.push(
+    'Durante a carência não há amortização: os juros e a correção são incorporados ao saldo devedor, que por isso SOBE nesse período.',
+  );
+  return pedida;
+}
 
-  const e = regras.encargos;
-
-  const mip = temValor(e.mipPctMensalSobreSaldo)
-    ? percentualDe(linha.saldoInicial, e.mipPctMensalSobreSaldo.valor)
-    : null;
-  const dfi = temValor(e.dfiPctMensalSobreImovel)
-    ? percentualDe(valorImovel, e.dfiPctMensalSobreImovel.valor)
-    : null;
-  const tarifa = temValor(e.tarifaAdminMensal) ? reaisParaCentavos(e.tarifaAdminMensal.valor) : null;
-
-  // Registra o que faltou — uma vez só, e não uma vez por parcela.
-  const registrar = (o_que: string, param: { observacao: string | null }) => {
+function registrarAcessoriosPendentes(regras: VersaoRegras, naoCalculados: NaoCalculado[]): void {
+  const s = regras.seguros;
+  const add = (o_que: string, obs: string | null) => {
     if (naoCalculados.some((n) => n.o_que === o_que)) return;
-    naoCalculados.push({ o_que, motivo: param.observacao ?? 'Parâmetro não cadastrado.' });
+    naoCalculados.push({ o_que, motivo: obs ?? 'Parâmetro não cadastrado.' });
   };
-  if (mip === null) registrar('MIP (seguro de morte e invalidez)', e.mipPctMensalSobreSaldo);
-  if (dfi === null) registrar('DFI (seguro de danos ao imóvel)', e.dfiPctMensalSobreImovel);
-  if (tarifa === null) registrar('Tarifa de administração', e.tarifaAdminMensal);
-
-  const total = somar(linha.encargoPrincipal, mip ?? ZERO, dfi ?? ZERO, tarifa ?? ZERO);
-
-  return {
-    numero: linha.numero,
-    amortizacao: linha.amortizacao,
-    juros: linha.juros,
-    encargoPrincipal: linha.encargoPrincipal,
-    mip,
-    dfi,
-    tarifa,
-    total,
-    parcial: mip === null || dfi === null || tarifa === null,
-  };
+  if (!temValor(s.mipPorIdade)) add('MIP (morte e invalidez)', s.mipPorIdade.observacao);
+  if (!temValor(s.dfiPctMensalSobreAvaliacao)) {
+    add('DFI (danos ao imóvel)', s.dfiPctMensalSobreAvaliacao.observacao);
+  }
+  if (!temValor(s.tarifaAdminMensal)) {
+    add('Tarifa de administração', s.tarifaAdminMensal.observacao);
+  }
 }
 
 /**
- * O texto obrigatório do rodapé.
+ * §95 e §120 — a etiqueta do resultado.
  *
- * Fica no motor, e não na tela, porque toda saída — dashboard, PDF, link
- * compartilhado, resposta da LIA — precisa carregá-lo. Deixar isso a cargo de
- * cada tela é garantir que uma delas esqueça, e é justamente a que vai parar
- * na mão do cliente.
+ * A ordem de precedência é do mais frágil para o mais forte: uma PROJEÇÃO
+ * continua sendo projeção mesmo que todos os outros parâmetros sejam oficiais,
+ * porque o índice hipotético contamina todos os números derivados dele.
+ */
+function classificarStatus(
+  produto: ProdutoFinanciamento,
+  correcao: CorrecaoAplicada,
+  crono: Cronograma,
+  naoCalculados: NaoCalculado[],
+): StatusCalculo {
+  // Projeção contamina tudo que vem depois dela: o índice hipotético entra no
+  // saldo, e o saldo entra em todos os outros números.
+  if (correcao.origem === 'cenario') return 'PROJECAO';
+  // Faltando parâmetro, o resultado pede validação MESMO com condição
+  // informada pelo corretor — a taxa pode ser a real e a prestação continuar
+  // incompleta por falta do seguro.
+  if (naoCalculados.length > 0 || crono.totalPagoParcial) return 'REQUER_VALIDACAO';
+  if (produto.parametrosManuais) return 'INFORMADO';
+  if (produto.taxaAnualPct.origem === 'oficial') return 'OFICIAL';
+  return 'ESTIMADO';
+}
+
+/**
+ * O texto obrigatório do rodapé — §96 e §123.
+ *
+ * Vive no motor, e não nas telas, porque TODA saída precisa carregá-lo:
+ * dashboard, PDF, link compartilhado, resposta da LIA. Deixar isso a cargo de
+ * cada tela é garantir que uma esqueça — e é justamente a que vai parar na mão
+ * do cliente.
  */
 export const AVISO_LEGAL =
-  'Simulação estimada, gerada pelo POUP a partir dos dados informados. Não é proposta de crédito nem garantia de aprovação. As condições finais — taxa, prazo, seguros, tarifas e enquadramento — dependem de análise da instituição financeira.';
+  'Simulação estimada, gerada pelo POUP a partir dos dados informados. Não é proposta de crédito nem garantia de aprovação. As condições finais — taxa, prazo, seguros, tarifas e enquadramento — dependem de análise de crédito e de avaliação do imóvel pela instituição financeira.';
 
-/** Resumo de uma linha, para lista e para o comparador. */
 export function resumoDaSimulacao(r: ResultadoSimulacao): string {
-  return `${formatarBRL(r.valorFinanciado)} em ${r.prazoMeses}x · ${r.sistema} · 1ª de ${formatarBRL(r.primeira.total)}`;
-}
-
-/**
- * Soma dos encargos acessórios ao longo do contrato inteiro.
- *
- * `null` quando falta parâmetro — e aí o "total pago" também sai parcial, com
- * o resultado dizendo isso. O MIP acompanha o saldo devedor, então é somado
- * linha a linha; o DFI e a tarifa são constantes e saem por multiplicação.
- */
-function totalAcessorios(
-  tabela: TabelaAmortizacao,
-  valorImovel: Centavos,
-  regras: VersaoRegras,
-): { total: Centavos; parcial: boolean } {
-  const e = regras.encargos;
-  let total = ZERO;
-  let parcial = false;
-
-  if (temValor(e.mipPctMensalSobreSaldo)) {
-    for (const l of tabela.linhas) {
-      total = somar(total, percentualDe(l.saldoInicial, e.mipPctMensalSobreSaldo.valor));
-    }
-  } else parcial = true;
-
-  if (temValor(e.dfiPctMensalSobreImovel)) {
-    const mensal = percentualDe(valorImovel, e.dfiPctMensalSobreImovel.valor);
-    total = somar(total, centavos(mensal * tabela.linhas.length));
-  } else parcial = true;
-
-  if (temValor(e.tarifaAdminMensal)) {
-    const mensal = reaisParaCentavos(e.tarifaAdminMensal.valor);
-    total = somar(total, centavos(mensal * tabela.linhas.length));
-  } else parcial = true;
-
-  return { total, parcial };
+  return `${formatarBRL(r.valorFinanciado)} em ${formatarPrazo(r.prazoMeses)} · ${r.sistema} · 1ª de ${formatarBRL(r.primeira?.prestacaoTotal ?? ZERO)}`;
 }

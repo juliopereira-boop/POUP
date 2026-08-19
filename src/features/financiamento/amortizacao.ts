@@ -1,5 +1,5 @@
 /**
- * SAC E PRICE — a matemática que sustenta tudo.
+ * SAC E PRICE — as fórmulas fechadas.
  *
  * ===========================================================================
  * O QUE ESTE ARQUIVO É, E O QUE ELE NÃO É
@@ -48,15 +48,7 @@
  * (`scripts/testar-financiamento.mjs`): saldo final exatamente zero, e soma das
  * amortizações exatamente igual ao principal.
  */
-import {
-  ZERO,
-  aplicarTaxa,
-  centavos,
-  ratear,
-  somar,
-  subtrair,
-  type Centavos,
-} from './dinheiro';
+import { ZERO, aplicarTaxa, centavos, somar, type Centavos } from './dinheiro';
 
 export type SistemaAmortizacao = 'SAC' | 'PRICE';
 
@@ -65,189 +57,21 @@ export const SISTEMA_ROTULO: Record<SistemaAmortizacao, string> = {
   PRICE: 'PRICE (parcela fixa)',
 };
 
-export interface LinhaAmortizacao {
-  /** 1 a N. */
-  numero: number;
-  saldoInicial: Centavos;
-  juros: Centavos;
-  amortizacao: Centavos;
-  /**
-   * Amortização + juros. É o ENCARGO PRINCIPAL, e não a prestação final.
-   *
-   * MIP, DFI e tarifa de administração entram por cima disso, em
-   * `encargos.ts` — de propósito. Misturar seguro na tabela de amortização
-   * esconderia o que é dívida e o que é acessório, e é justamente a distinção
-   * que o cliente pergunta quando compara propostas.
-   */
-  encargoPrincipal: Centavos;
-  saldoFinal: Centavos;
-}
-
-export interface TabelaAmortizacao {
-  sistema: SistemaAmortizacao;
-  principal: Centavos;
-  taxaMensal: number;
-  prazoMeses: number;
-  linhas: LinhaAmortizacao[];
-  totalJuros: Centavos;
-  totalAmortizado: Centavos;
-  /** Soma dos encargos principais. Sem seguros e sem tarifa. */
-  totalEncargoPrincipal: Centavos;
-  primeiroEncargoPrincipal: Centavos;
-  ultimoEncargoPrincipal: Centavos;
-}
-
-export interface EntradaTabela {
-  principal: Centavos;
-  /** Fração ao mês. 0,0074 = 0,74% a.m. Zero é aceito. */
-  taxaMensal: number;
-  prazoMeses: number;
-  sistema: SistemaAmortizacao;
-}
-
 /**
- * A prestação da PRICE: `P · i / (1 − (1+i)^−n)`.
+ * A prestação da PRICE: `P · i / (1 − (1+i)^−n)` — §22.
  *
  * Com taxa zero a fórmula divide por zero, então o caso é tratado à parte — e
- * ele acontece de verdade: há linha habitacional com juros subsidiados a zero
- * para a faixa mais baixa.
+ * ele acontece de verdade: há linha habitacional com juros subsidiados a zero.
  */
-export function prestacaoPrice(principal: Centavos, taxaMensal: number, prazoMeses: number): Centavos {
+export function prestacaoPrice(
+  principal: Centavos,
+  taxaMensal: number,
+  prazoMeses: number,
+): Centavos {
   if (prazoMeses <= 0) return ZERO;
   if (taxaMensal <= 0) return centavos(principal / prazoMeses);
   const fator = taxaMensal / (1 - Math.pow(1 + taxaMensal, -prazoMeses));
   return centavos(principal * fator);
-}
-
-export function gerarTabela(entrada: EntradaTabela): TabelaAmortizacao {
-  const { principal, taxaMensal, prazoMeses, sistema } = entrada;
-
-  const vazia: TabelaAmortizacao = {
-    sistema,
-    principal,
-    taxaMensal,
-    prazoMeses,
-    linhas: [],
-    totalJuros: ZERO,
-    totalAmortizado: ZERO,
-    totalEncargoPrincipal: ZERO,
-    primeiroEncargoPrincipal: ZERO,
-    ultimoEncargoPrincipal: ZERO,
-  };
-  if (principal <= 0 || prazoMeses <= 0) return vazia;
-
-  const linhas: LinhaAmortizacao[] =
-    sistema === 'SAC'
-      ? linhasSac(principal, taxaMensal, prazoMeses)
-      : linhasPrice(principal, taxaMensal, prazoMeses);
-
-  let totalJuros = ZERO;
-  let totalAmortizado = ZERO;
-  let totalEncargoPrincipal = ZERO;
-  for (const l of linhas) {
-    totalJuros = somar(totalJuros, l.juros);
-    totalAmortizado = somar(totalAmortizado, l.amortizacao);
-    totalEncargoPrincipal = somar(totalEncargoPrincipal, l.encargoPrincipal);
-  }
-
-  return {
-    sistema,
-    principal,
-    taxaMensal,
-    prazoMeses,
-    linhas,
-    totalJuros,
-    totalAmortizado,
-    totalEncargoPrincipal,
-    primeiroEncargoPrincipal: linhas[0]?.encargoPrincipal ?? ZERO,
-    ultimoEncargoPrincipal: linhas[linhas.length - 1]?.encargoPrincipal ?? ZERO,
-  };
-}
-
-/**
- * SAC: amortização constante, prestação decrescente.
- *
- * As amortizações saem de `ratear`, então somam o principal ao centavo. Os
- * juros de cada mês são calculados sobre o saldo do início daquele mês e
- * arredondados ali mesmo — não se carrega fração de centavo adiante, porque o
- * boleto também não carrega.
- */
-function linhasSac(principal: Centavos, taxaMensal: number, prazoMeses: number): LinhaAmortizacao[] {
-  const amortizacoes = ratear(principal, prazoMeses);
-  const linhas: LinhaAmortizacao[] = [];
-  let saldo = principal;
-
-  for (let i = 0; i < prazoMeses; i++) {
-    const saldoInicial = saldo;
-    const juros = aplicarTaxa(saldoInicial, taxaMensal);
-    const amortizacao = amortizacoes[i]!;
-    saldo = subtrair(saldoInicial, amortizacao);
-    linhas.push({
-      numero: i + 1,
-      saldoInicial,
-      juros,
-      amortizacao,
-      encargoPrincipal: somar(amortizacao, juros),
-      saldoFinal: saldo,
-    });
-  }
-  return linhas;
-}
-
-/**
- * PRICE: prestação constante, composição variável.
- *
- * A prestação é calculada uma vez e arredondada. A partir daí a tabela é
- * construída mês a mês — juros sobre o saldo, amortização é o que sobra da
- * prestação. Como a prestação foi arredondada, ao fim do prazo o saldo não cai
- * exatamente em zero; a diferença (uns poucos centavos, às vezes alguns reais
- * em prazos muito longos) é liquidada na ÚLTIMA parcela, que amortiza o saldo
- * remanescente inteiro.
- *
- * Não é gambiarra: é como o contrato funciona. A última prestação de um
- * financiamento PRICE real difere das anteriores exatamente por isso.
- *
- * Há ainda uma trava de segurança: se a prestação não cobrir nem os juros do
- * mês (taxa altíssima com prazo curtíssimo — combinação que não deveria passar
- * pelas regras, mas que não pode gerar tabela infinita), a amortização é
- * forçada a no mínimo zero e a última parcela absorve o saldo. Assim a função
- * sempre termina, e termina fechando.
- */
-function linhasPrice(
-  principal: Centavos,
-  taxaMensal: number,
-  prazoMeses: number,
-): LinhaAmortizacao[] {
-  const prestacao = prestacaoPrice(principal, taxaMensal, prazoMeses);
-  const linhas: LinhaAmortizacao[] = [];
-  let saldo = principal;
-
-  for (let i = 0; i < prazoMeses; i++) {
-    const saldoInicial = saldo;
-    const juros = aplicarTaxa(saldoInicial, taxaMensal);
-    const ultima = i === prazoMeses - 1;
-
-    let amortizacao: Centavos;
-    if (ultima) {
-      amortizacao = saldoInicial;
-    } else {
-      const bruta = subtrair(prestacao, juros);
-      // Nunca amortizar negativo (viraria saldo crescente e prazo infinito) nem
-      // mais do que o saldo (viraria saldo negativo na penúltima linha).
-      amortizacao = (bruta < 0 ? 0 : bruta > saldoInicial ? saldoInicial : bruta) as Centavos;
-    }
-
-    saldo = subtrair(saldoInicial, amortizacao);
-    linhas.push({
-      numero: i + 1,
-      saldoInicial,
-      juros,
-      amortizacao,
-      encargoPrincipal: somar(amortizacao, juros),
-      saldoFinal: saldo,
-    });
-  }
-  return linhas;
 }
 
 /**
@@ -297,13 +121,18 @@ export function principalParaPrestacao(
 }
 
 /**
- * A primeira prestação (encargo principal) sem montar a tabela inteira.
+ * O ENCARGO PRINCIPAL da primeira parcela — sem seguros, sem tarifa.
  *
- * Existe para o comparador e para as buscas do cálculo reverso, que precisam
- * avaliar dezenas de cenários: gerar 420 linhas para ler só a primeira seria
- * desperdício que o corretor sente como travamento no celular.
+ * É a fórmula fechada, para quem precisa de um número rápido sem montar o
+ * cronograma. A prestação COMPLETA, com MIP, DFI e tarifa, sai de
+ * `primeiraPrestacaoTotal` em `cronograma.ts` — e é ela que vale para
+ * comprometimento de renda e para o cálculo reverso.
+ *
+ * Manter as duas separadas é o §23 e o §32 na prática: encargo principal e
+ * prestação total são coisas diferentes, e confundi-las subestima a parcela
+ * exatamente no número que decide a venda.
  */
-export function primeiraPrestacao(
+export function encargoPrincipalDaPrimeira(
   principal: Centavos,
   taxaMensal: number,
   prazoMeses: number,

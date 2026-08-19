@@ -39,7 +39,7 @@ import {
   formatarPrazo,
 } from '@/features/financiamento/dinheiro';
 import { SISTEMA_ROTULO } from '@/features/financiamento/amortizacao';
-import { AVISO_LEGAL } from '@/features/financiamento/motor';
+import { AVISO_LEGAL, STATUS_ROTULO } from '@/features/financiamento/motor';
 import { compararCenarios, montarCenarios, variacoesPadrao, vencedores } from '@/features/financiamento/cenarios';
 import { paraEntrada } from '@/features/financiamento/formulario';
 import { gerarRelatorio, resumoParaWhatsapp } from '@/features/financiamento/relatorio';
@@ -62,6 +62,7 @@ export default function ResultadoFinanciamento() {
   const { form, resultado, erro, regras, empresas, empreendimentos, salvar } = useFinanciamento();
 
   const [mostrarTabela, setMostrarTabela] = useState(false);
+  const [mostrarTrace, setMostrarTrace] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -92,10 +93,15 @@ export default function ResultadoFinanciamento() {
   }
 
   const r = resultado;
+  // O cronograma só é vazio quando o financiamento é zero — e aí não há
+  // resultado a mostrar. Guardar as duas pontas aqui evita a checagem de nulo
+  // repetida vinte vezes no JSX.
+  const pri = r.primeira;
+  const ult = r.ultima;
   const contexto = {
     resultado: r,
     perfil: profile,
-    clienteNome: form.clientName.trim() || null,
+    clienteNome: form.proponentes[0]?.nome.trim() || null,
     empresaNome,
     empreendimentoNome,
     bloco: form.block || null,
@@ -131,7 +137,7 @@ export default function ResultadoFinanciamento() {
     const prefill = pontePoupanca(
       {
         leadId: form.leadId,
-        clientName: form.clientName.trim() || null,
+        clientName: form.proponentes[0]?.nome.trim() || null,
         companyId: form.companyId,
         developmentId: form.developmentId,
         block: form.block || null,
@@ -207,17 +213,28 @@ export default function ResultadoFinanciamento() {
       {/* -------------------------------------------------- a parcela */}
       <View style={styles.herói}>
         <Text style={styles.heroiRotulo}>Primeira parcela estimada</Text>
-        <Text style={styles.heroiValor}>{formatarBRL(r.primeira.total)}</Text>
+        <Text style={styles.heroiValor}>{formatarBRL(pri?.prestacaoTotal ?? (0 as never))}</Text>
         <Text style={styles.heroiSub}>
           {SISTEMA_ROTULO[r.sistema]} · {formatarPrazo(r.prazoMeses)} ·{' '}
           {formatarPct(r.taxaAnualPct)} a.a.
         </Text>
-        {r.primeira.parcial ? (
+        {pri?.parcial ? (
           <Text style={styles.heroiParcial}>
             Sem seguros e tarifa — os parâmetros não estão cadastrados. A parcela real será um pouco
             maior.
           </Text>
         ) : null}
+      </View>
+
+      {/* ------------------------------------------- procedência do número */}
+      <View style={styles.procedencia}>
+        <Text style={styles.procedenciaTitulo}>{STATUS_ROTULO[r.status]}</Text>
+        <Text style={styles.procedenciaTexto}>{r.correcao.explicacao}</Text>
+        <Text style={styles.procedenciaTexto}>
+          Taxa {formatarPct(r.taxaAnualPct)} ao ano {r.regimeTaxa} ={' '}
+          {formatarPct(r.taxaAnualEfetivaPct)} efetivos · {r.enquadramentoSfh} ·{' '}
+          {r.restricaoQueMandou}
+        </Text>
       </View>
 
       {/* ------------------------------------------------- o negócio */}
@@ -226,7 +243,7 @@ export default function ResultadoFinanciamento() {
         <Bloco rotulo="💰 Entrada total" valor={formatarBRL(r.entradaTotal)} />
         <Bloco rotulo="🏦 Financiamento" valor={formatarBRL(r.valorFinanciado)} />
         <Bloco rotulo="📅 Prazo" valor={`${r.prazoMeses} meses`} />
-        <Bloco rotulo="📉 Última parcela" valor={formatarBRL(r.ultima.total)} />
+        <Bloco rotulo="📉 Última parcela" valor={formatarBRL(ult?.prestacaoTotal ?? (0 as never))} />
         <Bloco
           rotulo="💵 Renda mínima"
           valor={r.rendaMinimaEstimada ? formatarBRL(r.rendaMinimaEstimada) : 'não calculada'}
@@ -235,6 +252,14 @@ export default function ResultadoFinanciamento() {
         <Bloco
           rotulo="🧾 Total pago"
           valor={`${formatarBRL(r.totalPago)}${r.totalPagoParcial ? ' *' : ''}`}
+        />
+        <Bloco
+          rotulo="🛡️ Seguros no contrato"
+          valor={r.totalSeguros !== null ? formatarBRL(r.totalSeguros) : 'não calculado'}
+        />
+        <Bloco
+          rotulo="📈 Correção do saldo"
+          valor={r.totalCorrecao > 0 ? formatarBRL(r.totalCorrecao) : 'sem correção'}
         />
       </View>
 
@@ -272,21 +297,21 @@ export default function ResultadoFinanciamento() {
         data={[
           {
             label: 'Amortização',
-            value: centavosParaReais(r.primeira.amortizacao),
+            value: centavosParaReais(pri?.amortizacao ?? (0 as never)),
             color: colors.primary,
           },
-          { label: 'Juros', value: centavosParaReais(r.primeira.juros), color: colors.warning },
-          ...(r.primeira.mip !== null
-            ? [{ label: 'MIP', value: centavosParaReais(r.primeira.mip), color: colors.success }]
+          { label: 'Juros', value: centavosParaReais(pri?.juros ?? (0 as never)), color: colors.warning },
+          ...(pri?.mip != null
+            ? [{ label: 'MIP', value: centavosParaReais(pri.mip), color: colors.success }]
             : []),
-          ...(r.primeira.dfi !== null
-            ? [{ label: 'DFI', value: centavosParaReais(r.primeira.dfi), color: colors.inkMuted }]
+          ...(pri?.dfi != null
+            ? [{ label: 'DFI', value: centavosParaReais(pri.dfi), color: colors.inkMuted }]
             : []),
-          ...(r.primeira.tarifa !== null
+          ...(pri?.tarifa != null
             ? [
                 {
                   label: 'Tarifa',
-                  value: centavosParaReais(r.primeira.tarifa),
+                  value: centavosParaReais(pri.tarifa),
                   color: colors.borderStrong,
                 },
               ]
@@ -375,19 +400,24 @@ export default function ResultadoFinanciamento() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View>
             <View style={styles.tabLinha}>
-              {['#', 'Saldo', 'Juros', 'Amortiz.', 'Prestação'].map((h) => (
+              {['#', 'Saldo', 'Correção', 'Juros', 'Amortiz.', 'Encargo', 'Prestação'].map((h) => (
                 <Text key={h} style={[styles.tabCelula, styles.tabCabeca]}>
                   {h}
                 </Text>
               ))}
             </View>
             {amostrarTabela(r.tabela).map((l) => (
-              <View key={l.numero} style={styles.tabLinha}>
-                <Text style={styles.tabCelula}>{l.numero}</Text>
+              <View key={l.numero} style={[styles.tabLinha, l.carencia && styles.tabCarencia]}>
+                <Text style={styles.tabCelula}>
+                  {l.numero}
+                  {l.carencia ? '*' : ''}
+                </Text>
                 <Text style={styles.tabCelula}>{formatarBRL(l.saldoInicial)}</Text>
+                <Text style={styles.tabCelula}>{formatarBRL(l.correcaoIndexador)}</Text>
                 <Text style={styles.tabCelula}>{formatarBRL(l.juros)}</Text>
                 <Text style={styles.tabCelula}>{formatarBRL(l.amortizacao)}</Text>
                 <Text style={styles.tabCelula}>{formatarBRL(l.encargoPrincipal)}</Text>
+                <Text style={styles.tabCelula}>{formatarBRL(l.prestacaoTotal)}</Text>
               </View>
             ))}
           </View>
@@ -403,6 +433,29 @@ export default function ResultadoFinanciamento() {
               <Text style={styles.forte}>{n.o_que}</Text> — {n.motivo}
             </Text>
           ))}
+        </View>
+      ) : null}
+
+      {/* ------------------------------------------------- §69: o trace */}
+      <Pressable onPress={() => setMostrarTrace((v) => !v)} style={styles.expandir}>
+        <Text style={styles.expandirTexto}>
+          {mostrarTrace ? 'Esconder' : 'Ver'} como o sistema chegou a estes valores
+        </Text>
+      </Pressable>
+      {mostrarTrace ? (
+        <View style={styles.trace}>
+          {r.trace.map((t, i) => (
+            <View key={`${t.etapa}-${i}`} style={styles.tracePasso}>
+              <Text style={styles.traceEtapa}>{t.etapa}</Text>
+              <Text style={styles.traceValor}>{t.valor}</Text>
+              {t.detalhe ? <Text style={styles.traceDetalhe}>{t.detalhe}</Text> : null}
+            </View>
+          ))}
+          <Text style={styles.traceDetalhe}>
+            Custo Efetivo Total (CET): não calculado — depende de todos os componentes contratuais
+            (tarifas de contratação, avaliação, registro e apólices efetivas). Um CET incompleto
+            seria pior que nenhum, porque é com ele que o cliente compara bancos.
+          </Text>
         </View>
       ) : null}
 
@@ -581,6 +634,27 @@ const makeStyles = (colors: AppColors) =>
     forte: { fontWeight: '700' },
 
     notaPequena: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.sm, lineHeight: 18 },
+    procedencia: {
+      marginTop: spacing.md,
+      marginBottom: spacing.lg,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+      gap: 3,
+    },
+    procedenciaTitulo: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    procedenciaTexto: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
+    tabCarencia: { backgroundColor: colors.warningSoft },
+    trace: {
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+    },
+    tracePasso: { gap: 1 },
+    traceEtapa: { ...typography.caption, color: colors.inkMuted, fontSize: 11.5 },
+    traceValor: { ...typography.label, color: colors.ink, fontWeight: '700' },
+    traceDetalhe: { ...typography.caption, color: colors.inkSubtle, lineHeight: 17, fontSize: 11.5 },
     avisoTela: {
       ...typography.caption,
       color: colors.ink,

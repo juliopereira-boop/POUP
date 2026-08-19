@@ -32,7 +32,13 @@ import { Select } from '@/components/Select';
 import { formatCurrencyBRL } from '@/lib/masks';
 import { useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { formatarBRL, formatarPct, reaisParaCentavos } from '@/features/financiamento/dinheiro';
-import { PRAZOS_COMUNS, decimal, dinheiro, inteiro } from '@/features/financiamento/formulario';
+import {
+  PRAZOS_COMUNS,
+  decimal,
+  dinheiro,
+  inteiro,
+  paraProponentes,
+} from '@/features/financiamento/formulario';
 import { LIMITANTE_TEXTO, poderDeCompra, unidadesCompativeis } from '@/features/financiamento/reverso';
 import { acharProduto } from '@/features/financiamento/regras';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -41,27 +47,37 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 export default function PoderDeCompra() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { form, set, aplicar, regras, empreendimentos } = useFinanciamento();
+  const {
+    form,
+    set,
+    aplicar,
+    regras,
+    empreendimentos,
+    atualizarProponente,
+    rendaFamiliarBruta,
+  } = useFinanciamento();
   const [erroLocal] = useState<string | null>(null);
 
   const produto = acharProduto(regras, form.produtoId) ?? regras.produtos[0]!;
 
   const resultado = useMemo(() => {
-    if (dinheiro(form.rendaFamiliar) <= 0) return null;
+    if (rendaFamiliarBruta <= 0) return null;
     return poderDeCompra({
-      rendaFamiliarMensal: dinheiro(form.rendaFamiliar),
+      proponentes: paraProponentes(form.proponentes),
       entradaPropria: dinheiro(form.entradaPropria),
-      fgts: dinheiro(form.fgts),
+      fgtsUsado: dinheiro(form.fgtsUsado.trim() ? form.fgtsUsado : form.fgtsDisponivel),
       subsidio: dinheiro(form.subsidio),
       produto,
       regras,
       prazoMeses: inteiro(form.prazoMeses) ?? 360,
       sistema: form.sistema,
+      cenarioIndexadorPct: decimal(form.cenarioIndexador),
       taxaAnualPctInformada: decimal(form.taxaAnual),
+      regimeTaxaInformado: form.regimeTaxa,
       quotaMaxPctInformada: decimal(form.quotaMax),
       comprometimentoMaxPctInformado: decimal(form.comprometimento),
     });
-  }, [form, produto, regras]);
+  }, [form, produto, regras, rendaFamiliarBruta]);
 
   /**
    * As unidades do corretor que cabem.
@@ -91,13 +107,28 @@ export default function PoderDeCompra() {
         o que travou nele.
       </Text>
 
+      {/*
+        A renda é editada aqui pelo PRIMEIRO proponente, e não num campo à
+        parte: composição de renda é a mesma coisa nas duas telas, e ter dois
+        lugares guardando "renda" faria os dois divergirem. Para compor com
+        outra pessoa, o corretor usa a tela de simulação.
+      */}
       <Input
         label="Renda familiar bruta"
-        value={form.rendaFamiliar}
-        onChangeText={(t) => set('rendaFamiliar', formatCurrencyBRL(t))}
+        value={form.proponentes[0]?.rendaBruta ?? ''}
+        onChangeText={(t) =>
+          atualizarProponente(form.proponentes[0]?.id ?? 'p1', {
+            rendaBruta: formatCurrencyBRL(t),
+          })
+        }
         placeholder="R$ 0,00"
         keyboardType="numeric"
       />
+      {form.proponentes.length > 1 ? (
+        <Text style={styles.sub}>
+          Somando os {form.proponentes.length} proponentes: {formatarBRL(rendaFamiliarBruta)}
+        </Text>
+      ) : null}
 
       <View style={styles.linha}>
         <View style={styles.col}>
@@ -111,9 +142,9 @@ export default function PoderDeCompra() {
         </View>
         <View style={styles.col}>
           <Input
-            label="FGTS"
-            value={form.fgts}
-            onChangeText={(t) => set('fgts', formatCurrencyBRL(t))}
+            label="Saldo de FGTS"
+            value={form.fgtsDisponivel}
+            onChangeText={(t) => set('fgtsDisponivel', formatCurrencyBRL(t))}
             placeholder="R$ 0,00"
             keyboardType="numeric"
           />

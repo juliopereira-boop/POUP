@@ -53,6 +53,73 @@
  */
 export type Centavos = number & { readonly __centavos: unique symbol };
 
+/**
+ * Dinheiro em centavos COM FRAÇÃO — a representação interna do cronograma.
+ *
+ * ===========================================================================
+ * POR QUE EXISTEM DUAS REPRESENTAÇÕES
+ * ===========================================================================
+ * A especificação do motor manda, em duas regras que puxam para lados opostos:
+ *
+ *   §65 — "internal precision >= 8 decimal places, display = 2"
+ *   §66 — "não arredondar internamente a cada operação desnecessariamente;
+ *          calcular com alta precisão e arredondar o resultado monetário.
+ *          Quando o contrato exigir arredondamento mensal, documentar."
+ *
+ * Ou seja: existem os dois regimes, e qual vale **depende do contrato**. Por
+ * isso `Centavos` (o resultado, exato e inteiro) e `Preciso` (o meio do
+ * caminho, com fração) são tipos diferentes, e a passagem de um para o outro é
+ * a política de arredondamento da versão de regras.
+ *
+ * `Preciso` é um `number` em unidades de centavo com casas decimais. Num
+ * financiamento de R$ 1 milhão o saldo é ~1e8 em centavos, e o `double` tem
+ * ~15-16 dígitos significativos — sobram uns 7 dígitos abaixo do centavo, muito
+ * além do que qualquer contrato exige. Não é decimal arbitrário, mas é
+ * folgadamente suficiente para o domínio, e é rápido: 420 meses × 4 cenários
+ * precisam sair instantâneos no celular (§113).
+ */
+export type Preciso = number & { readonly __preciso: unique symbol };
+
+/**
+ * Como o cronograma trata a fração de centavo a cada mês.
+ *
+ * `mensal` — arredonda juros, amortização e encargos para centavos INTEIROS a
+ *   cada mês, e é o saldo arredondado que segue adiante. É o que o boleto faz:
+ *   ninguém cobra milésimo de centavo. Padrão para contrato habitacional.
+ *
+ * `final` — carrega a fração de centavo pelo cronograma inteiro e arredonda só
+ *   na exibição. Produz o total teoricamente exato, e diverge do extrato do
+ *   banco em alguns centavos ao longo de 420 meses.
+ *
+ * É parâmetro da versão de regras porque é decisão de CONTRATO, não nossa —
+ * exatamente o que o §66 pede que fique documentado.
+ */
+export type PoliticaArredondamento = 'mensal' | 'final';
+
+export function preciso(valor: number): Preciso {
+  return (Number.isFinite(valor) ? valor : 0) as Preciso;
+}
+
+export function deCentavos(c: Centavos): Preciso {
+  return c as unknown as Preciso;
+}
+
+/** Fecha o valor em centavos inteiros. É aqui que a precisão vira dinheiro. */
+export function paraCentavos(p: Preciso): Centavos {
+  return arredondar(p) as Centavos;
+}
+
+/**
+ * Aplica a política ao valor que segue no cronograma.
+ *
+ * Com `mensal`, o valor é fechado em centavos e é ele que continua; com
+ * `final`, a fração segue viva. Concentrar isso numa função é o que garante
+ * que os dois regimes não se misturem no meio do laço.
+ */
+export function conformePolitica(p: Preciso, politica: PoliticaArredondamento): Preciso {
+  return politica === 'mensal' ? (arredondar(p) as Preciso) : p;
+}
+
 /** Constrói centavos a partir de um inteiro já em centavos. */
 export function centavos(valor: number): Centavos {
   return arredondar(valor) as Centavos;
@@ -176,6 +243,53 @@ export function taxaAnualParaMensal(taxaAnualPct: number, conversao: ConversaoTa
 export function taxaMensalParaAnualEfetiva(taxaMensal: number): number {
   if (taxaMensal <= 0) return 0;
   return (Math.pow(1 + taxaMensal, 12) - 1) * 100;
+}
+
+/**
+ * NOMINAL E EFETIVA NÃO SÃO SINÔNIMOS — §16 a §18.
+ *
+ * A especificação é explícita: "nunca tratar todos esses campos como
+ * sinônimos", e "não confundir taxa nominal anual / 12 com taxa efetiva anual
+ * convertida para mensal".
+ *
+ * A diferença não é acadêmica. Uma taxa NOMINAL de 10% ao ano vira 0,8333% ao
+ * mês, que composta dá **10,47% efetivos** ao ano. Tratar os 10% como efetivos
+ * daria 0,7974% ao mês. Ao longo de 420 meses num financiamento de R$ 240 mil,
+ * a diferença passa de vinte mil reais.
+ *
+ * Por isso a taxa entra no motor com o REGIME declarado, e a conversão para
+ * mensal é escolhida por ele — nunca por convenção implícita.
+ */
+export type RegimeTaxa = 'nominal' | 'efetiva';
+
+export const REGIME_ROTULO: Record<RegimeTaxa, string> = {
+  nominal: 'nominal ao ano (dividida por 12)',
+  efetiva: 'efetiva ao ano (convertida por composição)',
+};
+
+/**
+ * Taxa ao ano → taxa ao mês, pelo regime declarado.
+ *
+ * `nominal`  → `i_a / 12`. É a leitura de contrato: "10% ao ano nominal" quer
+ *              dizer 0,8333% ao mês, e o efetivo anual sai maior.
+ * `efetiva`  → `(1 + i_a)^(1/12) − 1`. Preserva a taxa efetiva: doze meses
+ *              compostos devolvem exatamente o que foi informado.
+ */
+export function taxaMensalDe(taxaAnualPct: number, regime: RegimeTaxa): number {
+  const ia = taxaAnualPct / 100;
+  if (!Number.isFinite(ia) || ia <= 0) return 0;
+  return regime === 'nominal' ? ia / 12 : Math.pow(1 + ia, 1 / 12) - 1;
+}
+
+/**
+ * A taxa efetiva anual equivalente a uma taxa anual informada num regime.
+ *
+ * Serve para a tela mostrar as duas lado a lado — que é a única forma de o
+ * corretor perceber que "10% nominal" e "10% efetivo" são condições
+ * diferentes.
+ */
+export function efetivaAnualDe(taxaAnualPct: number, regime: RegimeTaxa): number {
+  return taxaMensalParaAnualEfetiva(taxaMensalDe(taxaAnualPct, regime));
 }
 
 /* ===========================================================================

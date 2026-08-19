@@ -76,6 +76,38 @@ const CAMPOS: {
     ajuda: 'Ex.: 80',
   },
   { chave: 'subsidioMax', rotulo: 'Subsídio máximo', sufixo: 'R$', ajuda: '0 se não houver' },
+  { chave: 'entradaMinimaPct', rotulo: 'Entrada mínima', sufixo: '%', ajuda: 'Ex.: 20' },
+  { chave: 'carenciaMaxMeses', rotulo: 'Carência máxima', sufixo: 'meses', ajuda: '0 se não houver' },
+];
+
+/**
+ * Os parâmetros GLOBAIS da versão — os que não pertencem a um produto.
+ *
+ * Seguros e tarifa vêm da apólice e do contrato, não da linha de
+ * financiamento; o limite SFH vem de normativo. Editá-los junto com um produto
+ * daria a impressão errada de que a apólice muda por faixa do MCMV.
+ */
+const CAMPOS_GLOBAIS = [
+  {
+    chave: 'dfi',
+    rotulo: 'DFI — taxa mensal sobre a avaliação (%)',
+    ajuda: 'Ex.: 0,015. Vem da apólice, não da CAIXA.',
+  },
+  {
+    chave: 'tarifa',
+    rotulo: 'Tarifa de administração (R$/mês)',
+    ajuda: 'Varia por tipo de financiamento e por SFH/SFI.',
+  },
+  {
+    chave: 'sfh',
+    rotulo: 'Limite de enquadramento SFH (R$)',
+    ajuda: 'Acima deste valor de avaliação, a operação é SFI.',
+  },
+  {
+    chave: 'tr',
+    rotulo: 'TR observada (% ao mês)',
+    ajuda: 'Do Banco Central. Em branco = a tabela sai sem correção.',
+  },
 ];
 
 function textoDe(p: Parametro<number> | undefined): string {
@@ -97,6 +129,7 @@ export default function AdminFinanciamento() {
   const [carregando, setCarregando] = useState(true);
   const [produtoId, setProdutoId] = useState<string>('mcmv_1');
   const [valores, setValores] = useState<Record<string, string>>({});
+  const [globais, setGlobais] = useState<Record<string, string>>({});
   const [fonte, setFonte] = useState('CAIXA');
   const [fonteUrl, setFonteUrl] = useState('https://www.caixa.gov.br/');
   const [versao, setVersao] = useState('');
@@ -140,6 +173,17 @@ export default function AdminFinanciamento() {
     setFonte(produto.fonte ?? 'CAIXA');
     setFonteUrl(produto.fonteUrl ?? 'https://www.caixa.gov.br/');
   }, [produto]);
+
+  // Os globais carregam da versão, e não do produto escolhido.
+  useEffect(() => {
+    const tr = regras.indexadores.find((i) => i.id === 'TR');
+    setGlobais({
+      dfi: textoDe(regras.seguros.dfiPctMensalSobreAvaliacao),
+      tarifa: textoDe(regras.seguros.tarifaAdminMensal),
+      sfh: textoDe(regras.sfh.limiteValorImovel),
+      tr: temValor(tr?.taxaMensal) ? String((tr.taxaMensal.valor as number) * 100).replace('.', ',') : '',
+    });
+  }, [regras]);
 
   if (loading || carregando) return <LoadingScreen />;
   if (!isAdmin) {
@@ -188,6 +232,18 @@ export default function AdminFinanciamento() {
     novoProduto.fonte = fonte.trim() || null;
     novoProduto.fonteUrl = fonteUrl.trim() || null;
 
+    /*
+     * Os globais só são gravados quando FOREM PREENCHIDOS.
+     *
+     * Campo vazio mantém o que já estava — inclusive o `pendente`. Limpar um
+     * campo aqui não pode apagar em silêncio uma taxa que alguém cadastrou na
+     * semana passada; para remover, o administrador troca o valor.
+     */
+    const dfi = numeroDe(globais.dfi ?? '');
+    const tarifa = numeroDe(globais.tarifa ?? '');
+    const sfhLimite = numeroDe(globais.sfh ?? '');
+    const trPct = numeroDe(globais.tr ?? '');
+
     const payload: VersaoRegras = {
       ...regras,
       versao: versao.trim(),
@@ -195,6 +251,36 @@ export default function AdminFinanciamento() {
       vigenciaFim: null,
       status: 'ativa',
       produtos: regras.produtos.map((p) => (p.id === produtoId ? novoProduto : p)),
+      seguros: {
+        ...regras.seguros,
+        dfiPctMensalSobreAvaliacao:
+          dfi !== null
+            ? oficial(dfi, fonte.trim(), fonteUrl.trim(), hoje)
+            : regras.seguros.dfiPctMensalSobreAvaliacao,
+        tarifaAdminMensal:
+          tarifa !== null
+            ? oficial(tarifa, fonte.trim(), fonteUrl.trim(), hoje)
+            : regras.seguros.tarifaAdminMensal,
+      },
+      sfh: {
+        limiteValorImovel:
+          sfhLimite !== null
+            ? oficial(sfhLimite, fonte.trim(), fonteUrl.trim(), hoje)
+            : regras.sfh.limiteValorImovel,
+      },
+      indexadores: regras.indexadores.map((i) =>
+        i.id === 'TR' && trPct !== null
+          ? {
+              ...i,
+              taxaMensal: oficial(
+                trPct / 100,
+                'Banco Central do Brasil',
+                'https://www.bcb.gov.br/',
+                hoje,
+              ),
+            }
+          : i,
+      ),
       fonte: fonte.trim() || null,
       fonteUrl: fonteUrl.trim() || null,
       notas: null,
@@ -309,6 +395,29 @@ export default function AdminFinanciamento() {
               keyboardType="numeric"
             />
           ))}
+
+          <Text style={styles.secao}>Parâmetros globais da versão</Text>
+          <Text style={styles.texto}>
+            Valem para todas as linhas: os seguros vêm da apólice, a tarifa vem do contrato, e o
+            limite SFH vem de normativo. Campo em branco mantém o que já está cadastrado.
+          </Text>
+          <View style={{ height: spacing.md }} />
+          {CAMPOS_GLOBAIS.map((c) => (
+            <View key={c.chave}>
+              <Input
+                label={c.rotulo}
+                value={globais[c.chave] ?? ''}
+                onChangeText={(t) => setGlobais((v) => ({ ...v, [c.chave]: t }))}
+                placeholder={c.ajuda}
+                keyboardType="numeric"
+              />
+            </View>
+          ))}
+          <Text style={styles.ajuda}>
+            A tábua do MIP por faixa etária ainda não é editável por esta tela — ela é uma lista de
+            faixas, não um número, e merece um editor próprio. Enquanto isso, a prestação sai sem o
+            seguro de morte e invalidez, e o resultado diz isso.
+          </Text>
 
           <Text style={styles.secao}>Procedência</Text>
           <Input label="Fonte" value={fonte} onChangeText={setFonte} placeholder="CAIXA" />

@@ -47,10 +47,14 @@ import { useProfile } from '@/providers/ProfileProvider';
 import { centavosParaReais } from './dinheiro';
 import {
   FORM_INICIAL,
+  dinheiro,
   hojeISO,
   idadeEmAnos,
   paraEntrada,
+  proponenteVazio,
+  rendaFamiliar,
   type FormFinanciamento,
+  type FormProponente,
 } from './formulario';
 import { simular, type ResultadoSimulacao } from './motor';
 import { acharProduto, produtoCalculavel, type VersaoRegras } from './regras';
@@ -94,6 +98,13 @@ interface FinanciamentoContextValue {
 
   escolherCliente: (leadId: string | null) => void;
   escolherEmpreendimento: (developmentId: string | null) => void;
+
+  /* --- proponentes (§5): a composição de renda é parte do produto --- */
+  adicionarProponente: () => void;
+  removerProponente: (id: string) => void;
+  atualizarProponente: (id: string, patch: Partial<FormProponente>) => void;
+  /** Soma das rendas informadas, para a tela mostrar sem chamar o motor. */
+  rendaFamiliarBruta: ReturnType<typeof dinheiro>;
 
   /** Grava a simulação, com o snapshot das regras. Devolve o id. */
   salvar: () => Promise<{ ok: true; id: string } | { ok: false; erro: string }>;
@@ -221,23 +232,29 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
   const escolherCliente = useCallback(
     (leadId: string | null) => {
       const lead = clientes.find((c) => c.id === leadId) ?? null;
-      setForm((f) => ({
-        ...f,
-        leadId,
-        clientName: f.clientName.trim() || (lead?.name ?? ''),
-        rendaFamiliar:
-          f.rendaFamiliar.trim() ||
-          (lead?.income
-            ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                lead.income,
-              )
-            : ''),
-        idade:
-          f.idade.trim() ||
-          String(idadeEmAnos(lead?.birthDate ?? null, hojeISO()) ?? '').replace('null', ''),
-        companyId: f.companyId ?? lead?.companyId ?? null,
-        developmentId: f.developmentId ?? lead?.developmentId ?? null,
-      }));
+      const idadeDoLead = idadeEmAnos(lead?.birthDate ?? null, hojeISO());
+      setForm((f) => {
+        const primeiro = f.proponentes[0] ?? proponenteVazio('p1');
+        const atualizado: FormProponente = {
+          ...primeiro,
+          nome: primeiro.nome.trim() || (lead?.name ?? ''),
+          rendaBruta:
+            primeiro.rendaBruta.trim() ||
+            (lead?.income
+              ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                  lead.income,
+                )
+              : ''),
+          idade: primeiro.idade.trim() || (idadeDoLead !== null ? String(idadeDoLead) : ''),
+        };
+        return {
+          ...f,
+          leadId,
+          proponentes: [atualizado, ...f.proponentes.slice(1)],
+          companyId: f.companyId ?? lead?.companyId ?? null,
+          developmentId: f.developmentId ?? lead?.developmentId ?? null,
+        };
+      });
     },
     [clientes],
   );
@@ -259,6 +276,36 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
     },
     [empreendimentos],
   );
+
+  /*
+   * Até quatro proponentes. Não é limite técnico — é limite de tela: acima
+   * disso o formulário deixa de caber no celular, e composição de renda com
+   * cinco pessoas é rara o bastante para não valer o custo de desenho.
+   */
+  const adicionarProponente = useCallback(() => {
+    setForm((f) =>
+      f.proponentes.length >= 4
+        ? f
+        : { ...f, proponentes: [...f.proponentes, proponenteVazio(`p${f.proponentes.length + 1}`)] },
+    );
+  }, []);
+
+  // Nunca fica sem nenhum: um formulário de financiamento sem proponente não
+  // tem renda, e sem renda não há simulação.
+  const removerProponente = useCallback((id: string) => {
+    setForm((f) =>
+      f.proponentes.length <= 1
+        ? f
+        : { ...f, proponentes: f.proponentes.filter((p) => p.id !== id) },
+    );
+  }, []);
+
+  const atualizarProponente = useCallback((id: string, patch: Partial<FormProponente>) => {
+    setForm((f) => ({
+      ...f,
+      proponentes: f.proponentes.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
+  }, []);
 
   /* -------------------------------------------------------- o resultado */
 
@@ -296,7 +343,7 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
 
     const r = await db.financing.create(user.id, {
       leadId: form.leadId,
-      clientName: form.clientName.trim() || null,
+      clientName: form.proponentes[0]?.nome.trim() || null,
       companyId: form.companyId,
       developmentId: form.developmentId,
       developmentName: dev?.name ?? null,
@@ -308,7 +355,7 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       ruleVersion: resultado.versaoRegras,
       propertyValue: centavosParaReais(resultado.valorImovel),
       financedValue: centavosParaReais(resultado.valorFinanciado),
-      firstInstallment: centavosParaReais(resultado.primeira.total),
+      firstInstallment: centavosParaReais(resultado.primeira?.prestacaoTotal ?? (0 as never)),
       termMonths: resultado.prazoMeses,
       amortization: resultado.sistema,
       eligible: resultado.elegibilidade.elegivel,
@@ -334,6 +381,10 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       exigeCondicaoInformada,
       escolherCliente,
       escolherEmpreendimento,
+      adicionarProponente,
+      removerProponente,
+      atualizarProponente,
+      rendaFamiliarBruta: rendaFamiliar(form),
       salvar,
     }),
     [
@@ -352,6 +403,9 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
       exigeCondicaoInformada,
       escolherCliente,
       escolherEmpreendimento,
+      adicionarProponente,
+      removerProponente,
+      atualizarProponente,
       salvar,
     ],
   );

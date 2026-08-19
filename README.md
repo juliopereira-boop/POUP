@@ -102,12 +102,16 @@ src/
       calc.ts                     # Todas as fórmulas do fluxo de pagamento
       proposal.ts                 # Geração do HTML/PDF da proposta
     financiamento/                # O motor de financiamento — sem React, sem Supabase
-      dinheiro.ts                 # Centavos inteiros, arredondamento e conversão de taxa
-      amortizacao.ts              # SAC e PRICE, mês a mês, com os reversos
+      dinheiro.ts                 # Centavos inteiros, precisão interna, nominal x efetiva
+      amortizacao.ts              # As fórmulas fechadas de SAC e PRICE, e os reversos
+      cronograma.ts               # O laço mensal na ordem oficial (indexador -> juros -> ...)
+      indexador.ts                # TR, IPCA, prefixado — e cenário x índice observado
+      seguros.ts                  # MIP por faixa etária e pactuação, DFI, tarifa
+      proponentes.ts              # Composição de renda e a idade que manda
       regras.ts / regrasPadrao.ts # Produtos e parâmetros versionados, com procedência
       elegibilidade.ts            # Enquadramento estimado, quatro situações
-      motor.ts                    # simular(entrada, regras) -> resultado
-      reverso.ts                  # Poder de compra e cálculos invertidos
+      motor.ts                    # simular(entrada, regras) -> resultado + trace
+      reverso.ts                  # Poder de compra por busca binária
       cenarios.ts                 # Comparador de SAC x PRICE e prazos
       ponte.ts                    # A tradução para o simulador de poupança
       relatorio.ts                # PDF e resumo para WhatsApp
@@ -481,106 +485,182 @@ porque são duas perguntas de momentos diferentes da venda:
 | **Financiamento** | quanto o BANCO empresta, qual a parcela, se enquadra | antes, quando o cliente ainda decide se consegue comprar |
 | **Poupança** | como o saldo é pago à CONSTRUTORA | depois, quando ele já decidiu |
 
-### O motor é uma função pura, e isso não é preciosismo
+### O motor segue o pipeline do manual, não uma fórmula única
 
-`simular(entrada, regras)` não tem React, não tem Supabase, não tem navegador.
-Três consequências práticas:
+O módulo foi construído sobre um **manual técnico** que especifica o motor de
+simulação: entradas, ordem do cálculo, fórmulas, o que parametrizar e — a parte
+mais importante — **o que não inventar**. A arquitetura é a que ele exige:
 
-1. **Os testes rodam em Node puro.** `npm run testar:financiamento` — 174
-   checagens, sem simulador, sem servidor, sem mock.
-2. **A LIA pode chamá-lo.** Quando ela precisar responder "quanto esse cliente
-   financia?", ela chama o motor e **interpreta** o número. O modelo de
-   linguagem nunca faz a conta. É a diferença entre um assistente e um chute bem
-   escrito.
-3. **Outro banco entra sem tela mudar.** `FinancingProvider`, em `provider.ts`,
-   é a porta; `provedorInterno` é a implementação de hoje.
+```
+DADOS → REGRAS → ENQUADRAMENTO → CÁLCULO → VALIDAÇÃO → RESULTADO
+```
 
-### Dinheiro é inteiro de centavos
+e nunca `DADOS → FÓRMULA ÚNICA → PARCELA`. Daí os módulos com uma
+responsabilidade cada: `indexador.ts`, `seguros.ts`, `proponentes.ts`,
+`cronograma.ts`, `elegibilidade.ts`. Trocar a apólice do MIP não obriga ninguém
+a mexer no laço de amortização.
 
-`number` do JavaScript é exato para inteiros até 2^53 — noventa trilhões de
-reais. Somar centavos assim é **matematicamente exato**, sem biblioteca. Toda
-multiplicação por taxa passa por `aplicarTaxa`, que arredonda ali mesmo, e
-`ratear` garante por construção que a soma das partes é o todo.
+`simular(entrada, regras)` é **função pura** — sem React, sem Supabase, sem
+navegador. Três consequências práticas:
 
-É o que faz a tabela **fechar em zero**: saldo devedor final exatamente zero e
-soma das amortizações exatamente igual ao principal, verificado em 12, 120, 360
-e 420 meses, nos dois sistemas. Um centavo sobrando numa tabela de 420 linhas é
-a falha clássica deste domínio.
+1. **241 testes rodam em Node puro** (`npm run testar:financiamento`), seguindo
+   a lista de cenários que o próprio manual especifica (§76 a §93).
+2. **A LIA pode chamá-lo.** Ela interpreta o número; nunca o produz. É a
+   diferença entre um assistente e um chute bem escrito.
+3. **Outro banco entra sem tela mudar** — `FinancingProvider` é a porta.
 
-> Na PRICE, a **última parcela** amortiza o saldo remanescente inteiro e é
-> recalculada a partir disso — por isso ela quase nunca é idêntica às
-> anteriores. Não é gambiarra: é como o contrato funciona.
+### A ordem do cálculo mensal é a especificação, literalmente
 
-### Nenhuma regra financeira está no código
+```
+saldo inicial → aplica indexador → saldo atualizado → juros →
+amortização → novo saldo → MIP → DFI → tarifa → prestação total
+```
 
-Produtos, faixas de renda, quotas, prazos, taxas, indexadores e encargos são
-**dados versionados** em `financing_rule_versions`. Mudou uma portaria, o
-administrador abre **Financiamento → Regras**, digita o número, informa a fonte
-e o motivo, e publica. Sem republicar aplicativo.
+**A ordem muda o resultado.** Os juros incidem sobre o saldo JÁ CORRIGIDO; a
+inversão subestima o total pago de um contrato de 420 meses em dezenas de
+milhares de reais. Há teste garantindo que os juros do mês batem com
+`saldoAtualizado × taxa` e **não** com `saldoInicial × taxa`.
 
-Cada número carrega **procedência**, e as três origens mudam o que a tela mostra:
+> **Com indexador, o encargo é recalculado todo mês.** Numa PRICE clássica a
+> prestação é fixada uma vez. Com TR ou IPCA o saldo sobe, e uma prestação
+> nominal congelada deixa de amortizar — o contrato terminaria com saldo enorme.
+> O contrato indexado brasileiro recalcula sobre o saldo atualizado e o prazo
+> remanescente. É por isso que a parcela de um financiamento com TR **sobe** ao
+> longo do tempo, e é o que o corretor precisa saber explicar.
 
-- **oficial** — confirmado em documentação, com fonte e data. É o único que pode
-  ser apresentado como condição.
-- **estimativa** — cálculo nosso ou convenção de mercado, marcado como tal.
-- **pendente** — não confirmado. `valor` é `null`, e o motor **se recusa a
-  chutar**: o resultado sai com "não calculado" naquele ponto, dizendo qual
-  parâmetro falta.
+### Nominal e efetiva não são a mesma coisa
 
-> **Por que os parâmetros do MCMV e do SBPE vêm pendentes.** Eles são condições
-> oficiais que mudam por normativo e precisam ser lidas na fonte, pelo
-> administrador, no dia do cadastro. Um número escrito no código viraria, no
-> aplicativo, uma condição com cara de oficial — que o corretor mostra ao cliente
-> e que o banco desmente na mesa. É o pior defeito possível numa ferramenta de
-> venda, e não vale a conveniência de "já vir preenchido".
->
-> O simulador funciona por inteiro assim mesmo, pelo produto **"Condições
-> informadas"**: o corretor digita a taxa, o prazo e a quota que o correspondente
-> bancário aprovou **para aquele cliente** — que é como a venda realmente
-> acontece, e quase nunca é a tabela genérica do site.
+10% **nominais** ao ano viram 0,8333% ao mês e 10,47% efetivos. 10% **efetivos**
+viram 0,7974% ao mês. Em 420 meses num financiamento de R$ 240 mil, a diferença
+passa de **R$ 18 mil** — medida por teste.
 
-### O enquadramento tem quatro situações, e a quarta é a que falta nos outros
+Por isso a taxa entra no motor com o REGIME declarado (`regimeTaxa` no produto,
+escolhido pelo corretor em "Condições informadas"), e a conversão é feita por
+ele. Nunca por convenção implícita do código. O MCMV Classe Média está
+cadastrado como **nominal**, que é como o material oficial o apresenta.
 
-`ok` · `atenção` · `não passa` · **`não verificado`**.
+### Encargo principal ≠ prestação total
 
-A quarta é quando o parâmetro não está cadastrado. Não é "passou" nem "não
-passou": é "não sei", dito em voz alta. Reprovar por falta de parâmetro nosso
-seria culpar o cliente por uma lacuna do cadastro; aprovar em silêncio seria
-pior.
+```
+encargoPrincipal = amortização + juros
+prestacaoTotal   = encargoPrincipal + MIP + DFI + tarifa
+```
 
-E a mensagem de recusa diz **o que fazer**: "Esta linha financia até 80% do
-imóvel. Faltam R$ 18.400 de entrada" — com isso o corretor negocia o ato, sugere
-mais FGTS, procura outra unidade. "Percentual acima do limite" não serve para
-nada.
+E **PRICE não significa prestação total fixa**: no prefixado o encargo principal
+é constante e o MIP cai junto com o saldo, então a prestação total **diminui**;
+com TR, o encargo é recalculado sobre o saldo corrigido e a prestação
+**aumenta**. Os dois casos têm teste, porque os dois surpreendem o cliente.
 
-**Nunca aparece a palavra "aprovado".** O vocabulário é *enquadramento
-estimado*, e o aviso de que a condição final depende da instituição financeira
-sai no motor (`AVISO_LEGAL`), não em cada tela — deixar isso a cargo das telas é
-garantir que uma esqueça, e é justamente a que vai parar na mão do cliente.
+### Precisão: centavos inteiros, e a política é do contrato
 
-### Poder de compra: dois tetos, e o menor manda
+`number` é exato para inteiros até 2^53 — noventa trilhões de reais. O
+cronograma trabalha internamente em centavos **com fração** (`Preciso`) e fecha
+em centavos inteiros conforme a `politicaArredondamento` da versão de regras:
 
-O simulador do banco pergunta o valor do imóvel e devolve a parcela. Numa
-conversa de verdade ninguém começa pelo imóvel: começa por *"ganho R$ 5.000, dá
-para comprar o quê?"*.
+- **`mensal`** — fecha cada mês em centavos, e é o saldo arredondado que segue.
+  É o que o boleto faz. Padrão.
+- **`final`** — carrega a fração até o fim e arredonda na exibição.
 
-E o teto vem de **duas** coisas ao mesmo tempo — quase todo simulador esquece a
-segunda:
+Nos dois regimes o cronograma **fecha em zero**, verificado em 12, 120, 360 e
+420 meses, nos dois sistemas, com e sem correção, com e sem carência.
 
-- **a renda** limita a parcela, e a parcela limita o financiado;
-- **a entrada** limita por outro caminho: com quota de 80%, os 20% saem do
-  bolso, então `P ≤ E·q/(1−q)`. Com R$ 60 mil de entrada o imóvel não passa de
-  R$ 300 mil, por mais que a renda aguentasse a parcela de um de R$ 500 mil.
+### Seguros: a fórmula inteira, sem nenhum número
 
-A tela diz **qual dos dois travou**, porque a ação muda: travou na renda, compõe
-renda com o cônjuge; travou na entrada, negocia o ato. E termina mostrando
-**quais empreendimentos do corretor cabem** — e quais ficaram por pouco, com o
-quanto falta. É o que transforma a calculadora em ferramenta de venda.
+```
+MIP = saldo devedor × taxa(faixa etária) × pactuação de renda   ← por proponente
+DFI = valor de AVALIAÇÃO × taxa                                  ← constante
+```
 
-> O preço vem de `developments.unit_value_from` ("valor a partir de"). É preço do
-> EMPREENDIMENTO, não da unidade: o POUP não tem espelho de vendas. Sem preço
-> cadastrado, o empreendimento não aparece **nem como compatível nem como
-> incompatível** — sem preço não dá para afirmar nenhum dos dois.
+A tábua do MIP e a taxa do DFI vêm da **apólice da seguradora**, não da CAIXA.
+Nascem pendentes, e o motor **não as inventa**: sai `null`, a prestação é
+marcada como parcial, e o resultado diz o que faltou. Um MIP cobrindo só um dos
+dois proponentes também vira `null` — meio-seguro parece completo e não é.
+
+> É o §74 do manual na prática: *"NÃO: MIP = financing × 0.01 sem fonte"*.
+
+### Múltiplos proponentes, e a idade que manda é a maior
+
+A composição de renda é parte do produto: até quatro proponentes, cada um com
+renda, idade e percentual de pactuação (que por padrão sai da proporção das
+rendas, e é normalizado para 100% se o corretor digitar outra soma).
+
+**A idade que vale para o limite de idade + prazo é a do MAIS VELHO.** Usar a
+média, ou só a do titular, aprovaria na tela um caso que o banco recusa — e o
+corretor só descobriria depois de o cliente escolher o apartamento.
+
+### O valor financiado é o MENOR de várias restrições
+
+```
+valorBase  = MIN(preço de venda, avaliação)
+financiado = MIN(necessário após a entrada, quota, teto do produto)
+```
+
+E o motor guarda **qual delas mandou**, porque é isso que o corretor usa: travou
+na quota, ele negocia mais entrada; travou no teto, ele muda de linha.
+
+> A quota **não reprova — ela capa.** O banco financia até o limite e o cliente
+> cobre o resto. Então o que reprova é a ENTRADA, e a mensagem é *"faltam
+> R$ 18.400 de entrada"*, que é acionável, em vez de *"percentual acima do
+> limite"*, que não é.
+
+### Cálculo reverso por busca binária
+
+O MIP depende do saldo devedor, que depende do valor financiado — que é
+justamente o que o poder de compra procura. É circular, e o manual (§44) manda
+resolver por busca binária: chuta, monta a prestação COMPLETA, compara com o
+teto, refina. Converge ao centavo em ~40 passos, e continua funcionando quando
+um encargo novo entrar — o que a fórmula fechada não faz.
+
+### Cinco classificações, e o resultado carrega a sua
+
+`OFICIAL` · `ESTIMADO` · `INFORMADO` · `PROJEÇÃO` · `REQUER VALIDAÇÃO`.
+
+A precedência é do mais frágil para o mais forte: escolher um cenário de TR
+marca o resultado inteiro como **projeção**, porque o índice hipotético
+contamina todos os números derivados dele. E faltando qualquer parâmetro, o
+status é **requer validação** — mesmo com a taxa informada pelo corretor, porque
+a prestação continua incompleta sem o seguro.
+
+> **O CET tem campo e não é calculado** (§64). Ele exige todos os componentes
+> contratuais — tarifas de contratação, avaliação, registro, apólices efetivas.
+> Um CET incompleto é pior que nenhum: é com ele que o cliente compara bancos.
+
+### O trace: "como o sistema chegou a este valor?"
+
+Cada simulação carrega um `trace` — proponentes, valor base e o MIN que o
+produziu, enquadramento, entrada, taxa e a conversão dela, indexador,
+composição da primeira prestação, renda mínima. É o §69, e é o que permite
+auditar um número seis meses depois sem ninguém precisar lembrar.
+
+### Carência: o saldo sobe, e a tabela mostra
+
+Durante a carência não há amortização. Pagam-se os encargos acessórios, e os
+juros e a correção são **incorporados ao saldo devedor** — que por isso cresce.
+A amortização começa depois, sobre um saldo maior, e a parcela sai mais alta.
+
+A coluna de juros mostra os juros do mês **sempre**, mesmo quando não são pagos:
+zerá-la esconderia justamente o custo que a carência tem. O que o cliente paga
+naquele mês é o encargo principal, que na carência é zero.
+
+### O que está cadastrado, e o que continua pendente
+
+Semeado como **versão 2026.08**, a partir do que o manual registra das páginas
+oficiais (com fonte, data de verificação e a ressalva de reconferir):
+
+| | |
+|---|---|
+| MCMV Classe Média | renda até R$ 13.000 · imóvel até R$ 600.000 · entrada mínima 20% · **10% a.a. nominal** · até 35 anos |
+| Comprometimento de renda | até 30% em determinadas operações |
+| Prazo | até 35 anos (420 meses) |
+| Limite SFH/SFI | R$ 2,25 milhões de avaliação |
+| FGTS | pode compor a entrada, conforme as regras do Fundo |
+
+Continuam **pendentes**, e o motor se recusa a inventá-los: a tábua do MIP e a
+taxa do DFI (vêm da apólice), a tarifa de administração (varia por contrato), a
+TR e o IPCA (Banco Central e IBGE, e projetá-los é previsão econômica), e as
+taxas por faixa do MCMV 1, 2 e 3. A quota do SBPE também: o material diz que ela
+*"pode chegar a 90%"* — isso é um teto, não a quota da operação, e cadastrar 90%
+daria ao corretor um número que o banco não confirma.
 
 ### O cliente é o eixo — e é o que liga os dois simuladores
 

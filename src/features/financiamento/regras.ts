@@ -48,7 +48,9 @@
  * recalcula, porque a proposta de ontem não lê a regra de hoje.
  */
 import type { SistemaAmortizacao } from './amortizacao';
-import type { ConversaoTaxa } from './dinheiro';
+import type { PoliticaArredondamento, RegimeTaxa } from './dinheiro';
+import type { Indexador } from './indexador';
+import type { RegrasSeguros } from './seguros';
 
 /* ------------------------------------------------------------------ origem */
 
@@ -79,8 +81,9 @@ export function oficial<T>(
   fonte: string,
   fonteUrl: string,
   verificadoEm: string,
+  observacao: string | null = null,
 ): Parametro<T> {
-  return { valor, origem: 'oficial', fonte, fonteUrl, verificadoEm, observacao: null };
+  return { valor, origem: 'oficial', fonte, fonteUrl, verificadoEm, observacao };
 }
 
 export function estimativa<T>(valor: T, observacao: string): Parametro<T> {
@@ -133,24 +136,6 @@ export const IMOVEL_ROTULO: Record<TipoImovel, string> = {
 };
 
 /**
- * O indexador do contrato.
- *
- * É entidade própria, e não um campo de texto no produto, porque um mesmo
- * indexador é compartilhado por vários produtos e porque a projeção de correção
- * dele é justamente o tipo de número que muda sem o produto mudar.
- *
- * `projecaoMensal` nasce pendente de propósito: projetar TR ou IPCA é previsão
- * econômica, não é dado da CAIXA, e o simulador não vai fingir que é. Enquanto
- * estiver pendente, a simulação sai SEM correção monetária e diz isso.
- */
-export interface Indexador {
-  id: string;
-  nome: string;
-  descricao: string;
-  projecaoMensal: Parametro<number>;
-}
-
-/**
  * Uma linha de financiamento.
  *
  * Cada campo numérico é um `Parametro`, então o produto sabe dizer não só
@@ -190,6 +175,21 @@ export interface ProdutoFinanciamento {
   quotaMaxPct: Parametro<number>;
   prazoMaxMeses: Parametro<number>;
   taxaAnualPct: Parametro<number>;
+  /**
+   * A taxa acima é NOMINAL ou EFETIVA ao ano? — §16 a §18.
+   *
+   * Não é detalhe: 10% nominais viram 0,8333% ao mês e 10,47% efetivos; 10%
+   * efetivos viram 0,7974% ao mês. Em 420 meses a diferença passa de vinte mil
+   * reais num financiamento de R$ 240 mil. A CAIXA publica algumas linhas em
+   * taxa nominal (o MCMV Classe Média, por exemplo), então o regime pertence ao
+   * produto e nunca a uma convenção implícita do código.
+   */
+  regimeTaxa: RegimeTaxa;
+  /** Entrada mínima exigida, em % do valor do imóvel. */
+  entradaMinimaPct: Parametro<number>;
+  /** O produto admite carência para início da amortização? — §37 */
+  permiteCarencia: Parametro<boolean>;
+  carenciaMaxMeses: Parametro<number>;
   /** % da renda bruta familiar que a prestação pode consumir. */
   comprometimentoRendaMaxPct: Parametro<number>;
   /** Idade do proponente + prazo do contrato não pode passar disto. */
@@ -205,30 +205,35 @@ export interface ProdutoFinanciamento {
 }
 
 /**
- * Encargos acessórios que entram na prestação por cima do encargo principal.
+ * FGTS — §10.
  *
- * A CAIXA informa que a prestação pode incluir encargo principal (amortização +
- * juros) e acessórios — MIP, DFI e tarifa. Os três estão modelados aqui, e os
- * três nascem pendentes: o MIP depende de idade e de tábua atuarial da
- * seguradora, o DFI depende do imóvel, e a tarifa muda por contrato. Enquanto
- * pendentes, a simulação mostra a prestação **sem eles** e avisa, em vez de
- * somar um número plausível que ninguém confirmou.
+ * "O motor deve tratar FGTS como fonte de recursos, e não como desconto
+ * arbitrário", e "nunca permitir `fgtsUsed > fgtsAvailable`". As regras de
+ * direito de uso (três anos de carteira, não possuir imóvel na região, saldo
+ * real na conta vinculada) dependem de dados que este aplicativo não tem e não
+ * deveria ter — quem verifica é a Caixa. O motor SOMA o que o corretor informar
+ * e diz, em voz alta, que o direito não foi verificado.
  */
-export interface RegrasEncargos {
-  /** % ao mês sobre o SALDO DEVEDOR. Seguro de morte e invalidez. */
-  mipPctMensalSobreSaldo: Parametro<number>;
-  /** % ao mês sobre o VALOR DO IMÓVEL. Danos físicos ao imóvel. */
-  dfiPctMensalSobreImovel: Parametro<number>;
-  /** Reais por mês, fixos. */
-  tarifaAdminMensal: Parametro<number>;
-}
-
 export interface RegrasFgts {
   /** O saldo do FGTS pode compor a entrada nesta operação? */
   permitidoNaEntrada: Parametro<boolean>;
-  /** Regras de uso (3 anos de carteira, não possuir imóvel na região etc.). */
+  /** Regras de uso, para a tela mostrar ao corretor. */
   condicoes: string[];
 }
+
+/**
+ * Enquadramento SFH / SFI — §13.
+ *
+ * A classificação depende do VALOR DE AVALIAÇÃO do imóvel: até o limite é SFH,
+ * acima é SFI. O limite muda por normativo e por isso é parâmetro — o manual
+ * anota que a página oficial consultada informa R$ 2,25 milhões, e é
+ * exatamente esse tipo de número que não pode virar constante eterna.
+ */
+export interface RegrasEnquadramentoSfh {
+  limiteValorImovel: Parametro<number>;
+}
+
+export type Enquadramento = 'SFH' | 'SFI' | 'indefinido';
 
 export type StatusVersao = 'rascunho' | 'ativa' | 'encerrada';
 
@@ -245,21 +250,39 @@ export interface VersaoRegras {
   status: StatusVersao;
 
   /**
-   * Como converter taxa ao ano em taxa ao mês NESTA versão.
+   * Como o cronograma trata a fração de centavo — §65 e §66.
    *
-   * Está aqui, e não no código, porque depende do contrato — e um contrato
-   * pode mudar a convenção. Ver `taxaAnualParaMensal`.
+   * `mensal` fecha cada mês em centavos inteiros (o que o boleto faz);
+   * `final` carrega a precisão e arredonda na exibição. É decisão de contrato,
+   * e o §66 pede justamente que ela fique documentada em vez de implícita.
    */
-  conversaoTaxa: ConversaoTaxa;
+  politicaArredondamento: PoliticaArredondamento;
 
   indexadores: Indexador[];
   produtos: ProdutoFinanciamento[];
-  encargos: RegrasEncargos;
+  seguros: RegrasSeguros;
   fgts: RegrasFgts;
+  sfh: RegrasEnquadramentoSfh;
 
   fonte: string | null;
   fonteUrl: string | null;
   notas: string | null;
+}
+
+/**
+ * SFH ou SFI, pelo valor de AVALIAÇÃO — §13.
+ *
+ * `indefinido` quando o limite não está cadastrado. Não se chuta: a
+ * classificação muda quota, tarifa e a possibilidade de usar FGTS, e errá-la
+ * silenciosamente contamina o resultado inteiro.
+ */
+export function classificarSfh(
+  regras: VersaoRegras,
+  valorAvaliacaoReais: number,
+): { enquadramento: Enquadramento; limite: number | null } {
+  const limite = temValor(regras.sfh.limiteValorImovel) ? regras.sfh.limiteValorImovel.valor : null;
+  if (limite === null) return { enquadramento: 'indefinido', limite: null };
+  return { enquadramento: valorAvaliacaoReais <= limite ? 'SFH' : 'SFI', limite };
 }
 
 /* ------------------------------------------------------------------ acesso */
@@ -317,7 +340,8 @@ export function parametrosPendentes(regras: VersaoRegras): { onde: string; motiv
   };
 
   for (const i of regras.indexadores) {
-    push(`Indexador ${i.nome} · projeção mensal`, i.projecaoMensal);
+    if (i.tipo === 'nenhum') continue;
+    push(`Indexador ${i.nome} · taxa mensal observada`, i.taxaMensal);
   }
   for (const p of regras.produtos) {
     if (p.parametrosManuais) continue;
@@ -329,11 +353,13 @@ export function parametrosPendentes(regras: VersaoRegras): { onde: string; motiv
     push(`${p.nome} · comprometimento de renda`, p.comprometimentoRendaMaxPct);
     push(`${p.nome} · idade + prazo`, p.idadeMaisPrazoMaxAnos);
     push(`${p.nome} · subsídio máximo`, p.subsidioMax);
+    push(`${p.nome} · entrada mínima`, p.entradaMinimaPct);
   }
-  push('Encargos · MIP', regras.encargos.mipPctMensalSobreSaldo);
-  push('Encargos · DFI', regras.encargos.dfiPctMensalSobreImovel);
-  push('Encargos · tarifa de administração', regras.encargos.tarifaAdminMensal);
+  push('Seguros · tábua do MIP por faixa etária', regras.seguros.mipPorIdade);
+  push('Seguros · taxa do DFI', regras.seguros.dfiPctMensalSobreAvaliacao);
+  push('Encargos · tarifa de administração', regras.seguros.tarifaAdminMensal);
   push('FGTS · permitido na entrada', regras.fgts.permitidoNaEntrada);
+  push('Enquadramento · limite SFH', regras.sfh.limiteValorImovel);
 
   return saida;
 }

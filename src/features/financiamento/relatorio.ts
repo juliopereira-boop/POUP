@@ -40,7 +40,7 @@ import type { UserProfile } from '@/data';
 import { imprimirHtmlNaWeb } from '@/features/pdf/imprimir';
 import { LOGO_DATA_URI } from '@/features/simulador/logoDataUri';
 import { formatarBRL, formatarPct, formatarPrazo, type Centavos } from './dinheiro';
-import { AVISO_LEGAL, type ResultadoSimulacao } from './motor';
+import { AVISO_LEGAL, STATUS_ROTULO, type ResultadoSimulacao } from './motor';
 import { SISTEMA_ROTULO } from './amortizacao';
 import { OPERACAO_ROTULO, type TipoOperacao } from './regras';
 
@@ -101,6 +101,10 @@ function linhasImpressas(r: ResultadoSimulacao) {
 export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   const r = ctx.resultado;
   const p = ctx.perfil;
+  // Sem cronograma não há relatório; o motor só devolve isso quando o
+  // financiamento é zero, e aí o PDF não tem o que imprimir.
+  const pri = r.primeira;
+  const ult = r.ultima;
 
   const imovel = [
     ctx.empreendimentoNome,
@@ -116,8 +120,8 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
       ${caixa('Entrada total', formatarBRL(r.entradaTotal))}
       ${caixa('Financiamento', formatarBRL(r.valorFinanciado))}
       ${caixa('Prazo', formatarPrazo(r.prazoMeses))}
-      ${caixa('1ª parcela', money(r.primeira.total), true)}
-      ${caixa('Última parcela', money(r.ultima.total))}
+      ${caixa('1ª parcela', money(pri?.prestacaoTotal ?? null), true)}
+      ${caixa('Última parcela', money(ult?.prestacaoTotal ?? null))}
       ${caixa('Renda mínima estimada', money(r.rendaMinimaEstimada))}
       ${caixa('Sistema', SISTEMA_ROTULO[r.sistema])}
     </div>`;
@@ -125,13 +129,14 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   const composicao = `
     <h2>Composição da 1ª prestação</h2>
     <table class="t">
-      <tr><th>Amortização</th><td>${formatarBRL(r.primeira.amortizacao)}</td></tr>
-      <tr><th>Juros</th><td>${formatarBRL(r.primeira.juros)}</td></tr>
-      <tr><th>MIP (morte e invalidez)</th><td>${money(r.primeira.mip)}</td></tr>
-      <tr><th>DFI (danos ao imóvel)</th><td>${money(r.primeira.dfi)}</td></tr>
-      <tr><th>Tarifa de administração</th><td>${money(r.primeira.tarifa)}</td></tr>
-      <tr class="tot"><th>Total</th><td>${formatarBRL(r.primeira.total)}${
-        r.primeira.parcial ? ' <i>(parcial)</i>' : ''
+      <tr><th>Amortização</th><td>${money(pri?.amortizacao ?? null)}</td></tr>
+      <tr><th>Juros</th><td>${money(pri?.juros ?? null)}</td></tr>
+      <tr><th>Correção do saldo (${esc(r.indexador.nome)})</th><td>${money(pri?.correcaoIndexador ?? null)}</td></tr>
+      <tr><th>MIP (morte e invalidez)</th><td>${money(pri?.mip ?? null)}</td></tr>
+      <tr><th>DFI (danos ao imóvel)</th><td>${money(pri?.dfi ?? null)}</td></tr>
+      <tr><th>Tarifa de administração</th><td>${money(pri?.tarifa ?? null)}</td></tr>
+      <tr class="tot"><th>Prestação total</th><td>${money(pri?.prestacaoTotal ?? null)}${
+        pri?.parcial ? ' <i>(parcial — faltam encargos não cadastrados)</i>' : ''
       }</td></tr>
     </table>`;
 
@@ -158,23 +163,26 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   const tabela = `
     <h2>Evolução (resumo)</h2>
     <table class="t linhas">
-      <tr><th>Parcela</th><th>Saldo inicial</th><th>Juros</th><th>Amortização</th><th>Prestação</th></tr>
+      <tr><th>Parcela</th><th>Saldo inicial</th><th>Correção</th><th>Juros</th><th>Amortização</th><th>Encargo principal</th><th>Prestação total</th></tr>
       ${linhasImpressas(r)
         .map(
           (l) => `<tr>
-            <td>${l.numero}</td>
+            <td>${l.numero}${l.carencia ? ' <i>(car.)</i>' : ''}</td>
             <td>${formatarBRL(l.saldoInicial)}</td>
+            <td>${formatarBRL(l.correcaoIndexador)}</td>
             <td>${formatarBRL(l.juros)}</td>
             <td>${formatarBRL(l.amortizacao)}</td>
             <td>${formatarBRL(l.encargoPrincipal)}</td>
+            <td>${formatarBRL(l.prestacaoTotal)}</td>
           </tr>`,
         )
         .join('')}
     </table>
     <p class="nota">
-      Prestação da tabela = amortização + juros (encargo principal). Seguros e tarifa entram por
-      cima, conforme a composição acima. Linhas selecionadas: o primeiro ano, marcos de cinco em
-      cinco anos e o fim do contrato.
+      <b>Encargo principal</b> = amortização + juros. <b>Prestação total</b> = encargo principal +
+      MIP + DFI + tarifa. Nos contratos indexados, a correção é aplicada ao saldo ANTES de os juros
+      incidirem. Linhas selecionadas: o primeiro ano, marcos de cinco em cinco anos e o fim do
+      contrato.
     </p>`;
 
   return `<!doctype html>
@@ -222,7 +230,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     <div>
       <h1>Simulação de financiamento imobiliário</h1>
       <div class="meta">
-        Gerada em ${dataBR(ctx.hojeISO)} · Regras versão ${esc(r.versaoRegras)}<br/>
+        Gerada em ${dataBR(ctx.hojeISO)} · Regras versão ${esc(r.versaoRegras)} · ${esc(STATUS_ROTULO[r.status])}<br/>
         ${esc(p?.fullName)} ${p?.creci ? `· CRECI ${esc(p.creci)}` : ''} ${p?.agency ? `· ${esc(p.agency)}` : ''}
       </div>
     </div>
@@ -235,7 +243,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     <div><b>Imóvel:</b> ${esc(imovel) || '—'}</div>
     <div><b>Construtora:</b> ${esc(ctx.empresaNome) || '—'}</div>
     <div><b>Linha:</b> ${esc(r.produto.nome)}</div>
-    <div><b>Indexador:</b> ${esc(r.indexador.nome)}${r.indexador.correcaoAplicada ? '' : ' (sem correção projetada)'}</div>
+    <div><b>Indexador:</b> ${esc(r.indexador.nome)}${r.correcao.origem === 'sem_correcao' ? ' (sem correção aplicada)' : r.correcao.origem === 'cenario' ? ' (cenário hipotético)' : ''}</div>
     <div><b>Taxa:</b> ${formatarPct(r.taxaAnualPct)} ao ano ${r.produto.parametrosManuais ? '(informada)' : ''}</div>
     <div><b>Corretor:</b> ${esc(p?.fullName) || '—'}</div>
   </div>
@@ -251,6 +259,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     ${esc(AVISO_LEGAL)}<br/>
     Regras aplicadas: versão ${esc(r.versaoRegras)}, vigente desde ${dataBR(r.vigenciaRegras)}.
     ${r.produto.parametrosManuais ? 'Taxa, prazo e quota informados pelo corretor a partir da condição do correspondente bancário.' : ''}
+    ${r.correcao.origem === 'cenario' ? '<br/><b>PROJEÇÃO:</b> ' + esc(r.correcao.explicacao) : ''}
   </footer>
 </div></body></html>`;
 }
@@ -300,8 +309,8 @@ export function resumoParaWhatsapp(ctx: ContextoRelatorio): string {
     `Entrada total: ${formatarBRL(r.entradaTotal)}`,
     `Financiamento: ${formatarBRL(r.valorFinanciado)}`,
     `Prazo: ${formatarPrazo(r.prazoMeses)} (${r.sistema})`,
-    `1ª parcela: ${formatarBRL(r.primeira.total)}${r.primeira.parcial ? ' (sem seguros)' : ''}`,
-    `Última parcela: ${formatarBRL(r.ultima.total)}`,
+    `1ª parcela: ${formatarBRL(r.primeira?.prestacaoTotal ?? (0 as never))}${r.primeira?.parcial ? ' (sem seguros)' : ''}`,
+    `Última parcela: ${formatarBRL(r.ultima?.prestacaoTotal ?? (0 as never))}`,
     r.rendaMinimaEstimada ? `Renda mínima estimada: ${formatarBRL(r.rendaMinimaEstimada)}` : null,
     ``,
     `_Simulação estimada. Sujeita à análise de crédito e às condições da instituição financeira._`,

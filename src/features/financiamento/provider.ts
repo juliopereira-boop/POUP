@@ -20,10 +20,10 @@
  * implementações, sem que nenhuma tela precise mudar. É o mesmo padrão que o
  * resto do POUP usa em `src/data/repositories.ts`, e pelo mesmo motivo.
  */
-import { verificarElegibilidade, type ResultadoElegibilidade } from './elegibilidade';
+import type { ResultadoElegibilidade } from './elegibilidade';
 import { simular, type EntradaSimulacao, type SaidaSimulacao } from './motor';
 import { poderDeCompra, type EntradaPoderDeCompra, type ResultadoPoderDeCompra } from './reverso';
-import { acharProduto, type VersaoRegras } from './regras';
+import type { VersaoRegras } from './regras';
 
 export interface FinancingProvider {
   /** Identificador curto, gravado junto com a simulação. */
@@ -74,33 +74,17 @@ export const provedorInterno: FinancingProvider = {
 };
 
 /**
- * Enquadramento sem montar a tabela inteira.
+ * O enquadramento de uma entrada, sem o corretor ter que ler o resultado todo.
  *
- * Serve para a lista de linhas disponíveis, que precisa dizer "esta aqui não
- * serve, e o motivo é X" para cada produto — montar 420 linhas por produto só
- * para descobrir isso travaria a tela no celular.
+ * Quando o motor RECUSA a simulação (falta a taxa da linha, por exemplo), não
+ * há enquadramento a devolver — e devolver um objeto vazio faria a tela dizer
+ * "apto" para um caso que sequer foi calculado. Nesse caso sai `null`, e a tela
+ * mostra o motivo da recusa.
  */
-export function enquadramentoRapido(
+export function enquadramentoDe(
   entrada: EntradaSimulacao,
   regras: VersaoRegras,
 ): ResultadoElegibilidade | null {
-  const produto = acharProduto(regras, entrada.produtoId);
-  if (!produto) return null;
   const r = simular(entrada, regras);
-  if (r.ok) return r.resultado.elegibilidade;
-  return verificarElegibilidade({
-    produto,
-    regras,
-    valorImovel: entrada.valorImovel,
-    valorFinanciado: entrada.valorImovel,
-    entradaTotal: entrada.entradaPropria,
-    rendaFamiliarMensal: entrada.rendaFamiliarMensal,
-    primeiraPrestacao: entrada.valorImovel,
-    prazoMeses: entrada.prazoMeses,
-    idadeAnos: entrada.idadeAnos,
-    usaFgts: entrada.fgts > 0,
-    comprometimentoMaxPct: null,
-    quotaMaxPct: null,
-    prazoMaxMeses: null,
-  });
+  return r.ok ? r.resultado.elegibilidade : null;
 }

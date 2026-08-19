@@ -7,9 +7,8 @@
  * O formulário guarda TEXTO — "R$ 210.000,00", "9,5", "80" — porque é isso que
  * um campo de entrada produz e é isso que o corretor lê enquanto digita. O
  * motor trabalha com centavos inteiros e frações. A tradução entre os dois
- * mundos é onde moram os erros clássicos (vírgula decimal, separador de
- * milhar, campo vazio virando zero), então ela fica **num lugar só**, pura e
- * testável, em vez de espalhada por cinco telas.
+ * mundos é onde moram os erros clássicos (vírgula decimal, separador de milhar,
+ * campo vazio virando zero), então ela fica **num lugar só**, pura e testável.
  *
  * A regra que vale em toda conversão daqui: **campo vazio não é zero.** Zero é
  * uma afirmação ("não tem entrada"); vazio é ausência. Onde a diferença
@@ -17,18 +16,27 @@
  */
 import { currencyToNumber } from '@/lib/masks';
 import type { SistemaAmortizacao } from './amortizacao';
-import { reaisParaCentavos, ZERO, type Centavos } from './dinheiro';
+import { reaisParaCentavos, ZERO, type Centavos, type RegimeTaxa } from './dinheiro';
 import type { EntradaSimulacao } from './motor';
+import type { Proponente } from './proponentes';
 import type { TipoImovel, TipoOperacao } from './regras';
 
-export interface FormFinanciamento {
-  /* cliente */
-  leadId: string | null;
-  clientName: string;
-  /** Anos. Texto porque vem de um campo; `''` = não informado. */
+/** Um proponente, do jeito que a tela guarda. */
+export interface FormProponente {
+  id: string;
+  nome: string;
+  /** Anos. `''` = não informado, e aí o limite de idade não é verificado. */
   idade: string;
-  rendaFamiliar: string;
-  proponentes: string;
+  rendaBruta: string;
+  /** % de pactuação. `''` = derivar da proporção das rendas. */
+  participacao: string;
+}
+
+export interface FormFinanciamento {
+  leadId: string | null;
+
+  /* proponentes */
+  proponentes: FormProponente[];
 
   /* imóvel */
   companyId: string | null;
@@ -40,28 +48,37 @@ export interface FormFinanciamento {
   uf: string | null;
   municipio: string;
   valorImovel: string;
+  /** Valor de avaliação. Vazio = usar o preço de venda, com aviso. */
+  valorAvaliacao: string;
 
   /* recursos */
   entradaPropria: string;
-  fgts: string;
+  fgtsDisponivel: string;
+  fgtsUsado: string;
   subsidio: string;
 
   /* condição */
   produtoId: string;
   sistema: SistemaAmortizacao;
   prazoMeses: string;
-  /** Só usados quando o produto é de parâmetros manuais. */
+  carenciaMeses: string;
+  /** Cenário do indexador em % a.m. `''` = usar o índice cadastrado. */
+  cenarioIndexador: string;
+
+  /* só para produto de parâmetros manuais */
   taxaAnual: string;
+  regimeTaxa: RegimeTaxa;
   quotaMax: string;
   comprometimento: string;
 }
 
+export function proponenteVazio(id: string): FormProponente {
+  return { id, nome: '', idade: '', rendaBruta: '', participacao: '' };
+}
+
 export const FORM_INICIAL: FormFinanciamento = {
   leadId: null,
-  clientName: '',
-  idade: '',
-  rendaFamiliar: '',
-  proponentes: '1',
+  proponentes: [proponenteVazio('p1')],
 
   companyId: null,
   developmentId: null,
@@ -72,15 +89,21 @@ export const FORM_INICIAL: FormFinanciamento = {
   uf: null,
   municipio: '',
   valorImovel: '',
+  valorAvaliacao: '',
 
   entradaPropria: '',
-  fgts: '',
+  fgtsDisponivel: '',
+  fgtsUsado: '',
   subsidio: '',
 
   produtoId: 'informado',
   sistema: 'SAC',
   prazoMeses: '360',
+  carenciaMeses: '',
+  cenarioIndexador: '',
+
   taxaAnual: '',
+  regimeTaxa: 'nominal',
   quotaMax: '80',
   comprometimento: '30',
 };
@@ -111,43 +134,74 @@ export function inteiro(texto: string): number | null {
   return n === null ? null : Math.round(n);
 }
 
+export function paraProponentes(lista: FormProponente[]): Proponente[] {
+  return lista.map((p) => ({
+    id: p.id,
+    nome: p.nome.trim(),
+    idadeAnos: inteiro(p.idade),
+    rendaBruta: dinheiro(p.rendaBruta),
+    participacaoPct: decimal(p.participacao),
+  }));
+}
+
 export function paraEntrada(form: FormFinanciamento): EntradaSimulacao {
+  /*
+   * O FGTS USADO CAI PARA O DISPONÍVEL quando só o saldo é informado.
+   *
+   * Na prática o corretor digita o saldo do extrato e quer usar tudo. Exigir
+   * que ele digite o mesmo número duas vezes seria atrito puro — e deixar o
+   * "usado" em zero faria a simulação ignorar o FGTS em silêncio, que é pior.
+   */
+  const disponivel = dinheiro(form.fgtsDisponivel);
+  const usadoDigitado = form.fgtsUsado.trim() ? dinheiro(form.fgtsUsado) : null;
+  const fgtsUsado = usadoDigitado ?? disponivel;
+
   return {
     operacao: form.operacao,
     tipoImovel: form.tipoImovel,
     uf: form.uf,
     municipio: form.municipio.trim() || null,
     valorImovel: dinheiro(form.valorImovel),
+    valorAvaliacao: dinheiro(form.valorAvaliacao),
 
     entradaPropria: dinheiro(form.entradaPropria),
-    fgts: dinheiro(form.fgts),
+    fgtsDisponivel: disponivel,
+    fgtsUsado,
     subsidio: dinheiro(form.subsidio),
 
-    rendaFamiliarMensal: dinheiro(form.rendaFamiliar),
-    quantidadeProponentes: inteiro(form.proponentes) ?? 1,
-    idadeAnos: inteiro(form.idade),
+    proponentes: paraProponentes(form.proponentes),
 
     produtoId: form.produtoId,
     sistema: form.sistema,
     prazoMeses: inteiro(form.prazoMeses) ?? 0,
+    carenciaMeses: inteiro(form.carenciaMeses) ?? 0,
+    cenarioIndexadorPct: decimal(form.cenarioIndexador),
 
     taxaAnualPctInformada: decimal(form.taxaAnual),
+    regimeTaxaInformado: form.regimeTaxa,
     quotaMaxPctInformada: decimal(form.quotaMax),
     comprometimentoMaxPctInformado: decimal(form.comprometimento),
   };
 }
 
+/** A renda familiar somada, para a tela mostrar sem chamar o motor. */
+export function rendaFamiliar(form: FormFinanciamento): Centavos {
+  return form.proponentes.reduce(
+    (soma, p) => (soma + dinheiro(p.rendaBruta)) as Centavos,
+    ZERO as Centavos,
+  );
+}
+
 /**
  * O formulário tem o mínimo para simular?
  *
- * Devolve a lista do que falta, em português, na ORDEM DA TELA — para o aviso
- * apontar para o primeiro campo vazio de cima para baixo, e não para um
- * qualquer.
+ * Devolve o que falta, em português, na ORDEM DA TELA — para o aviso apontar
+ * para o primeiro campo vazio de cima para baixo, e não para um qualquer.
  */
 export function faltando(form: FormFinanciamento, exigeTaxa: boolean): string[] {
   const faltas: string[] = [];
   if (dinheiro(form.valorImovel) <= 0) faltas.push('o valor do imóvel');
-  if (dinheiro(form.rendaFamiliar) <= 0) faltas.push('a renda familiar');
+  if (rendaFamiliar(form) <= 0) faltas.push('a renda dos proponentes');
   if ((inteiro(form.prazoMeses) ?? 0) <= 0) faltas.push('o prazo em meses');
   if (exigeTaxa && decimal(form.taxaAnual) === null) faltas.push('a taxa de juros ao ano');
   return faltas;
@@ -186,4 +240,9 @@ export const PRAZOS_COMUNS = [
   { value: '300', label: '25 anos (300 meses)' },
   { value: '360', label: '30 anos (360 meses)' },
   { value: '420', label: '35 anos (420 meses)' },
+];
+
+export const REGIMES_TAXA: { value: RegimeTaxa; label: string }[] = [
+  { value: 'nominal', label: 'Nominal ao ano (÷ 12)' },
+  { value: 'efetiva', label: 'Efetiva ao ano (composta)' },
 ];

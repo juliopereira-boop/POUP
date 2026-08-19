@@ -4,25 +4,31 @@
  * ===========================================================================
  * UMA ROLAGEM, NÃO CINCO ETAPAS
  * ===========================================================================
- * O simulador de poupança tem cinco etapas, e ali faz sentido: ele monta um
- * documento com dezenas de campos que dependem uns dos outros. Aqui não. São
- * poucos campos, e o corretor está **com o cliente na frente**, mexendo no
- * prazo e na entrada para ver a parcela mudar. Passo a passo isso vira quatro
- * toques por ajuste.
+ * O simulador de poupança tem cinco etapas, e ali faz sentido: monta um
+ * documento com dezenas de campos interdependentes. Aqui não. O corretor está
+ * **com o cliente na frente**, mexendo no prazo e na entrada para ver a parcela
+ * mudar. Passo a passo isso vira quatro toques por ajuste.
  *
  * Então: uma rolagem, com o RESULTADO GRUDADO NO TOPO, atualizando a cada
- * tecla. A conta é aritmética inteira — 420 linhas custam microssegundos —,
- * então dá para recalcular a cada letra sem o aparelho sentir.
+ * tecla. O cronograma de 420 meses é aritmética; custa microssegundos.
  *
  * ===========================================================================
  * A ORDEM DOS BLOCOS SEGUE A CONVERSA, NÃO O BANCO
  * ===========================================================================
- * Imóvel → recursos → cliente → condição. É a ordem em que a negociação
+ * Imóvel → recursos → proponentes → condição. É a ordem em que a negociação
  * acontece: fala-se do apartamento, depois de quanto o cliente tem, depois de
- * quanto ele ganha, e por último de como o banco financia. Um formulário de
- * banco começaria pelo CPF.
+ * quem compra e quanto ganha, e por último de como o banco financia. Um
+ * formulário de banco começaria pelo CPF.
+ *
+ * ===========================================================================
+ * O QUE É AVANÇADO FICA DOBRADO
+ * ===========================================================================
+ * Avaliação do imóvel, carência, cenário de indexador e pactuação de renda são
+ * campos que a maioria das simulações não usa. Deixá-los sempre abertos faria a
+ * tela ter trinta campos e o corretor desistir no meio. Ficam atrás de "Opções
+ * avançadas" — presentes, mas fora do caminho.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -32,12 +38,10 @@ import { NumberPickerField } from '@/components/NumberPickerField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { formatCurrencyBRL } from '@/lib/masks';
-import {
-  opcoesDeProduto,
-  useFinanciamento,
-} from '@/features/financiamento/FinanciamentoProvider';
+import { opcoesDeProduto, useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { formatarBRL, formatarPct } from '@/features/financiamento/dinheiro';
-import { PRAZOS_COMUNS } from '@/features/financiamento/formulario';
+import { PRAZOS_COMUNS, REGIMES_TAXA } from '@/features/financiamento/formulario';
+import { CENARIOS_INDEXADOR } from '@/features/financiamento/indexador';
 import { SISTEMA_ROTULO, type SistemaAmortizacao } from '@/features/financiamento/amortizacao';
 import {
   IMOVEL_ROTULO,
@@ -45,6 +49,7 @@ import {
   type TipoImovel,
   type TipoOperacao,
 } from '@/features/financiamento/regras';
+import type { RegimeTaxa } from '@/features/financiamento/dinheiro';
 import { UF_OPTIONS } from '@/features/uf';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -66,9 +71,17 @@ export default function SimularFinanciamento() {
     exigeCondicaoInformada,
     escolherCliente,
     escolherEmpreendimento,
+    adicionarProponente,
+    removerProponente,
+    atualizarProponente,
+    rendaFamiliarBruta,
   } = useFinanciamento();
 
+  const [avancado, setAvancado] = useState(false);
+
   const produtos = useMemo(() => opcoesDeProduto(regras), [regras]);
+  const produtoAtual = regras.produtos.find((p) => p.id === form.produtoId) ?? null;
+  const indexadorAtual = regras.indexadores.find((i) => i.id === produtoAtual?.indexadorId) ?? null;
 
   const empreendimentosDaEmpresa = useMemo(
     () =>
@@ -85,15 +98,22 @@ export default function SimularFinanciamento() {
         {resultado ? (
           <>
             <View style={styles.painelLinha}>
-              <Text style={styles.painelRotulo}>1ª parcela estimada</Text>
-              <Text style={styles.painelValor}>{formatarBRL(resultado.primeira.total)}</Text>
+              <Text style={styles.painelRotulo}>1ª prestação estimada</Text>
+              <Text style={styles.painelValor}>
+                {formatarBRL(resultado.primeira?.prestacaoTotal ?? (0 as never))}
+              </Text>
+              {resultado.primeira?.parcial ? (
+                <Text style={styles.painelNota}>
+                  Encargo principal apenas — seguros e tarifa não estão cadastrados.
+                </Text>
+              ) : null}
             </View>
             <View style={styles.painelGrade}>
               <Mini rotulo="Financiado" valor={formatarBRL(resultado.valorFinanciado)} />
               <Mini rotulo="Entrada total" valor={formatarBRL(resultado.entradaTotal)} />
               <Mini
-                rotulo="Última parcela"
-                valor={formatarBRL(resultado.ultima.total)}
+                rotulo="Última prestação"
+                valor={formatarBRL(resultado.ultima?.prestacaoTotal ?? (0 as never))}
               />
               <Mini
                 rotulo="Renda mínima"
@@ -211,7 +231,7 @@ export default function SimularFinanciamento() {
       </View>
 
       <Input
-        label="Valor do imóvel"
+        label="Valor do imóvel (preço de venda)"
         value={form.valorImovel}
         onChangeText={(t) => set('valorImovel', formatCurrencyBRL(t))}
         placeholder="R$ 0,00"
@@ -236,14 +256,18 @@ export default function SimularFinanciamento() {
         </View>
         <View style={styles.col}>
           <Input
-            label="FGTS"
-            value={form.fgts}
-            onChangeText={(t) => set('fgts', formatCurrencyBRL(t))}
+            label="Saldo de FGTS"
+            value={form.fgtsDisponivel}
+            onChangeText={(t) => set('fgtsDisponivel', formatCurrencyBRL(t))}
             placeholder="R$ 0,00"
             keyboardType="numeric"
           />
         </View>
       </View>
+      <Text style={styles.ajuda}>
+        O saldo informado é somado por inteiro à entrada. Para usar só uma parte, abra as opções
+        avançadas. O direito de usar o FGTS depende de análise da Caixa.
+      </Text>
 
       <Input
         label="Subsídio / desconto"
@@ -253,14 +277,14 @@ export default function SimularFinanciamento() {
         keyboardType="numeric"
       />
 
-      {/* -------------------------------------------------------- o cliente */}
+      {/* ----------------------------------------------------- proponentes */}
       <Secao
-        titulo="O cliente"
-        nota="Escolhendo um cliente cadastrado, a renda e a idade da ficha entram sozinhas — e a simulação fica salva nele."
+        titulo="Quem compra"
+        nota="A renda familiar é a soma das rendas informadas. A idade de cada um entra no cálculo do seguro e no limite de idade mais prazo."
       />
 
       <Select
-        label="Cliente"
+        label="Cliente cadastrado"
         placeholder="Selecionar um lead (opcional)"
         value={form.leadId}
         options={clientes.map((c) => ({ value: c.id, label: c.name }))}
@@ -269,33 +293,72 @@ export default function SimularFinanciamento() {
         searchable
       />
 
-      <Input
-        label="Nome"
-        value={form.clientName}
-        onChangeText={(t) => set('clientName', t)}
-        placeholder="Nome do proponente"
-      />
+      {form.proponentes.map((p, i) => (
+        <View key={p.id} style={styles.proponente}>
+          <View style={styles.proponenteTopo}>
+            <Text style={styles.proponenteTitulo}>
+              {i === 0 ? 'Proponente principal' : `${i + 1}º proponente`}
+            </Text>
+            {i > 0 ? (
+              <Pressable onPress={() => removerProponente(p.id)} accessibilityRole="button">
+                <Text style={styles.remover}>Remover</Text>
+              </Pressable>
+            ) : null}
+          </View>
 
-      <View style={styles.linha}>
-        <View style={styles.col}>
           <Input
-            label="Renda familiar bruta"
-            value={form.rendaFamiliar}
-            onChangeText={(t) => set('rendaFamiliar', formatCurrencyBRL(t))}
-            placeholder="R$ 0,00"
-            keyboardType="numeric"
+            label="Nome"
+            value={p.nome}
+            onChangeText={(t) => atualizarProponente(p.id, { nome: t })}
+            placeholder="Nome completo"
           />
+          <View style={styles.linha}>
+            <View style={styles.col}>
+              <Input
+                label="Renda bruta"
+                value={p.rendaBruta}
+                onChangeText={(t) =>
+                  atualizarProponente(p.id, { rendaBruta: formatCurrencyBRL(t) })
+                }
+                placeholder="R$ 0,00"
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.col}>
+              <Input
+                label="Idade"
+                value={p.idade}
+                onChangeText={(t) =>
+                  atualizarProponente(p.id, { idade: t.replace(/\D/g, '').slice(0, 3) })
+                }
+                placeholder="anos"
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+          {avancado ? (
+            <Input
+              label="Pactuação de renda (%)"
+              value={p.participacao}
+              onChangeText={(t) =>
+                atualizarProponente(p.id, { participacao: t.replace(/[^\d,.]/g, '').slice(0, 6) })
+              }
+              placeholder="em branco = proporcional à renda"
+              keyboardType="numeric"
+            />
+          ) : null}
         </View>
-        <View style={styles.col}>
-          <Input
-            label="Idade"
-            value={form.idade}
-            onChangeText={(t) => set('idade', t.replace(/\D/g, '').slice(0, 3))}
-            placeholder="anos"
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
+      ))}
+
+      {form.proponentes.length < 4 ? (
+        <Pressable onPress={adicionarProponente} accessibilityRole="button" style={styles.adicionar}>
+          <Text style={styles.adicionarTexto}>+ Compor renda com outra pessoa</Text>
+        </Pressable>
+      ) : null}
+
+      <Text style={styles.rendaTotal}>
+        Renda familiar bruta: <Text style={styles.forte}>{formatarBRL(rendaFamiliarBruta)}</Text>
+      </Text>
 
       {/* ------------------------------------------------------- a condição */}
       <Secao titulo="A condição do banco" />
@@ -372,6 +435,23 @@ export default function SimularFinanciamento() {
               />
             </View>
           </View>
+
+          <Select
+            label="A taxa informada é"
+            value={form.regimeTaxa}
+            options={REGIMES_TAXA}
+            onChange={(v) => set('regimeTaxa', v as RegimeTaxa)}
+          />
+          <Text style={styles.ajuda}>
+            Não é detalhe: 10% <Text style={styles.forte}>nominais</Text> viram 0,8333% ao mês e
+            10,47% efetivos ao ano; 10% <Text style={styles.forte}>efetivos</Text> viram 0,7974% ao
+            mês. Em 35 anos a diferença passa de vinte mil reais. Pergunte ao correspondente qual
+            das duas ele passou.
+            {resultado
+              ? ` Com o que está informado: ${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos ao ano.`
+              : ''}
+          </Text>
+
           <Input
             label="Comprometimento máximo de renda (%)"
             value={form.comprometimento}
@@ -379,19 +459,83 @@ export default function SimularFinanciamento() {
             placeholder="Ex.: 30"
             keyboardType="numeric"
           />
-          <Text style={styles.ajuda}>
-            Quanto da renda a parcela pode consumir. Serve para o alerta e para a renda mínima
-            estimada.
-          </Text>
         </>
       ) : (
         <View style={styles.destaque}>
           <Text style={styles.destaqueTexto}>
-            Taxa {formatarPct(resultado?.taxaAnualPct ?? 0)} ao ano, da linha cadastrada. Fonte:{' '}
-            {regras.produtos.find((p) => p.id === form.produtoId)?.fonte ?? 'não informada'}.
+            {produtoAtual
+              ? `Taxa ${formatarPct(produtoAtual.taxaAnualPct.valor ?? 0)} ao ano ${produtoAtual.regimeTaxa}${
+                  resultado ? ` (${formatarPct(resultado.taxaAnualEfetivaPct)} efetivos)` : ''
+                }. Fonte: ${produtoAtual.fonte ?? 'não informada'}.`
+              : ''}
           </Text>
         </View>
       )}
+
+      {/* ------------------------------------------------------- avançadas */}
+      <Pressable
+        onPress={() => setAvancado((v) => !v)}
+        accessibilityRole="button"
+        style={styles.expandir}
+      >
+        <Text style={styles.expandirTexto}>
+          {avancado ? '− Esconder' : '+ Opções avançadas'} (avaliação, FGTS parcial, carência,
+          indexador)
+        </Text>
+      </Pressable>
+
+      {avancado ? (
+        <>
+          <Input
+            label="Valor de avaliação do imóvel"
+            value={form.valorAvaliacao}
+            onChangeText={(t) => set('valorAvaliacao', formatCurrencyBRL(t))}
+            placeholder="em branco = usar o preço de venda"
+            keyboardType="numeric"
+          />
+          <Text style={styles.ajuda}>
+            O banco financia sobre o MENOR entre o preço de venda e a avaliação — e a avaliação
+            costuma vir abaixo do negociado. O seguro do imóvel (DFI) também incide sobre ela.
+          </Text>
+
+          <Input
+            label="FGTS a utilizar"
+            value={form.fgtsUsado}
+            onChangeText={(t) => set('fgtsUsado', formatCurrencyBRL(t))}
+            placeholder="em branco = usar o saldo inteiro"
+            keyboardType="numeric"
+          />
+
+          <Input
+            label="Carência (meses)"
+            value={form.carenciaMeses}
+            onChangeText={(t) => set('carenciaMeses', t.replace(/\D/g, '').slice(0, 3))}
+            placeholder="0"
+            keyboardType="numeric"
+          />
+          <Text style={styles.ajuda}>
+            Durante a carência não há amortização: os juros e a correção entram no saldo devedor,
+            que por isso <Text style={styles.forte}>sobe</Text> no período. A amortização começa
+            depois, sobre um saldo maior.
+          </Text>
+
+          {indexadorAtual && indexadorAtual.tipo !== 'nenhum' ? (
+            <>
+              <Select
+                label={`Cenário para ${indexadorAtual.nome}`}
+                value={form.cenarioIndexador || '0'}
+                options={CENARIOS_INDEXADOR}
+                onChange={(v) => set('cenarioIndexador', v === '0' ? '' : v)}
+              />
+              <Text style={styles.ajuda}>
+                {indexadorAtual.nome} é divulgado por fonte externa e ninguém sabe o valor futuro.
+                Escolher um cenário aqui marca o resultado inteiro como{' '}
+                <Text style={styles.forte}>projeção</Text> — inclusive no PDF.
+              </Text>
+            </>
+          ) : null}
+        </>
+      ) : null}
 
       <Button
         label="Ver resultado completo"
@@ -440,6 +584,7 @@ const makeStyles = (colors: AppColors) =>
     painelLinha: { gap: 2 },
     painelRotulo: { ...typography.caption, color: colors.inkMuted },
     painelValor: { ...typography.title, color: colors.primary, fontSize: 30 },
+    painelNota: { ...typography.caption, color: colors.warning, fontSize: 11.5 },
     painelGrade: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     painelBotao: { marginTop: spacing.xs },
     painelVazio: { ...typography.caption, color: colors.inkMuted, lineHeight: 19 },
@@ -458,12 +603,28 @@ const makeStyles = (colors: AppColors) =>
     linha: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
     col: { flex: 1 },
 
-    rotulo: { ...typography.label, color: colors.inkMuted, marginBottom: spacing.sm },
-    segmentado: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-      marginBottom: spacing.lg,
+    proponente: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.surface,
     },
+    proponenteTopo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    proponenteTitulo: { ...typography.label, color: colors.primary, fontWeight: '700' },
+    remover: { ...typography.caption, color: colors.danger },
+    adicionar: { paddingVertical: spacing.sm, marginBottom: spacing.md },
+    adicionarTexto: { ...typography.label, color: colors.primary },
+    rendaTotal: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.md },
+
+    rotulo: { ...typography.label, color: colors.inkMuted, marginBottom: spacing.sm },
+    segmentado: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
     segmento: {
       flex: 1,
       paddingVertical: spacing.md,
@@ -485,6 +646,7 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
       lineHeight: 18,
     },
+    forte: { fontWeight: '700', color: colors.ink },
     destaque: {
       backgroundColor: colors.surfaceAlt,
       borderRadius: radius.md,
@@ -492,6 +654,9 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
     },
     destaqueTexto: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
+
+    expandir: { paddingVertical: spacing.md },
+    expandirTexto: { ...typography.label, color: colors.primary },
 
     cta: { marginTop: spacing.md },
     limpar: { alignItems: 'center', paddingVertical: spacing.md },
