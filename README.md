@@ -19,19 +19,20 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 7. [Perfil do corretor e onboarding](#🪪-perfil-do-corretor-e-onboarding)
 8. [Cadastros: Empresas, Empreendimentos e Correspondentes](#🏢-cadastros-empresas-empreendimentos-e-correspondentes)
 9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
-10. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
-11. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
-12. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
-13. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
-14. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
-15. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
-16. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
-17. [Deploy na Vercel](#▲-deploy-na-vercel)
-18. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
-19. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
-20. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
-21. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
-22. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+10. [Simulador de financiamento habitacional](#🏦-simulador-de-financiamento-habitacional)
+11. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
+12. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
+13. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
+14. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
+15. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
+16. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
+17. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
+18. [Deploy na Vercel](#▲-deploy-na-vercel)
+19. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
+20. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
+21. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
+22. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
+23. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -100,6 +101,17 @@ src/
       SimuladorProvider.tsx        # Estado do wizard (persistido em disco)
       calc.ts                     # Todas as fórmulas do fluxo de pagamento
       proposal.ts                 # Geração do HTML/PDF da proposta
+    financiamento/                # O motor de financiamento — sem React, sem Supabase
+      dinheiro.ts                 # Centavos inteiros, arredondamento e conversão de taxa
+      amortizacao.ts              # SAC e PRICE, mês a mês, com os reversos
+      regras.ts / regrasPadrao.ts # Produtos e parâmetros versionados, com procedência
+      elegibilidade.ts            # Enquadramento estimado, quatro situações
+      motor.ts                    # simular(entrada, regras) -> resultado
+      reverso.ts                  # Poder de compra e cálculos invertidos
+      cenarios.ts                 # Comparador de SAC x PRICE e prazos
+      ponte.ts                    # A tradução para o simulador de poupança
+      relatorio.ts                # PDF e resumo para WhatsApp
+    pdf/imprimir.ts               # Impressão na web, compartilhada pelos dois relatórios
   lib/                              # Cliente Supabase, env, máscaras, storage, scanner
 supabase/
   migrations/0001_init.sql                 # Schema base (profiles, subscriptions, RLS)
@@ -108,7 +120,7 @@ supabase/
   migrations/0004_profile_fields.sql       # Imobiliária e CNPJ no perfil
   migrations/0005_regras_negocio.sql       # Regras de negócio + correspondentes + gerente imob
   functions/                               # Edge Functions (Stripe x3, scan-document, delete-account)
-docs/STRIPE_PLANOS.md               # Guia passo a passo para criar os 2 planos no Stripe
+docs/STRIPE_PLANOS.md               # Os 3 planos no Stripe, Supabase e Vercel — e como mudar um preço
 ```
 
 ---
@@ -453,6 +465,176 @@ O trigger `enforce_storage_quota()` **não cobra** upload em `catalog/` de ningu
 ### Foto no PDF
 
 A foto da construtora sai no topo da proposta, ao lado da logo do POUP. O bucket é público porque o PDF é montado **no cliente**: a imagem é buscada e convertida em data URI antes de imprimir. Com timeout curto e `try/catch` — proposta sem foto é aceitável, proposta que não gera não é.
+
+---
+
+## 🏦 Simulador de financiamento habitacional
+
+Rotas em `app/(app)/financiamento/`, motor em `src/features/financiamento/`,
+banco na migration `0027_financiamento.sql`.
+
+O atalho **Simulador** abre um garfo (`/(app)/simuladores`) com dois caminhos,
+porque são duas perguntas de momentos diferentes da venda:
+
+| | pergunta | quando |
+|---|---|---|
+| **Financiamento** | quanto o BANCO empresta, qual a parcela, se enquadra | antes, quando o cliente ainda decide se consegue comprar |
+| **Poupança** | como o saldo é pago à CONSTRUTORA | depois, quando ele já decidiu |
+
+### O motor é uma função pura, e isso não é preciosismo
+
+`simular(entrada, regras)` não tem React, não tem Supabase, não tem navegador.
+Três consequências práticas:
+
+1. **Os testes rodam em Node puro.** `npm run testar:financiamento` — 174
+   checagens, sem simulador, sem servidor, sem mock.
+2. **A LIA pode chamá-lo.** Quando ela precisar responder "quanto esse cliente
+   financia?", ela chama o motor e **interpreta** o número. O modelo de
+   linguagem nunca faz a conta. É a diferença entre um assistente e um chute bem
+   escrito.
+3. **Outro banco entra sem tela mudar.** `FinancingProvider`, em `provider.ts`,
+   é a porta; `provedorInterno` é a implementação de hoje.
+
+### Dinheiro é inteiro de centavos
+
+`number` do JavaScript é exato para inteiros até 2^53 — noventa trilhões de
+reais. Somar centavos assim é **matematicamente exato**, sem biblioteca. Toda
+multiplicação por taxa passa por `aplicarTaxa`, que arredonda ali mesmo, e
+`ratear` garante por construção que a soma das partes é o todo.
+
+É o que faz a tabela **fechar em zero**: saldo devedor final exatamente zero e
+soma das amortizações exatamente igual ao principal, verificado em 12, 120, 360
+e 420 meses, nos dois sistemas. Um centavo sobrando numa tabela de 420 linhas é
+a falha clássica deste domínio.
+
+> Na PRICE, a **última parcela** amortiza o saldo remanescente inteiro e é
+> recalculada a partir disso — por isso ela quase nunca é idêntica às
+> anteriores. Não é gambiarra: é como o contrato funciona.
+
+### Nenhuma regra financeira está no código
+
+Produtos, faixas de renda, quotas, prazos, taxas, indexadores e encargos são
+**dados versionados** em `financing_rule_versions`. Mudou uma portaria, o
+administrador abre **Financiamento → Regras**, digita o número, informa a fonte
+e o motivo, e publica. Sem republicar aplicativo.
+
+Cada número carrega **procedência**, e as três origens mudam o que a tela mostra:
+
+- **oficial** — confirmado em documentação, com fonte e data. É o único que pode
+  ser apresentado como condição.
+- **estimativa** — cálculo nosso ou convenção de mercado, marcado como tal.
+- **pendente** — não confirmado. `valor` é `null`, e o motor **se recusa a
+  chutar**: o resultado sai com "não calculado" naquele ponto, dizendo qual
+  parâmetro falta.
+
+> **Por que os parâmetros do MCMV e do SBPE vêm pendentes.** Eles são condições
+> oficiais que mudam por normativo e precisam ser lidas na fonte, pelo
+> administrador, no dia do cadastro. Um número escrito no código viraria, no
+> aplicativo, uma condição com cara de oficial — que o corretor mostra ao cliente
+> e que o banco desmente na mesa. É o pior defeito possível numa ferramenta de
+> venda, e não vale a conveniência de "já vir preenchido".
+>
+> O simulador funciona por inteiro assim mesmo, pelo produto **"Condições
+> informadas"**: o corretor digita a taxa, o prazo e a quota que o correspondente
+> bancário aprovou **para aquele cliente** — que é como a venda realmente
+> acontece, e quase nunca é a tabela genérica do site.
+
+### O enquadramento tem quatro situações, e a quarta é a que falta nos outros
+
+`ok` · `atenção` · `não passa` · **`não verificado`**.
+
+A quarta é quando o parâmetro não está cadastrado. Não é "passou" nem "não
+passou": é "não sei", dito em voz alta. Reprovar por falta de parâmetro nosso
+seria culpar o cliente por uma lacuna do cadastro; aprovar em silêncio seria
+pior.
+
+E a mensagem de recusa diz **o que fazer**: "Esta linha financia até 80% do
+imóvel. Faltam R$ 18.400 de entrada" — com isso o corretor negocia o ato, sugere
+mais FGTS, procura outra unidade. "Percentual acima do limite" não serve para
+nada.
+
+**Nunca aparece a palavra "aprovado".** O vocabulário é *enquadramento
+estimado*, e o aviso de que a condição final depende da instituição financeira
+sai no motor (`AVISO_LEGAL`), não em cada tela — deixar isso a cargo das telas é
+garantir que uma esqueça, e é justamente a que vai parar na mão do cliente.
+
+### Poder de compra: dois tetos, e o menor manda
+
+O simulador do banco pergunta o valor do imóvel e devolve a parcela. Numa
+conversa de verdade ninguém começa pelo imóvel: começa por *"ganho R$ 5.000, dá
+para comprar o quê?"*.
+
+E o teto vem de **duas** coisas ao mesmo tempo — quase todo simulador esquece a
+segunda:
+
+- **a renda** limita a parcela, e a parcela limita o financiado;
+- **a entrada** limita por outro caminho: com quota de 80%, os 20% saem do
+  bolso, então `P ≤ E·q/(1−q)`. Com R$ 60 mil de entrada o imóvel não passa de
+  R$ 300 mil, por mais que a renda aguentasse a parcela de um de R$ 500 mil.
+
+A tela diz **qual dos dois travou**, porque a ação muda: travou na renda, compõe
+renda com o cônjuge; travou na entrada, negocia o ato. E termina mostrando
+**quais empreendimentos do corretor cabem** — e quais ficaram por pouco, com o
+quanto falta. É o que transforma a calculadora em ferramenta de venda.
+
+> O preço vem de `developments.unit_value_from` ("valor a partir de"). É preço do
+> EMPREENDIMENTO, não da unidade: o POUP não tem espelho de vendas. Sem preço
+> cadastrado, o empreendimento não aparece **nem como compatível nem como
+> incompatível** — sem preço não dá para afirmar nenhum dos dois.
+
+### O cliente é o eixo — e é o que liga os dois simuladores
+
+A simulação salva fica ligada ao **lead**. Daí o botão **"Usar no simulador de
+poupança"**, que atravessa com empreendimento, valor da unidade, financiamento
+aprovado, subsídio, FGTS, nome e renda já preenchidos.
+
+A tradução mora em `financiamento/ponte.ts`, pura e testada, porque é onde as
+unidades divergem: o financiamento guarda **centavos**, a poupança guarda **texto
+mascarado**, e `financedValue` está em **reais**. Errar uma dessas por um fator
+de cem produz uma proposta com o valor errado que ninguém percebe até o cliente
+ler.
+
+O **fluxo de pagamento não viaja** — ato, mensais, semestrais são negociação com
+a construtora, e é o que o corretor vai montar na tela seguinte. Preenchê-lo com
+chute o faria apagar campo por campo.
+
+### O snapshot: a proposta de ontem não muda porque a regra de hoje mudou
+
+`financing_simulations.rules_snapshot` guarda a **versão de regras inteira**, em
+JSON, do momento da simulação. É redundante de propósito.
+
+Guardar só o número da versão não resolveria: alguém pode editar a versão em vez
+de criar outra. O snapshot é o único jeito de uma simulação de agosto continuar
+sendo, para sempre, uma simulação de agosto.
+
+### Compartilhar com o cliente
+
+Três saídas, e cada uma tem seu momento:
+
+- **PDF** (`relatorio.ts`) — o documento que vai para o correspondente. Sai
+  recortado: primeiro ano, marcos de cinco em cinco anos e as três últimas
+  parcelas. 420 linhas seriam nove páginas que ninguém lê e que fazem o corretor
+  desistir de mandar pelo WhatsApp.
+- **Resumo em texto** — quatro linhas para colar no chat, quando o anexo é
+  atrito demais.
+- **Link público** (`/simulacao/[token]`) — expira em 30 dias, pode ser revogado,
+  e o token é guardado como **hash SHA-256**: vazou o banco, os links já emitidos
+  continuam inúteis. A leitura é feita por Edge Function com service role, que
+  devolve **só o resumo daquela simulação** — nada do painel do corretor, nada de
+  renda.
+
+> A rota mora na **raiz**, fora de `(app)`, e é obrigatório: o `(app)/_layout`
+> redireciona quem não tem login para o login e quem não tem assinatura para o
+> paywall. O cliente não tem nem um nem outro.
+
+### A impressão na web é código compartilhado, e por um motivo específico
+
+`features/pdf/imprimir.ts` saiu de `simulador/proposal.ts` quando o segundo
+relatório precisou dela. Aquele arquivo é **cicatriz**: a proposta já saiu em
+branco duas vezes, e cada correção está numa linha específica — `opacity: 1` no
+iframe, a conferência de altura antes de imprimir, a reescrita via
+`document.write`, a aba nova como último recurso. Copiar seria assinar embaixo
+de repetir os mesmos dois bugs.
 
 ---
 
@@ -1196,15 +1378,23 @@ No fim, a tela **sai da conta** e manda para o login. É o que o corretor pediu 
 
 Link expirado ou já usado é o caso **comum**, não a exceção — eles duram pouco e valem uma vez só. Por isso vira uma tela própria ("Link expirado") com o botão de pedir outro, em vez de um erro técnico.
 
-### Configuração do Stripe (planos Start e Pro)
+### Configuração do Stripe (os três planos)
 
 **Guia completo passo a passo (100% pelo navegador): [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).** Resumo:
 
-1. Crie dois Produtos (`POUP Start`, `POUP Pro`) com preço recorrente mensal; copie os `price_...` para o `.env`.
+1. Crie três Produtos (`POUP Start` R$ 29,90, `POUP Intermed` R$ 49,90, `POUP Pro` R$ 89,90) com preço recorrente mensal; copie os `price_...`.
 2. Copie a publishable key (`pk_...`).
-3. Publique as 3 Edge Functions (`create-checkout-session`, `create-billing-portal-session`, `stripe-webhook`) colando o código de cada uma no Supabase Dashboard.
-4. Configure os segredos: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`, `STRIPE_PRICE_PRO`.
+3. Publique as Edge Functions colando o código de cada uma no Supabase Dashboard. `stripe-webhook` e `get-financing-simulation` vão com **Verify JWT desmarcado** — quem as chama não tem login (o Stripe e o cliente do corretor), e as duas validam por outro caminho (assinatura criptográfica e hash de token).
+4. Configure os segredos: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`, `STRIPE_PRICE_INTERMED`, `STRIPE_PRICE_PRO`.
 5. No Stripe Dashboard, aponte um webhook para `https://<projeto>.supabase.co/functions/v1/stripe-webhook`, assinando `checkout.session.completed` e `customer.subscription.*`; copie o `whsec_...` para o segredo acima.
+
+> **Preço no Stripe não se edita — cria-se outro.** Um `Price` é imutável porque
+> assinaturas ativas apontam para ele. Mudar um valor é criar preço novo,
+> arquivar o antigo, trocar as variáveis nos **dois** lados (Vercel e Supabase) e
+> **redeployar a Vercel** — as `EXPO_PUBLIC_*` são embutidas no build, então sem
+> redeploy o site publicado continua vendendo pelo preço velho, sem aviso
+> nenhum. E quem já assina **continua no preço antigo** até você migrar a
+> assinatura dele. O guia detalha os três caminhos de migração.
 
 ---
 
@@ -1504,8 +1694,8 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 **Antes de gerar o build:**
 
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
-- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`.
-- Publicar o Edge Function `delete-account`.
+- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`, `0027_financiamento.sql`.
+- Publicar os Edge Functions `delete-account` e `get-financing-simulation` — este último com **Verify JWT desmarcado**, porque quem o chama é o navegador do CLIENTE do corretor, que não tem conta (ele valida pelo hash do token e pela expiração do link).
 - **Publicar o Edge Function `lia-extract`** — obrigatório, e não é opcional depois de mexer nele. O aplicativo e a função combinam uma **versão de contrato** (`VERSAO_CONTRATO` em `src/features/lia/extrair.ts` × `VERSAO` na função) e a resposta ecoa a versão; sem o eco, o aplicativo mostra *"A LIA no servidor está desatualizada"* em vez de fingir que ouviu. Isso existe porque a versão anterior falhava em silêncio: a função procurava um campo que o aplicativo tinha parado de mandar, recebia `undefined` e respondia `{campos: []}` com status 200 — indistinguível de "a LIA não entendeu nada".
 - Adicionar `poup://**` e `https://<dominio>/**` na lista de **Redirect URLs** do Supabase Auth. Sem o primeiro, o login social nativo não fecha; sem o segundo, o link de redefinição de senha cai no Site URL e a troca de senha nunca acontece.
 
