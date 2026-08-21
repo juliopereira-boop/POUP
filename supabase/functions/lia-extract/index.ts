@@ -299,7 +299,7 @@ ${listaCorr}
 
 Ao ouvir um empreendimento ou correspondente, devolva o **nome da lista acima**, escrito exatamente como está lá.
 
-Na conversa quase nunca vem o nome completo. O corretor fala "o connect", "aquele lá do parque", "no reserva" — e isso é para casar com "Village Connect I", "Parque das Águas", "Reserva do Sol". **Casar pedaço do nome é o esperado, não a exceção.** Só deixe o campo de fora quando o que foi dito não lembra NENHUM item da lista.
+Na conversa quase nunca vem o nome completo. O corretor fala "a aurora", "aquele lá do parque", "no reserva" — e isso é para casar com "Residencial Aurora", "Parque das Águas", "Reserva do Sol". **Casar pedaço do nome é o esperado, não a exceção.** Só deixe o campo de fora quando o que foi dito não lembra NENHUM item da lista.
 
 Você NÃO precisa identificar a construtora: ela é deduzida do empreendimento.`;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -11,7 +11,6 @@ import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
-import { formatBytes } from '@/features/plans';
 import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -31,26 +30,13 @@ const STATUS_LABEL: Record<string, string> = {
 export default function ConfiguracoesScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
   const { user, signOut } = useAuth();
   const { profile } = useProfile();
   const { subscription, plan } = useSubscription();
   const { isAdmin } = useIsAdmin();
   const [loadingPortal, setLoadingPortal] = useState(false);
-  const [usedBytes, setUsedBytes] = useState<number | null>(null);
   const { plataforma, instalavel, jaInstalado } = useInstallPrompt();
   const [comoInstalar, setComoInstalar] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    let mounted = true;
-    db.billing.getStorageUsedBytes(user.id).then((bytes) => {
-      if (mounted) setUsedBytes(bytes);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [user]);
 
   /**
    * Instala pelo botão do navegador quando ele existe; caso contrário abre o
@@ -76,8 +62,6 @@ export default function ConfiguracoesScreen() {
   }
 
   const statusLabel = STATUS_LABEL[subscription?.status ?? 'none'] ?? 'Sem assinatura';
-  const limitBytes = subscription?.storageLimitBytes ?? plan?.storageLimitBytes ?? 0;
-  const usagePct = limitBytes > 0 && usedBytes != null ? Math.min(1, usedBytes / limitBytes) : 0;
 
   return (
     <Screen>
@@ -184,28 +168,6 @@ export default function ConfiguracoesScreen() {
               variant="secondary"
               onPress={openBillingPortal}
               loading={loadingPortal}
-            />
-          </View>
-        ) : null}
-      </View>
-
-      <Text style={styles.sectionLabel}>Armazenamento</Text>
-      <View style={styles.card}>
-        <View style={styles.storageRow}>
-          <Text style={styles.rowLabel}>Uso</Text>
-          <Text style={styles.rowValue}>
-            {usedBytes == null ? '—' : formatBytes(usedBytes)}
-            {limitBytes > 0 ? ` de ${formatBytes(limitBytes)}` : ''}
-          </Text>
-        </View>
-        {limitBytes > 0 ? (
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${Math.round(usagePct * 100)}%` },
-                usagePct >= 0.9 && { backgroundColor: colors.danger },
-              ]}
             />
           </View>
         ) : null}
@@ -364,25 +326,5 @@ const makeStyles = (colors: AppColors) =>
     },
     segmentText: { ...typography.label, color: colors.inkMuted },
     segmentTextActive: { color: colors.ink },
-    storageRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingTop: spacing.lg,
-      paddingBottom: spacing.md,
-      gap: spacing.lg,
-    },
-    progressTrack: {
-      height: 8,
-      borderRadius: radius.pill,
-      backgroundColor: colors.surfaceAlt,
-      marginBottom: spacing.lg,
-      overflow: 'hidden',
-    },
-    progressFill: {
-      height: '100%',
-      borderRadius: radius.pill,
-      backgroundColor: colors.primary,
-    },
     signOut: { marginTop: spacing.xxl },
   });

@@ -61,13 +61,21 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
 ];
 
 /*
- * O ARMAZENAMENTO SAIU DA LISTA DE PROPAGANDA — mas continua existindo.
+ * O ARMAZENAMENTO NÃO APARECE EM LUGAR NENHUM — mas continua existindo.
  *
- * `storageLimitBytes` segue em cada plano, porque é ele que o trigger
- * `enforce_storage_quota` usa no banco para recusar upload acima do limite.
- * O que saiu foi a LINHA no paywall e na landing: gigabyte não vende CRM de
- * corretor, e listar "5 GB" ao lado de "controle de comissão" faz o plano
- * parecer pacote de hospedagem. Quem quiser saber o consumo vê em Ajustes.
+ * `storageLimitBytes` segue em cada plano porque é ele que o trigger
+ * `enforce_storage_quota` usa no banco para recusar upload acima do limite. É
+ * uma trava de custo, e trava de custo é assunto interno.
+ *
+ * O que NÃO existe mais é o informativo: nem linha no paywall, nem coluna na
+ * landing, nem barra de consumo em Ajustes, nem "x de y GB" no material de
+ * venda. Gigabyte não vende CRM de corretor — anunciar espaço convida o
+ * corretor a usar o POUP como nuvem de arquivos, que é exatamente o uso que
+ * dá prejuízo. O que ele precisa saber na hora de enviar é o teto POR
+ * ARQUIVO, e esse continua à vista na tela de material.
+ *
+ * Se um upload for recusado por cota, a mensagem vem do banco no momento do
+ * erro — informar no ponto do bloqueio, não como propaganda.
  */
 
 export interface PlanFeatureLine {
@@ -91,7 +99,6 @@ export interface PlanConfig {
   priceLabel: string;
   tagline: string;
   storageLimitBytes: number;
-  storageLabel: string;
   stripePriceId: string;
   /** Todas as funcionalidades do produto, marcadas como incluídas ou não. */
   features: PlanFeatureLine[];
@@ -105,7 +112,6 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     priceLabel: 'R$ 29,90/mês',
     tagline: 'Para começar a organizar a operação',
     storageLimitBytes: 5 * GB,
-    storageLabel: '5 GB',
     stripePriceId: env.stripePriceStart,
     features: planFeatureLines('start'),
   },
@@ -115,7 +121,6 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     priceLabel: 'R$ 49,90/mês',
     tagline: 'Para acompanhar a venda até a comissão cair',
     storageLimitBytes: 15 * GB,
-    storageLabel: '15 GB',
     stripePriceId: env.stripePriceIntermed,
     features: planFeatureLines('intermed'),
   },
@@ -125,7 +130,6 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     priceLabel: 'R$ 89,90/mês',
     tagline: 'Tudo do POUP, com a LIA ouvindo por você',
     storageLimitBytes: 25 * GB,
-    storageLabel: '25 GB',
     stripePriceId: env.stripePricePro,
     highlighted: true,
     features: planFeatureLines('pro'),
@@ -177,12 +181,4 @@ export function canUse(
   const config = PLAN_FEATURES.find((f) => f.key === feature);
   if (!config) return true;
   return config.includedIn.includes(tier);
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes <= 0) return '0 MB';
-  const mb = bytes / (1024 * 1024);
-  if (mb < 1024) return `${Math.round(mb)} MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(gb < 10 ? 1 : 0).replace('.', ',')} GB`;
 }

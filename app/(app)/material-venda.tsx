@@ -29,9 +29,7 @@ import {
   putCachedThumbs,
   THUMB_TTL_SECONDS,
 } from '@/features/material/thumbCache';
-import { formatBytes } from '@/features/plans';
 import { useAuth } from '@/providers/AuthProvider';
-import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -41,7 +39,6 @@ const ROOT = 'material';
 export default function MaterialVendaScreen() {
   const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
-  const { subscription, plan } = useSubscription();
   const { isAdmin } = useIsAdmin();
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -101,9 +98,6 @@ export default function MaterialVendaScreen() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usedBytes, setUsedBytes] = useState<number | null>(null);
-
-  const limitBytes = subscription?.storageLimitBytes ?? plan?.storageLimitBytes ?? 0;
 
   useEffect(() => {
     if (!user) return;
@@ -142,16 +136,9 @@ export default function MaterialVendaScreen() {
       );
       setLoadingCadastros(false);
     })();
-    db.billing.getStorageUsedBytes(user.id).then((b) => {
-      if (mounted) setUsedBytes(b);
-    });
     return () => {
       mounted = false;
     };
-  }, [user]);
-
-  const refreshUsage = useCallback(() => {
-    if (user) db.billing.getStorageUsedBytes(user.id).then(setUsedBytes);
   }, [user]);
 
   const addedCompanies = useMemo(
@@ -306,7 +293,6 @@ export default function MaterialVendaScreen() {
     }
     setBusy(false);
     if (firstErr) setError(firstErr);
-    refreshUsage();
     return true;
   }
 
@@ -376,7 +362,6 @@ export default function MaterialVendaScreen() {
         setError(res.error);
         return;
       }
-      refreshUsage();
       after();
     };
     const msg = entry.isFolder
@@ -502,14 +487,12 @@ export default function MaterialVendaScreen() {
             />
           ) : null}
 
-          {/* A cota de armazenamento só vale para o material do próprio corretor:
-              o do catálogo ocupa espaço na conta do POUP. */}
+          {/* O teto por arquivo continua à vista — é uma regra que o corretor
+              esbarra na hora de escolher o arquivo. Quanto do espaço da conta
+              ele já usou não aparece em lugar nenhum: o POUP não se vende como
+              hospedagem, e o limite é assunto do banco, não do corretor. */}
           {canEdit ? (
-            <Text style={styles.usage}>
-              {usedBytes == null ? '' : formatBytes(usedBytes)}
-              {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
-              máx. {MAX_FILE_MB} MB por arquivo
-            </Text>
+            <Text style={styles.usage}>máx. {MAX_FILE_MB} MB por arquivo</Text>
           ) : null}
 
           <Text style={styles.sectionTitle}>Empreendimentos</Text>
@@ -595,13 +578,7 @@ export default function MaterialVendaScreen() {
             <CatalogNotice />
           )}
 
-          {canEdit ? (
-            <Text style={styles.usage}>
-              {usedBytes == null ? '' : formatBytes(usedBytes)}
-              {limitBytes > 0 ? ` de ${formatBytes(limitBytes)} · ` : ' · '}
-              máx. {MAX_FILE_MB} MB por arquivo
-            </Text>
-          ) : null}
+          {canEdit ? <Text style={styles.usage}>máx. {MAX_FILE_MB} MB por arquivo</Text> : null}
 
           {atMaxDepth && canEdit ? (
             <Text style={styles.notice}>

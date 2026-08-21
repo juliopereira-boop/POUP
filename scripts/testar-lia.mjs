@@ -100,7 +100,7 @@ function secao(t) {
   checar('"agendado" sozinho dispara', AG.pareceAgendamento('ja ta agendado'));
   checar(
     '"marca" com hora dispara',
-    AG.pareceAgendamento('marca pra sexta as 15 horas apresentar o connect'),
+    AG.pareceAgendamento('marca pra sexta as 15 horas apresentar a aurora'),
   );
   checar('"marque" com data dispara', AG.pareceAgendamento('marque para o dia 10'));
 
@@ -136,9 +136,9 @@ function secao(t) {
   checar('lista vazia nunca chuta', CAT.resolverDoCatalogo('Maria', []).id === null);
   checar('texto vazio não casa nem avisa', CAT.resolverDoCatalogo('', leads).id === null);
 
-  const emps = [{ id: 'dev-1', nome: 'Village Connect I' }, { id: 'dev-2', nome: 'Parque das Águas' }];
-  checar('"o connect" casa por palavra em comum', CAT.resolverDoCatalogo('o connect', emps).id === 'dev-1');
-  checar('erro de transcrição próximo ainda casa', CAT.resolverDoCatalogo('conect', emps).id === 'dev-1');
+  const emps = [{ id: 'dev-1', nome: 'Residencial Aurora' }, { id: 'dev-2', nome: 'Parque das Águas' }];
+  checar('"a aurora" casa por palavra em comum', CAT.resolverDoCatalogo('a aurora', emps).id === 'dev-1');
+  checar('erro de transcrição próximo ainda casa', CAT.resolverDoCatalogo('aurora', emps).id === 'dev-1');
   checar(
     '"parque aguas" sem acento casa com "Parque das Águas"',
     CAT.resolverDoCatalogo('parque aguas', emps).id === 'dev-2',

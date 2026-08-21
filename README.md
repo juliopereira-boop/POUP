@@ -52,7 +52,7 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 
 - **Camada de dados abstrata** (`src/data/`): a UI só conhece _interfaces_ de repositório (`AuthRepository`, `ProfileRepository`, `BillingRepository`, `CompanyRepository`, `DevelopmentRepository`). Hoje a implementação é Supabase (`src/data/supabase/*`); para migrar a um banco mais robusto no futuro, cria-se uma nova implementação e troca-se **um** arquivo (`src/data/index.ts`). Nenhuma tela muda.
 - **Billing no servidor** (Edge Functions): a chave secreta do Stripe nunca toca o client. A tabela `subscriptions` é a fonte da verdade do acesso pago e é atualizada **apenas** pelo webhook do Stripe (service role, ignora RLS). Quando formos para as lojas, dá pra plugar o billing nativo (App Store/Play Store) trocando só a `BillingRepository`.
-- **Cota de armazenamento reforçada no próprio banco**: o limite de armazenamento do plano não é só uma checagem de UI — existe um *trigger* Postgres (`enforce_storage_quota`, ver §12) que rejeita o upload no nível do banco se o usuário estourar a cota, então nenhum client (nem um bugado, nem um malicioso) consegue burlar o limite.
+- **Cota de armazenamento reforçada no próprio banco**: o limite do plano não é uma checagem de UI (a UI nem o mostra) — existe um *trigger* Postgres (`enforce_storage_quota`, ver §12) que rejeita o upload no nível do banco se o usuário estourar a cota, então nenhum client (nem um bugado, nem um malicioso) consegue burlar o limite.
 - **Mobile-first e responsivo**: layout se adapta de celular a desktop (`Screen` limita a largura via `layout.maxContentWidth`, o menu vira 2 ou 3 colunas em telas largas).
 - **Providers em cadeia com dependência explícita**: `AuthProvider` → `ProfileProvider` → `SubscriptionProvider` — cada um só reage quando o `user` do provider anterior muda de fato (ver "shallow-compare" na seção de Autenticação), evitando remounts em cascata da árvore inteira do app.
 
@@ -279,22 +279,24 @@ Dois detalhes que parecem miudeza e não são:
 
 ### Planos (`src/features/plans.ts`)
 
-| Plano | Preço | O que acrescenta | Armazenamento |
-| --- | --- | --- | --- |
-| **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, prospecção, calendário, material de venda, cadastros, captação | 5 GB |
-| **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** | 15 GB |
-| **Pro** | R$ 89,90/mês | Tudo do Intermed **+ a LIA** | 25 GB |
+| Plano | Preço | O que acrescenta |
+| --- | --- | --- |
+| **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, prospecção, calendário, material de venda, cadastros, captação |
+| **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** |
+| **Pro** | R$ 89,90/mês | Tudo do Intermed **+ a LIA** |
 
 **A LIA é o que justifica o topo da escada** — é o único recurso exclusivo do Pro, e o degrau de
 Intermed para Pro custa R$ 40.
 
-> **O armazenamento não aparece mais no paywall nem na landing.** `storageLimitBytes` continua em
-> cada plano porque é ele que o trigger `enforce_storage_quota` usa no banco para recusar upload
-> acima do limite — o que saiu foi a *linha de propaganda*. Gigabyte não vende CRM de corretor, e
-> listar "5 GB" ao lado de "controle de comissão" fazia o plano parecer pacote de hospedagem. Quem
-> quiser saber o consumo vê em Ajustes.
+> **Armazenamento não é atributo de plano e não aparece em lugar nenhum do produto.** Nem no
+> paywall, nem na landing, nem em Ajustes, nem no material de venda. `storageLimitBytes` continua
+> existindo *no código* porque é ele que o trigger `enforce_storage_quota` usa no banco para
+> recusar upload acima do limite — é uma **trava de custo interna**, não uma linha de propaganda.
+> Anunciar gigabyte convida o corretor a usar o POUP como nuvem de arquivos, que é exatamente o uso
+> que dá prejuízo. O que ele vê na tela de material é o teto **por arquivo**; se a cota da conta
+> for estourada, a mensagem vem do banco no momento do erro.
 
-> ⚠️ Os limites de armazenamento estão **duplicados** em dois lugares: `src/features/plans.ts` (para exibição na UI) e `PLAN_LIMITS` dentro do edge function `stripe-webhook/index.ts` (que é o valor realmente gravado no banco). Se mudar um valor, mude os dois.
+> ⚠️ Os limites de armazenamento estão **duplicados** em dois lugares: `src/features/plans.ts` e `PLAN_LIMITS` dentro do edge function `stripe-webhook/index.ts` (que é o valor realmente gravado no banco). Se mudar um valor, mude os dois.
 
 #### O bloqueio aponta o plano mais barato que resolve
 
