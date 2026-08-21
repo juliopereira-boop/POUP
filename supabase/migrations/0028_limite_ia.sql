@@ -156,15 +156,15 @@ create policy "ai_limits_select_authenticated"
 -- ---------------------------------------------------------------------------
 -- Uma linha por (usuario, recurso, ciclo). O ciclo e o mes no fuso de
 -- Brasilia -- nao UTC: o corretor vira o mes as 21h do dia 31 se o corte for
--- em UTC, e ganha um dia de cota de gaca (ou perde um).
+-- em UTC, e ganha um dia de cota de graca (ou perde um).
 --
 -- `janela_inicio` / `janela_usados` sao a trava de rajada: um contador de 60
 -- segundos que vive na MESMA linha do contador do mes, para que uma unica
 -- leitura com lock resolva as duas travas.
 --
 -- ATENCAO A RLS AQUI: o usuario SO LE. Sem policy de insert/update/delete.
--- E a diferenca entre uma cota e uma sugestao -- ver a nota sobre
--- `prospect_usage` no item 6.
+-- E a diferenca entre uma cota e uma sugestao. A prospeccao aprendeu isso do
+-- jeito difícil -- ver o item 6.
 
 create table if not exists public.ai_usage (
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -400,18 +400,29 @@ grant execute on function public.meu_uso_ia() to authenticated;
 
 
 -- ---------------------------------------------------------------------------
--- 6. CONSERTO: prospect_usage ERA UMA COTA QUE O PROPRIO USUARIO PODIA ZERAR
+-- 6. CONSERTO: A COTA DA PROSPECCAO ERA CONTADA COM UMA CORRIDA
 -- ---------------------------------------------------------------------------
--- A policy original era `for all using (auth.uid() = user_id)`, o que da ao
--- dono da linha UPDATE e DELETE. Como a Edge Function roda as queries com o
--- token do usuario, o mesmo caminho estava aberto ao aparelho: um
--- `delete from prospect_usage` e a cota do periodo voltava ao zero.
+-- A 0013 ja fechou o buraco maior desta tabela: a policy original era
+-- `for all using (auth.uid() = user_id)`, que dava DELETE ao dono da linha e
+-- portanto ao aparelho (a Edge Function roda com o token do usuario). Ela
+-- trocou por select/insert/update sem delete, e ainda pos um trigger que
+-- impede `usados` de regredir. Isso continua valendo.
 --
--- Agora: usuario so LE, e o incremento passa por uma funcao `security
--- definer` que soma (nao grava um total escolhido por quem chama).
+-- O que sobrou foi mais silencioso: a funcao lia `usados`, somava
+-- `leads.length` em JavaScript e gravava o TOTAL. Duas prospeccoes ao mesmo
+-- tempo leem o mesmo `usados` e gravam o mesmo total — a segunda nao soma, ela
+-- sobrescreve. Nada trava, nada aparece no log, e a cota simplesmente vaza no
+-- caso em que ela mais importa, que e o disparo repetido.
+--
+-- Agora o incremento e um `usados = usados + N` dentro do banco, numa funcao
+-- `security definer`. E de quebra as policies de insert/update ficam
+-- dispensaveis: com a escrita passando por funcao, o usuario so precisa LER.
+-- Mantidas de fora aqui, sem drop, porque o trigger monotonico da 0013 ja as
+-- torna inofensivas e derrubar policy em migration idempotente e o tipo de
+-- mexida que quebra o que estava funcionando.
 
-drop policy if exists "prospect_usage_all_own" on public.prospect_usage;
-
+-- Reafirmado por seguranca: em ambiente novo, onde a 0013 tenha sido rodada
+-- fora de ordem, a policy de leitura tem que existir.
 drop policy if exists "prospect_usage_select_own" on public.prospect_usage;
 create policy "prospect_usage_select_own"
   on public.prospect_usage for select

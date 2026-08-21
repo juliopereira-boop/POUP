@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { LIMITE_HISTORICO } from './limites';
 import { endOfDay, startOfDay } from '@/features/agenda/dates';
 import { resolvePeriod } from '@/features/vendas/period';
 import type { SaleRepository } from '../repositories';
@@ -266,7 +267,8 @@ export class SupabaseSaleRepository implements SaleRepository {
 
     const { data, error } = await query
       .order('sale_date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_HISTORICO);
     if (error || !data) return [];
     return (data as unknown as SaleRow[]).map(mapSale);
   }

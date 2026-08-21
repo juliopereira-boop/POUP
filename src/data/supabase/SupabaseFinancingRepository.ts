@@ -13,6 +13,7 @@
  * testar exigiria subir um Postgres.
  */
 import { supabase } from '@/lib/supabase';
+import { LIMITE_LISTA } from './limites';
 import type { Json } from '@/data/database.types';
 import { getAppUrl } from '@/lib/appUrl';
 import type { FinancingRepository } from '../repositories';
@@ -234,7 +235,8 @@ export class SupabaseFinancingRepository implements FinancingRepository {
       .from('financing_rule_audit')
       .select('campo, valor_anterior, valor_novo, motivo, changed_at')
       .eq('version', versao)
-      .order('changed_at', { ascending: false });
+      .order('changed_at', { ascending: false })
+      .limit(LIMITE_LISTA);
     if (error || !data) return [];
     return data.map((r) => ({
       campo: r.campo,
@@ -254,7 +256,7 @@ export class SupabaseFinancingRepository implements FinancingRepository {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (filtros?.leadId) q = q.eq('lead_id', filtros.leadId);
-    const { data, error } = await q;
+    const { data, error } = await q.limit(LIMITE_LISTA);
     if (error || !data) return [];
     return (data as unknown as Row[]).map(mapear);
   }

@@ -76,6 +76,24 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           Arquivos enviados (material de venda, fotos de empresas e empreendimentos cadastrados)
         </Bullet>
+        <Bullet>
+          <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app — criou
+          uma empresa, começou uma simulação, gerou uma proposta —, em que etapa, quanto tempo
+          levou e se deu certo.{' '}
+          <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos nome, CPF,
+          telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde guardá-los.
+          Servem para descobrir onde o app está confuso ou quebrado.
+        </Bullet>
+        <Bullet>
+          <Bold>Contagem de uso dos recursos de inteligência artificial</Bold>: quantas leituras de
+          documento, quantas análises da LIA e quantos textos gerados você usou no mês. É só um
+          número por recurso, e existe para respeitar o limite do seu plano.
+        </Bullet>
+        <Bullet>
+          <Bold>O que você escreve em &quot;Reportar problema ou dar sugestão&quot;</Bold>, junto
+          com a tela onde o problema aconteceu. Pedimos que não inclua dados de clientes nesse
+          texto.
+        </Bullet>
 
         <SubTitle>Do pagamento</SubTitle>
         <Bullet>
@@ -94,6 +112,10 @@ export default function PrivacyPolicyScreen() {
           essa leitura
         </Bullet>
         <Bullet>Dar suporte quando você entra em contato</Bullet>
+        <Bullet>
+          Entender como o app é usado para melhorá-lo, e controlar o consumo dos recursos de
+          inteligência artificial dentro do limite do seu plano
+        </Bullet>
       </Section>
 
       <Section title="4. Com quem compartilhamos">
@@ -142,6 +164,11 @@ export default function PrivacyPolicyScreen() {
           você preencheu.
         </Paragraph>
         <Paragraph>
+          As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados
+          seus nem dos seus clientes — são contagens de eventos do aplicativo. Elas são apagadas
+          depois de seis meses, e apagadas junto com a conta se você excluí-la.
+        </Paragraph>
+        <Paragraph>
           A assistente <Bold>LIA</Bold> é outra exceção, na mesma direção: o áudio da negociação{' '}
           <Bold>não é gravado nem enviado a lugar nenhum</Bold>. A transcrição existe apenas no seu
           aparelho, enquanto a sessão estiver aberta, e é descartada quando você encerra. O que
@@ -178,6 +205,12 @@ export default function PrivacyPolicyScreen() {
           O acesso aos seus dados é protegido por login individual e por regras de permissão no
           banco de dados que impedem um corretor de ver os dados de outro. Senhas nunca são
           guardadas em texto simples.
+        </Paragraph>
+        <Paragraph>
+          Essas regras valem no próprio banco de dados, e não apenas na tela: mesmo que alguém
+          contorne o aplicativo e fale direto com o servidor, continua só alcançando os dados da
+          conta dele. As chaves dos serviços de pagamento e de inteligência artificial ficam no
+          servidor e nunca são enviadas para o aparelho.
         </Paragraph>
       </Section>
 

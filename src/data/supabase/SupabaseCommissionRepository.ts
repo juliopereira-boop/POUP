@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { LIMITE_HISTORICO } from './limites';
 import { dateKey } from '@/features/agenda/dates';
 import { resolveCommissionPeriod } from '@/features/comissao/period';
 import type { CommissionRepository } from '../repositories';
@@ -473,7 +474,8 @@ export class SupabaseCommissionRepository implements CommissionRepository {
 
     const { data, error } = await query
       .order('sale_date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_HISTORICO);
     if (error || !data) return [];
 
     const today = todayYmd();

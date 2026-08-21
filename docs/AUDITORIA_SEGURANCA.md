@@ -170,3 +170,75 @@ Sem `ROPA` e sem encarregado nomeado. Obrigação formal, não técnica; resolve
 10. Deduplicação de eventos da Stripe (achado 6).
 11. Opt-out de leads (LGPD 6) e expiração do cache de prospecção (LGPD 7).
 12. QR code gerado localmente (achado 8).
+
+---
+
+# Segunda rodada — 21/08/2026
+
+Escopo desta rodada: **custo de API**, **telemetria** e **escala até 5 mil corretores** no stack atual (Vercel + Supabase + React Native). A primeira rodada olhou vazamento e validação de entrada; esta olha o que sangra dinheiro e o que quebra quando a base cresce.
+
+## Resumo
+
+O risco que sobrou depois da primeira rodada não era vazamento — era **custo sem teto**. Todo recurso de IA (scanner, LIA, pitch, convite) cobrava por uso contra uma assinatura de valor fixo, sem nenhum limite. Um corretor entusiasmado, ou um script apontado para a Edge Function, custava mais do que pagava, e nada disso aparecia em tela nenhuma até a fatura chegar.
+
+Isso está fechado: `0028_limite_ia.sql` põe teto mensal e teto por minuto por plano, cobrados **no banco**, antes de qualquer chamada ao modelo.
+
+## Corrigido nesta rodada
+
+**`supabase/migrations/0028_limite_ia.sql`** (novo, idempotente)
+- **Teto de uso de IA por plano e recurso** (`ai_limits`) e contagem por mês no fuso de Brasília (`ai_usage`). Recursos medidos separadamente: `scan`, `lia_escuta`, `lia_fechamento`, `lia_agenda`, `pitch`, `convite`. Escuta e fechamento da LIA são contadores distintos porque o fechamento usa o modelo caro com a conversa inteira no contexto — somados num contador só, ele desapareceria na média e o teto que importa não existiria de fato.
+- **O teto nunca é parâmetro da chamada.** `consumir_ia(p_recurso, p_peso)` é `security definer` e descobre o plano por `auth.uid()`. Isso não é preciosismo: as Edge Functions criam o client com a chave de service role mas repassam o `Authorization` do usuário, então as queries rodam **como o usuário**. Se o teto viesse do lado de fora, bastaria chamar a função SQL direto do aparelho passando um número alto.
+- **`ai_usage` é somente-leitura para o usuário.** Sem policy de insert/update/delete: quem escreve é a função definer. Uma cota que o dono da linha pode editar é uma sugestão, não uma cota.
+- **`plano_de_cobranca(uuid)` teve o `execute` revogado do PUBLIC.** Ela aceita um uuid qualquer; chamada do aparelho, responderia se outra conta é admin e qual o plano dela. As funções que a usam são definer e rodam como o dono, então continuam funcionando.
+- **Trava de rajada** (`teto_minuto`), na mesma linha do contador mensal para que uma leitura com `for update` resolva as duas. O teto mensal protege a margem; o de minuto protege contra o laço automatizado que queima o mês em segundos e estoura a concorrência da Edge Function. Uma pessoa nunca escaneia 30 documentos em um minuto; um script sempre faz.
+- **`SELECT ... FOR UPDATE` no consumo.** Sem ele, ler-somar-gravar deixa duas requisições concorrentes verem o mesmo `usados` e gravarem o mesmo valor: o teto vaza exatamente no caso que ele existe para conter.
+- **Cota da prospecção deixou de ser contada com uma corrida.** A 0013 já havia fechado o buraco grave (a policy `for all` dava DELETE ao dono da linha, e portanto ao aparelho). O que restava era mais silencioso: a Edge Function lia `usados`, somava `leads.length` em JavaScript e gravava o TOTAL — duas prospecções simultâneas sobrescreviam uma à outra em vez de somar. Agora o incremento é `usados = usados + N` dentro do banco, via `registrar_prospeccao()`.
+
+**`supabase/functions/_shared/cota.ts`** (novo)
+- Cobra **antes** da chamada ao modelo, e estorna quando a falha é nossa (502 da Anthropic, chave ausente, exceção). Cobrar depois deixaria a porta aberta: quem derruba a conexão no meio nunca seria cobrado, e repetir isso em laço é uso ilimitado. Quando a imagem simplesmente não dava para ler, a cobrança **fica** — o modelo já foi pago, e mandar borrão em laço seria uso ilimitado por outro caminho.
+- **Falha de infraestrutura recusa a chamada.** Se o RPC estiver fora ou a migration não tiver rodado, a resposta é 503, não "pode passar". Um limitador que abre quando quebra não é um limitador.
+
+**`supabase/functions/scan-document/index.ts`**
+- GIF saiu da allowlist de mimetype: documento de identidade é foto, e GIF animado só serviria para empurrar quadros de sobra no mesmo pedido.
+- Teto de base64 de 8 MB para 6 MB, agora que o aplicativo reduz a imagem antes de enviar.
+
+**`src/lib/imagemReduzida.ts`** (novo)
+- Reduz a foto para 1600 px no lado maior antes de enviar. **Não é economia de token** — a API já reduz a 1568 px e cobra igual. É banda e tempo: 4 a 8 MB de base64 pelo 4G do corretor, na porta do empreendimento, com o cliente esperando. Reduzido, fica em 150–400 KB. Se a redução falhar, envia o original: foto grande que funciona é melhor que leitura que não acontece.
+
+**`src/features/material/limits.ts`**
+- Upload restrito a **PDF, JPEG, PNG e WebP**, máximo **20 MB por arquivo**, nas duas telas que enviam (material de venda e anexos do lead). Sem limite de tipo, o material de venda vira a nuvem pessoal de quem descobrir primeiro — e espaço é custo por mês, para sempre, contra uma assinatura fixa. Vídeo fica de fora de propósito: é o caso legítimo mais afetado e também o maior consumidor de espaço; o caminho dele é o link, que o cadastro da empresa já aceita.
+- Extensão é a checagem principal e o mimetype é o reforço, não o contrário: no Android é comum um PDF válido chegar como `application/octet-stream`, e recusar por isso seria recusar arquivo legítimo.
+
+**`src/lib/edgeError.ts`** (novo)
+- `supabase.functions.invoke` devolve sempre `"Edge Function returned a non-2xx status code"` em `error.message` e esconde o corpo em `error.context`. Toda recusa de cota (429) chegaria ao corretor como uma frase em inglês sobre status HTTP, e a regra pareceria defeito. Vale para todo erro de Edge Function, não só para cota.
+- Deliberadamente **não** resolvemos isso devolvendo 200 em tudo (que foi o atalho da prospecção): status correto é o que faz o log do Supabase e qualquer política futura de retentativa distinguirem "recusei de propósito" de "quebrou".
+
+**`supabase/migrations/0029_rastreabilidade.sql`** (novo, idempotente)
+- Telemetria do produto com **nenhum dado de cliente, garantido pela forma da tabela** e não por disciplina: `analytics_events` não tem coluna de texto livre. `evento` é lista fechada por CHECK, `etapa` e `resultado` têm teto de 40 caracteres, e o único identificador é um uuid interno. Não há onde um nome, CPF ou valor cair — nem por descuido, nem por pressa. Em LGPD isso é o melhor tipo de controle: o dado que não existe não vaza, não precisa de base legal e não entra em pedido de exclusão.
+- Escrita: `insert` do próprio usuário. Leitura: **só admin**. Sem update nem delete — telemetria editável não serve de prova de nada. A poda por idade é `podar_analytics()`, restrita a admin, mínimo de 30 dias.
+- `feedback` (o "Reportar problema ou dar sugestão") é o único campo de texto livre novo que sai do aparelho, e sai porque o corretor escreveu e apertou enviar. Teto de 2000 caracteres, com aviso na tela para não incluir dado de cliente.
+- Os três agregados (`painel_eventos`, `painel_funil`, `painel_consumo_ia`) são `security definer` **com `is_app_admin()` dentro da própria query**: não é a tela que decide quem vê.
+- Ambas as tabelas têm `on delete cascade` em `auth.users`, então a exclusão de conta pelo app (que chama `auth.admin.deleteUser`) já as leva junto.
+
+**`src/data/supabase/limites.ts`** (novo) — teto explícito nas listas
+- `select` sem `limit` **não devolve tudo**: o PostgREST corta no `db-max-rows` do projeto e devolve as primeiras N linhas com status 200 e nenhum aviso. Num CRM essa é a pior classe de defeito — a lista parece completa, o corretor confere e conclui que perdeu leads. Ninguém abre relatório de erro para isso; a pessoa desconfia do produto e vai embora.
+- Aplicado em leads, simulações da poupança, simulações de financiamento, auditoria de regras, compromissos (`LIMITE_LISTA = 1000`) e em vendas e comissões (`LIMITE_HISTORICO = 5000`, porque ali uma linha que não aparece é uma comissão que o corretor acha que não recebeu).
+- A conta que importa para os 5 mil corretores não é o total de linhas da tabela — o RLS já reduz toda consulta ao `user_id` de quem pediu —, é quanto **um** corretor acumula. Quando estes tetos começarem a ser alcançados de verdade, a resposta é paginação na tela, não um número maior no arquivo.
+
+**`app/privacidade.tsx`**
+- Declara as três coletas novas: medições de uso do produto (dizendo explicitamente que não incluem dado de cliente), contagem de uso dos recursos de IA, e o texto do "Reportar problema". Retenção da telemetria: seis meses.
+- Item de Segurança agora diz que as regras valem no banco e não na tela, e que as chaves de pagamento e de IA nunca vão para o aparelho.
+
+## Índices e escala
+
+Conferidos os índices por `user_id` (ou composto com `user_id` como coluna líder) nas tabelas que crescem: `companies`, `developments`, `correspondents`, `leads`, `lead_stages`, `simulations`, `appointments`, `sales`, `commissions`, `commission_installments`, `financing_simulations`. Todas cobertas — o que importa aqui é que a política de RLS (`user_id = auth.uid()`) tenha índice para não virar varredura da tabela inteira a cada consulta, e é justamente isso que decide se 5 mil corretores caberem no Supabase atual.
+
+Índices novos desta rodada: `analytics_events (evento, criado_em desc)`, `analytics_events (user_id, criado_em desc)`, `ai_usage (ciclo, recurso)`, `feedback (situacao, criado_em desc)`.
+
+## Fica em aberto
+
+1. **Rate limiting no `capture-lead`** — continua sendo o único achado Alto da primeira rodada em aberto. É endpoint público por natureza e não vaza dados, mas permite inundar a base de leads de um corretor. O padrão de contador atômico do `consumir_ia` serve de modelo, com a diferença de que ali não existe `auth.uid()` — a chave teria que ser o `brokerUserId` mais uma janela de tempo.
+2. **Trocar service role por anon key nas funções autenticadas** — o achado 2 da primeira rodada. Continua valendo, e ficou mais visível nesta: foi exatamente esse padrão que obrigou o teto a morar no banco.
+3. **`financing_rule_audit` aceita update e delete do admin.** Para uma trilha de auditoria, o correto é insert-only. Como existe um único admin, que é o dono, o risco prático é baixo — mas uma trilha que o interessado pode editar não prova nada.
+4. **Nenhum dos tetos de `ai_limits` foi validado contra custo real.** Os números foram escolhidos por uso plausível e por folga na mensalidade, não por medição. O painel de rastreabilidade mostra o consumo do mês e o maior consumidor por recurso justamente para corrigir isso no piloto — e mudar um teto é `update`, não deploy.
+5. **`podar_analytics()` não está agendada.** Rodar a mão, ou configurar cron no Supabase quando o volume justificar.

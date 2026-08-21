@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { LIMITE_LISTA } from './limites';
 import type { AppointmentRepository } from '../repositories';
 import { moveLeadToFlaggedStage } from './SupabaseLeadRepository';
 import {
@@ -143,7 +144,8 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
       .is('deleted_at', null)
       .gte('start_at', startISO)
       .lte('start_at', endISO)
-      .order('start_at', { ascending: true });
+      .order('start_at', { ascending: true })
+      .limit(LIMITE_LISTA);
     if (error || !data) return [];
     return (data as unknown as AppointmentRow[]).map(mapAppointment);
   }
@@ -155,7 +157,8 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
       .eq('user_id', userId)
       .eq('lead_id', leadId)
       .is('deleted_at', null)
-      .order('start_at', { ascending: true });
+      .order('start_at', { ascending: true })
+      .limit(LIMITE_LISTA);
     if (error || !data) return [];
     return (data as unknown as AppointmentRow[]).map(mapAppointment);
   }

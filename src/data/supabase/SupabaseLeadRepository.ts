@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { LeadRepository } from '../repositories';
+import { LIMITE_LISTA } from './limites';
 import {
   DEFAULT_LEAD_STAGES,
   type Lead,
@@ -202,7 +203,8 @@ export class SupabaseLeadRepository implements LeadRepository {
       .from('leads')
       .select(SELECT)
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_LISTA);
     if (error || !data) return [];
     return (data as unknown as LeadRow[]).map(mapLead);
   }

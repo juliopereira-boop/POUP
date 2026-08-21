@@ -1582,6 +1582,120 @@ O botão de escanear (ícone discreto 🪪, na Etapa 3 do Simulador, um por prop
 
 Deploy: cole `supabase/functions/scan-document/index.ts` no Supabase Dashboard (mantendo verificação de JWT **ativada**) e configure o segredo `ANTHROPIC_API_KEY`.
 
+### A imagem é reduzida no aparelho antes de subir
+
+`src/lib/imagemReduzida.ts` reduz a foto para **1600 px** no lado maior (compressão JPEG 0,7) antes do envio.
+
+Não é economia de token: a API da Anthropic já reduz a imagem a 1568 px do lado maior antes de cobrar, então uma foto de 4000 px **custa o mesmo** que uma de 1600. O ganho é no que vem antes do modelo — uma foto de celular tem 3 a 6 MB, o que em base64 vira 4 a 8 MB de texto para subir pelo 4G do corretor, na porta do empreendimento, com o cliente esperando. Reduzida, a mesma foto fica entre 150 e 400 KB.
+
+Se a redução falhar, envia o original: foto grande que funciona é melhor que leitura que não acontece. O teto de bytes da edge function (6 MB de base64) fica como rede de proteção para quem não passa pelo aplicativo.
+
+---
+
+## 💸 Limitador de uso de IA (a trava que protege a margem)
+
+**O problema:** a assinatura é receita **fixa** por mês; chamada de modelo é custo **variável** por uso. Sem teto, as duas curvas se cruzam — e ninguém descobre até a fatura chegar.
+
+`0028_limite_ia.sql` + `supabase/functions/_shared/cota.ts` fecham isso.
+
+### Onde o teto mora, e por quê
+
+`ai_limits(plano, recurso)` guarda **teto do mês** e **teto do minuto**; `ai_usage(user_id, recurso, ciclo)` conta o consumo, com o ciclo sendo o mês no fuso de Brasília (não UTC — senão o corretor viraria o mês às 21h do dia 31).
+
+A parte que importa: **`consumir_ia()` recebe apenas o NOME do recurso, nunca o teto.** Quem descobre o plano da conta e o limite correspondente é o próprio Postgres, com `auth.uid()`, dentro de uma função `security definer`.
+
+Isso não é preciosismo. As Edge Functions do POUP criam o client Supabase com a chave de service role **mas repassam o `Authorization` do usuário**, o que faz as queries rodarem como o próprio usuário. Se o teto viesse como parâmetro da chamada, bastaria chamar a função SQL direto do aparelho passando um número alto.
+
+Pelo mesmo motivo, `ai_usage` é **somente leitura** para o usuário: sem policy de insert/update/delete. Uma cota que o dono da linha pode editar é uma sugestão, não uma cota.
+
+### Duas travas, porque são dois abusos
+
+| | Protege contra | Por que separada |
+|---|---|---|
+| `teto_mes` | consumo alto de um corretor real | é o número comercial do plano |
+| `teto_minuto` | laço automatizado | sem ela, um script queima o mês em segundos e ainda estoura a concorrência da Edge Function. Uma pessoa nunca escaneia 30 documentos em um minuto; um script sempre faz |
+
+O `select ... for update` na leitura do contador serializa duas chamadas simultâneas do mesmo corretor. Sem ele, ler-somar-gravar deixa duas requisições verem o mesmo `usados` — e o teto vaza exatamente no caso que ele existe para conter.
+
+### Cobra antes, estorna se a culpa for nossa
+
+A cobrança acontece **antes** da chamada ao modelo. Cobrar depois deixaria a porta aberta: quem derruba a conexão no meio nunca seria cobrado, e repetir isso em laço é uso ilimitado de graça.
+
+O `estornar()` desfaz a cobrança quando a falha é do POUP (502 da Anthropic, chave ausente, exceção). Quando a imagem simplesmente não deu para ler, a cobrança **fica** — o modelo já foi pago, e mandar borrão em laço seria uso ilimitado por outro caminho.
+
+E se a própria cota estiver fora do ar (RPC indisponível, migration não aplicada), a resposta é **recusar** a chamada. Um limitador que abre quando quebra não é um limitador.
+
+### Os seis recursos medidos
+
+`scan`, `lia_escuta`, `lia_fechamento`, `lia_agenda`, `pitch`, `convite`.
+
+Escuta e fechamento da LIA são contadores **separados**, e não pesos do mesmo: a escuta roda dezenas de vezes por reunião em Haiku, o fechamento roda uma vez em Sonnet com a conversa inteira no contexto. Somados, o fechamento desapareceria na média e o teto que realmente importa não existiria.
+
+> Mudar um teto é um `update` em `ai_limits` — **sem deploy**. Os números atuais foram escolhidos por uso plausível e folga na mensalidade, não por medição; o painel de rastreabilidade (§abaixo) mostra o consumo real para corrigi-los no piloto.
+
+### A mensagem de recusa precisou de um conserto no client
+
+`supabase.functions.invoke` devolve sempre `"Edge Function returned a non-2xx status code"` em `error.message` e esconde o corpo da resposta em `error.context`. Um limite atingido (429) chegaria ao corretor como uma frase em inglês sobre status HTTP — e a regra pareceria defeito.
+
+`src/lib/edgeError.ts` lê a explicação do corpo. Vale para **todo** erro de Edge Function, não só para cota.
+
+> Por que não devolver 200 em tudo (que foi o atalho da prospecção): status HTTP correto é o que faz o log do Supabase e qualquer política futura de retentativa distinguirem "recusei de propósito" de "quebrou". Mentir no status para contornar uma limitação do client troca uma linha de código por uma cegueira permanente.
+
+---
+
+## 📈 Rastreabilidade (o painel do piloto)
+
+`0029_rastreabilidade.sql` + `src/features/analytics/` + `app/(app)/admin/rastreabilidade.tsx`.
+
+### Nenhum dado de cliente — garantido pela forma da tabela
+
+`analytics_events` guarda `evento`, `etapa`, `resultado`, `duracao_ms` e um `ref_id` uuid interno. **Não existe coluna de texto livre.** `evento` é lista fechada por CHECK, os rótulos têm teto de 40 caracteres.
+
+Não é disciplina, é estrutura: não há onde um nome, CPF ou valor de imóvel cair — nem por descuido, nem por pressa. Em LGPD é o melhor tipo de controle que existe: o dado que não existe não vaza, não precisa de base legal e não entra em pedido de exclusão.
+
+A assinatura de `registrar()` em `src/features/analytics/eventos.ts` repete a mesma trava no TypeScript — não há parâmetro de texto livre para passar.
+
+### Telemetria nunca atrapalha o uso
+
+`registrar()` não lança, não devolve erro e não é esperada com `await`. Rede caída, migration não aplicada, tabela inexistente: o evento se perde em silêncio. Perder uma medição é irrelevante; travar uma proposta por causa de uma medição seria absurdo.
+
+### Os onze eventos
+
+| Evento | Onde é emitido | O que responde |
+|---|---|---|
+| `signup_completed` | `(auth)/signup.tsx` | distingue quem entrou de quem ficou esperando o email de confirmação |
+| `onboarding_completed` | `OnboardingModal` | o momento em que ele tem cadastro para **emitir proposta**; também registra quem escolheu "preencher depois" |
+| `company_created` | `cadastros/empresas.tsx` | só na **criação** — editar é uso normal, ter a primeira é o degrau que destrava o produto |
+| `development_created` | `cadastros/empreendimentos.tsx` | idem |
+| `simulation_started` | `financiamento/simular.tsx` | quantos começam, por banco |
+| `simulation_step_completed` | idem | chegou a um resultado, e em quanto tempo |
+| `simulation_abandoned` | idem, na **saída** da tela | a etapa mais avançada que ele alcançou: é o que aponta onde o formulário travou |
+| `proposal_generated` | `simulador/fluxo.tsx` | distingue "gerou" de "o PDF falhou e salvou em Relatórios" |
+| `proposal_shared` | `relatorios/[id].tsx` | a reabertura, que termina na folha de compartilhamento. Proposta gerada e nunca reaberta é proposta que o corretor não teve coragem de mostrar |
+| `user_returned` | `(app)/_layout.tsx` | a única métrica que não dá para fingir |
+| `subscription_viewed` | `paywall.tsx` | quem chegou a olhar o preço, e se veio por bloqueio ou por vontade |
+
+Duas notas de implementação que importam:
+
+- No simulador tudo vive em `useRef`, não em estado: aquele formulário recalcula a cada tecla, e um `setState` de telemetria seria um render extra por dígito digitado.
+- `user_returned` usa **20 horas**, não 24. Quem abre o app às 9h todo dia útil nunca completa 24 horas entre duas sessões e apareceria como quem nunca voltou.
+
+### O painel
+
+Funil → consumo de IA → eventos, nessa ordem, que é a ordem das perguntas: onde as pessoas param, o que o uso custa, e o detalhe de onde olhar depois.
+
+Os agregados saem do Postgres prontos (`painel_eventos`, `painel_funil`, `painel_consumo_ia`) — em alguns milhares de corretores a tabela passa de centenas de milhares de linhas, e baixar isso para contar no aparelho seria absurdo. Todas as três são `security definer` com `is_app_admin()` **dentro da query**: quem barra é o RLS, não a tela.
+
+`podar_analytics(dias)` apaga eventos antigos (mínimo de 30 dias, padrão 180). Não está agendada — rode a mão, ou configure cron no Supabase quando o volume justificar.
+
+### "Reportar problema ou dar sugestão"
+
+Em Ajustes → Ajuda. A telemetria mostra **onde** as pessoas param; nunca diz **por quê**.
+
+O formulário captura a rota sozinho — e descarta o caminho que o corretor percorreu até chegar em Ajustes, senão todo reporte diria "aconteceu em Ajustes". O histórico de rotas mora numa variável de módulo (`src/features/analytics/tela.ts`) e não num provider: um provider re-renderizaria a árvore a cada navegação para uma informação lida só quando alguém abre o formulário.
+
+É o único campo de texto livre novo que sai do aparelho para o nosso banco, e o aviso pede para descrever pelo que aconteceu, não por quem.
+
 ---
 
 ## 🗄️ Schema do banco (Supabase / Postgres)
@@ -1612,6 +1726,34 @@ Rode as 5 migrations **em ordem** no SQL Editor do Supabase: `0001_init.sql` →
 | `stripe_customer_id`, `stripe_subscription_id` | text | |
 | `current_period_end` | timestamptz | |
 | `cancel_at_period_end` | boolean | default `false` |
+
+**`ai_limits`** — teto de IA por plano e recurso (0028). `-1` = sem teto (só `admin`). RLS: leitura para qualquer logado, **nenhuma policy de escrita** — ninguém aumenta o próprio teto pelo app.
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `plano`, `recurso` | text | PK composta. `plano` ∈ admin/teste/pro/intermed/start/nenhum |
+| `teto_mes`, `teto_minuto` | integer | `-1` = sem teto; `0` = plano não inclui |
+
+**`ai_usage`** — consumo por usuário, recurso e ciclo (0028). RLS: **só leitura** (própria, ou tudo se admin). A escrita passa obrigatoriamente por `consumir_ia()`/`estornar_ia()`.
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `user_id`, `recurso`, `ciclo` | | PK composta. `ciclo` = `AAAA-MM` no fuso de Brasília |
+| `usados` | integer | contador do mês |
+| `janela_inicio`, `janela_usados` | | a trava de rajada de 60 s, na mesma linha para um único lock resolver as duas |
+
+**`analytics_events`** — telemetria do produto (0029). RLS: `insert` do próprio, `select` só admin, **sem update nem delete**. Sem nenhuma coluna de texto livre: ver §Rastreabilidade.
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `evento` | text | lista fechada por CHECK (11 valores) |
+| `etapa`, `resultado` | text | rótulos curtos, teto de 40 caracteres |
+| `duracao_ms` | integer | 0 a 86.400.000 |
+| `ref_id` | uuid | id **interno** (empresa, simulação) |
+
+**`feedback`** — "Reportar problema ou dar sugestão" (0029). RLS: `insert` e `select` do próprio, `select` e `update` do admin.
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `tela`, `etapa` | text | capturados automaticamente |
+| `mensagem` | text | 3 a 2000 caracteres |
+| `situacao` | text | `aberto` \| `lido` \| `resolvido` |
 
 **`companies`** — construtoras cadastradas pelo corretor.
 | Coluna | Tipo | Observação |
@@ -2032,7 +2174,8 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 **Antes de gerar o build:**
 
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
-- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`, `0027_financiamento.sql`.
+- Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`, `0027_financiamento.sql`, `0028_limite_ia.sql`, `0029_rastreabilidade.sql`.
+- **A `0028` não é opcional.** Sem ela, `consumir_ia` não existe e o `_shared/cota.ts` recusa toda chamada de IA com 503 — de propósito: um limitador que abre quando quebra não é um limitador. Scanner, LIA, pitch e convite ficam fora do ar até a migration rodar.
 - Publicar os Edge Functions `delete-account` e `get-financing-simulation` — este último com **Verify JWT desmarcado**, porque quem o chama é o navegador do CLIENTE do corretor, que não tem conta (ele valida pelo hash do token e pela expiração do link).
 - **Publicar o Edge Function `lia-extract`** — obrigatório, e não é opcional depois de mexer nele. O aplicativo e a função combinam uma **versão de contrato** (`VERSAO_CONTRATO` em `src/features/lia/extrair.ts` × `VERSAO` na função) e a resposta ecoa a versão; sem o eco, o aplicativo mostra *"A LIA no servidor está desatualizada"* em vez de fingir que ouviu. Isso existe porque a versão anterior falhava em silêncio: a função procurava um campo que o aplicativo tinha parado de mandar, recebia `undefined` e respondia `{campos: []}` com status 200 — indistinguível de "a LIA não entendeu nada".
 - Adicionar `poup://**` e `https://<dominio>/**` na lista de **Redirect URLs** do Supabase Auth. Sem o primeiro, o login social nativo não fecha; sem o segundo, o link de redefinição de senha cai no Site URL e a troca de senha nunca acontece.
@@ -2042,7 +2185,8 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 - Preço: **Grátis** (exigência da 3.1.3(f)).
 - Privacy Policy URL: `https://<dominio>/privacidade`
 - Support URL: `https://<dominio>/suporte`
-- App Privacy: sem tracking, sem publicidade, sem analytics — o app não tem nenhum SDK desse tipo. Os tipos coletados são os 8 declarados no `PrivacyInfo.xcprivacy`.
+- App Privacy: **sem tracking e sem publicidade** — o app não tem nenhum SDK desse tipo, e `NSPrivacyTracking` é `false`. Os tipos coletados são os 9 declarados no `PrivacyInfo.xcprivacy` (via `ios.privacyManifests` no `app.json`).
+- **Há analytics de primeira parte, e ele é declarado.** Desde a `0029`, o app grava eventos de uso do produto (criou empresa, começou simulação, gerou proposta) na nossa própria base — nenhum SDK de terceiro, nenhum dado saindo para rede de anúncio. Isso entra como `NSPrivacyCollectedDataTypeProductInteraction` com finalidade `Analytics`, e no formulário da App Store Connect como **Usage Data → Product Interaction**, ligado à identidade e **não** usado para rastreamento. Declarar isso não é opcional: o formulário pergunta o que o app coleta, não o que ele coleta com SDK de terceiro.
 
 **Para o revisor (App Review Information) — o ponto mais importante:**
 

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/data/database.types';
+import { LIMITE_LISTA } from './limites';
 import {
   INITIAL_SIMULADOR_STATE,
   type SimuladorState,
@@ -83,7 +84,8 @@ export class SupabaseSimulationRepository implements SimulationRepository {
       .from('simulations')
       .select(SELECT)
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(LIMITE_LISTA);
     if (error || !data) return [];
     return (data as unknown as SimulationRow[]).map(mapSimulation);
   }
