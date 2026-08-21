@@ -23,6 +23,7 @@ import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Select } from './Select';
+import { registrar } from '@/features/analytics/eventos';
 import { UF_OPTIONS } from '@/features/uf';
 import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -64,7 +65,28 @@ export function OnboardingModal() {
       uf,
     });
     setSaving(false);
-    if (!result.ok) setError(result.error);
+    if (!result.ok) {
+      setError(result.error);
+      registrar('onboarding_completed', { resultado: 'erro' });
+      return;
+    }
+    /*
+     * "Terminou o começo" é ISTO, e não ter visto o guia: é o momento em que o
+     * corretor tem cadastro suficiente para EMITIR PROPOSTA. Antes daqui, o
+     * produto está instalado; a partir daqui, está usável.
+     */
+    registrar('onboarding_completed', { resultado: 'ok' });
+  }
+
+  /**
+   * "Preencher depois" é uma resposta legítima, e saber quantos escolhem isso é
+   * justamente o que diz se o pedido está pesado demais. Um handler só para o
+   * botão e para o gesto de fechar: dois caminhos com a mesma consequência
+   * precisam registrar a mesma coisa.
+   */
+  function adiar() {
+    registrar('onboarding_completed', { etapa: 'adiado', resultado: 'cancelado' });
+    setAdiado(true);
   }
 
   return (
@@ -72,7 +94,7 @@ export function OnboardingModal() {
       visible={needsOnboarding && !adiado}
       animationType="slide"
       transparent
-      onRequestClose={() => setAdiado(true)}
+      onRequestClose={adiar}
     >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
@@ -115,7 +137,7 @@ export function OnboardingModal() {
             <Button
               label="Preencher depois"
               variant="ghost"
-              onPress={() => setAdiado(true)}
+              onPress={adiar}
               disabled={saving}
             />
             <Text style={styles.hint}>

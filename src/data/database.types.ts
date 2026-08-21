@@ -3,6 +3,100 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 export interface Database {
   public: {
     Tables: {
+      /*
+       * TELEMETRIA DO PRODUTO (0029).
+       *
+       * Repare no que NÃO existe aqui: nenhuma coluna de texto livre. `etapa` e
+       * `resultado` são rótulos curtos do nosso vocabulário e `ref_id` é um
+       * uuid do nosso banco. Não há onde um nome de cliente cair, e é de
+       * propósito — ver `src/features/analytics/eventos.ts`.
+       *
+       * Sem `Update`: telemetria que pode ser editada não serve de prova de
+       * nada, e o RLS não dá update a ninguém.
+       */
+      analytics_events: {
+        Row: {
+          id: number;
+          user_id: string;
+          evento: string;
+          etapa: string | null;
+          resultado: string | null;
+          duracao_ms: number | null;
+          ref_id: string | null;
+          criado_em: string;
+        };
+        Insert: {
+          user_id: string;
+          evento: string;
+          etapa?: string | null;
+          resultado?: string | null;
+          duracao_ms?: number | null;
+          ref_id?: string | null;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      /*
+       * RECADOS DO CORRETOR (0029). Aqui o texto livre é o ponto: é ele
+       * descrevendo o problema com as palavras dele, sabendo que está mandando
+       * para o suporte. `situacao` só o admin muda.
+       */
+      feedback: {
+        Row: {
+          id: string;
+          user_id: string;
+          tela: string | null;
+          etapa: string | null;
+          mensagem: string;
+          situacao: string;
+          criado_em: string;
+        };
+        Insert: {
+          user_id: string;
+          tela?: string | null;
+          etapa?: string | null;
+          mensagem: string;
+          situacao?: string;
+        };
+        Update: { situacao?: string };
+        Relationships: [];
+      };
+      /*
+       * TETOS DE USO DE IA (0028). Só leitura pelo app: não existe policy de
+       * escrita, então ninguém aumenta o próprio teto pelo aplicativo.
+       */
+      ai_limits: {
+        Row: {
+          plano: string;
+          recurso: string;
+          teto_mes: number;
+          teto_minuto: number;
+          observacao: string | null;
+          updated_at: string;
+        };
+        Insert: Record<string, never>;
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      /*
+       * CONSUMO DE IA (0028). Só leitura, e só do próprio usuário (ou tudo, se
+       * admin). A escrita passa obrigatoriamente por `consumir_ia()` — se o
+       * dono da linha pudesse escrever, ele zeraria a própria cota.
+       */
+      ai_usage: {
+        Row: {
+          user_id: string;
+          recurso: string;
+          ciclo: string;
+          usados: number;
+          janela_inicio: string;
+          janela_usados: number;
+          updated_at: string;
+        };
+        Insert: Record<string, never>;
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -1027,6 +1121,57 @@ export interface Database {
       financing_active_rules: {
         Args: Record<string, never>;
         Returns: Json | null;
+      };
+      /*
+       * COTA DE USO DE IA (0028). Nenhuma delas recebe o TETO como argumento:
+       * quem descobre o plano e o limite é o próprio banco, por `auth.uid()`.
+       * Ver `supabase/functions/_shared/cota.ts`.
+       */
+      consumir_ia: {
+        Args: { p_recurso: string; p_peso?: number };
+        Returns: Json;
+      };
+      estornar_ia: {
+        Args: { p_recurso: string; p_peso?: number };
+        Returns: undefined;
+      };
+      /** Consumo do mês e teto do plano, por recurso, para o próprio usuário. */
+      meu_uso_ia: {
+        Args: Record<string, never>;
+        Returns: { recurso: string; usados: number; teto: number }[];
+      };
+      ciclo_ia_atual: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
+      /** Soma leads na cota do período. Soma — não grava um total escolhido. */
+      registrar_prospeccao: {
+        Args: { p_dia: string; p_periodo: string; p_quantidade: number };
+        Returns: number;
+      };
+
+      /* RASTREABILIDADE (0029). Todas só respondem para admin. */
+      painel_eventos: {
+        Args: { p_dias?: number };
+        Returns: {
+          evento: string;
+          total: number;
+          pessoas: number;
+          erros: number;
+          duracao_mediana: number | null;
+        }[];
+      };
+      painel_funil: {
+        Args: { p_dias?: number };
+        Returns: { marco: string; pessoas: number; ordem: number }[];
+      };
+      painel_consumo_ia: {
+        Args: Record<string, never>;
+        Returns: { recurso: string; total: number; pessoas: number; maior: number }[];
+      };
+      podar_analytics: {
+        Args: { p_dias?: number };
+        Returns: number;
       };
     };
     Enums: Record<string, never>;

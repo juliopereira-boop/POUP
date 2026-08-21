@@ -30,6 +30,7 @@ import {
   monthsBetween,
 } from '@/features/simulador/calc';
 import { ensureCommissionForSale } from '@/features/comissao/link';
+import { registrar } from '@/features/analytics/eventos';
 import { generateProposal } from '@/features/simulador/proposal';
 import { canShowBilling } from '@/features/store';
 import {
@@ -192,7 +193,21 @@ export default function SimulationDetailScreen() {
         todayISO: sim.proposalDate ?? new Date().toISOString().slice(0, 10),
         companyPhotoUrl,
       });
+      /*
+       * ISTO É O `proposal_shared`, e não um segundo `proposal_generated`.
+       *
+       * Gerar a proposta acontece no fim do simulador, uma vez. Voltar a
+       * Relatórios e abrir a proposta de novo é o gesto de MOSTRAR ao cliente:
+       * no celular, `generateProposal` termina na folha de compartilhamento do
+       * sistema; na web, na caixa de impressão. Em qualquer um dos dois, o
+       * corretor está tirando o documento do app.
+       *
+       * A distância entre os dois números é o que importa: proposta gerada e
+       * nunca reaberta é proposta que ele não teve coragem de mostrar.
+       */
+      registrar('proposal_shared', { resultado: 'ok', refId: sim.id });
     } catch (e) {
+      registrar('proposal_shared', { resultado: 'erro', refId: sim.id });
       // A impressão agora RECUSA imprimir uma folha vazia e lança. Antes,
       // qualquer falha nesse caminho virava um PDF em branco, sem explicação.
       setNotice(

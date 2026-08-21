@@ -7,6 +7,7 @@ import { Lia } from '@/components/lia/Lia';
 import { LoadingScreen } from '@/components/Loading';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
+import { useRastrearTela, useRegistrarRetorno } from '@/features/analytics/useRastreio';
 import { LiaProvider } from '@/features/lia/LiaProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -16,6 +17,16 @@ export default function AppLayout() {
   const { colors } = useTheme();
   const { user, initializing } = useAuth();
   const { isActive, initialLoad } = useSubscription();
+
+  /*
+   * Os dois rastreios que precisam de um lugar na árvore, montados ANTES dos
+   * `return` de carregamento e redirecionamento — hooks não podem ficar atrás de
+   * um `if`. Nenhum dos dois depende de haver usuário: `useRegistrarRetorno` só
+   * grava evento quando há sessão (o RLS exigiria de qualquer forma), e
+   * `useRastrearTela` nem toca no banco.
+   */
+  useRastrearTela();
+  useRegistrarRetorno();
 
   if (initializing || initialLoad) return <LoadingScreen />;
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -56,6 +67,7 @@ export default function AppLayout() {
             <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} />
             <Stack.Screen name="campanhas" options={{ title: 'Período de teste' }} />
             <Stack.Screen name="admin/catalogo" options={{ title: 'Catálogo do sistema' }} />
+            <Stack.Screen name="admin/rastreabilidade" options={{ title: 'Rastreabilidade' }} />
             <Stack.Screen name="simuladores" options={{ title: 'Simulador' }} />
             <Stack.Screen name="simulador" options={{ headerShown: false }} />
             <Stack.Screen name="financiamento" options={{ headerShown: false }} />

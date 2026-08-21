@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { SlotNumber } from '@/components/SlotNumber';
 import { friendlyError } from '@/data/friendlyError';
 import { db, type Simulation, type SimulationInput } from '@/data';
+import { registrar } from '@/features/analytics/eventos';
 import { buildFlow, computePoupanca, formatDateBR } from '@/features/simulador/calc';
 import { generateProposal } from '@/features/simulador/proposal';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
@@ -130,10 +131,23 @@ export default function SimuladorFluxo() {
       }
 
       if (printError) {
+        /*
+         * Salvou em Relatórios mas o PDF não saiu. Conta como evento com
+         * `resultado: 'erro'` e não como sucesso: a diferença entre "gerou" e
+         * "tentou gerar e a impressão falhou" é exatamente o que o painel
+         * precisa distinguir para saber se a proposta está quebrada em algum
+         * aparelho.
+         */
+        registrar('proposal_generated', {
+          etapa: 'pdf_falhou',
+          resultado: 'erro',
+          refId: result.data.id,
+        });
         setError(`${printError} A simulação foi salva em Relatórios — dá para gerar o PDF por lá.`);
         return;
       }
 
+      registrar('proposal_generated', { resultado: 'ok', refId: result.data.id });
       sim.reset();
       router.replace('/(app)');
     } catch (e) {

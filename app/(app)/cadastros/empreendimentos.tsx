@@ -11,6 +11,7 @@ import { Select } from '@/components/Select';
 import { db, type Company, type Development } from '@/data';
 import { UF_OPTIONS } from '@/features/uf';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
+import { registrar } from '@/features/analytics/eventos';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -113,6 +114,8 @@ export default function EmpreendimentosScreen() {
       setError(result.error);
       return;
     }
+    // Ver a nota em `cadastros/empresas.tsx`: só a criação é marco do funil.
+    if (!editingId) registrar('development_created', { resultado: 'ok', refId: result.data.id });
     resetForm();
     void load();
   }

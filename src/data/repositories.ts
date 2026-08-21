@@ -548,3 +548,84 @@ export interface LeadRepository {
     flag: LeadStageFlag,
   ): Promise<Result<LeadStage | null>>;
 }
+
+/* ===========================================================================
+ * RASTREABILIDADE — telemetria do produto e recados do corretor
+ * ===========================================================================
+ * Duas coisas diferentes atrás de uma interface só porque as duas respondem à
+ * mesma pergunta do piloto — "o que está acontecendo de verdade?" — e as duas
+ * são lidas na mesma tela do admin.
+ *
+ * `registrar` é a única escrita que o aplicativo faz aqui. Note o que ela NÃO
+ * aceita: não há campo de texto livre. É de propósito — ver o cabeçalho de
+ * `src/features/analytics/eventos.ts`.
+ */
+
+/** Um evento pronto para gravar. Sem nenhum campo onde caiba dado do cliente. */
+export interface EventoParaGravar {
+  evento: string;
+  etapa: string | null;
+  resultado: string | null;
+  duracaoMs: number | null;
+  refId: string | null;
+}
+
+/** Uma linha do painel: quantas vezes, por quantas pessoas, e quanto demorou. */
+export interface LinhaEvento {
+  evento: string;
+  total: number;
+  pessoas: number;
+  erros: number;
+  duracaoMediana: number | null;
+}
+
+/** Um degrau do funil, na ordem do caminho que o corretor percorre. */
+export interface DegrauFunil {
+  marco: string;
+  pessoas: number;
+  ordem: number;
+}
+
+/** Consumo de IA do mês corrente, por recurso. */
+export interface LinhaConsumoIA {
+  recurso: string;
+  total: number;
+  pessoas: number;
+  maior: number;
+}
+
+export interface RecadoDoCorretor {
+  id: string;
+  tela: string | null;
+  etapa: string | null;
+  mensagem: string;
+  situacao: 'aberto' | 'lido' | 'resolvido';
+  criadoEm: string;
+}
+
+export interface AnalyticsRepository {
+  /**
+   * Grava um evento. Nunca lança: telemetria não pode derrubar tela.
+   * Resolve para `void` em qualquer caso, sucesso ou falha.
+   */
+  registrar(evento: EventoParaGravar): Promise<void>;
+
+  /** Painel do admin. Lista vazia quando não é admin — o RLS decide, não a tela. */
+  painelEventos(dias: number): Promise<LinhaEvento[]>;
+  painelFunil(dias: number): Promise<DegrauFunil[]>;
+  painelConsumoIA(): Promise<LinhaConsumoIA[]>;
+}
+
+export interface FeedbackRepository {
+  /** O corretor manda um problema ou uma sugestão. */
+  enviar(input: {
+    tela: string | null;
+    etapa: string | null;
+    mensagem: string;
+  }): Promise<Result<void>>;
+
+  /** Caixa de entrada do admin. Lista vazia quando não é admin. */
+  listar(situacao?: 'aberto' | 'lido' | 'resolvido'): Promise<RecadoDoCorretor[]>;
+
+  marcar(id: string, situacao: 'aberto' | 'lido' | 'resolvido'): Promise<Result<void>>;
+}

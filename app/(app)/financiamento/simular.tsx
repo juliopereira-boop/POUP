@@ -38,7 +38,7 @@
  * "Mais detalhes" — presente para quem precisa, fora do caminho de quem só
  * quer a parcela.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -48,6 +48,7 @@ import { Input } from '@/components/Input';
 import { NumberPickerField } from '@/components/NumberPickerField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
+import { registrar } from '@/features/analytics/eventos';
 import { formatCurrencyBRL } from '@/lib/masks';
 import { opcoesDeProduto, useFinanciamento } from '@/features/financiamento/FinanciamentoProvider';
 import { BANCOS, bancoVisivelParaCorretor } from '@/features/financiamento/bancos';
@@ -95,6 +96,70 @@ export default function SimularFinanciamento() {
   } = useFinanciamento();
 
   const [detalhes, setDetalhes] = useState(false);
+
+  /*
+   * ===========================================================================
+   * O FUNIL DA SIMULAÇÃO
+   * ===========================================================================
+   * As três medições que dizem se este formulário funciona: quantos começam,
+   * quantos chegam a um resultado, e quantos desistem no meio — com a etapa em
+   * que desistiram.
+   *
+   * Tudo em `ref`, e não em estado: nenhuma dessas marcas pode causar
+   * re-render. Este formulário recalcula a cada tecla, e um `setState` de
+   * telemetria aqui seria um render extra por dígito digitado.
+   */
+  const inicio = useRef<number | null>(null);
+  const chegouAoResultado = useRef(false);
+
+  useEffect(() => {
+    if (!banco || inicio.current !== null) return;
+    inicio.current = Date.now();
+    registrar('simulation_started', { etapa: banco.id, resultado: 'ok' });
+  }, [banco]);
+
+  useEffect(() => {
+    if (!resultado || chegouAoResultado.current) return;
+    chegouAoResultado.current = true;
+    registrar('simulation_step_completed', {
+      etapa: 'resultado',
+      resultado: 'ok',
+      duracaoMs: inicio.current ? Date.now() - inicio.current : undefined,
+    });
+  }, [resultado]);
+
+  /*
+   * O abandono é medido na SAÍDA da tela, e é a única forma de medi-lo: não
+   * existe um botão "desisti". `etapa` leva o campo mais avançado que ele
+   * chegou a preencher — é o que aponta onde o formulário travou.
+   *
+   * Sem dependências de propósito: o efeito monta uma vez e a limpeza roda no
+   * desmonte. Ele lê os `ref` no momento da saída, não no da montagem.
+   */
+  useEffect(
+    () => () => {
+      if (inicio.current === null || chegouAoResultado.current) return;
+      registrar('simulation_abandoned', {
+        etapa: etapaAlcancada.current,
+        resultado: 'cancelado',
+        duracaoMs: Date.now() - inicio.current,
+      });
+    },
+    [],
+  );
+
+  /**
+   * O campo mais avançado já preenchido, para o evento de abandono.
+   *
+   * Num `ref` atualizado a cada render em vez de calculado na saída porque, no
+   * desmonte, o formulário já não existe para ser consultado.
+   */
+  const etapaAlcancada = useRef('banco');
+  etapaAlcancada.current = !rendaFamiliarBruta
+    ? 'banco'
+    : !form.valorImovel.trim()
+      ? 'renda'
+      : 'valor_do_imovel';
 
   const produtos = useMemo(
     () => opcoesDeProduto(regras, form.bancoId),

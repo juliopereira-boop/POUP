@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { AppleButton } from '@/components/AppleButton';
 import { GoogleButton } from '@/components/GoogleButton';
+import { registrar } from '@/features/analytics/eventos';
 import { useAuth } from '@/providers/AuthProvider';
 import { spacing, typography, type AppColors } from '@/theme';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -48,10 +49,18 @@ export default function SignUpScreen() {
       return;
     }
     if (!result.data) {
+      /*
+       * Conta criada, mas ainda sem sessão: falta confirmar o email. Não é um
+       * `signup_completed` — o evento exige `auth.uid()` para gravar, e
+       * comercialmente "criou a conta" é quem consegue entrar. `etapa` registra
+       * que ficou pendente, que é justamente o buraco a medir.
+       */
+      registrar('signup_completed', { etapa: 'aguardando_email', resultado: 'cancelado' });
       Alert.alert('Quase lá!', 'Enviamos um email de confirmação. Confirme para continuar.');
       router.replace('/(auth)/login');
       return;
     }
+    registrar('signup_completed', { etapa: 'email_senha', resultado: 'ok' });
     router.replace('/');
   }
 

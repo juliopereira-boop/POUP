@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { InactiveAccountScreen } from '@/components/InactiveAccountScreen';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
+import { registrar } from '@/features/analytics/eventos';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
 import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
@@ -23,6 +24,25 @@ export default function PaywallScreen() {
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [checkingAgain, setCheckingAgain] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * ANTES DOS `Redirect` de propósito: hooks não podem ficar atrás de um
+   * `return`. O `if` mora DENTRO do efeito porque esta tela também é o caminho
+   * de passagem de quem já tem assinatura — e nesse caso ninguém olhou preço
+   * nenhum, então não houve evento.
+   */
+  const veriaOsPlanos = Boolean(user) && (!isActive || (upgrade === '1' && canShowBilling));
+  useEffect(() => {
+    if (veriaOsPlanos) {
+      registrar('subscription_viewed', {
+        // Quem chegou por bloqueio de recurso é diferente de quem veio comparar
+        // planos por vontade própria — e a diferença muda o que fazer com o
+        // número.
+        etapa: upgrade === '1' ? 'upgrade' : trialExpired ? 'fim_do_teste' : 'sem_assinatura',
+        resultado: 'ok',
+      });
+    }
+  }, [veriaOsPlanos, upgrade, trialExpired]);
 
   // `upgrade=1` deixa quem já tem assinatura ativa abrir a comparação de planos
   // (é para onde os módulos exclusivos do Pro mandam o usuário do Start).

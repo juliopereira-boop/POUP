@@ -20,6 +20,7 @@ import {
   type CompanyInput,
   type Correspondent,
 } from '@/data';
+import { registrar } from '@/features/analytics/eventos';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -150,6 +151,9 @@ export default function EmpresasScreen() {
     // A regra depende do id da empresa: ao criar, salva logo depois que a
     // empresa nasce; ao editar, usa o id que já existe.
     const companyId = result.data.id;
+    // Só a CRIAÇÃO conta como marco do funil. Editar uma empresa é uso normal;
+    // ter a primeira é o degrau que destrava o resto do produto.
+    if (!editingId) registrar('company_created', { resultado: 'ok', refId: companyId });
     const ruleFailure = await commission.persist(user.id, companyId);
     setSaving(false);
     if (ruleFailure) {

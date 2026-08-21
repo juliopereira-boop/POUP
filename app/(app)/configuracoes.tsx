@@ -7,6 +7,7 @@ import { openGuide } from '@/features/guide';
 import { Button } from '@/components/Button';
 import { DeleteAccountButton } from '@/components/DeleteAccountButton';
 import { InstallHowToModal, useInstallPrompt } from '@/components/InstallAppCard';
+import { ReportarProblema } from '@/components/ReportarProblema';
 import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { db } from '@/data';
@@ -37,6 +38,7 @@ export default function ConfiguracoesScreen() {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const { plataforma, instalavel, jaInstalado } = useInstallPrompt();
   const [comoInstalar, setComoInstalar] = useState(false);
+  const [reportando, setReportando] = useState(false);
 
   /**
    * Instala pelo botão do navegador quando ele existe; caso contrário abre o
@@ -106,6 +108,15 @@ export default function ConfiguracoesScreen() {
           </>
         ) : null}
         <Divider />
+        {/* Antes do Suporte de propósito: quem tem um problema concreto acha
+            aqui o caminho curto, que já leva a tela e a etapa junto. O Suporte
+            continua para o que não é sobre uma tela específica. */}
+        <NavRow
+          label="Reportar problema ou dar sugestão"
+          subtitle="A gente já sabe em qual tela você estava"
+          onPress={() => setReportando(true)}
+        />
+        <Divider />
         <NavRow label="Suporte" onPress={() => router.push('/suporte')} />
         <Divider />
         <NavRow label="Política de Privacidade" onPress={() => router.push('/privacidade')} />
@@ -139,6 +150,12 @@ export default function ConfiguracoesScreen() {
               label="Catálogo do sistema"
               subtitle="Construtoras prontas para os corretores adotarem"
               onPress={() => router.push('/(app)/admin/catalogo')}
+            />
+            <Divider />
+            <NavRow
+              label="Rastreabilidade"
+              subtitle="Funil, consumo de IA e recados dos corretores"
+              onPress={() => router.push('/(app)/admin/rastreabilidade')}
             />
           </View>
         </>
@@ -183,6 +200,8 @@ export default function ConfiguracoesScreen() {
       <View style={styles.card}>
         <DeleteAccountButton />
       </View>
+
+      <ReportarProblema visible={reportando} onClose={() => setReportando(false)} />
 
       <InstallHowToModal
         visible={comoInstalar}

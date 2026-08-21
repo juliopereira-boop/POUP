@@ -1,4 +1,5 @@
 import type {
+  AnalyticsRepository,
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
@@ -6,6 +7,7 @@ import type {
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
+  FeedbackRepository,
   FinancingRepository,
   LeadRepository,
   MaterialRepository,
@@ -28,6 +30,8 @@ import { SupabaseAppointmentRepository } from './supabase/SupabaseAppointmentRep
 import { SupabaseSettingsRepository } from './supabase/SupabaseSettingsRepository';
 import { SupabaseSaleRepository } from './supabase/SupabaseSaleRepository';
 import { SupabaseCommissionRepository } from './supabase/SupabaseCommissionRepository';
+import { SupabaseAnalyticsRepository } from './supabase/SupabaseAnalyticsRepository';
+import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -46,6 +50,10 @@ export interface DataLayer {
   settings: SettingsRepository;
   sales: SaleRepository;
   commissions: CommissionRepository;
+  /** Telemetria do produto. Escrita disparada e esquecida; leitura só do admin. */
+  analytics: AnalyticsRepository;
+  /** "Reportar problema ou dar sugestão", escrito pelo próprio corretor. */
+  feedback: FeedbackRepository;
 }
 
 type Provider = 'supabase';
@@ -70,6 +78,8 @@ function createDataLayer(provider: Provider): DataLayer {
         settings: new SupabaseSettingsRepository(),
         sales: new SupabaseSaleRepository(),
         commissions: new SupabaseCommissionRepository(),
+        analytics: new SupabaseAnalyticsRepository(),
+        feedback: new SupabaseFeedbackRepository(),
       };
   }
 }
@@ -78,17 +88,24 @@ export const db: DataLayer = createDataLayer(ACTIVE_PROVIDER);
 
 export * from './types';
 export type {
+  AnalyticsRepository,
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
   CatalogRepository,
   CommissionRepository,
   CompanyRepository,
+  DegrauFunil,
   DevelopmentRepository,
+  EventoParaGravar,
+  FeedbackRepository,
   FinancingRepository,
   LeadRepository,
+  LinhaConsumoIA,
+  LinhaEvento,
   MaterialRepository,
   ProfileRepository,
+  RecadoDoCorretor,
   SaleRepository,
   SettingsRepository,
   SimulationRepository,
