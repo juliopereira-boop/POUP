@@ -63,6 +63,8 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+import { cobrarUso, type ClienteRpc, type RecursoIA } from '../_shared/cota.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -352,7 +354,10 @@ Chame a ferramenta registrar_agendamento com o resultado.`;
  * Roda sempre em Haiku: é uma tarefa de extração estruturada de uma frase só,
  * não a leitura de uma negociação inteira, então não precisa do modelo caro.
  */
-async function tratarAgendamento(body: Record<string, unknown>): Promise<Response> {
+async function tratarAgendamento(
+  body: Record<string, unknown>,
+  cliente: ClienteRpc,
+): Promise<Response> {
   const texto = typeof body.texto === 'string' ? body.texto.trim() : '';
   const hoje = /^\d{4}-\d{2}-\d{2}$/.test(String(body.hoje ?? '')) ? String(body.hoje) : 'desconhecida';
   const empreendimentos: string[] = Array.isArray(body.empreendimentos)
@@ -369,6 +374,10 @@ async function tratarAgendamento(body: Record<string, unknown>): Promise<Respons
   if (!ANTHROPIC_API_KEY) {
     return json({ error: 'A LIA não está configurada (ANTHROPIC_API_KEY ausente).' }, 500);
   }
+
+  // Depois das validações (frase vazia não custou modelo), antes da API.
+  const cota = await cobrarUso(cliente, 'lia_agenda');
+  if (!cota.ok) return json({ error: cota.mensagem }, cota.status);
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -390,6 +399,7 @@ async function tratarAgendamento(body: Record<string, unknown>): Promise<Respons
   if (!response.ok) {
     const detalhe = await response.text();
     console.error('LIA agendamento: erro na Anthropic API', response.status, detalhe.slice(0, 500));
+    await cota.estornar();
     return json({ error: 'A LIA não conseguiu processar o agendamento agora.' }, 502);
   }
 
@@ -449,7 +459,7 @@ Deno.serve(async (req) => {
      * que não faz sentido para esta chamada.
      */
     if (body.modo === 'agendamento') {
-      return await tratarAgendamento(body);
+      return await tratarAgendamento(body, supabase);
     }
 
     const final = body.modo === 'final';
@@ -492,6 +502,19 @@ Deno.serve(async (req) => {
     if (!ANTHROPIC_API_KEY) {
       return json({ error: 'A LIA não está configurada (ANTHROPIC_API_KEY ausente).' }, 500);
     }
+
+    /*
+     * ESCUTA E FECHAMENTO SÃO RECURSOS SEPARADOS, NÃO PESOS DO MESMO.
+     *
+     * A escuta roda dezenas de vezes por reunião em Haiku; o fechamento roda
+     * uma vez, em Sonnet, com a conversa inteira no contexto — dezenas de vezes
+     * mais caro por chamada. Somados num contador só, o fechamento
+     * desapareceria na média e o teto que importa (o do modelo caro) não
+     * existiria de fato.
+     */
+    const recurso: RecursoIA = final ? 'lia_fechamento' : 'lia_escuta';
+    const cota = await cobrarUso(supabase, recurso);
+    if (!cota.ok) return json({ error: cota.mensagem }, cota.status);
 
     const temEstado = Object.keys(estado).length > 0;
     const partes = [
@@ -551,6 +574,7 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const detalhe = await response.text();
       console.error('LIA: erro na Anthropic API', response.status, detalhe.slice(0, 500));
+      await cota.estornar();
       return json({ error: 'A LIA não conseguiu processar agora. Continue falando.' }, 502);
     }
 

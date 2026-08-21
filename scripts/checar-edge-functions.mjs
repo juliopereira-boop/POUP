@@ -33,9 +33,25 @@ if (!existsSync(RAIZ)) {
   process.exit(0);
 }
 
-const arquivos = readdirSync(RAIZ, { withFileTypes: true })
+const pastas = readdirSync(RAIZ, { withFileTypes: true })
   .filter((e) => e.isDirectory())
-  .map((e) => join(RAIZ, e.name, 'index.ts'))
+  .map((e) => e.name);
+
+/*
+ * Cada função é `<pasta>/index.ts`. As pastas com `_` na frente são a exceção:
+ * o Supabase não as publica como função, elas são código COMPARTILHADO
+ * importado pelas outras (`_shared/cota.ts`). Precisam ser checadas do mesmo
+ * jeito — um erro de sintaxe ali quebra todas as funções que importam, o que é
+ * pior do que quebrar uma.
+ */
+const arquivos = pastas
+  .flatMap((nome) =>
+    nome.startsWith('_')
+      ? readdirSync(join(RAIZ, nome))
+          .filter((f) => f.endsWith('.ts'))
+          .map((f) => join(RAIZ, nome, f))
+      : [join(RAIZ, nome, 'index.ts')],
+  )
   .filter((p) => existsSync(p));
 
 let falhas = 0;
@@ -67,4 +83,4 @@ if (falhas > 0) {
   process.exit(1);
 }
 
-console.log(`\n${arquivos.length} Edge Functions, todas com sintaxe válida.`);
+console.log(`\n${arquivos.length} arquivos de Edge Function, todos com sintaxe válida.`);

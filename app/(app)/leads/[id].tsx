@@ -36,7 +36,12 @@ import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
-import { MAX_FILE_BYTES, MAX_FILE_MB } from '@/features/material/limits';
+import {
+  MAX_FILE_MB,
+  TIPOS_ACEITOS_PICKER,
+  TIPOS_ACEITOS_ROTULO,
+  separarEnviaveis,
+} from '@/features/material/limits';
 
 const PREFILL_KEY = 'simulador:prefill';
 
@@ -279,17 +284,14 @@ export default function LeadDetailScreen() {
     setError(null);
     let picked: PickedFile[] = [];
     try {
-      picked = await pickFiles();
+      picked = await pickFiles({ type: TIPOS_ACEITOS_PICKER });
     } catch {
       setError('Não foi possível abrir o seletor de arquivos.');
       return;
     }
     if (picked.length === 0) return;
-    const okFiles = picked.filter((f) => f.size <= MAX_FILE_BYTES);
-    const tooBig = picked.length - okFiles.length;
-    if (tooBig > 0) {
-      setError(`${tooBig} arquivo(s) acima do limite de ${MAX_FILE_MB} MB foram ignorados.`);
-    }
+    const { aceitos: okFiles, aviso } = separarEnviaveis(picked);
+    if (aviso) setError(aviso);
     if (okFiles.length === 0) return;
     setBusyFiles(true);
     let firstErr: string | null = null;
@@ -538,7 +540,9 @@ export default function LeadDetailScreen() {
               </View>
             ))
         )}
-        <Text style={styles.hint}>Máx. {MAX_FILE_MB} MB por arquivo.</Text>
+        <Text style={styles.hint}>
+          {TIPOS_ACEITOS_ROTULO} · máx. {MAX_FILE_MB} MB por arquivo.
+        </Text>
         <Button
           label="⬆️ Enviar arquivo"
           variant="secondary"

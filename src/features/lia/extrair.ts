@@ -39,6 +39,7 @@
  * LIA parecer que "já sabe": ouvir "no Vila Nova" e preencher empreendimento
  * **e** construtora, sem ninguém ter dito o nome da construtora.
  */
+import { mensagemDoErro } from '@/lib/edgeError';
 import { supabase } from '@/lib/supabase';
 import { CAMPOS, campoParaPrompt } from './campos';
 
@@ -119,7 +120,15 @@ export async function extrair(p: PedidoExtracao): Promise<ResultadoExtracao | { 
     },
   });
 
-  if (error) return { erro: 'A LIA não conseguiu processar agora. Continue falando.' };
+  if (error) {
+    /*
+     * A frase precisa vir do CORPO da resposta, não do `error.message`.
+     * Limite de uso atingido chega como 429 com a explicação no corpo; sem ler
+     * de lá, o corretor veria uma frase em inglês sobre status HTTP e pensaria
+     * que a LIA quebrou.
+     */
+    return { erro: await mensagemDoErro(error, 'A LIA não conseguiu processar agora. Continue falando.') };
+  }
 
   const payload = data as {
     versao?: number;

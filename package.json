@@ -16,7 +16,8 @@
     "checar:funcoes": "node scripts/checar-edge-functions.mjs",
     "custo:lia": "node scripts/custo-lia.mjs",
     "testar:financiamento": "node scripts/testar-financiamento.mjs",
-    "testar:lia": "node scripts/testar-lia.mjs"
+    "testar:lia": "node scripts/testar-lia.mjs",
+    "testar:limites": "node scripts/testar-limites.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -30,6 +31,7 @@
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.23",
     "expo-font": "~14.0.12",
+    "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
     "expo-print": "~15.0.8",

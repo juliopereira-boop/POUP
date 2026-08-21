@@ -39,6 +39,7 @@
  */
 import { db } from '@/data';
 import { localISO } from '@/features/agenda/dates';
+import { mensagemDoErro } from '@/lib/edgeError';
 import { supabase } from '@/lib/supabase';
 import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
 import { VERSAO_CONTRATO } from './extrair';
@@ -111,7 +112,11 @@ export async function extrairAgendamento(p: PedidoAgendamento): Promise<Resultad
     },
   });
 
-  if (error) return { erro: 'A LIA não conseguiu processar o agendamento agora.' };
+  if (error) {
+    // Ver a nota em `extrair.ts`: a explicação (limite de uso, por exemplo)
+    // vem no corpo da resposta, não em `error.message`.
+    return { erro: await mensagemDoErro(error, 'A LIA não conseguiu processar o agendamento agora.') };
+  }
 
   const payload = data as {
     versao?: number;

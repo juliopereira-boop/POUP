@@ -284,16 +284,23 @@ Deno.serve(async (req) => {
     }
 
     if (!unlimited && leads.length > 0) {
-      await admin.from('prospect_usage').upsert(
-        {
-          user_id: user.id,
-          dia,
-          periodo,
-          usados: usados + leads.length,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,dia,periodo' },
-      );
+      /*
+       * SOMA NO BANCO, NÃO GRAVA UM TOTAL DAQUI.
+       *
+       * O upsert que existia aqui gravava `usados + leads.length` — um total
+       * calculado a partir de uma leitura anterior. Duas prospecções ao mesmo
+       * tempo liam o mesmo `usados` e gravavam o mesmo total, e a cota vazava.
+       * Pior: a policy da tabela era `for all`, e como esta função roda com o
+       * token do próprio usuário, o aparelho podia apagar a linha e zerar a
+       * cota do período. Agora a tabela é só de leitura para o usuário e o
+       * incremento passa por `registrar_prospeccao` (ver 0028).
+       */
+      const { error: erroCota } = await admin.rpc('registrar_prospeccao', {
+        p_dia: dia,
+        p_periodo: periodo,
+        p_quantidade: leads.length,
+      });
+      if (erroCota) console.error('prospecção: falha ao registrar cota', erroCota.message);
     }
 
     return json({

@@ -59,6 +59,13 @@ const masks = compilar(path.join(process.cwd(), 'src/lib/masks.ts'), require);
 /** `localISO` — puro, sem imports. Vai real: é ele que monta a data do compromisso. */
 const datas = compilar(path.join(process.cwd(), 'src/features/agenda/dates.ts'), require);
 
+/**
+ * `mensagemDoErro` — puro. Vai real porque é ele que decide a frase de erro que
+ * o corretor lê. Testado em `testar-limites.mjs`, que é onde moram as regras de
+ * limite; aqui ele só precisa resolver o import.
+ */
+const edgeError = compilar(path.join(process.cwd(), 'src/lib/edgeError.ts'), require);
+
 function carregar(nome) {
   if (cache.has(nome)) return cache.get(nome);
   const arquivo = path.join(RAIZ, `${nome}.ts`);
@@ -69,6 +76,7 @@ function carregar(nome) {
     if (spec === '@/lib/masks') return masks;
     if (spec === '@/data') return DB_TOCO;
     if (spec === '@/features/agenda/dates') return datas;
+    if (spec === '@/lib/edgeError') return edgeError;
     return require(spec);
   });
   cache.set(nome, exports);

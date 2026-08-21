@@ -1,3 +1,4 @@
+import { mensagemDoErro } from './edgeError';
 import { supabase } from './supabase';
 import { type Result, err, ok } from '@/data';
 
@@ -15,7 +16,9 @@ export async function scanDocument(
   const { data, error } = await supabase.functions.invoke('scan-document', {
     body: { imageBase64, mimeType },
   });
-  if (error) return err(error.message);
+  if (error) {
+    return err(await mensagemDoErro(error, 'Não foi possível ler o documento agora.'));
+  }
   if (data?.error) return err(data.error as string);
   return ok(data as ScannedDocument);
 }

@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+import { cobrarUso } from '../_shared/cota.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -40,8 +42,21 @@ const TOOL_SCHEMA = {
   },
 };
 
-const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_BASE64_LEN = 8 * 1024 * 1024;
+/*
+ * GIF SAIU DA LISTA. Documento de identidade é foto: JPEG, PNG ou WebP. GIF
+ * animado só serviria para empurrar quadros de sobra pelo mesmo pedido, e um
+ * documento em GIF não existe no mundo real.
+ */
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/*
+ * Teto de bytes, não de pixels — a API já reduz a imagem a 1568px do lado
+ * maior, então uma foto gigante não custa mais TOKEN que uma média. O que ela
+ * custa é banda e tempo, no 4G do corretor e na Edge Function. Por isso o
+ * aplicativo reduz a imagem antes de enviar (ver `src/features/scan/`), e este
+ * teto aqui é a rede de proteção contra quem não passa pelo aplicativo.
+ */
+const MAX_BASE64_LEN = 6 * 1024 * 1024;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -77,6 +92,17 @@ Deno.serve(async (req) => {
       return json({ error: 'Scanner não configurado (ANTHROPIC_API_KEY ausente).' }, 500);
     }
 
+    /*
+     * A COBRANÇA VEM DEPOIS DAS VALIDAÇÕES E ANTES DA API.
+     *
+     * Depois das validações porque um mimetype errado não gastou modelo nenhum
+     * — cobrar por isso seria punir o corretor por um arquivo que nem saiu do
+     * aparelho. Antes da API porque é o único ponto em que a cobrança é
+     * inescapável: quem cancela a conexão depois da chamada já gastou.
+     */
+    const cota = await cobrarUso(supabase, 'scan');
+    if (!cota.ok) return json({ error: cota.mensagem }, cota.status);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -104,12 +130,19 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errBody = await response.text();
       console.error('Erro na Anthropic API:', response.status, errBody);
+      // Falha nossa: devolve a cota. O corretor não paga pelo nosso 502.
+      await cota.estornar();
       return json({ error: 'Falha ao processar o documento. Tente novamente.' }, 502);
     }
 
     const data = await response.json();
     const toolUse = (data.content ?? []).find((b: { type: string }) => b.type === 'tool_use');
-    if (!toolUse) return json({ error: 'Não foi possível ler o documento.' }, 502);
+    if (!toolUse) {
+      // Aqui a chamada ACONTECEU e foi paga — a imagem é que não deu para ler.
+      // A cota fica cobrada de propósito: senão, mandar borrão em laço seria
+      // uso ilimitado.
+      return json({ error: 'Não foi possível ler o documento.' }, 502);
+    }
 
     const result = toolUse.input as {
       fullName: string;

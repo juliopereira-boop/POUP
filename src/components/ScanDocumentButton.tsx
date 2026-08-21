@@ -29,6 +29,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { Button } from './Button';
 import { scanDocument, type ScannedDocument } from '@/lib/documentScan';
+import { reduzirParaEnvio } from '@/lib/imagemReduzida';
 import { grantScanConsent, hasScanConsent } from '@/features/scan/consent';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
@@ -66,13 +67,20 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
     const result = cam.granted
       ? await ImagePicker.launchCameraAsync(options)
       : await ImagePicker.launchImageLibraryAsync(options);
-    if (result.canceled || !result.assets?.[0]?.base64) return;
+    const asset = result.canceled ? null : result.assets?.[0];
+    if (!asset?.base64) return;
 
     setLoading(true);
-    const scan = await scanDocument(
-      result.assets[0].base64,
-      result.assets[0].mimeType ?? 'image/jpeg',
-    );
+    /*
+     * A redução entra ANTES do envio e depois do `setLoading`: numa foto de
+     * celular ela leva um instante perceptível, e o corretor precisa ver que
+     * algo está acontecendo. O ganho é no upload — ver `imagemReduzida.ts`.
+     */
+    const imagem = await reduzirParaEnvio(asset.uri, {
+      base64: asset.base64,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+    });
+    const scan = await scanDocument(imagem.base64, imagem.mimeType);
     setLoading(false);
 
     if (!scan.ok) return notify(scan.error);

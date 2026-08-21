@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+import { cobrarUso } from '../_shared/cota.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -118,6 +120,10 @@ Deno.serve(async (req) => {
       extra: capped(body.extra, MAX_EXTRA),
     });
 
+    // Cobra depois de montar o pedido e antes de gastar o modelo.
+    const cota = await cobrarUso(admin, 'convite');
+    if (!cota.ok) return json({ error: cota.mensagem }, cota.status);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -138,6 +144,7 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errBody = await response.text();
       console.error('Erro na Anthropic API:', response.status, errBody);
+      await cota.estornar();
       return json({ error: 'Falha ao gerar os textos. Tente novamente.' }, 502);
     }
 

@@ -1,3 +1,4 @@
+import { mensagemDoErro } from './edgeError';
 import { supabase } from './supabase';
 import { type LeadCampaign, type Result, err, ok } from '@/data';
 
@@ -11,7 +12,7 @@ export async function generateInvite(input?: {
       extra: input?.detalhes ?? undefined,
     },
   });
-  if (error) return err(error.message);
+  if (error) return err(await mensagemDoErro(error, 'Não foi possível gerar os textos agora.'));
   if (data?.error) return err(data.error as string);
   return ok(data as LeadCampaign);
 }
@@ -30,7 +31,7 @@ export async function generatePitch(input: {
       brokerName: input.brokerName ?? undefined,
     },
   });
-  if (error) return err(error.message);
+  if (error) return err(await mensagemDoErro(error, 'Não foi possível gerar a mensagem agora.'));
   if (data?.error) return err(data.error as string);
   return ok(data as { mensagem: string });
 }

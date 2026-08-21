@@ -23,7 +23,12 @@ import { useIsAdmin } from '@/features/admin';
 import { CATALOG_MATERIAL_ROOT, canEditMaterial, materialRoot } from '@/features/catalog/material';
 import { pickFiles, type PickedFile } from '@/features/files/pick';
 import { fileKind, KIND_BADGE } from '@/features/material/fileKind';
-import { MAX_FILE_BYTES, MAX_FILE_MB } from '@/features/material/limits';
+import {
+  MAX_FILE_MB,
+  TIPOS_ACEITOS_PICKER,
+  TIPOS_ACEITOS_ROTULO,
+  separarEnviaveis,
+} from '@/features/material/limits';
 import {
   getCachedThumbs,
   putCachedThumbs,
@@ -271,18 +276,15 @@ export default function MaterialVendaScreen() {
     setError(null);
     let files: PickedFile[] = [];
     try {
-      files = await pickFiles();
+      files = await pickFiles({ type: TIPOS_ACEITOS_PICKER });
     } catch {
       setError('Não foi possível abrir o seletor de arquivos.');
       return false;
     }
     if (files.length === 0) return false;
 
-    const okFiles = files.filter((f) => f.size <= MAX_FILE_BYTES);
-    const tooBig = files.length - okFiles.length;
-    if (tooBig > 0) {
-      setError(`${tooBig} arquivo(s) acima do limite de ${MAX_FILE_MB} MB foram ignorados.`);
-    }
+    const { aceitos: okFiles, aviso } = separarEnviaveis(files);
+    if (aviso) setError(aviso);
     if (okFiles.length === 0) return false;
 
     setBusy(true);
@@ -492,7 +494,9 @@ export default function MaterialVendaScreen() {
               ele já usou não aparece em lugar nenhum: o POUP não se vende como
               hospedagem, e o limite é assunto do banco, não do corretor. */}
           {canEdit ? (
-            <Text style={styles.usage}>máx. {MAX_FILE_MB} MB por arquivo</Text>
+            <Text style={styles.usage}>
+              {TIPOS_ACEITOS_ROTULO} · máx. {MAX_FILE_MB} MB por arquivo
+            </Text>
           ) : null}
 
           <Text style={styles.sectionTitle}>Empreendimentos</Text>
@@ -578,7 +582,9 @@ export default function MaterialVendaScreen() {
             <CatalogNotice />
           )}
 
-          {canEdit ? <Text style={styles.usage}>máx. {MAX_FILE_MB} MB por arquivo</Text> : null}
+          {canEdit ? <Text style={styles.usage}>
+              {TIPOS_ACEITOS_ROTULO} · máx. {MAX_FILE_MB} MB por arquivo
+            </Text> : null}
 
           {atMaxDepth && canEdit ? (
             <Text style={styles.notice}>
