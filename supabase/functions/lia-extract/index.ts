@@ -63,7 +63,161 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-import { cobrarUso, type ClienteRpc, type RecursoIA } from '../_shared/cota.ts';
+/* ===========================================================================
+ * COTA DE USO DE IA
+ * ===========================================================================
+ * ESTE BLOCO É DUPLICADO DE PROPÓSITO, e a razão é o deploy.
+ *
+ * Ele já morou em `_shared/cota.ts`, importado pelas quatro funções que gastam
+ * API paga. Não funciona: o deploy pelo Dashboard do Supabase envia UM arquivo,
+ * o `index.ts`, e o bundler do lado de lá falha com
+ * `Module not found ".../_shared/cota.ts"`. Import relativo para fora da pasta
+ * da função só resolve com a CLI (`supabase functions deploy`), que não é como
+ * este projeto publica.
+ *
+ * Então a escolha é entre duplicar trinta linhas ou trocar o processo de
+ * publicação inteiro. Duplicar ganha — mas com uma condição: **mexeu aqui,
+ * mexa nas quatro.** As cópias vivem em `scan-document`, `lia-extract`,
+ * `generate-pitch` e `generate-invite`, e todas são idênticas.
+ *
+ * ---------------------------------------------------------------------------
+ * COBRAR ANTES, ESTORNAR SE A CULPA FOR NOSSA
+ * ---------------------------------------------------------------------------
+ * A cobrança acontece ANTES da chamada ao modelo. Cobrar depois deixa a porta
+ * aberta: quem derruba a conexão no meio nunca é cobrado, e repetir isso em
+ * laço é uso ilimitado de graça. O `estornar()` devolve a cota quando a falha é
+ * do POUP (502 da Anthropic, chave ausente, exceção). Quando a falha é do
+ * pedido — imagem ilegível, frase incompreensível — a cobrança fica: o modelo
+ * já foi pago.
+ *
+ * ---------------------------------------------------------------------------
+ * O TETO NÃO VEM DAQUI, VEM DO BANCO
+ * ---------------------------------------------------------------------------
+ * `consumir_ia` recebe apenas o NOME do recurso. Quem descobre o plano da conta
+ * e o teto é o Postgres, com `auth.uid()`, numa função `security definer` (ver
+ * `0028_limite_ia.sql`). Isso importa porque esta função cria o client com a
+ * chave de service role MAS repassa o `Authorization` do usuário — as queries
+ * rodam como ele. Se o teto fosse parâmetro, bastaria chamar a função SQL
+ * direto do aparelho passando um número alto.
+ *
+ * Falha de infraestrutura (RPC fora, migration não aplicada) RECUSA a chamada.
+ * Um limitador que abre quando quebra não é um limitador.
+ */
+type RecursoIA = 'scan' | 'lia_escuta' | 'lia_fechamento' | 'lia_agenda' | 'pitch' | 'convite';
+
+const ROTULO_COTA: Record<RecursoIA, string> = {
+  scan: 'leituras de documento',
+  lia_escuta: 'trechos ouvidos pela LIA',
+  lia_fechamento: 'fechamentos de conversa da LIA',
+  lia_agenda: 'agendamentos por voz',
+  pitch: 'textos de abordagem',
+  convite: 'convites de captação',
+};
+
+interface ClienteRpc {
+  rpc(
+    nome: string,
+    args: Record<string, unknown>,
+  ): Promise<{ data: unknown; error: { message: string } | null }>;
+}
+
+interface Cobranca {
+  ok: boolean;
+  mensagem: string;
+  status: number;
+  estornar: () => Promise<void>;
+}
+
+async function cobrarUso(
+  client: ClienteRpc,
+  recurso: RecursoIA,
+  peso = 1,
+): Promise<Cobranca> {
+  const semEstorno = () => Promise.resolve();
+  const { data, error } = await client.rpc('consumir_ia', { p_recurso: recurso, p_peso: peso });
+
+  if (error) {
+    console.error('cota: consumir_ia falhou', recurso, error.message);
+    return {
+      ok: false,
+      status: 503,
+      mensagem: 'Não foi possível conferir o seu limite de uso agora. Tente de novo em instantes.',
+      estornar: semEstorno,
+    };
+  }
+
+  const r = (data ?? {}) as {
+    permitido?: boolean;
+    motivo?: string;
+    teto?: number;
+    plano?: string;
+  };
+
+  if (r.permitido === true) {
+    return {
+      ok: true,
+      mensagem: '',
+      status: 200,
+      estornar: async () => {
+        const { error: e } = await client.rpc('estornar_ia', { p_recurso: recurso, p_peso: peso });
+        // Estorno que falha não derruba a resposta: o corretor já está recebendo
+        // um erro, e um segundo erro em cima não ajuda ninguém.
+        if (e) console.error('cota: estorno falhou', recurso, e.message);
+      },
+    };
+  }
+
+  const rotulo = ROTULO_COTA[recurso] ?? 'usos';
+  const pro = r.plano === 'pro' || r.plano === 'admin';
+
+  switch (r.motivo) {
+    case 'teto_mes':
+      return {
+        ok: false,
+        status: 429,
+        mensagem:
+          `Você já usou ${r.teto ?? 0} ${rotulo} neste mês, que é o limite do seu plano. ` +
+          (pro
+            ? 'A cota volta no primeiro dia do mês.'
+            : 'A cota volta no primeiro dia do mês, e planos maiores incluem mais.'),
+        estornar: semEstorno,
+      };
+    case 'rajada':
+      return {
+        ok: false,
+        status: 429,
+        mensagem: 'Muitos pedidos em pouco tempo. Espere um minuto e tente de novo.',
+        estornar: semEstorno,
+      };
+    case 'plano_nao_inclui':
+      return {
+        ok: false,
+        status: 403,
+        mensagem: `O seu plano não inclui ${rotulo}.`,
+        estornar: semEstorno,
+      };
+    case 'nao_autenticado':
+      return { ok: false, status: 401, mensagem: 'Não autenticado.', estornar: semEstorno };
+    case 'sem_limite_cadastrado':
+      // Plano sem linha em `ai_limits`: erro de configuração nossa, não do
+      // corretor — mas ainda assim não gastamos API às cegas.
+      console.error('cota: sem teto cadastrado', recurso, r.plano);
+      return {
+        ok: false,
+        status: 503,
+        mensagem: 'Este recurso está indisponível no momento. Tente de novo mais tarde.',
+        estornar: semEstorno,
+      };
+    default:
+      return {
+        ok: false,
+        status: 429,
+        mensagem: 'Limite de uso atingido. Tente de novo mais tarde.',
+        estornar: semEstorno,
+      };
+  }
+}
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

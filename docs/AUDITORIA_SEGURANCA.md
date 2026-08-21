@@ -194,9 +194,10 @@ Isso está fechado: `0028_limite_ia.sql` põe teto mensal e teto por minuto por 
 - **`SELECT ... FOR UPDATE` no consumo.** Sem ele, ler-somar-gravar deixa duas requisições concorrentes verem o mesmo `usados` e gravarem o mesmo valor: o teto vaza exatamente no caso que ele existe para conter.
 - **Cota da prospecção deixou de ser contada com uma corrida.** A 0013 já havia fechado o buraco grave (a policy `for all` dava DELETE ao dono da linha, e portanto ao aparelho). O que restava era mais silencioso: a Edge Function lia `usados`, somava `leads.length` em JavaScript e gravava o TOTAL — duas prospecções simultâneas sobrescreviam uma à outra em vez de somar. Agora o incremento é `usados = usados + N` dentro do banco, via `registrar_prospeccao()`.
 
-**`supabase/functions/_shared/cota.ts`** (novo)
+**`cobrarUso`** (novo — copiado em `scan-document`, `lia-extract`, `generate-pitch` e `generate-invite`)
 - Cobra **antes** da chamada ao modelo, e estorna quando a falha é nossa (502 da Anthropic, chave ausente, exceção). Cobrar depois deixaria a porta aberta: quem derruba a conexão no meio nunca seria cobrado, e repetir isso em laço é uso ilimitado. Quando a imagem simplesmente não dava para ler, a cobrança **fica** — o modelo já foi pago, e mandar borrão em laço seria uso ilimitado por outro caminho.
 - **Falha de infraestrutura recusa a chamada.** Se o RPC estiver fora ou a migration não tiver rodado, a resposta é 503, não "pode passar". Um limitador que abre quando quebra não é um limitador.
+- Nasceu em `_shared/cota.ts` e voltou para dentro de cada função: o deploy pelo Dashboard envia um arquivo só e o bundler falha com `Module not found` em qualquer import relativo para fora da pasta. Duplicação deliberada, com a condição anotada no topo de cada cópia — mexeu em uma, mexa nas quatro.
 
 **`supabase/functions/scan-document/index.ts`**
 - GIF saiu da allowlist de mimetype: documento de identidade é foto, e GIF animado só serviria para empurrar quadros de sobra no mesmo pedido.

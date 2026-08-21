@@ -38,11 +38,19 @@ const pastas = readdirSync(RAIZ, { withFileTypes: true })
   .map((e) => e.name);
 
 /*
- * Cada função é `<pasta>/index.ts`. As pastas com `_` na frente são a exceção:
- * o Supabase não as publica como função, elas são código COMPARTILHADO
- * importado pelas outras (`_shared/cota.ts`). Precisam ser checadas do mesmo
- * jeito — um erro de sintaxe ali quebra todas as funções que importam, o que é
- * pior do que quebrar uma.
+ * Cada função é `<pasta>/index.ts`. Pastas com `_` na frente são a exceção: o
+ * Supabase não as publica como função, seriam código compartilhado importado
+ * pelas outras.
+ *
+ * Hoje não existe nenhuma, e é deliberado — o deploy deste projeto é feito
+ * colando o `index.ts` no Dashboard, que envia UM arquivo só, e qualquer import
+ * relativo para fora da pasta falha no bundler do lado de lá com
+ * `Module not found`. Ver o bloco de cota duplicado em `scan-document`.
+ *
+ * O suporte fica porque, no dia em que a publicação passar para a CLI
+ * (`supabase functions deploy`), o compartilhado volta a valer — e um erro de
+ * sintaxe nele quebraria todas as funções que importam, o que é pior do que
+ * quebrar uma.
  */
 const arquivos = pastas
   .flatMap((nome) =>

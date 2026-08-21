@@ -1596,7 +1596,7 @@ Se a redução falhar, envia o original: foto grande que funciona é melhor que 
 
 **O problema:** a assinatura é receita **fixa** por mês; chamada de modelo é custo **variável** por uso. Sem teto, as duas curvas se cruzam — e ninguém descobre até a fatura chegar.
 
-`0028_limite_ia.sql` + `supabase/functions/_shared/cota.ts` fecham isso.
+`0028_limite_ia.sql` + o bloco `cobrarUso` dentro de cada Edge Function que gasta API fecham isso.
 
 ### Onde o teto mora, e por quê
 
@@ -1632,6 +1632,14 @@ E se a própria cota estiver fora do ar (RPC indisponível, migration não aplic
 Escuta e fechamento da LIA são contadores **separados**, e não pesos do mesmo: a escuta roda dezenas de vezes por reunião em Haiku, o fechamento roda uma vez em Sonnet com a conversa inteira no contexto. Somados, o fechamento desapareceria na média e o teto que realmente importa não existiria.
 
 > Mudar um teto é um `update` em `ai_limits` — **sem deploy**. Os números atuais foram escolhidos por uso plausível e folga na mensalidade, não por medição; o painel de rastreabilidade (§abaixo) mostra o consumo real para corrigi-los no piloto.
+
+### Por que o `cobrarUso` está copiado em quatro arquivos
+
+Ele nasceu em `supabase/functions/_shared/cota.ts`, importado pelas quatro funções que gastam API paga. **Não funciona neste projeto:** a publicação é feita colando o `index.ts` no Dashboard do Supabase, que envia **um arquivo só**, e o bundler do lado de lá falha com `Module not found ".../_shared/cota.ts"`. Import relativo para fora da pasta da função só resolve com a CLI (`supabase functions deploy`).
+
+A escolha era duplicar ~130 linhas ou trocar o processo de publicação. Duplicar ganhou, com uma condição escrita no topo de cada cópia: **mexeu em uma, mexa nas quatro** — `scan-document`, `lia-extract`, `generate-pitch` e `generate-invite`. As cópias são idênticas.
+
+Se um dia a publicação passar para a CLI, o caminho de volta é extrair para `_shared/` outra vez; o `npm run checar:funcoes` já sabe checar arquivos de pasta compartilhada.
 
 ### A mensagem de recusa precisou de um conserto no client
 
@@ -2175,7 +2183,7 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 
 - `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` e `EXPO_PUBLIC_APP_URL` precisam existir nos **EAS Secrets**. O `src/lib/env.ts` tem fallback silencioso para um host inexistente — sem os segredos, o app instala e não carrega nada.
 - Rodar no Supabase de produção as migrations pendentes: `0023_commissions.sql`, `0024_catalog.sql`, `0025_uf.sql`, `0026_catalogo_sobrevive_ao_dono.sql`, `0027_financiamento.sql`, `0028_limite_ia.sql`, `0029_rastreabilidade.sql`.
-- **A `0028` não é opcional.** Sem ela, `consumir_ia` não existe e o `_shared/cota.ts` recusa toda chamada de IA com 503 — de propósito: um limitador que abre quando quebra não é um limitador. Scanner, LIA, pitch e convite ficam fora do ar até a migration rodar.
+- **A `0028` não é opcional.** Sem ela, `consumir_ia` não existe e o `cobrarUso` recusa toda chamada de IA com 503 — de propósito: um limitador que abre quando quebra não é um limitador. Scanner, LIA, pitch e convite ficam fora do ar até a migration rodar.
 - Publicar os Edge Functions `delete-account` e `get-financing-simulation` — este último com **Verify JWT desmarcado**, porque quem o chama é o navegador do CLIENTE do corretor, que não tem conta (ele valida pelo hash do token e pela expiração do link).
 - **Publicar o Edge Function `lia-extract`** — obrigatório, e não é opcional depois de mexer nele. O aplicativo e a função combinam uma **versão de contrato** (`VERSAO_CONTRATO` em `src/features/lia/extrair.ts` × `VERSAO` na função) e a resposta ecoa a versão; sem o eco, o aplicativo mostra *"A LIA no servidor está desatualizada"* em vez de fingir que ouviu. Isso existe porque a versão anterior falhava em silêncio: a função procurava um campo que o aplicativo tinha parado de mandar, recebia `undefined` e respondia `{campos: []}` com status 200 — indistinguível de "a LIA não entendeu nada".
 - Adicionar `poup://**` e `https://<dominio>/**` na lista de **Redirect URLs** do Supabase Auth. Sem o primeiro, o login social nativo não fecha; sem o segundo, o link de redefinição de senha cai no Site URL e a troca de senha nunca acontece.
