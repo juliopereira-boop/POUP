@@ -1,3 +1,34 @@
+/**
+ * CAPTAÇÃO DE LEADS — só o que a pessoa mesma inicia.
+ *
+ * ===========================================================================
+ * O QUE SAIU DAQUI, E POR QUE NÃO VOLTA
+ * ===========================================================================
+ * Este arquivo se chamava `prospeccao.ts` e tinha um `prospectLeads()` que
+ * consultava uma base pública de CNPJ e devolvia nome, telefone e e-mail de
+ * pessoas que nunca pediram contato. Foi removido junto com a Edge Function
+ * `prospect-leads`.
+ *
+ * O motivo é a regra **5.1.1(viii)** da App Store: um aplicativo não pode
+ * compilar informações pessoais obtidas fora do próprio usuário nem sem
+ * consentimento explícito — **inclusive quando vêm de bancos de dados
+ * públicos**. Ter contratado uma API legítima e usar dado público não resolve;
+ * a regra é sobre o consentimento de quem está na lista, não sobre a origem.
+ *
+ * ===========================================================================
+ * O QUE FICOU: O CAMINHO OPT-IN
+ * ===========================================================================
+ * O corretor publica um convite e a pessoa decide entrar:
+ *
+ *   * **página de captação** com QR Code (`getLeadPage`, `app/captar.tsx`);
+ *   * **link de WhatsApp** que cadastra antes de abrir a conversa;
+ *   * **indicação** e cadastro manual.
+ *
+ * `generateInvite` e `generatePitch` continuam: eles escrevem o texto do
+ * convite e da abordagem para quem JÁ é lead. Escrever uma mensagem para um
+ * contato consentido é outra coisa, completamente diferente de montar uma
+ * lista de estranhos.
+ */
 import { mensagemDoErro } from './edgeError';
 import { supabase } from './supabase';
 import { type LeadCampaign, type Result, err, ok } from '@/data';
@@ -51,36 +82,4 @@ export async function getLeadPage(brokerId: string): Promise<LeadPageInfo | null
   });
   if (error || !data || data.error) return null;
   return data as LeadPageInfo;
-}
-
-export interface ProspectedLead {
-  cnpj: string;
-  empresa: string;
-  nome: string;
-  phone: string;
-  email: string | null;
-  atividade: string | null;
-  cidade: string;
-  uf: string;
-}
-
-export interface ProspectResult {
-  leads: ProspectedLead[];
-  total: number;
-}
-
-export async function prospectLeads(input: {
-  uf: string;
-  cidade: string;
-  excluir?: string[];
-}): Promise<Result<ProspectResult>> {
-  const { data, error } = await supabase.functions.invoke('prospect-leads', {
-    body: input,
-  });
-  if (error) return err(error.message);
-  if (data?.error) return err(data.error as string);
-  return ok({
-    leads: (data.leads ?? []) as ProspectedLead[],
-    total: (data.total as number) ?? 0,
-  });
 }

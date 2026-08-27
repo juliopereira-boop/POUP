@@ -10,7 +10,6 @@ const GB = 1024 * 1024 * 1024;
  * então nunca dá para o texto e a regra divergirem.
  */
 export type PlanFeatureKey =
-  | 'prospeccao'
   | 'leads'
   | 'simulador'
   | 'proposta'
@@ -38,7 +37,6 @@ const DO_INTERMED: readonly PlanTier[] = ['intermed', 'pro'];
 const SO_PRO: readonly PlanTier[] = ['pro'];
 
 export const PLAN_FEATURES: readonly PlanFeature[] = [
-  { key: 'prospeccao', label: 'Prospecção de leads', includedIn: TODOS },
   {
     key: 'leads',
     label: 'Gestão de leads: funil configurável, ficha completa e filtros',
@@ -53,7 +51,7 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
   { key: 'materialVenda', label: 'Material de venda', includedIn: TODOS },
   { key: 'calendario', label: 'Calendário e agendamentos', includedIn: TODOS },
   { key: 'cadastros', label: 'Cadastros de empresas e empreendimentos', includedIn: TODOS },
-  { key: 'captacao', label: 'Página de captação com QR Code do corretor', includedIn: TODOS },
+  { key: 'captacao', label: 'Página de captação com QR Code, para o cliente se cadastrar', includedIn: TODOS },
   { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: TODOS },
   { key: 'vendas', label: 'Vendas realizadas', includedIn: DO_INTERMED },
   { key: 'comissao', label: 'Controle de comissão', includedIn: DO_INTERMED },

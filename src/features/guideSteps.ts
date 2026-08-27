@@ -60,15 +60,15 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     icon: 'chart',
-    where: 'Leads › Prospecção',
-    title: 'Prospecte contatos novos',
+    where: 'Leads › Captação',
+    title: 'Deixe o cliente vir até você',
     description:
-      'Gere uma lista de possíveis clientes na cidade que você atende, com nome e telefone, em segundos.',
+      'Sua página de captação com QR Code. Quem preenche entra direto na sua carteira, já com a origem registrada.',
     bullets: [
-      'Escolha o estado e a cidade na lista',
-      'Defina quantos contatos quer receber',
-      'Salve os que interessarem na sua carteira com um toque',
-      'O app nunca repete um contato que já foi gerado para você',
+      'Publique o QR Code no story, na placa ou no cartão',
+      'Um link de WhatsApp que cadastra a pessoa antes de abrir a conversa',
+      'O cliente escolhe se cadastrar — e você tem o consentimento registrado',
+      'Todo lead que chega cai na Gestão de Leads com a origem certa',
     ],
   },
   {
@@ -103,7 +103,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     description:
       'Cinco etapas simples e o fluxo de pagamento sai pronto, já respeitando as regras da construtora.',
     bullets: [
-      'Análise de risco automática, com subsídio e FGTS',
+      'Estimativa de enquadramento, com subsídio e FGTS',
       'Proposta de compra e venda em PDF, em uma página só',
       'Abrindo pelo botão dentro do lead, a simulação já vem preenchida',
       'Suas simulações ficam salvas em Relatórios',
@@ -167,7 +167,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     bullets: [
       '1. Aceite sua construtora no catálogo do sistema — ou cadastre empresa e empreendimento',
       '2. Suba um material de venda desse empreendimento',
-      '3. Prospecte cinco leads na sua cidade',
+      '3. Publique seu QR Code de captação no story ou no WhatsApp',
       '4. Faça a primeira simulação e gere a proposta',
     ],
   },

@@ -281,7 +281,7 @@ Dois detalhes que parecem miudeza e não são:
 
 | Plano | Preço | O que acrescenta |
 | --- | --- | --- |
-| **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, prospecção, calendário, material de venda, cadastros, captação |
+| **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, captação com QR Code, calendário, material de venda, cadastros |
 | **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** |
 | **Pro** | R$ 89,90/mês | Tudo do Intermed **+ a LIA** |
 
@@ -1647,7 +1647,7 @@ Se um dia a publicação passar para a CLI, o caminho de volta é extrair para `
 
 `src/lib/edgeError.ts` lê a explicação do corpo. Vale para **todo** erro de Edge Function, não só para cota.
 
-> Por que não devolver 200 em tudo (que foi o atalho da prospecção): status HTTP correto é o que faz o log do Supabase e qualquer política futura de retentativa distinguirem "recusei de propósito" de "quebrou". Mentir no status para contornar uma limitação do client troca uma linha de código por uma cegueira permanente.
+> Por que não devolver 200 em tudo (que foi o atalho da antiga prospecção): status HTTP correto é o que faz o log do Supabase e qualquer política futura de retentativa distinguirem "recusei de propósito" de "quebrou". Mentir no status para contornar uma limitação do client troca uma linha de código por uma cegueira permanente.
 
 ---
 
@@ -2166,7 +2166,7 @@ Auditoria feita contra a documentação oficial vigente. Cada item cita a regra.
 | **2.1** | "Gerar Nota Fiscal" prometia emissão automática e respondia "ainda não está conectada"; um banner anunciava recurso futuro. | Rótulo passa a "Registrar Nota Fiscal" quando não há plataforma conectada, e os textos descrevem o que o app faz **hoje**. |
 | **2.1** | `FeaturePlaceholder` ("Em desenvolvimento") e `MenuCard` ("Em breve") no bundle. | Removidos — eram código morto. |
 | **4.8** Login Services | O login social nativo voltava para uma URL `https` (com fallback `http://localhost:8081`). O iOS só devolve o controle ao app por esquema próprio: o botão da Apple quebraria na mão do revisor. | `Linking.createURL('/')` → `poup://`, sem depender de variável de ambiente. |
-| **5.1.1(i)** Privacy Policies | A política omitia a **Casa dos Dados** (recebe dados na prospecção) e o login com **Apple**; faltava a cláusula de proteção equivalente pelos terceiros e o "como revogar consentimento". | Todos incluídos em `app/privacidade.tsx`. |
+| **5.1.1(i)** Privacy Policies | A política omitia o login com **Apple**; faltava a cláusula de proteção equivalente pelos terceiros e o "como revogar consentimento". (A Casa dos Dados saiu junto com a prospecção — ver §Captação.) | Todos incluídos em `app/privacidade.tsx`. |
 | **5.1.1(v)** Account Sign-In | *"Apps may not require users to enter personal information to function"* — ver o beco do onboarding acima. | Mesma correção. |
 | **5.1.2(i)** Data Use and Sharing | *"You must clearly disclose where personal data will be shared with third parties, **including with third-party AI**, and obtain explicit permission before doing so."* O scanner mandava a foto do documento **do cliente** para a Anthropic atrás de um botão com um emoji, sem uma palavra de aviso. | Consentimento explícito antes da primeira leitura (`src/features/scan/consent.ts`), nomeando o terceiro e pedindo confirmação de autorização do titular. |
 | Segurança / LGPD | Os rascunhos do simulador guardam **nome, CPF e renda do cliente** em chave global, e não eram apagados na saída da conta: o próximo corretor no mesmo aparelho abriria o simulador com o cliente do anterior. | `clearLocalUserData()` no `signOut` e na exclusão de conta. |
@@ -2200,7 +2200,7 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 
 > A conta de teste **precisa ter assinatura ativa** (`subscriptions.status = 'active'` no Supabase). No app das lojas a cobrança é invisível: sem assinatura o revisor cai na tela "Assinatura não está ativa" e **não consegue revisar nada**. Isso sozinho reprova o app.
 
-Vale também explicar na nota de revisão o que é a prospecção (consulta ao cadastro **público** de CNPJ) e que a leitura de documento por IA só roda depois de consentimento explícito.
+Vale explicar na nota de revisão que a captação é **opt-in** (a pessoa preenche a própria página do corretor) e que a leitura de documento por IA só roda depois de consentimento explícito, pedido a cada documento.
 
 ---
 

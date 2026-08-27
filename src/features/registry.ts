@@ -15,7 +15,7 @@ export const FEATURES: Feature[] = [
     title: 'Leads',
     emoji: '📇',
     route: '/(app)/leads',
-    description: 'Gerencie seus contatos e capte novos leads com prospecção.',
+    description: 'Gerencie seus contatos e capte novos leads pela sua página com QR Code.',
     ready: true,
   },
   {

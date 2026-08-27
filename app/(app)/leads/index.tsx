@@ -28,61 +28,33 @@ import {
 } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
-import {
-  generateInvite,
-  generatePitch,
-  prospectLeads,
-  type ProspectedLead,
-} from '@/lib/prospeccao';
-import { sessionStorage } from '@/lib/storage';
+import { generateInvite, generatePitch } from '@/lib/captacao';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
-type Tab = 'gestao' | 'prospeccao';
-
-const SHOW_CAPTACAO_CARD = false;
+type Tab = 'gestao' | 'captacao';
 
 const MAX_WA_TEXT_LENGTH = 1800;
 
+/*
+ * `prospeccao` continua no mapa por causa dos leads ANTIGOS.
+ *
+ * A busca por dados públicos saiu do produto (ver o cabeçalho de
+ * `captacao.ts`), mas os contatos que já estavam no CRM do corretor continuam
+ * lá — são dados dele. Sem esta linha, esses leads apareceriam com a origem em
+ * branco. O rótulo é neutro de propósito: descreve quando o contato entrou, não
+ * um recurso que o app ainda oferece.
+ */
 const SOURCE_LABEL: Record<Lead['source'], string> = {
   landing: 'Página de captação',
   whatsapp: 'WhatsApp',
-  prospeccao: 'Prospecção',
+  prospeccao: 'Cadastro anterior',
   meta: 'Facebook/Instagram',
   manual: 'Manual',
 };
 
-const UFS = [
-  'AC',
-  'AL',
-  'AP',
-  'AM',
-  'BA',
-  'CE',
-  'DF',
-  'ES',
-  'GO',
-  'MA',
-  'MT',
-  'MS',
-  'MG',
-  'PA',
-  'PB',
-  'PR',
-  'PE',
-  'PI',
-  'RJ',
-  'RN',
-  'RS',
-  'RO',
-  'RR',
-  'SC',
-  'SP',
-  'SE',
-  'TO',
-];
 
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
   if (Platform.OS === 'web') {
@@ -133,11 +105,11 @@ export default function LeadsScreen() {
           </Text>
         </Pressable>
         <Pressable
-          style={[styles.segmentItem, tab === 'prospeccao' && styles.segmentItemActive]}
-          onPress={() => setTab('prospeccao')}
+          style={[styles.segmentItem, tab === 'captacao' && styles.segmentItemActive]}
+          onPress={() => setTab('captacao')}
         >
-          <Text style={[styles.segmentText, tab === 'prospeccao' && styles.segmentTextActive]}>
-            Prospecção
+          <Text style={[styles.segmentText, tab === 'captacao' && styles.segmentTextActive]}>
+            Captação
           </Text>
         </Pressable>
       </View>
@@ -145,7 +117,7 @@ export default function LeadsScreen() {
       {tab === 'gestao' ? (
         <GestaoLeadsTab userId={user?.id ?? null} brokerName={profile?.fullName ?? null} />
       ) : (
-        <ProspeccaoTab
+        <CaptacaoTab
           userId={user?.id ?? null}
           brokerName={profile?.fullName ?? null}
           brokerPhone={profile?.phone ?? null}
@@ -354,7 +326,7 @@ function GestaoLeadsTab({
         <View style={styles.empty}>
           <Text style={styles.emptyEmoji}>📇</Text>
           <Text style={styles.emptyText}>
-            Nenhum lead ainda. Toque em “Prospecção” acima para começar a captar.
+            Nenhum lead ainda. Toque em “Captação” acima para criar sua página e seu QR Code.
           </Text>
         </View>
       ) : filtered.length === 0 ? (
@@ -613,7 +585,20 @@ function AtendimentoModal({
   );
 }
 
-function ProspeccaoTab({
+/**
+ * CAPTAÇÃO — só o que a pessoa mesma inicia.
+ *
+ * Aqui existiu um "Prospectar Leads" que buscava empresas numa base de dados
+ * pública e devolvia nome e telefone de gente que nunca pediu contato. Foi
+ * removido: a regra 5.1.1(viii) da App Store proíbe aplicativos que compilam
+ * informações pessoais de fora do usuário sem consentimento explícito, e não
+ * importa que a base seja pública ou que a API seja contratada.
+ *
+ * O que sobrou é o caminho legítimo, e é o mesmo em qualquer lugar do mundo: o
+ * corretor publica um convite, a pessoa decide entrar. Página de captação com
+ * QR Code, ou conversa direta no WhatsApp. Quem chega, chegou porque quis.
+ */
+function CaptacaoTab({
   userId,
   brokerName,
   brokerPhone,
@@ -624,207 +609,8 @@ function ProspeccaoTab({
 }) {
   return (
     <View>
-      <ProspectarCard userId={userId} />
-      {SHOW_CAPTACAO_CARD ? <CaptacaoCard userId={userId} brokerName={brokerName} /> : null}
+      <CaptacaoCard userId={userId} brokerName={brokerName} />
       <WhatsAppCard userId={userId} brokerPhone={brokerPhone} />
-    </View>
-  );
-}
-
-function ProspectarCard({ userId }: { userId: string | null }) {
-  const styles = useThemedStyles(makeStyles);
-  const [uf, setUf] = useState<string | null>(null);
-  const [cidade, setCidade] = useState('');
-  const [cidadeOptions, setCidadeOptions] = useState<{ value: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<ProspectedLead[] | null>(null);
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
-  const [seen, setSeen] = useState<string[]>([]);
-
-  const storeKey = userId ? `prospect:${userId}` : null;
-
-  useEffect(() => {
-    if (!storeKey) return;
-    let active = true;
-    sessionStorage.getItem(storeKey).then((raw) => {
-      if (!active || !raw) return;
-      try {
-        const s = JSON.parse(raw) as {
-          uf?: string | null;
-          cidade?: string;
-          results?: ProspectedLead[];
-          saved?: Record<string, boolean>;
-          seen?: string[];
-        };
-        if (s.uf) setUf(s.uf);
-        if (s.cidade) setCidade(s.cidade);
-        if (Array.isArray(s.results)) setResults(s.results);
-        if (s.saved) setSaved(s.saved);
-        if (Array.isArray(s.seen)) setSeen(s.seen);
-      } catch {}
-    });
-    return () => {
-      active = false;
-    };
-  }, [storeKey]);
-
-  useEffect(() => {
-    if (!uf) {
-      setCidadeOptions([]);
-      return;
-    }
-    let active = true;
-    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`)
-      .then((r) => r.json())
-      .then((list: { nome: string }[]) => {
-        if (!active || !Array.isArray(list)) return;
-        setCidadeOptions(list.map((m) => ({ value: m.nome, label: m.nome })));
-      })
-      .catch(() => {
-        if (active) setCidadeOptions([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [uf]);
-
-  function persist(next: {
-    results: ProspectedLead[] | null;
-    saved: Record<string, boolean>;
-    ufV: string | null;
-    cidadeV: string;
-    seenV: string[];
-  }) {
-    if (!storeKey) return;
-    void sessionStorage.setItem(
-      storeKey,
-      JSON.stringify({
-        uf: next.ufV,
-        cidade: next.cidadeV,
-        results: next.results,
-        saved: next.saved,
-        seen: next.seenV,
-      }),
-    );
-  }
-
-  function onChangeUf(v: string) {
-    setUf(v);
-    setCidade('');
-    setSeen([]);
-  }
-  function onChangeCidade(v: string) {
-    setCidade(v);
-    setSeen([]);
-  }
-
-  async function onProspectar() {
-    setError(null);
-    if (!uf) return setError('Escolha o estado.');
-    if (!cidade.trim()) return setError('Escolha a cidade.');
-    setLoading(true);
-    const res = await prospectLeads({ uf, cidade: cidade.trim(), excluir: seen });
-    setLoading(false);
-    if (!res.ok) return setError(res.error);
-    if (res.data.leads.length === 0) {
-      setError('Nenhum lead novo encontrado nessa cidade. Tente outra cidade.');
-      return;
-    }
-    const novosCnpjs = res.data.leads.map((l) => l.cnpj).filter(Boolean);
-    const nextSeen = [...seen, ...novosCnpjs];
-    setResults(res.data.leads);
-    setSaved({});
-    setSeen(nextSeen);
-    persist({
-      results: res.data.leads,
-      saved: {},
-      ufV: uf,
-      cidadeV: cidade.trim(),
-      seenV: nextSeen,
-    });
-  }
-
-  async function onSave(lead: ProspectedLead) {
-    if (!userId) return;
-    const res = await db.leads.create(userId, {
-      name: lead.nome,
-      phone: lead.phone,
-      email: lead.email,
-      message: `${lead.cidade}/${lead.uf}`,
-      source: 'prospeccao',
-    });
-    if (res.ok) {
-      const nextSaved = { ...saved, [lead.cnpj]: true };
-      setSaved(nextSaved);
-      persist({ results, saved: nextSaved, ufV: uf, cidadeV: cidade, seenV: seen });
-    }
-  }
-
-  return (
-    <View style={[styles.card, styles.prospectCard]}>
-      <Text style={styles.cardTitle}>🎯 Prospectar Leads</Text>
-      <Text style={styles.cardText}>
-        Encontre leads locais — pessoas com negócio próprio na região escolhida. Escolha o estado e
-        a cidade e receba uma lista com nome e telefone pra ligar. Cada nova busca traz contatos
-        diferentes. Sem criar página, sem anúncio.
-      </Text>
-
-      <Select
-        label="Estado"
-        placeholder="UF"
-        value={uf}
-        options={UFS.map((u) => ({ value: u, label: u }))}
-        onChange={onChangeUf}
-        searchable
-      />
-      <Select
-        label="Cidade"
-        placeholder={uf ? 'Escolha a cidade' : 'Escolha o estado primeiro'}
-        value={cidade || null}
-        options={cidadeOptions}
-        onChange={onChangeCidade}
-        emptyHint={uf ? 'Carregando municípios…' : 'Escolha o estado primeiro.'}
-        searchable
-      />
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <Button
-        label={loading ? 'Buscando…' : '🎯 Prospectar'}
-        onPress={onProspectar}
-        loading={loading}
-        style={styles.primaryCta}
-      />
-
-      {results && results.length > 0 ? (
-        <View style={styles.results}>
-          <Text style={styles.resultsCount}>{results.length} encontrados</Text>
-          {results.map((lead) => (
-            <View key={lead.cnpj} style={styles.resultRow}>
-              <View style={styles.resultMain}>
-                <Text style={styles.resultName} numberOfLines={1}>
-                  {lead.nome}
-                </Text>
-                <Text style={styles.resultMeta}>{formatPhone(lead.phone)}</Text>
-              </View>
-              <View style={styles.resultActions}>
-                <Pressable
-                  onPress={() => void Linking.openURL(`https://wa.me/55${lead.phone}`)}
-                  hitSlop={8}
-                >
-                  <Text style={styles.resultIcon}>💬</Text>
-                </Pressable>
-                {saved[lead.cnpj] ? (
-                  <Text style={styles.savedTag}>Salvo ✓</Text>
-                ) : (
-                  <Button label="Salvar" variant="secondary" onPress={() => void onSave(lead)} />
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1146,7 +932,6 @@ const makeStyles = (colors: AppColors) =>
     previewText: { ...typography.body, color: colors.ink, lineHeight: 22 },
     previewHeadline: { ...typography.heading, color: colors.ink },
     textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
-    prospectCard: { borderColor: colors.primary, borderWidth: 1.5 },
     results: { marginTop: spacing.lg, gap: spacing.md },
     resultsCount: { ...typography.label, color: colors.inkMuted },
     resultRow: {

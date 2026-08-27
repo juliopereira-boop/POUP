@@ -8,7 +8,7 @@ import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { supabase } from '@/lib/supabase';
 import { formatPhone } from '@/lib/masks';
-import { getLeadPage } from '@/lib/prospeccao';
+import { getLeadPage } from '@/lib/captacao';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, shadow, type AppColors } from '@/theme';
 

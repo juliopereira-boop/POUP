@@ -1144,11 +1144,6 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string;
       };
-      /** Soma leads na cota do período. Soma — não grava um total escolhido. */
-      registrar_prospeccao: {
-        Args: { p_dia: string; p_periodo: string; p_quantidade: number };
-        Returns: number;
-      };
 
       /* RASTREABILIDADE (0029). Todas só respondem para admin. */
       painel_eventos: {

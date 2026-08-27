@@ -63,14 +63,6 @@ export default function PrivacyPolicyScreen() {
           para preencher nome e CPF do cliente
         </Bullet>
 
-        <SubTitle>Da busca por novos clientes (prospecção)</SubTitle>
-        <Bullet>
-          Quando você usa a prospecção, consultamos uma base de dados públicos de empresas (a
-          Casa dos Dados, que reúne o cadastro público de CNPJ) e mostramos nome, telefone,
-          e-mail e cidade de empresas da região que você escolheu. Esses contatos só são salvos
-          na sua conta se você tocar em salvar.
-        </Bullet>
-
         <SubTitle>Do uso do app</SubTitle>
         <Bullet>Simulações, propostas geradas em PDF, vendas e comissões registradas</Bullet>
         <Bullet>
@@ -132,10 +124,6 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe
           uma dessas opções
-        </Bullet>
-        <Bullet>
-          <Bold>Casa dos Dados</Bold> — consulta ao cadastro público de empresas, usada apenas
-          quando você aciona a prospecção
         </Bullet>
         <Bullet>
           <Bold>Anthropic (Claude)</Bold> — leitura automática de CNH/RG, apenas quando você aciona

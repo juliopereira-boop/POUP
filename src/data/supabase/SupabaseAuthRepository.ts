@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
+import { limparDadosLocais } from '@/lib/limparDadosLocais';
 import { supabase } from '@/lib/supabase';
 import { getAppUrl } from '@/lib/appUrl';
 import type { AuthChangePayload, AuthRepository } from '../repositories';
@@ -218,10 +219,23 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async signOut(): Promise<void> {
+    const { data } = await supabase.auth.getUser();
     await supabase.auth.signOut();
+    /*
+     * DEPOIS do signOut, e sempre. `signOut` limpa o token e mais nada — os
+     * rascunhos de simulação com renda e CPF do cliente, os consentimentos e o
+     * cache da antiga prospecção ficariam no aparelho esperando o próximo
+     * usuário. Ver `limparDadosLocais.ts`.
+     */
+    await limparDadosLocais(data.user?.id ?? null);
   }
 
   async deleteAccount(confirm: string): Promise<Result<void>> {
+    // Lido ANTES de excluir: depois da exclusão não há mais sessão de onde
+    // tirar o id, e ele é a chave dos caches locais que precisam sumir.
+    const { data: sessao } = await supabase.auth.getUser();
+    const usuarioId = sessao.user?.id ?? null;
+
     const { data, error } = await supabase.functions.invoke('delete-account', {
       body: { confirm },
     });
@@ -231,9 +245,10 @@ export class SupabaseAuthRepository implements AuthRepository {
       return err(payload?.error ?? 'Não foi possível excluir a conta. Tente novamente.');
     }
 
-    // A conta já não existe no servidor; o `signOut` só limpa o que sobrou no
-    // aparelho. Se falhar, a exclusão continua valendo — daí o catch vazio.
+    // A conta já não existe no servidor; o que resta é limpar o aparelho. Se
+    // falhar, a exclusão continua valendo — daí o catch vazio.
     await supabase.auth.signOut().catch(() => undefined);
+    await limparDadosLocais(usuarioId);
     return ok(undefined);
   }
 
