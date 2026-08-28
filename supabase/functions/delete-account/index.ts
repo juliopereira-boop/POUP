@@ -26,6 +26,24 @@
  *    ficam ocupando espaço (e custo) para sempre.
  * 3. **Apagar o usuário.** As tabelas do app têm `on delete cascade` em
  *    `auth.users`, então leads, simulações, vendas e comissões vão junto.
+ *
+ * ------------------------------------------------------------------
+ * O PEDIDO QUE FALHOU NÃO PODE SUMIR
+ * ------------------------------------------------------------------
+ * Quando um passo falha, esta função aborta e devolve 503 — e continua assim,
+ * porque o contrário deixaria uma cobrança viva sem dono ou um documento de
+ * cliente num bucket órfão.
+ *
+ * O que faltava era registrar que o corretor **tentou**. Sem isso, um Stripe
+ * fora do ar significava: ele recebe um erro, desiste, e ninguém jamais fica
+ * sabendo que houve um pedido de exclusão — a informação morre num log que
+ * ninguém lê e que rotaciona. A Apple exige que a exclusão seja possível, e a
+ * LGPD trata o pedido como direito do titular, com prazo: um pedido invisível
+ * não é cumprido nem é demonstrável.
+ *
+ * Agora, antes de cada 503, a tentativa vai para `exclusao_pendente` (migration
+ * `0033`) com a etapa, o erro e o contador. Quando a exclusão conclui, a linha
+ * é apagada. Ver o cabeçalho da migration para por que essa fila não tem robô.
  */
 import Stripe from 'https://esm.sh/stripe@17.3.1?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -84,6 +102,67 @@ async function listarTudo(admin: Admin, raiz: string): Promise<string[]> {
   }
 
   return arquivos;
+}
+
+/* ===========================================================================
+ * A FILA DE RECONCILIACAO
+ * ===========================================================================
+ * Ver o cabecalho do arquivo e o da migration `0033`. Aqui ficam so as duas
+ * operacoes: marcar que parou, e apagar a marca quando terminou.
+ * ======================================================================== */
+
+/** Os cinco passos. Precisa bater com o check de `exclusao_pendente.etapa`. */
+type Etapa = 'stripe' | 'apple' | 'arquivos' | 'conferencia' | 'usuario';
+
+/**
+ * Registra a tentativa e devolve a resposta de aborto.
+ *
+ * As duas coisas juntas de proposito: separadas, seria facil acrescentar um
+ * `return json(...)` novo mais tarde e esquecer o registro -- que e exatamente
+ * o defeito que esta funcao veio consertar.
+ *
+ * `erro` e para o operador e nunca chega na tela. `mensagem` e o contrario: e o
+ * que o corretor le, e por isso diz que o pedido ficou registrado. Ele
+ * precisa saber que nao esta gritando para o vazio.
+ */
+async function pararComPendencia(
+  admin: Admin,
+  userId: string,
+  etapa: Etapa,
+  erro: string,
+  mensagem: string,
+  status = 503,
+): Promise<Response> {
+  const { error } = await admin.rpc('registrar_exclusao_pendente', {
+    p_user: userId,
+    p_etapa: etapa,
+    p_erro: erro,
+  });
+
+  /*
+   * A falha em REGISTRAR nao pode piorar a situacao de quem ja esta com a
+   * exclusao travada: o corretor recebe a mesma resposta de qualquer jeito. O
+   * log grita para o operador porque, se cair aqui, e sinal de que a migration
+   * `0033` nao rodou no projeto -- e ai a fila inteira nao existe.
+   */
+  if (error) {
+    console.error('ATENCAO: pendencia de exclusao NAO registrada.', etapa, error.message);
+  }
+
+  return json({ error: mensagem }, status);
+}
+
+/**
+ * Some com a pendencia depois que a exclusao deu certo.
+ *
+ * O `on delete cascade` para `auth.users` ja faria isso sozinho um instante
+ * depois. Apagar aqui e explicito por dois motivos: a fila fica limpa mesmo se
+ * o passo 5 for reordenado um dia, e quem le este arquivo ve o ciclo inteiro
+ * (registra, resolve) sem precisar procurar a definicao da tabela.
+ */
+async function limparPendencia(admin: Admin, userId: string): Promise<void> {
+  const { error } = await admin.from('exclusao_pendente').delete().eq('user_id', userId);
+  if (error) console.error('Pendencia de exclusao nao foi limpa.', error.message);
 }
 
 /* ===========================================================================
@@ -329,14 +408,15 @@ Deno.serve(async (req) => {
         const codigo = (e as { code?: string }).code;
         if (codigo !== 'resource_missing') {
           console.error('Exclusao interrompida: Stripe nao cancelou.', (e as Error).name, codigo);
-          return json(
-            {
-              error:
-                'Não foi possível cancelar sua assinatura agora, e não vamos excluir a conta ' +
-                'deixando uma cobrança ativa. Tente de novo em alguns minutos — se continuar, ' +
-                'fale com o suporte que cancelamos manualmente.',
-            },
-            503,
+          return await pararComPendencia(
+            admin,
+            user.id,
+            'stripe',
+            `${(e as Error).name} ${codigo ?? ''}`.trim(),
+            'Não foi possível cancelar sua assinatura agora, e não vamos excluir a conta ' +
+              'deixando uma cobrança ativa. Seu pedido de exclusão ficou registrado e será ' +
+              'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte, ' +
+              'que cancelamos manualmente.',
           );
         }
       }
@@ -346,13 +426,13 @@ Deno.serve(async (req) => {
     const revogacao = await revogarApple(admin, user.id);
     if (!revogacao.ok) {
       console.error('Exclusao interrompida: revogacao da Apple falhou.', revogacao.motivo);
-      return json(
-        {
-          error:
-            'Não foi possível concluir a exclusão agora. Tente de novo em alguns minutos — ' +
-            'se continuar, fale com o suporte.',
-        },
-        503,
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'apple',
+        revogacao.motivo,
+        'Não foi possível concluir a exclusão agora. Seu pedido ficou registrado e será ' +
+          'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte.',
       );
     }
 
@@ -366,13 +446,14 @@ Deno.serve(async (req) => {
          * dono deixou de existir. Nao da para chamar isso de conta excluida.
          */
         console.error('Exclusao interrompida: arquivos nao removidos.', error.message);
-        return json(
-          {
-            error:
-              'Não foi possível apagar todos os seus arquivos agora, e não vamos excluir a ' +
-              'conta pela metade. Tente de novo em alguns minutos.',
-          },
-          503,
+        return await pararComPendencia(
+          admin,
+          user.id,
+          'arquivos',
+          error.message,
+          'Não foi possível apagar todos os seus arquivos agora, e não vamos excluir a conta ' +
+            'pela metade. Seu pedido ficou registrado e será retomado — tente de novo em ' +
+            'alguns minutos.',
         );
       }
     }
@@ -387,13 +468,13 @@ Deno.serve(async (req) => {
     const sobrou = await listarTudo(admin, user.id);
     if (sobrou.length > 0) {
       console.error('Exclusao interrompida: sobraram arquivos.', sobrou.length);
-      return json(
-        {
-          error:
-            'Alguns arquivos não foram apagados. Tente de novo em alguns minutos — a conta ' +
-            'continua ativa até que tudo saia.',
-        },
-        503,
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'conferencia',
+        `sobraram ${sobrou.length} arquivos`,
+        'Alguns arquivos não foram apagados, e a conta continua ativa até que tudo saia. ' +
+          'Seu pedido ficou registrado e será retomado — tente de novo em alguns minutos.',
       );
     }
 
@@ -401,8 +482,23 @@ Deno.serve(async (req) => {
     const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
     if (delErr) {
       console.error('Falha ao excluir usuário:', delErr.message);
-      return json({ error: 'Não foi possível excluir a conta. Tente novamente.' }, 500);
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'usuario',
+        delErr.message,
+        'Não foi possível excluir a conta agora. Seu pedido ficou registrado e será ' +
+          'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte.',
+        500,
+      );
     }
+
+    /*
+     * Deu certo: a pendencia sai. Depois do `deleteUser`, e nao antes -- limpar
+     * primeiro e falhar no passo 5 apagaria justamente o registro que prova que
+     * este corretor pediu para sair.
+     */
+    await limparPendencia(admin, user.id);
 
     return json({ deleted: true });
   } catch (e) {

@@ -193,7 +193,9 @@ export default function PrivacyPolicyScreen() {
           Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
           assinatura é cancelada antes de a conta ser removida — se o cancelamento não puder ser
           concluído, a exclusão não acontece e avisamos, em vez de deixar uma cobrança sem dono.
-          Se você entrou com a Apple, a autorização também é revogada junto.
+          Nesse caso seu pedido <Bold>fica registrado</Bold> e é retomado até ser concluído: ele
+          não se perde porque um serviço externo estava fora do ar. Se você entrou com a Apple, a
+          autorização também é revogada junto.
         </Paragraph>
         <Paragraph>
           Uma ressalva honesta sobre <Bold>backups</Bold>: nosso banco de dados mantém cópias de
