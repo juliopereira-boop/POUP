@@ -275,7 +275,17 @@ export default function PoderDeCompra() {
             </>
           )}
         </>
-      ) : (
+      ) : resultado ? null : (
+        /*
+         * SÓ QUANDO NÃO HÁ RESULTADO NENHUM.
+         *
+         * Este texto era o `else` de `resultado?.ok`, e por isso aparecia
+         * também quando a renda JÁ tinha sido digitada e o cálculo parou por
+         * outro motivo — taxa da linha não cadastrada, por exemplo. O corretor
+         * lia o erro de verdade e, logo abaixo, um aviso mandando fazer o que
+         * ele acabara de fazer. Duas mensagens que se contradizem na mesma
+         * tela; a errada é esta.
+         */
         <Text style={styles.vazio}>Informe a renda familiar para ver o poder de compra.</Text>
       )}
 
