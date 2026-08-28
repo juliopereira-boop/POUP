@@ -1833,13 +1833,65 @@ Só variáveis com prefixo `EXPO_PUBLIC_` ficam no bundle do client — segredos
 ```
 EXPO_PUBLIC_SUPABASE_URL=            # Supabase Dashboard > Project Settings > API
 EXPO_PUBLIC_SUPABASE_ANON_KEY=       # idem (chave anon/public)
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # Stripe Dashboard > Developers > API keys
-EXPO_PUBLIC_STRIPE_PRICE_START=      # price_... do produto "POUP Start"
-EXPO_PUBLIC_STRIPE_PRICE_PRO=        # price_... do produto "POUP Pro"
 EXPO_PUBLIC_APP_URL=                 # http://localhost:8081 (local) ou o domínio de produção
+EXPO_PUBLIC_STRIPE_PRICE_START=      # price_... do produto "POUP Start"
+EXPO_PUBLIC_STRIPE_PRICE_INTERMED=   # price_... do produto "POUP Intermed"
+EXPO_PUBLIC_STRIPE_PRICE_PRO=        # price_... do produto "POUP Pro"
+EXPO_PUBLIC_STORE_BUILD=             # "1" força o modo app-de-loja (o eas.json já manda isso)
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # herdada; nenhuma linha do app a lê hoje
 ```
 
-Se `EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY` estiverem ausentes, o app ainda builda (usa placeholders para o prerender não quebrar), mas nenhuma chamada ao backend funciona em runtime.
+### Onde cada uma é cadastrada, e quais são obrigatórias em cada build
+
+Não é a mesma lista nos dois lados — e exigir tudo em todo lugar quebraria o build de quem não
+precisa daquilo:
+
+| Variável | Onde se cadastra | Web | App das lojas |
+| --- | --- | --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Vercel · **EAS secrets** | obrigatória | obrigatória |
+| `EXPO_PUBLIC_APP_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
+| `EXPO_PUBLIC_STRIPE_PRICE_START/INTERMED/PRO` | Vercel | obrigatórias | não usadas |
+| `EXPO_PUBLIC_STORE_BUILD` | `eas.json` (versionado) | opcional | já vem no perfil |
+| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | — | não usada | não usada |
+
+- **Vercel** → *Project Settings → Environment Variables*. As `EXPO_PUBLIC_*` são **assadas no
+  build**: mudar o valor sem redeployar deixa o site publicado com o valor antigo, sem aviso.
+- **EAS** → *Project settings → Environment variables*, ou `eas secret:create`. O `eas.json` do
+  repositório declara **só** `EXPO_PUBLIC_STORE_BUILD` — segredo não entra em arquivo versionado.
+- Os três `STRIPE_PRICE_*` não entram no app das lojas porque lá `canShowBilling` é `false`: não há
+  paywall nem botão de assinar, e desde a remoção do checkout do binário o arquivo que os usaria nem
+  entra no bundle nativo (ver `src/features/cobranca/`).
+- `EXPO_PUBLIC_APP_URL` **é obrigatória também no app**, e isso costuma surpreender: a tela de Leads
+  monta o link da página pública de captação com `env.appUrl` direto, sem passar por `getAppUrl()`.
+  Sem a variável, o corretor gera um QR Code apontando para `http://localhost:8081`.
+- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` está no `.env.example` e em `env.ts`, mas **nenhuma linha do
+  aplicativo a lê**: o Checkout é hospedado pelo Stripe e quem cria a sessão é a Edge Function, com a
+  chave secreta. Fica documentada como não-exigência para ninguém perder tempo procurando por ela.
+
+### A guarda: `npm run checar:ambiente`
+
+`src/lib/env.ts` tem fallback silencioso — sem as chaves do Supabase ele aponta para
+`placeholder.supabase.co`, e o app **compila, instala e abre** sem carregar nada. `BackendMissingScreen`
+cobre isso em runtime, mas o estrago já aconteceu: um build de loja assim chega na mão do **revisor da
+Apple** como um app que não faz nada, e isso é reprovação mais um ciclo inteiro de revisão perdido.
+
+`scripts/checar-ambiente.mjs` para o build antes de o artefato existir, e já está ligado:
+
+| Comando | Quando roda | Se faltar variável |
+| --- | --- | --- |
+| `npm run build:web` | export local da web | **avisa** e segue |
+| `npm run vercel-build` | deploy da Vercel | **falha** |
+| `eas-build-post-install` | todo build do EAS | **falha** |
+| `npm run checar:ambiente [web\|loja] [--exigir]` | quando você quiser conferir | conforme a máquina |
+
+O export local só avisa de propósito: rodar `npm run build:web` para conferir que o projeto ainda
+exporta é parte do ritual de validação deste repositório e é feito o tempo todo sem `.env` nenhum.
+Transformar isso em erro não protegeria build nenhum — só ensinaria todo mundo a contornar a
+checagem. Em máquina de build (`EAS_BUILD`, `VERCEL`, `CI`) e com `--exigir`, ela reprova.
+
+A checagem também recusa os **valores de exemplo** (`https://placeholder.supabase.co`,
+`placeholder-anon-key`): cadastrar o placeholder é o mesmo que não cadastrar, e falha do mesmo jeito.
 
 ### Configuração do Supabase (projeto POUP)
 
