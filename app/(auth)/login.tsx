@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { AppleButton } from '@/components/AppleButton';
 import { GoogleButton } from '@/components/GoogleButton';
+import { podeCriarConta } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { spacing, typography, type AppColors } from '@/theme';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -110,12 +111,29 @@ export default function LoginScreen() {
         <AppleButton onPress={handleApple} loading={appleLoading} />
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Ainda não tem conta? </Text>
-        <Link href="/(auth)/signup">
-          <Text style={styles.link}>Criar conta</Text>
-        </Link>
-      </View>
+      {/*
+        No app das lojas não existe "criar conta": o POUP é companion de uma
+        assinatura vendida no site, e um cadastro (ou um teste grátis) aqui
+        dentro seria uma oferta comercial fora do In-App Purchase — ver
+        `podeCriarConta` em `features/store.ts`.
+
+        Em vez de um link que não leva a lugar nenhum, uma frase que diz onde
+        resolver. Quem baixou o app sem ter conta precisa saber o que fazer.
+      */}
+      {podeCriarConta ? (
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Ainda não tem conta? </Text>
+          <Link href="/(auth)/signup">
+            <Text style={styles.link}>Criar conta</Text>
+          </Link>
+        </View>
+      ) : (
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Este aplicativo é para quem já tem uma conta POUP.
+          </Text>
+        </View>
+      )}
     </Screen>
   );
 }

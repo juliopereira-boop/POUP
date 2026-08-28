@@ -67,7 +67,7 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
           </View>
 
           {lia.suporte !== 'ok' ? (
-            <IndisponivelAqui suporte={lia.suporte} />
+            <IndisponivelAqui />
           ) : (
             <>
               {/*
@@ -241,18 +241,26 @@ function VazioInicial({ ouvindo }: { ouvindo: boolean }) {
   );
 }
 
-function IndisponivelAqui({ suporte }: { suporte: 'sem-api-no-navegador' | 'precisa-build-nativo' }) {
+/**
+ * Só existe UM caso aqui: navegador sem transcrição de fala.
+ *
+ * Havia um segundo — "Ainda não neste aplicativo", para o build nativo — e ele
+ * ficou inalcançável de propósito: no app das lojas a LIA inteira não é
+ * montada (ver `liaDisponivel` em `features/store.ts`), justamente porque um
+ * recurso que se anuncia e depois diz "ainda não" reprova nas regras 2.1 e 2.3
+ * da App Store.
+ *
+ * Se algum dia esta mensagem voltar a falar de plataforma, é sinal de que a
+ * LIA voltou a aparecer onde não funciona.
+ */
+function IndisponivelAqui() {
   const styles = useThemedStyles(makeStyles);
-  const nativo = suporte === 'precisa-build-nativo';
   return (
     <View style={styles.vazio}>
-      <Text style={styles.vazioTitulo}>
-        {nativo ? 'Ainda não neste aplicativo' : 'Este navegador não transcreve fala'}
-      </Text>
+      <Text style={styles.vazioTitulo}>Este navegador não transcreve fala</Text>
       <Text style={styles.vazioTexto}>
-        {nativo
-          ? 'A escuta ao vivo depende de transcrição de voz, que o app precisa trazer embutido — e o Expo Go não carrega esse módulo. Ela funciona hoje pelo POUP no navegador (Chrome ou Edge), inclusive no celular.'
-          : 'Abra o POUP no Chrome ou no Edge para usar a escuta ao vivo. O Safari não oferece transcrição contínua de forma confiável.'}
+        Abra o POUP no Chrome ou no Edge para usar a escuta ao vivo. O Safari não oferece
+        transcrição contínua de forma confiável.
       </Text>
     </View>
   );
@@ -285,7 +293,7 @@ function modoDoOrbe(status: string): ModoOrbe {
 }
 
 function legendaStatus(status: string, suporte: string): string {
-  if (suporte !== 'ok') return 'Indisponível nesta plataforma';
+  if (suporte !== 'ok') return 'Escuta indisponível neste navegador';
   if (status === 'ouvindo') return 'Ouvindo a negociação';
   if (status === 'entendendo') return 'Entendendo o que foi dito…';
   if (status === 'erro') return 'A escuta parou';

@@ -117,7 +117,6 @@ export function LiaBotao({ onAbrir }: LiaBotaoProps) {
               </View>
             </Pressable>
           ))}
-          <Text style={styles.emBreve}>Mais funcionalidades em breve.</Text>
         </Animated.View>
       ) : null}
 
@@ -215,10 +214,4 @@ const makeStyles = (colors: AppColors) =>
     itemTextos: { flex: 1 },
     itemTitulo: { ...typography.label, color: colors.ink },
     itemDescricao: { ...typography.caption, color: colors.inkMuted },
-    emBreve: {
-      ...typography.caption,
-      color: colors.inkSubtle,
-      marginTop: spacing.xs,
-      textAlign: 'center',
-    },
   });

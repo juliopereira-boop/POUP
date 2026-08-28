@@ -17,7 +17,8 @@
     "custo:lia": "node scripts/custo-lia.mjs",
     "testar:financiamento": "node scripts/testar-financiamento.mjs",
     "testar:lia": "node scripts/testar-lia.mjs",
-    "testar:limites": "node scripts/testar-limites.mjs"
+    "testar:limites": "node scripts/testar-limites.mjs",
+    "testar:loja": "node scripts/testar-loja.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

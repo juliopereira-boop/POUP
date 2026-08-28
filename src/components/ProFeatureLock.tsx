@@ -3,7 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
 import { Screen } from './Screen';
-import { PLANS, PLAN_FEATURES, planoMinimoPara, type PlanFeatureKey } from '@/features/plans';
+import {
+  PLANS,
+  PLAN_FEATURES_VISIVEIS,
+  planoMinimoPara,
+  type PlanFeatureKey,
+} from '@/features/plans';
 import { canShowBilling } from '@/features/store';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -45,7 +50,7 @@ export function ProFeatureLock({ emoji, title, description, feature }: ProFeatur
   const alvo = planoMinimoPara(feature) ?? PLANS.pro;
   // O que o plano-alvo acrescenta em relação ao plano atual — e não a lista
   // inteira dele, que repetiria coisas que o corretor já usa hoje.
-  const ganhos = PLAN_FEATURES.filter(
+  const ganhos = PLAN_FEATURES_VISIVEIS.filter(
     (f) => f.includedIn.includes(alvo.tier) && !(tier && f.includedIn.includes(tier)),
   ).map((f) => f.label);
   const atual = plan?.name ?? null;
@@ -59,8 +64,6 @@ export function ProFeatureLock({ emoji, title, description, feature }: ProFeatur
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
-        {/* O preço só aparece fora das lojas: dentro do app publicado, valor e
-            botão de assinar são justamente o que a Apple não permite. */}
         {/* O preço só aparece fora das lojas: dentro do app publicado, valor e
             botão de assinar são justamente o que a Apple não permite. */}
         <Text style={styles.notice}>

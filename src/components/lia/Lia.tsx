@@ -18,6 +18,7 @@ import { LiaBotao, type HabilidadeLia } from './LiaBotao';
 import { LiaMaterialChat } from './LiaMaterialChat';
 import { LiaPainel } from './LiaPainel';
 import { useLia } from '@/features/lia/LiaProvider';
+import { liaDisponivel } from '@/features/store';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
 import {
   AVISOS_LIA,
@@ -108,8 +109,14 @@ export function Lia() {
   }, [lia, router]);
 
   /*
-   * A LIA é do plano Pro, e aqui ela some INTEIRA em vez de virar um botão que
-   * abre um aviso de upgrade.
+   * DOIS CORTES, POR MOTIVOS DIFERENTES.
+   *
+   * O primeiro é a PLATAFORMA: no app das lojas a LIA não existe, porque não
+   * há transcrição de fala nativa e um recurso que mostra "ainda não" reprova
+   * na revisão da Apple (ver `liaDisponivel` em `features/store.ts`).
+   *
+   * O segundo é o PLANO. A LIA é do Pro, e aqui ela some INTEIRA em vez de
+   * virar um botão que abre um aviso de upgrade.
    *
    * É a diferença entre vender e importunar: quem está no Start ou no Intermed
    * já vê a LIA na tela de planos, com preço e descrição. Repetir isso num
@@ -120,6 +127,7 @@ export function Lia() {
    * Durante o teste gratuito `canUse` devolve `true`: é justamente assim que o
    * corretor conhece a LIA e decide assinar o Pro por causa dela.
    */
+  if (!liaDisponivel) return null;
   if (!canUse('lia')) return null;
 
   return (

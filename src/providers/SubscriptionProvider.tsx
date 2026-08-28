@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { db } from '@/data';
+import { podeCriarConta } from '@/features/store';
 import {
   type PlanTier,
   type Subscription,
@@ -89,7 +90,20 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       // Tudo isto acontece ANTES de `setLoading(false)`: enquanto a decisão
       // não termina o app continua em "carregando", então o paywall não
       // pisca na tela — que era exatamente a reclamação.
-      if (trialAttemptedForUser.current !== user.id && isTrialGrantCandidate(sub)) {
+      /*
+       * `podeCriarConta` também governa o TESTE GRÁTIS.
+       *
+       * No app das lojas o POUP é companion: quem assina, assina no site. Um
+       * teste grátis concedido aqui dentro seria uma oferta comercial fora do
+       * In-App Purchase (regra 3.1.1) — e é o mesmo motivo pelo qual o cadastro
+       * saiu. Quem já ganhou o teste pela web continua com ele: o que não
+       * acontece é a CONCESSÃO partir do aplicativo.
+       */
+      if (
+        podeCriarConta &&
+        trialAttemptedForUser.current !== user.id &&
+        isTrialGrantCandidate(sub)
+      ) {
         // Marca ANTES de chamar: mesmo se a chamada falhar, não tenta de novo.
         trialAttemptedForUser.current = user.id;
         const granted = await db.settings.ensureMyTrial();

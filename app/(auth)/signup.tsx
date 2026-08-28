@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useRouter } from 'expo-router';
+import { Link, Redirect, useRouter } from 'expo-router';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { AppleButton } from '@/components/AppleButton';
 import { GoogleButton } from '@/components/GoogleButton';
 import { registrar } from '@/features/analytics/eventos';
+import { podeCriarConta } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { spacing, typography, type AppColors } from '@/theme';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -25,6 +26,25 @@ export default function SignUpScreen() {
   const [appleLoading, setAppleLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * ESCONDER O LINK NÃO BASTA — mas o corte precisa vir DEPOIS dos hooks.
+   *
+   * No app das lojas o POUP é companion de uma assinatura vendida no site, e
+   * cadastro (ou teste grátis) aqui dentro é oferta comercial fora do In-App
+   * Purchase (regra 3.1.1). O link para cá já sumiu da tela de login, mas a
+   * rota continuaria respondendo a um deep link ou a um `router.push`.
+   *
+   * O `Redirect` fecha a porta de verdade — é o mesmo raciocínio que a
+   * auditoria aplicou ao checkout: tirar da interface e deixar o caminho vivo
+   * atrás dela é esconder, não remover.
+   *
+   * Fica abaixo das chamadas de `useState` porque `return` antes de um hook
+   * muda a ordem dos hooks entre renders, e o React quebra por isso. O custo é
+   * declarar estado que não vai ser usado nesse caminho — irrelevante perto de
+   * um app que trava.
+   */
+  if (!podeCriarConta) return <Redirect href="/(auth)/login" />;
 
   function notify(message: string) {
     if (Platform.OS === 'web') setError(message);
