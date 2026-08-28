@@ -107,6 +107,63 @@ function distancia(a: string, b: string): number {
   return linha[b.length]!;
 }
 
+/**
+ * OS NOMES QUE A FRASE PODE ESTAR CITANDO — e só eles.
+ *
+ * ===========================================================================
+ * POR QUE ISTO EXISTE
+ * ===========================================================================
+ * O agendamento por voz mandava para a Anthropic a **lista completa de
+ * clientes e empreendimentos** do corretor, junto da frase, para o modelo
+ * conseguir identificar quem foi citado. Funciona — e é dado demais.
+ *
+ * A LGPD chama isso de minimização (art. 6º, III): só se trata o necessário
+ * para a finalidade. Para entender "agenda com a Maria na sexta", o
+ * necessário é "Maria", não a carteira inteira de trezentos clientes — e os
+ * outros duzentos e noventa e nove são terceiros que não têm nada a ver com
+ * aquele agendamento.
+ *
+ * ===========================================================================
+ * COMO A TRIAGEM DECIDE
+ * ===========================================================================
+ * Um nome entra na lista quando alguma palavra significativa dele aparece na
+ * frase — igual, contida, ou a uma distância de edição curta (o
+ * reconhecimento de voz erra letra). É de propósito **mais generoso** do que
+ * `casarPorVoz`: aqui não se está escolhendo um vencedor, e sim decidindo
+ * quem tem o direito de ser considerado. Deixar de fora quem foi citado
+ * quebraria o recurso; incluir um homônimo a mais custa um nome.
+ *
+ * O teto existe porque uma frase com uma palavra muito comum ("casa", "novo")
+ * poderia varrer o catálogo inteiro e desfazer a economia. Nesse caso é melhor
+ * mandar poucos e o modelo não achar do que mandar tudo.
+ */
+export function nomesCitados(fala: string, candidatos: readonly string[], teto = 12): string[] {
+  const ditas = palavrasUteis(fala);
+  if (ditas.length === 0 || candidatos.length === 0) return [];
+
+  const escolhidos: string[] = [];
+  for (const nome of candidatos) {
+    const partes = palavrasUteis(nome);
+    if (partes.length === 0) continue;
+
+    const citado = partes.some((parte) =>
+      ditas.some((dita) => {
+        if (dita === parte) return true;
+        // Contido: "connect" dentro de "connectt", ou o contrário.
+        if (dita.includes(parte) || parte.includes(dita)) return true;
+        // Um erro a cada quatro letras, o mesmo critério de `casarPorVoz`.
+        return distancia(dita, parte) <= Math.max(1, Math.floor(parte.length / 4));
+      }),
+    );
+
+    if (citado) {
+      escolhidos.push(nome);
+      if (escolhidos.length >= teto) break;
+    }
+  }
+  return escolhidos;
+}
+
 export interface Candidato<T> {
   item: T;
   nome: string;

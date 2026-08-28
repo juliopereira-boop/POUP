@@ -218,7 +218,7 @@ export const CAMPOS: CampoLia[] = [
   // ----------------------------------------------------------- financiamento
   {
     chave: 'financiamentoAprovado',
-    rotulo: 'Financiamento aprovado',
+    rotulo: 'Financiamento aprovado pelo banco',
     tipo: 'dinheiro',
     grupo: 'financiamento',
     essencial: true,

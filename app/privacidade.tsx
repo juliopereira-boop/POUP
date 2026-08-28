@@ -20,6 +20,27 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
 const SUPORTE_EMAIL = 'gestao@poupgestao.com';
+
+/**
+ * QUEM RESPONDE PELOS DADOS.
+ *
+ * A LGPD exige que o controlador seja identificável (art. 9º, I), e a Apple
+ * confere isso na revisão: uma política que diz apenas "a equipe responsável"
+ * não identifica ninguém.
+ *
+ * Os campos opcionais somem do texto quando vazios, em vez de aparecerem em
+ * branco — mas **um CNPJ vazio é pendência, não configuração**. A Apple
+ * recomenda submeter serviço financeiro por pessoa jurídica (regra 5.1.1(ix)),
+ * e uma conta Individual lidando com CPF e renda de terceiros é exatamente o
+ * caso que ela olha com lupa.
+ *
+ * >>> PREENCHER ANTES DE PUBLICAR NA APP STORE. <<<
+ */
+const CONTROLADOR = {
+  nome: 'Poup Gestão',
+  cnpj: '',
+  endereco: '',
+};
 /** Sincronize com a data em que o conteúdo abaixo mudar de fato. */
 const VIGENCIA = '17 de agosto de 2026';
 
@@ -43,9 +64,14 @@ export default function PrivacyPolicyScreen() {
 
       <Section title="1. Quem trata os seus dados">
         <Paragraph>
-          O controlador dos dados é a equipe responsável pelo Poup Gestão. Dúvidas, solicitações
-          sobre seus dados ou pedidos de exclusão podem ser enviados para{' '}
-          <Email address={SUPORTE_EMAIL} />.
+          O <Bold>controlador</Bold> dos dados, na definição da LGPD, é{' '}
+          <Bold>{CONTROLADOR.nome}</Bold>
+          {CONTROLADOR.cnpj ? `, inscrita no CNPJ ${CONTROLADOR.cnpj}` : ''}
+          {CONTROLADOR.endereco ? `, com endereço em ${CONTROLADOR.endereco}` : ''}.
+        </Paragraph>
+        <Paragraph>
+          Dúvidas, solicitações sobre seus dados, pedidos de acesso, correção ou exclusão podem ser
+          enviados para <Email address={SUPORTE_EMAIL} />. Respondemos em até 15 dias.
         </Paragraph>
       </Section>
 
@@ -94,6 +120,20 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
       </Section>
 
+      <Section title="2.1. Da sua página de captação">
+        <Paragraph>
+          Quando alguém preenche a página de captação de um corretor (o link ou o QR Code que ele
+          divulga), coletamos <Bold>nome e telefone</Bold> informados pela própria pessoa, e
+          registramos o <Bold>consentimento</Bold>: a data e hora, e o texto exato que ela marcou.
+        </Paragraph>
+        <Paragraph>
+          Guardamos o texto integral, e não apenas um "aceito", justamente para que o registro
+          continue significando alguma coisa se a redação mudar no futuro. Esses dados ficam na
+          carteira do corretor que divulgou o link, e quem se cadastrou pode pedir a exclusão pelo
+          e-mail de contato ou diretamente ao corretor.
+        </Paragraph>
+      </Section>
+
       <Section title="3. Para que usamos esses dados">
         <Bullet>Autenticar seu acesso e manter sua conta funcionando</Bullet>
         <Bullet>Gerar simulações, propostas e relatórios que você mesmo solicita</Bullet>
@@ -126,9 +166,17 @@ export default function PrivacyPolicyScreen() {
           uma dessas opções
         </Bullet>
         <Bullet>
-          <Bold>Anthropic (Claude)</Bold> — leitura automática de CNH/RG, apenas quando você aciona
-          o leitor de documento; e a transcrição da negociação, apenas enquanto a assistente LIA
-          estiver ligada por você
+          <Bold>Anthropic (Claude)</Bold> — recebe, e somente quando você aciona cada recurso:
+          {'\n'}• a <Bold>foto do documento</Bold>, no leitor de CNH/RG;
+          {'\n'}• o <Bold>texto transcrito</Bold> da negociação, enquanto a LIA estiver ligada;
+          {'\n'}• a <Bold>frase</Bold> do agendamento por voz, junto de uma lista com os nomes
+          dos seus empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
+          {'\n'}• o <Bold>texto de apoio</Bold> quando você pede um convite ou uma abordagem
+          pronta.
+          {'\n\n'}
+          Segundo a política da Anthropic, o conteúdo enviado pela API pode ser mantido por{' '}
+          <Bold>até 30 dias</Bold> para segurança e prevenção de abuso, e depois é descartado. Ele
+          não é usado para treinar modelos.
         </Bullet>
         <Bullet>
           <Bold>Vercel</Bold> — hospedagem do site e do aplicativo
@@ -142,9 +190,16 @@ export default function PrivacyPolicyScreen() {
       <Section title="5. Por quanto tempo guardamos">
         <Paragraph>
           Enquanto sua conta estiver ativa. Se você excluir a conta pelo próprio app (Ajustes →
-          Excluir conta), tudo é apagado de forma definitiva e imediata: leads, simulações,
-          vendas, comissões e arquivos enviados. Não há como recuperar depois — inclusive por nós.
-          Se houver assinatura ativa, ela é cancelada no mesmo momento.
+          Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
+          assinatura é cancelada antes de a conta ser removida — se o cancelamento não puder ser
+          concluído, a exclusão não acontece e avisamos, em vez de deixar uma cobrança sem dono.
+          Se você entrou com a Apple, a autorização também é revogada junto.
+        </Paragraph>
+        <Paragraph>
+          Uma ressalva honesta sobre <Bold>backups</Bold>: nosso banco de dados mantém cópias de
+          segurança automáticas, e uma cópia feita antes da exclusão pode conter seus dados por{' '}
+          <Bold>até 30 dias</Bold>, até ser sobrescrita no ciclo normal. Essas cópias não são
+          consultadas no dia a dia e servem apenas para recuperação de desastre.
         </Paragraph>
         <Paragraph>
           A foto de documento usada no preenchimento automático é exceção: ela não é guardada em
@@ -157,12 +212,16 @@ export default function PrivacyPolicyScreen() {
           depois de seis meses, e apagadas junto com a conta se você excluí-la.
         </Paragraph>
         <Paragraph>
-          A assistente <Bold>LIA</Bold> é outra exceção, na mesma direção: o áudio da negociação{' '}
-          <Bold>não é gravado nem enviado a lugar nenhum</Bold>. A transcrição existe apenas no seu
-          aparelho, enquanto a sessão estiver aberta, e é descartada quando você encerra. O que
-          chega aos nossos servidores e à Anthropic é somente o texto, no momento da análise, e
-          nada dele é armazenado. Do que foi falado, o que sobra é apenas a simulação que você
-          decidiu salvar.
+          A assistente <Bold>LIA</Bold>: o áudio da negociação <Bold>não é gravado</Bold> nem sai
+          do seu aparelho. A transcrição em texto existe só enquanto a sessão está aberta e é
+          descartada quando você encerra — o POUP não a guarda em servidor nenhum. Do que foi
+          falado, o que sobra aqui é apenas a simulação que você decidiu salvar.
+        </Paragraph>
+        <Paragraph>
+          O trecho de texto enviado para análise, porém, passa pela Anthropic, que{' '}
+          <Bold>pode mantê-lo por até 30 dias</Bold> antes de descartar, conforme a política dela.
+          Dizer que "nada é armazenado" seria impreciso, e preferimos ser exatos: nós não
+          guardamos; o prestador guarda por esse período, para segurança e prevenção de abuso.
         </Paragraph>
       </Section>
 
@@ -174,8 +233,10 @@ export default function PrivacyPolicyScreen() {
         </Paragraph>
         <SubTitle>Revogar consentimentos já dados</SubTitle>
         <Bullet>
-          <Bold>Leitura de documento por IA</Bold>: basta parar de usar o botão de preencher pela
-          foto. Nenhum documento é enviado sem que você acione essa função.
+          <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê
+          quando autorizou e pode desligar com um toque. Além disso, a autorização do titular é
+          pedida <Bold>a cada documento</Bold> — nenhuma foto é enviada sem que você confirme, na
+          hora, que tem permissão daquela pessoa.
         </Bullet>
         <Bullet>
           <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do

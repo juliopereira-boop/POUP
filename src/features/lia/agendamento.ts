@@ -43,7 +43,7 @@ import { mensagemDoErro } from '@/lib/edgeError';
 import { supabase } from '@/lib/supabase';
 import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
 import { VERSAO_CONTRATO } from './extrair';
-import { normalizar } from './materialPorVoz';
+import { nomesCitados, normalizar } from './materialPorVoz';
 
 /** "agend" cobre agenda/agendar/agendou/agendado — raiz que não tem uso ambíguo. */
 const RAIZ_INEQUIVOCA = /\bagend/;
@@ -196,11 +196,23 @@ export async function agendarPorVoz(
   texto: string,
   catalogo: CatalogoAgendamento,
 ): Promise<ResultadoCriacao> {
+  /*
+   * SÓ OS NOMES QUE A FRASE PODE ESTAR CITANDO.
+   *
+   * Antes ia a carteira inteira — todos os clientes e empreendimentos
+   * cadastrados — para o modelo conseguir identificar quem foi mencionado.
+   * Funcionava, e era dado demais: para entender "agenda com a Maria na
+   * sexta", o necessário é "Maria", não os outros duzentos e noventa e nove
+   * clientes, que são terceiros sem relação nenhuma com aquele agendamento.
+   *
+   * É minimização (LGPD, art. 6º, III), e a triagem é local: nada sai do
+   * aparelho antes de passar por ela. Ver `nomesCitados`.
+   */
   const r = await extrairAgendamento({
     texto,
     hoje: hojeYmdLocal(),
-    empreendimentos: catalogo.empreendimentos.map((e) => e.nome),
-    clientes: catalogo.clientes.map((c) => c.nome),
+    empreendimentos: nomesCitados(texto, catalogo.empreendimentos.map((e) => e.nome)),
+    clientes: nomesCitados(texto, catalogo.clientes.map((c) => c.nome)),
   });
 
   if ('erro' in r) return { ok: false, motivo: r.erro };

@@ -428,7 +428,9 @@ export default function SimulationDetailScreen() {
 
       <SectionBand label="Financiamento" />
       <View style={styles.card}>
-        <Row label="Financiamento aprovado" value={money(st.financingApproved)} />
+        {/* "pelo banco": este relatório vai para a mão do cliente, e é onde
+            confundir quem aprovou o quê tem o preço mais alto. */}
+        <Row label="Financiamento aprovado pelo banco" value={money(st.financingApproved)} />
         <Row label="Subsídio" value={money(st.subsidy)} />
         <Row label="FGTS" value={money(st.fgts)} />
         <Row

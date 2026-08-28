@@ -87,15 +87,26 @@ export default function SimuladorFinanciamento() {
       <Text style={styles.step}>Etapa 4 de 5</Text>
       <Text style={styles.title}>Valores de Financiamento</Text>
 
+      {/*
+       * "APROVADO PELO BANCO", E NÃO SÓ "APROVADO".
+       *
+       * Estes três campos são digitados pelo corretor a partir da carta de
+       * crédito que a instituição já emitiu — o POUP não analisa nada aqui, só
+       * recebe o número. Escrito como "Financiamento aprovado", o rótulo lia-se
+       * como se a aprovação fosse do aplicativo, e uma auditoria de App Store
+       * apontou o risco: dizer "aprovado" num app que não é instituição
+       * financeira sugere análise de crédito própria (regra 5.1.1(ix)). Nomear
+       * o banco resolve sem tirar nada do corretor.
+       */}
       <Input
-        label="Financiamento aprovado"
+        label="Financiamento aprovado pelo banco"
         value={sim.financingApproved}
         onChangeText={(t) => sim.setField('financingApproved', formatCurrencyBRL(t))}
         placeholder="R$ 0,00"
         keyboardType="numeric"
       />
       <Input
-        label="Subsídio aprovado"
+        label="Subsídio aprovado pelo banco"
         value={sim.subsidy}
         onChangeText={(t) => sim.setField('subsidy', formatCurrencyBRL(t))}
         placeholder="R$ 0,00"
@@ -108,6 +119,10 @@ export default function SimuladorFinanciamento() {
         placeholder="R$ 0,00"
         keyboardType="numeric"
       />
+      <Text style={styles.origemValores}>
+        Valores informados pela instituição financeira na carta de crédito. O POUP não faz análise
+        de crédito nem aprova financiamento.
+      </Text>
 
       <Text style={styles.label}>Risco da poupança (cadastro)</Text>
       <View style={styles.readonlyField}>
@@ -276,6 +291,12 @@ const makeStyles = (colors: AppColors) =>
     step: { ...typography.caption, color: colors.primary, fontWeight: '700' },
     title: { ...typography.title, color: colors.primary, marginBottom: spacing.xl },
     label: { ...typography.label, color: colors.inkMuted, marginBottom: spacing.sm },
+    origemValores: {
+      ...typography.caption,
+      color: colors.inkSubtle,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
+    },
     readonlyField: {
       minHeight: 52,
       borderRadius: radius.md,

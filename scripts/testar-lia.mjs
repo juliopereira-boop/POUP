@@ -153,6 +153,79 @@ function secao(t) {
   );
 }
 
+/* ===========================================================================
+ * MINIMIZAÇÃO — o que SAI do aparelho no agendamento por voz
+ * ===========================================================================
+ * Antes, a frase ia para a Anthropic acompanhada da carteira INTEIRA do
+ * corretor, para o modelo identificar quem foi citado. Uma auditoria externa
+ * apontou o excesso: para entender "agenda com a Maria", o necessário é
+ * "Maria", e os outros clientes são terceiros sem relação com aquele
+ * agendamento (LGPD, art. 6º, III).
+ *
+ * `nomesCitados` faz essa triagem LOCALMENTE, antes de qualquer chamada. É a
+ * função que decide o que sai do aparelho — então é a que mais precisa de
+ * teste: um bug aqui ou vaza a lista toda, ou quebra o recurso.
+ * ======================================================================= */
+{
+  secao('MINIMIZAÇÃO — nomesCitados');
+
+  const carteira = [
+    'Maria da Silva',
+    'João Souza',
+    'Mariana Costa',
+    'Pedro Alves',
+    'Residencial Aurora',
+    'Parque das Águas',
+  ];
+
+  const so = (fala) => MPV.nomesCitados(fala, carteira);
+
+  /*
+   * O CONTRATO É "QUEM PODE TER SIDO CITADO", NÃO "QUEM FOI CITADO".
+   *
+   * Aqui não se escolhe um vencedor — quem escolhe é o modelo, depois. A
+   * triagem só decide quem tem o direito de ser considerado, e por isso é
+   * deliberadamente generosa: "Maria" traz "Mariana Costa" junto, porque quem
+   * falou pode ter dito qualquer uma das duas e cortar a certa quebraria o
+   * recurso.
+   *
+   * O que importa para a minimização é o outro lado: quem NÃO tem relação
+   * nenhuma com a frase não sai do aparelho. É isso que os testes cravam.
+   */
+  const citado = so('agenda com a Maria da Silva sexta');
+  checar('o nome citado está na lista', citado.includes('Maria da Silva'));
+  checar('e a carteira inteira não vai junto', citado.length < carteira.length);
+  checar('quem não tem nada a ver fica', !citado.includes('João Souza') && !citado.includes('Parque das Águas'));
+
+  checar(
+    'primeiro nome ambíguo traz os dois candidatos — o modelo desempata',
+    so('marca com a Maria amanha').includes('Maria da Silva') &&
+      so('marca com a Maria amanha').includes('Mariana Costa'),
+  );
+
+  const doisTipos = so('agenda pra apresentar a Aurora pra Mariana');
+  checar('cita cliente E empreendimento: os dois saem', doisTipos.includes('Mariana Costa') && doisTipos.includes('Residencial Aurora'));
+  checar('e nem assim vai a carteira toda', !doisTipos.includes('Pedro Alves'));
+  checar('erro de transcrição ainda casa', so('agenda com o Joao').includes('João Souza'));
+  checar('sem acento casa', so('visita no parque aguas').includes('Parque das Águas'));
+
+  // O ponto todo: o que NÃO foi citado não pode sair.
+  checar('quem não foi citado fica', !so('agenda com a Maria da Silva').includes('Pedro Alves'));
+  checar(
+    'frase sem nome nenhum não manda ninguém',
+    so('agenda pra sexta as 10 horas').length === 0,
+  );
+  checar('frase vazia não manda ninguém', so('').length === 0);
+  checar('carteira vazia devolve vazio', MPV.nomesCitados('agenda com a Maria', []).length === 0);
+
+  // Palavra de cola não pode arrastar a carteira inteira.
+  checar('preposição não casa com ninguém', so('agenda das com a para').length === 0);
+
+  // Teto: uma palavra comum não pode desfazer a economia.
+  const muitos = Array.from({ length: 40 }, (_, i) => `Casa Nova ${i}`);
+  checar('o teto segura a lista', MPV.nomesCitados('agenda na casa', muitos, 12).length === 12);
+}
+
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);
 for (const f of falhas) console.log(`  FALHOU: ${f}`);
 process.exit(falhas.length ? 1 : 0);

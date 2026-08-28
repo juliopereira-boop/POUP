@@ -94,7 +94,7 @@ export default function SimuladoresScreen() {
 
       <Text style={styles.rodape}>
         Os dois ficam ligados ao mesmo cliente: feito o financiamento, o simulador de poupança já
-        abre com o valor aprovado, o subsídio e o FGTS preenchidos.
+        abre com o valor informado pelo banco, o subsídio e o FGTS preenchidos.
       </Text>
     </Screen>
   );
