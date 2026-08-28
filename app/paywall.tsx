@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { InactiveAccountScreen } from '@/components/InactiveAccountScreen';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
-import { db } from '@/data';
 import { registrar } from '@/features/analytics/eventos';
+import { abrirCheckout } from '@/features/cobranca/abrirCobranca';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
 import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
@@ -77,15 +77,19 @@ export default function PaywallScreen() {
       return;
     }
     setLoadingTier(plan.tier);
-    const result = await db.billing.createCheckoutSession(plan.stripePriceId);
+    /*
+     * Quem sai do app é o `abrirCheckout`, não esta tela. Antes, ele devolvia a
+     * URL do Stripe e o `Linking.openURL` daqui a abria — e um `openURL` para o
+     * pagamento, numa tela que também é compilada para o iOS, é justamente o
+     * caminho de compra externa que a auditoria mandou tirar do binário. Ver
+     * `src/features/cobranca/abrirCobranca.native.ts`.
+     *
+     * Em caso de sucesso o navegador já está saindo da página, então não há o
+     * que fazer depois: só o erro tem tratamento.
+     */
+    const result = await abrirCheckout(plan.stripePriceId);
     setLoadingTier(null);
-    if (!result.ok) {
-      if (Platform.OS === 'web') setError(result.error);
-      else Alert.alert('POUP', result.error);
-      return;
-    }
-    if (Platform.OS === 'web') window.location.assign(result.data.url);
-    else await Linking.openURL(result.data.url);
+    if (!result.ok) setError(result.error);
   }
 
   // No app das lojas, nada de cobrança aparece — nem preço, nem link. Veja

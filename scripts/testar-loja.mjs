@@ -177,6 +177,69 @@ function secao(t) {
   checar('não existe mais prospectLeads()', !/export async function prospectLeads/.test(captacao));
 }
 
+/* ===========================================================================
+ * O CAMINHO DE COMPRA NÃO PODE VOLTAR PARA O BUNDLE NATIVO (3.1.1)
+ * ===========================================================================
+ * Esconder a tela não bastava: a auditoria pediu para REMOVER o código de
+ * checkout do binário das lojas. Quem faz isso é a resolução por plataforma do
+ * Metro — `abrirCobranca.ts` (web) e `abrirCobranca.native.ts` (iOS/Android).
+ *
+ * O erro que estes testes pegam é o mais fácil de cometer: alguém precisa de
+ * cobrança em mais uma tela, importa direto o Supabase ou o `getAppUrl` num
+ * arquivo COMPARTILHADO, e o endereço do Stripe volta para dentro do IPA sem
+ * que nada na tela mude. Aqui a checagem custa milissegundos; do outro lado ela
+ * custa uma reprovação e um novo ciclo de revisão.
+ * ======================================================================== */
+{
+  secao('CAMINHO DE COMPRA — fora do bundle nativo (3.1.1)');
+
+  const ler = (p) => readFileSync(path.join(process.cwd(), p), 'utf8');
+
+  /** As marcas do caminho de compra. Nenhuma pode existir em arquivo nativo. */
+  const MARCAS = [
+    'create-checkout-session',
+    'create-billing-portal-session',
+    'checkout=success',
+    'checkout=cancel',
+  ];
+
+  const nativo = ler('src/features/cobranca/abrirCobranca.native.ts');
+  for (const marca of MARCAS) {
+    checar(`o arquivo nativo não menciona "${marca}"`, !nativo.includes(marca));
+  }
+
+  // E a web precisa continuar vendendo: um "conserto" que apagasse o caminho
+  // dos dois lados passaria despercebido sem esta metade do teste.
+  const web = ler('src/features/cobranca/abrirCobranca.ts');
+  for (const marca of MARCAS) {
+    checar(`a web continua com "${marca}"`, web.includes(marca));
+  }
+
+  // Os dois precisam oferecer as MESMAS funções: o import das telas é o mesmo
+  // arquivo escrito, e quem escolhe entre eles é o empacotador.
+  for (const fn of ['abrirCheckout', 'abrirPortalDeCobranca']) {
+    checar(`web exporta ${fn}`, web.includes(`export const ${fn}`));
+    checar(`nativo exporta ${fn}`, nativo.includes(`export const ${fn}`));
+  }
+
+  /*
+   * Os arquivos abaixo são compilados para as DUAS plataformas. Uma marca de
+   * compra em qualquer um deles volta para dentro do binário das lojas.
+   */
+  const COMPARTILHADOS = [
+    'src/data/supabase/SupabaseBillingRepository.ts',
+    'src/data/repositories.ts',
+    'app/paywall.tsx',
+    'app/(app)/configuracoes.tsx',
+  ];
+  for (const arquivo of COMPARTILHADOS) {
+    const fonte = ler(arquivo);
+    for (const marca of MARCAS) {
+      checar(`${arquivo} não menciona "${marca}"`, !fonte.includes(marca));
+    }
+  }
+}
+
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);
 for (const f of falhas) console.log(`  FALHOU: ${f}`);
 process.exit(falhas.length ? 1 : 0);

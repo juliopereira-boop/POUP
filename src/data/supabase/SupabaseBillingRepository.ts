@@ -1,13 +1,20 @@
+/**
+ * SÓ LEITURA — o caminho de compra não mora mais aqui.
+ *
+ * `createCheckoutSession` e `createBillingPortalSession` saíram deste arquivo
+ * para `src/features/cobranca/`, que o Metro resolve por plataforma. Este
+ * repositório é o mesmo nas duas, então tudo que ele carrega vai junto para o
+ * binário das lojas — e era assim que os endereços do Stripe entravam no IPA
+ * mesmo com a interface de cobrança escondida.
+ *
+ * O porquê completo está em `src/features/cobranca/abrirCobranca.native.ts`.
+ */
 import { supabase } from '@/lib/supabase';
-import { getAppUrl } from '@/lib/appUrl';
 import type { BillingRepository } from '../repositories';
 import {
   type PlanTier,
-  type Result,
   type Subscription,
   type SubscriptionStatus,
-  err,
-  ok,
 } from '../types';
 import type { Database } from '../database.types';
 
@@ -56,29 +63,5 @@ export class SupabaseBillingRepository implements BillingRepository {
     const { data, error } = await supabase.rpc('user_storage_used', { uid: userId });
     if (error || data == null) return 0;
     return Number(data);
-  }
-
-  async createCheckoutSession(priceId: string): Promise<Result<{ url: string }>> {
-    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-      body: {
-        priceId,
-        successUrl: `${getAppUrl()}/?checkout=success`,
-        cancelUrl: `${getAppUrl()}/paywall?checkout=cancel`,
-      },
-    });
-    if (error) return err(error.message);
-    const url = (data as { url?: string })?.url;
-    if (!url) return err('Não foi possível iniciar o pagamento.');
-    return ok({ url });
-  }
-
-  async createBillingPortalSession(): Promise<Result<{ url: string }>> {
-    const { data, error } = await supabase.functions.invoke('create-billing-portal-session', {
-      body: { returnUrl: `${getAppUrl()}/configuracoes` },
-    });
-    if (error) return err(error.message);
-    const url = (data as { url?: string })?.url;
-    if (!url) return err('Não foi possível abrir o portal de assinatura.');
-    return ok({ url });
   }
 }

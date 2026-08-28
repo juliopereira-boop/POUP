@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { openGuide } from '@/features/guide';
@@ -10,7 +10,7 @@ import { InstallHowToModal, useInstallPrompt } from '@/components/InstallAppCard
 import { ReportarProblema } from '@/components/ReportarProblema';
 import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
-import { db } from '@/data';
+import { abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
 import { useIsAdmin } from '@/features/admin';
 import {
   consentimentoScanEm,
@@ -79,14 +79,22 @@ export default function ConfiguracoesScreen() {
     setComoInstalar(true);
   }
 
+  /*
+   * Quem sai do app é o `abrirPortalDeCobranca`, não esta tela — o endereço do
+   * portal do Stripe nem chega até aqui. Era esse retorno de URL, numa tela
+   * compilada também para o iOS, que deixava o caminho de cobrança externa
+   * dentro do binário das lojas. Ver `src/features/cobranca/abrirCobranca.native.ts`.
+   *
+   * O botão que chama isto já está atrás de `canShowBilling`.
+   */
   async function openBillingPortal() {
     setLoadingPortal(true);
-    const result = await db.billing.createBillingPortalSession();
+    const result = await abrirPortalDeCobranca();
     setLoadingPortal(false);
-    if (result.ok) {
-      if (Platform.OS === 'web') window.location.assign(result.data.url);
-      else await Linking.openURL(result.data.url);
-    }
+    // Sucesso significa que o navegador já está indo embora. Só o erro sobra —
+    // e ele vai para o log, porque o portal é caminho de mão única: não há o
+    // que o corretor faça nesta tela além de tentar de novo.
+    if (!result.ok) console.error('[configuracoes] portal de cobrança:', result.error);
   }
 
   const statusLabel = STATUS_LABEL[subscription?.status ?? 'none'] ?? 'Sem assinatura';

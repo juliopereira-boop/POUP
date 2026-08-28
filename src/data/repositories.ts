@@ -113,14 +113,27 @@ export interface ProfileRepository {
   ): Promise<Result<UserProfile>>;
 }
 
+/**
+ * O que o app precisa saber sobre a assinatura — e só isso.
+ *
+ * Este repositório **lê** o estado da conta e nada mais. Abrir o pagamento e
+ * abrir o portal de cobrança moravam aqui e saíram para
+ * `src/features/cobranca/`, que é resolvido por plataforma: o arquivo que fala
+ * com o Stripe não entra no bundle do iOS e do Android.
+ *
+ * O motivo está inteiro em `src/features/cobranca/abrirCobranca.native.ts`. O
+ * resumo: a auditoria da App Store pediu para **remover** o código de checkout
+ * do binário das lojas, não apenas esconder a interface — e enquanto os dois
+ * métodos morassem nesta interface, toda implementação (a única é a do
+ * Supabase, compartilhada pelas duas plataformas) seria obrigada a carregá-los.
+ *
+ * A leitura continua igual nas duas: um app companion precisa saber se a
+ * assinatura de quem abriu está ativa.
+ */
 export interface BillingRepository {
   getSubscription(userId: string): Promise<Subscription | null>;
 
   getStorageUsedBytes(userId: string): Promise<number>;
-
-  createCheckoutSession(priceId: string): Promise<Result<{ url: string }>>;
-
-  createBillingPortalSession(): Promise<Result<{ url: string }>>;
 }
 
 /**
