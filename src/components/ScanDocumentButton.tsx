@@ -1,17 +1,30 @@
 /**
  * Leitura automática de CNH/RG para preencher nome e CPF.
  *
- * ------------------------------------------------------------------
- * O AVISO ANTES DA PRIMEIRA LEITURA NÃO É ENFEITE
- * ------------------------------------------------------------------
- * A foto vai para um serviço de IA de terceiro (Anthropic) para ser lida. E o
- * documento não é do corretor: é do CLIENTE dele, que não instalou o app nem
- * leu a política de privacidade.
+ * ===========================================================================
+ * DUAS PERGUNTAS DIFERENTES, EM MOMENTOS DIFERENTES
+ * ===========================================================================
+ * A foto vai para um serviço de IA de terceiro (Anthropic). E o documento não
+ * é do corretor: é do CLIENTE dele — uma pessoa diferente a cada leitura, que
+ * não instalou o app nem leu política nenhuma.
  *
  * A regra 5.1.2(i) da App Store exige divulgar o compartilhamento com IA de
- * terceiros **e obter permissão explícita antes**. Por isso a primeira leitura
- * passa por uma tela que explica para onde a foto vai, o que acontece com ela
- * depois, e pede que o corretor confirme que tem autorização do cliente.
+ * terceiros e obter permissão explícita antes. Antes, isso era um "Concordo"
+ * único, dado uma vez na vida — e uma auditoria externa apontou o problema:
+ * o aceite era do corretor, e o dado é do cliente.
+ *
+ * Agora são dois momentos:
+ *
+ *   1. **O aviso**, uma vez (ou quando o texto muda de versão): explica para
+ *      onde a foto vai, que a Anthropic pode retê-la por até 30 dias, e que dá
+ *      para desligar em Ajustes.
+ *
+ *   2. **A autorização do titular**, a CADA documento: uma confirmação curta,
+ *      de uma linha, sem parede de texto. É curta de propósito — ela é lida
+ *      toda vez, e um texto longo repetido vira um botão que ninguém lê.
+ *
+ * O que se aprende uma vez pergunta-se uma vez; o que muda a cada pessoa
+ * pergunta-se a cada pessoa.
  */
 import { useState } from 'react';
 import {
@@ -30,7 +43,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { Button } from './Button';
 import { scanDocument, type ScannedDocument } from '@/lib/documentScan';
 import { reduzirParaEnvio } from '@/lib/imagemReduzida';
-import { grantScanConsent, hasScanConsent } from '@/features/scan/consent';
+import {
+  AVISOS_SCAN,
+  CONFIRMACAO_TITULAR,
+  darConsentimentoScan,
+  temConsentimentoScan,
+} from '@/features/scan/consent';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 
@@ -38,18 +56,12 @@ interface ScanDocumentButtonProps {
   onScanned: (result: ScannedDocument) => void;
 }
 
-/** O que o corretor precisa saber antes de mandar o documento de outra pessoa. */
-const AVISOS = [
-  'A foto do documento é enviada para um serviço de inteligência artificial (Anthropic) que lê o nome e o CPF.',
-  'A foto é usada só para essa leitura e não fica guardada nos nossos servidores.',
-  'Só use com autorização do titular do documento.',
-];
-
 export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [loading, setLoading] = useState(false);
   const [pedindoConsentimento, setPedindoConsentimento] = useState(false);
+  const [pedindoAutorizacao, setPedindoAutorizacao] = useState(false);
 
   function notify(message: string) {
     if (Platform.OS === 'web') window.alert(message);
@@ -90,18 +102,31 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
     onScanned(scan.data);
   }
 
+  /**
+   * O caminho tem DOIS portões, e eles perguntam coisas diferentes.
+   *
+   * O primeiro é o aviso — uma vez, ou de novo quando o texto muda de versão.
+   * O segundo é a autorização do titular, e esse é a cada documento, porque o
+   * titular é outro a cada documento.
+   */
   async function handlePress() {
-    // Primeira vez: explica para onde a foto vai antes de abrir a câmera.
-    if (await hasScanConsent()) {
-      await escanear();
+    if (!(await temConsentimentoScan())) {
+      setPedindoConsentimento(true);
       return;
     }
-    setPedindoConsentimento(true);
+    setPedindoAutorizacao(true);
   }
 
-  async function aceitar() {
+  /** Aceitou o aviso: registra e emenda direto na autorização deste documento. */
+  async function aceitarAviso() {
     setPedindoConsentimento(false);
-    await grantScanConsent();
+    await darConsentimentoScan();
+    setPedindoAutorizacao(true);
+  }
+
+  /** Confirmou ter autorização do titular: agora sim, abre a câmera. */
+  async function confirmarAutorizacao() {
+    setPedindoAutorizacao(false);
     await escanear();
   }
 
@@ -137,7 +162,7 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
               </Text>
 
               <View style={styles.list}>
-                {AVISOS.map((aviso) => (
+                {AVISOS_SCAN.map((aviso) => (
                   <View key={aviso} style={styles.item}>
                     <Text style={styles.bullet}>•</Text>
                     <Text style={styles.itemText}>{aviso}</Text>
@@ -145,7 +170,7 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
                 ))}
               </View>
 
-              <Button label="Concordo e quero continuar" onPress={() => void aceitar()} />
+              <Button label="Entendi e quero continuar" onPress={() => void aceitarAviso()} />
               <View style={styles.cancelWrap}>
                 <Button
                   label="Agora não"
@@ -154,6 +179,42 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
                 />
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/*
+        A CONFIRMAÇÃO QUE SE REPETE.
+
+        Curta de propósito: uma frase e dois botões. Ela aparece a cada
+        documento, e um texto longo repetido vira um botão que ninguém lê — que
+        é exatamente o consentimento de fachada que a regra 5.1.2(i) quer
+        evitar.
+
+        O botão diz "Tenho autorização", e não "OK": o corretor precisa
+        declarar o que está declarando.
+      */}
+      <Modal
+        visible={pedindoAutorizacao}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPedindoAutorizacao(false)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Autorização do titular</Text>
+            <Text style={styles.confirmacao}>{CONFIRMACAO_TITULAR}</Text>
+            <Button
+              label="Tenho autorização — continuar"
+              onPress={() => void confirmarAutorizacao()}
+            />
+            <View style={styles.cancelWrap}>
+              <Button
+                label="Cancelar"
+                variant="secondary"
+                onPress={() => setPedindoAutorizacao(false)}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -197,5 +258,11 @@ const makeStyles = (colors: AppColors) =>
     item: { flexDirection: 'row', gap: spacing.sm },
     bullet: { ...typography.body, color: colors.primary },
     itemText: { ...typography.body, color: colors.ink, flex: 1 },
+    confirmacao: {
+      ...typography.body,
+      color: colors.ink,
+      marginBottom: spacing.xl,
+      lineHeight: 24,
+    },
     cancelWrap: { marginTop: spacing.md },
   });

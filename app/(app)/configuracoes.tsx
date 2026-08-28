@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -12,12 +12,22 @@ import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
+import {
+  consentimentoScanEm,
+  revogarConsentimentoScan,
+} from '@/features/scan/consent';
 import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors, type ColorScheme } from '@/theme';
+
+/** ISO -> DD/MM/AAAA. Sem hora: a data basta para saber "quando eu autorizei". */
+function dataCurtaBR(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Ativa',
@@ -39,6 +49,22 @@ export default function ConfiguracoesScreen() {
   const { plataforma, instalavel, jaInstalado } = useInstallPrompt();
   const [comoInstalar, setComoInstalar] = useState(false);
   const [reportando, setReportando] = useState(false);
+  const [consentScanEm, setConsentScanEm] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void consentimentoScanEm().then((v) => {
+      if (vivo) setConsentScanEm(v);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  async function desligarScan() {
+    await revogarConsentimentoScan();
+    setConsentScanEm(null);
+  }
 
   /**
    * Instala pelo botão do navegador quando ele existe; caso contrário abre o
@@ -120,6 +146,36 @@ export default function ConfiguracoesScreen() {
         <NavRow label="Suporte" onPress={() => router.push('/suporte')} />
         <Divider />
         <NavRow label="Política de Privacidade" onPress={() => router.push('/privacidade')} />
+      </View>
+
+      {/*
+        REVOGAR O CONSENTIMENTO DA IA.
+
+        Consentimento que não se pode retirar não é consentimento — vale para a
+        LGPD e para a regra 5.1.2(i) da App Store. A leitura de documento manda
+        a foto do RG de um cliente para a Anthropic, e o corretor precisa poder
+        desligar isso sem falar com ninguém.
+
+        A data fica à vista porque "você autorizou" sem dizer quando é uma
+        afirmação que ninguém consegue conferir.
+      */}
+      <Text style={styles.sectionLabel}>Privacidade</Text>
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Leitura de documento por IA</Text>
+          <Text style={styles.rowValue}>
+            {consentScanEm ? `Autorizada em ${dataCurtaBR(consentScanEm)}` : 'Não autorizada'}
+          </Text>
+        </View>
+        {consentScanEm ? (
+          <View style={styles.cardAction}>
+            <Button
+              label="Desligar a leitura por IA"
+              variant="secondary"
+              onPress={() => void desligarScan()}
+            />
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.sectionLabel}>Cadastros</Text>

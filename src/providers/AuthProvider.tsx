@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
-import { clearScanConsent } from '@/features/scan/consent';
+import { revogarConsentimentoScan } from '@/features/scan/consent';
 import { limparConsentimentoLia } from '@/features/lia/consentimento';
 import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/FinanciamentoProvider';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
@@ -40,7 +42,7 @@ async function clearLocalUserData(): Promise<void> {
   // Os consentimentos de IA são de quem os deu, não do aparelho. Vale para a
   // leitura de documento e, com peso maior, para a LIA: quem autorizou abrir o
   // microfone numa negociação foi uma pessoa, não este celular.
-  await clearScanConsent();
+  await revogarConsentimentoScan();
   await limparConsentimentoLia();
   /*
    * Os rascunhos dos DOIS simuladores guardam nome, CPF, telefone e renda de
@@ -54,6 +56,28 @@ async function clearLocalUserData(): Promise<void> {
       sessionStorage.removeItem(key).catch(() => undefined),
     ),
   );
+
+  /*
+   * A SOBRA DA PROSPECÇÃO, QUE NÃO TINHA DONO PARA APAGÁ-LA.
+   *
+   * A busca por dados públicos saiu do produto (regra 5.1.1(viii)), mas ela
+   * guardava os resultados em `prospect:<userId>` — nome e telefone de pessoas
+   * que nunca pediram contato — e esse cache sobrevivia ao logout e à exclusão
+   * da conta. Uma auditoria externa apontou isso.
+   *
+   * Não dá para apagar pelo nome: a chave termina com o id de quem estava
+   * logado, e aqui a sessão já acabou. Daí a varredura por prefixo.
+   *
+   * Isto some do código no dia em que ninguém mais abrir uma versão antiga do
+   * app — até lá, é a única coisa que limpa esses aparelhos.
+   */
+  try {
+    const todas = await AsyncStorage.getAllKeys();
+    const orfas = todas.filter((k) => k.startsWith('prospect:'));
+    if (orfas.length > 0) await AsyncStorage.multiRemove(orfas);
+  } catch {
+    /* Sem armazenamento não há o que apagar. */
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
