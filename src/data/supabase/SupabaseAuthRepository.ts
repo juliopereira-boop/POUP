@@ -2,7 +2,9 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 
+import { mensagemDoErro } from '@/lib/edgeError';
 import { limparDadosLocais } from '@/lib/limparDadosLocais';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase } from '@/lib/supabase';
 import { getAppUrl } from '@/lib/appUrl';
 import type { AuthChangePayload, AuthRepository } from '../repositories';
@@ -144,8 +146,96 @@ export class SupabaseAuthRepository implements AuthRepository {
    * (é a regra 4.8, e vale mesmo tendo só o Google). Fica disponível também na
    * web, para o corretor entrar do mesmo jeito nos dois lugares.
    */
-  signInWithApple(): Promise<Result<void>> {
-    return this.signInWithProvider('apple', 'Apple');
+  async signInWithApple(): Promise<Result<void>> {
+    /*
+     * Fora do iOS não existe Sign in with Apple nativo: cai no OAuth por
+     * navegador, que é o único caminho possível na web e no Android.
+     */
+    if (Platform.OS !== 'ios') return this.signInWithProvider('apple', 'Apple');
+
+    /*
+     * `isAvailableAsync` porque o módulo existe no bundle mas o recurso não
+     * existe em todo lugar: iOS abaixo do 13, e o simulador sem conta Apple
+     * configurada. Sem esta checagem, `signInAsync` estoura uma exceção nativa
+     * em vez de devolver um erro tratável.
+     */
+    const disponivel = await AppleAuthentication.isAvailableAsync().catch(() => false);
+    if (!disponivel) {
+      return err('Este aparelho não oferece login com a Apple.');
+    }
+
+    try {
+      const credencial = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credencial.identityToken) {
+        return err('A Apple não devolveu as credenciais. Tente de novo.');
+      }
+
+      /*
+       * O `identityToken` vai direto para o Supabase — não passa por navegador
+       * nenhum. É a diferença entre o login nativo e o OAuth: aqui o usuário
+       * autentica com Face ID na folha do sistema e o app nunca perde o foco.
+       */
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credencial.identityToken,
+      });
+      if (error) return err(friendlyError(error.message));
+
+      /*
+       * A APPLE SÓ MANDA O NOME UMA VEZ NA VIDA.
+       *
+       * Na primeira autorização vem `fullName`; em toda entrada seguinte ele
+       * volta `null`, mesmo que o app tenha perdido o valor. Se não gravarmos
+       * agora, o corretor fica sem nome para sempre e não há como pedir de
+       * novo à Apple — só apagando a autorização nos ajustes do aparelho.
+       *
+       * Por isso a gravação acontece aqui, e não no primeiro uso: é a única
+       * chance.
+       */
+      const nome = [credencial.fullName?.givenName, credencial.fullName?.familyName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      if (nome) {
+        // Falhar aqui não invalida o login: o nome é editável em Ajustes.
+        await supabase.auth.updateUser({ data: { full_name: nome } }).catch(() => undefined);
+      }
+
+      /*
+       * O `authorizationCode` EXPIRA EM CINCO MINUTOS, e é a única chance de
+       * obter um refresh token da Apple.
+       *
+       * A Apple exige que a autorização seja revogada quando a conta é
+       * excluída — e revogar precisa desse token, que só existe se for trocado
+       * agora. Meses depois, na hora da exclusão, não há mais como consegui-lo.
+       *
+       * Sem `await`: guardar a credencial é conformidade, não login. Se a
+       * Apple estiver fora do ar, o corretor entra do mesmo jeito.
+       */
+      if (credencial.authorizationCode) {
+        void supabase.functions
+          .invoke('apple-link', { body: { authorizationCode: credencial.authorizationCode } })
+          .catch(() => undefined);
+      }
+
+      return ok(undefined);
+    } catch (e) {
+      /*
+       * Cancelar não é erro. A Apple devolve `ERR_REQUEST_CANCELED` quando a
+       * pessoa fecha a folha, e mostrar "falha no login" para quem desistiu de
+       * propósito é ruído.
+       */
+      const codigo = (e as { code?: string }).code;
+      if (codigo === 'ERR_REQUEST_CANCELED') return err('Login com Apple cancelado.');
+      console.error('Sign in with Apple falhou:', codigo ?? (e as Error).name);
+      return err('Não foi possível entrar com a Apple. Tente de novo.');
+    }
   }
 
   /**
@@ -239,7 +329,20 @@ export class SupabaseAuthRepository implements AuthRepository {
     const { data, error } = await supabase.functions.invoke('delete-account', {
       body: { confirm },
     });
-    if (error) return err('Não foi possível excluir a conta. Tente novamente.');
+    if (error) {
+      /*
+       * A explicação vem do CORPO da resposta, não de `error.message`.
+       *
+       * A exclusão agora para quando o Stripe não cancela, quando a revogação
+       * da Apple falha ou quando um arquivo não sai — e cada um desses casos
+       * tem uma frase própria dizendo o que houve e que a conta continua
+       * inteira. Sem ler o corpo, o corretor veria a mesma frase genérica
+       * sempre e não saberia se pode tentar de novo.
+       */
+      return err(
+        await mensagemDoErro(error, 'Não foi possível excluir a conta. Tente novamente.'),
+      );
+    }
     const payload = data as { deleted?: boolean; error?: string } | null;
     if (!payload?.deleted) {
       return err(payload?.error ?? 'Não foi possível excluir a conta. Tente novamente.');
