@@ -42,7 +42,13 @@ const CONTROLADOR = {
   endereco: '',
 };
 /** Sincronize com a data em que o conteúdo abaixo mudar de fato. */
-const VIGENCIA = '17 de agosto de 2026';
+/*
+ * A própria política promete, no item de alterações, que a data muda quando o
+ * conteúdo muda de forma relevante. Manter a data antiga depois de acrescentar
+ * como revogar o acesso pelo Google e o que acontece com um pedido de exclusão
+ * que travou seria descumprir a promessa na própria página que a faz.
+ */
+const VIGENCIA = '28 de agosto de 2026';
 
 export default function PrivacyPolicyScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -244,6 +250,15 @@ export default function PrivacyPolicyScreen() {
           <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do
           próprio aparelho. O app continua funcionando; só o preenchimento automático deixa de
           estar disponível.
+        </Bullet>
+        <Bullet>
+          <Bold>Login com o Google</Bold>: quando você exclui a conta, o vínculo entre a sua conta
+          Google e o POUP deixa de existir do nosso lado — não guardamos nenhuma credencial do
+          Google, justamente para não reter mais dado do que o necessário. Por isso a autorização
+          que aparece na sua conta Google só o Google pode apagar: acesse{' '}
+          <Bold>myaccount.google.com/permissions</Bold>, escolha <Bold>POUP</Bold> e toque em{' '}
+          <Bold>Remover acesso</Bold>. Com a <Bold>Apple</Bold> é diferente: ela exige que nós
+          mesmos revoguemos, e isso acontece automaticamente na exclusão da conta.
         </Bullet>
         <Bullet>
           <Bold>Todo o resto</Bold>: excluir a conta encerra qualquer tratamento e apaga os dados,

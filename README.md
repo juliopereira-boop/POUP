@@ -2229,6 +2229,79 @@ A regra é **3.1.3(f) Free Stand-alone Apps**: *"Free apps acting as a stand-alo
 
 É exatamente o desenho do POUP: a assinatura é vendida no site, e o app das lojas não mostra preço, botão de assinar nem link de cobrança (ver §19). Para isso valer, o app **precisa ser gratuito** na App Store Connect.
 
+E não é só a interface: o **código** de checkout também não vai no binário. `src/features/cobranca/` é resolvido por plataforma pelo Metro (`abrirCobranca.ts` para a web, `abrirCobranca.native.ts` para iOS/Android), então o arquivo que fala com o Stripe nunca é lido quando o bundle é nativo. `if (Platform.OS === 'web')` não serviria: é decisão de tempo de execução, e os dois ramos iriam para o bundle — esconderia da tela, não do binário. Conferido comparando exports do `expo export`: as strings `create-checkout-session`, `create-billing-portal-session`, `checkout=success` e `checkout=cancel` aparecem no bundle da web e **não aparecem** no bundle iOS. `npm run testar:loja` guarda isso.
+
+### As 19 vulnerabilidades do `npm audit`, e por que `--force` não é o caminho
+
+`npm audit` acusa **19 vulnerabilidades** (10 moderate, 9 high). Elas não são 19 problemas: são **7
+avisos** em **três pacotes**, contados de novo em cada dependente da cadeia Expo/Metro.
+
+| Raiz | Avisos | Como chega aqui | O que usa |
+| --- | --- | --- | --- |
+| `image-size@1.2.1` | 2 HIGH (loops infinitos nos parsers ICNS e JXL) | `expo → @expo/metro → metro` | o **empacotador**, ao medir imagens do projeto |
+| `postcss@8.4.49` | 2 HIGH + 2 moderate (leitura de arquivo via `sourceMappingURL`, XSS no stringify) | `expo → @expo/metro-config` | a transformação de **CSS da web**, em tempo de build |
+| `uuid@7.0.3` | 1 moderate (falta de checagem de limites em `v3/v5/v6`) | `expo → @expo/config-plugins → xcode` | o `expo prebuild`, ao **editar o projeto Xcode** |
+
+Conferido com `npm ls image-size postcss uuid`: as três só existem por baixo de `expo`, nenhuma é
+dependência direta, e nenhuma delas **roda no iPhone**. A prova está nos bundles exportados — nem o
+bundle iOS nem o da web contêm qualquer vestígio de `image-size`, `postcss`, `uuid` ou `xcode`. São
+ferramentas que rodam na máquina de quem compila, sobre arquivos do próprio repositório. Um "loop
+infinito ao ler um ICNS malformado" só é explorável por quem já pode colocar um arquivo dentro do
+projeto — e quem consegue isso já tem um problema muito maior.
+
+**`npm audit fix --force` não deve ser rodado.** O próprio `npm` diz o que ele faria: *"Will install
+expo@57.0.18, which is a breaking change"*. Isso é pular do **SDK 54 para o 57**, dois majors, num
+projeto onde o SDK 54 é justamente o mínimo compatível com o Xcode 26 exigido pela App Store. Ele
+arrastaria React Native, expo-router e todos os `expo-*` de uma vez, sem que nada disso tenha sido
+testado — trocaria três avisos que ficam na máquina de build por um app que talvez nem abra. É a
+troca errada, e feita às vésperas de uma submissão é pior ainda.
+
+**O caminho certo é esperar o Expo.** As três raízes são dependências *do Expo*, não nossas: o
+conserto chega quando a Expo atualiza `metro`, `@expo/metro-config` e `@expo/config-plugins` numa
+release do SDK. Aí a atualização é deliberada — `npx expo install --check`, `npx expo-doctor`, o
+ritual de validação inteiro e um build de teste no EAS —, e não um `--force` cego. Enquanto isso,
+`npm audit` é lido e registrado, não obedecido.
+
+E um detalhe que fecha a questão: nem forçando dava para zerar o relatório hoje. O aviso do
+`image-size` vale para a faixa `*` — **não existe versão corrigida**, nem a 2.0.2. Um `overrides` no
+`package.json` até levantaria o `postcss` para a 8.5.26 e apagaria quatro dos sete avisos, mas os
+dois HIGH do `image-size` continuariam lá. Perseguir um relatório verde seria fabricar risco de
+regressão em troca de nada.
+
+### Revogar credencial: Apple sim, Google não — e por quê
+
+A auditoria pede "revogar Apple/Google" na exclusão de conta. **A da Apple está feita**
+(`revogarApple` em `delete-account`, com o `refresh_token` guardado em `apple_credentials` pela
+função `apple-link`). A do Google **não tem equivalente, de propósito.**
+
+Revogar do lado do Google significa chamar `oauth2.googleapis.com/revoke` com um **refresh token do
+Google**. O POUP não tem esse token e nunca teve: o login social passa inteiro pelo Supabase Auth
+(`signInWithOAuth`), que fica com as credenciais do provedor — o aplicativo só recebe a sessão do
+Supabase. Para poder revogar semanas depois, no dia da exclusão, seria preciso **passar a coletar e
+guardar** essa credencial no momento do login.
+
+Ou seja, o preço de cumprir esse item seria **reter mais dado sensível do que hoje** — um token vivo
+de acesso à conta Google do corretor, guardado por meses, para ser usado uma única vez se ele um dia
+pedir para sair. É exatamente o contrário da minimização de dados que a mesma auditoria cobra (e que
+a LGPD exige no art. 6º, III). A decisão é **não coletar**.
+
+Com a Apple a conta é outra: ela **exige** a revogação de quem usa Sign in with Apple, e guardar o
+`refresh_token` é o único jeito de cumprir. Aí o dado é retido por obrigação regulatória explícita —
+e por isso `apple_credentials` é a tabela mais fechada do projeto (RLS ligada, zero policies, ver
+`0031`). O Google não impõe nada disso.
+
+O que acontece de verdade quando a conta é excluída:
+
+- o usuário some de `auth.users`, e com ele a linha de `auth.identities` que ligava aquela conta
+  Google ao POUP. **O vínculo é destruído**: nem o app nem o Supabase conseguem mais falar com o
+  Google em nome daquela pessoa;
+- o que sobra é uma autorização registrada **do lado do Google**, que só ele pode limpar. O corretor
+  faz isso em **[myaccount.google.com/permissions](https://myaccount.google.com/permissions)** →
+  *"POUP"* → **Remover acesso**.
+
+Isso está escrito na política de privacidade (`app/privacidade.tsx`, §6 — "Revogar consentimentos já
+dados"), com o endereço, e não só aqui: a informação é do corretor, não do desenvolvedor.
+
 ### O que ainda depende de configuração manual
 
 **Antes de gerar o build:**
