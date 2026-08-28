@@ -512,6 +512,14 @@ export interface Database {
           income: number | null;
           birth_date: string | null;
           notes: string | null;
+          /*
+           * Consentimento de quem preencheu a página pública (0032).
+           * `null` = lead cadastrado à mão pelo corretor, que é outro caminho:
+           * ali não há terceiro manifestando nada num formulário.
+           */
+          consent_at: string | null;
+          consent_versao: number | null;
+          consent_texto: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1146,6 +1154,11 @@ export interface Database {
       };
 
       /* RASTREABILIDADE (0029). Todas só respondem para admin. */
+      /** Conta um envio da pagina publica e diz se ainda cabe na hora. */
+      registrar_captacao: {
+        Args: { p_broker: string; p_teto?: number };
+        Returns: Json;
+      };
       painel_eventos: {
         Args: { p_dias?: number };
         Returns: {

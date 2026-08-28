@@ -20,6 +20,8 @@ interface Payload {
   companyId?: string;
   developmentId?: string;
   source?: string;
+  consentVersao?: unknown;
+  consentTexto?: unknown;
 }
 
 const ALLOWED_SOURCES = new Set(['landing', 'whatsapp']);
@@ -27,6 +29,17 @@ const ALLOWED_SOURCES = new Set(['landing', 'whatsapp']);
 const MAX_NAME = 200;
 const MAX_EMAIL = 320;
 const MAX_MESSAGE = 2000;
+const MAX_CONSENT_TEXTO = 1000;
+
+/**
+ * Quantos envios uma pagina de captacao aceita por hora.
+ *
+ * 30 e generoso para uso real -- um corretor que divulgue bem recebe alguns por
+ * dia, nao dezenas por hora -- e apertado para um laco automatizado, que faz
+ * isso em segundos. Errar para o lado generoso e o certo: o custo de recusar um
+ * lead legitimo e um cliente perdido.
+ */
+const TETO_POR_HORA = 30;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function text(v: unknown, max: number): string {
@@ -74,6 +87,20 @@ Deno.serve(async (req) => {
   const email = text(body.email, MAX_EMAIL);
   const message = text(body.message, MAX_MESSAGE);
 
+  /*
+   * Consentimento: so aceito quando vem completo e coerente. Versao sem texto
+   * (ou o contrario) e registro pela metade, que nao serve de prova nenhuma --
+   * melhor gravar nada e saber que nao ha registro.
+   */
+  const consentTextoBruto = text(body.consentTexto, MAX_CONSENT_TEXTO);
+  const consentVersaoBruta =
+    typeof body.consentVersao === 'number' && Number.isInteger(body.consentVersao)
+      ? body.consentVersao
+      : null;
+  const temConsentimento = Boolean(consentVersaoBruta && consentTextoBruto);
+  const consentVersao = temConsentimento ? consentVersaoBruta : null;
+  const consentTexto = temConsentimento ? consentTextoBruto : null;
+
   if (!brokerUserId) {
     return new Response(JSON.stringify({ error: 'Link de captação inválido.' }), {
       status: 400,
@@ -111,6 +138,48 @@ Deno.serve(async (req) => {
     });
   }
 
+  /*
+   * ===================================================================
+   * TRAVA DE ABUSO — o unico achado "Alto" que a auditoria de seguranca
+   * deixou em aberto.
+   * ===================================================================
+   * O UUID do corretor esta na URL publica que ele mesmo divulga. Com ele em
+   * maos, qualquer pessoa podia chamar esta funcao em laco e encher a carteira
+   * dele de lixo. Nao vaza dado nenhum -- o insert e fixado no corretor ja
+   * validado --, mas destroi o CRM de quem depende dele para trabalhar.
+   *
+   * A contagem vive no banco (`registrar_captacao`), e nao aqui, porque a Edge
+   * Function nao tem memoria entre invocacoes: cada chamada e um processo novo.
+   *
+   * DEPOIS de validar o corretor, de proposito: um UUID inventado nao deve
+   * consumir cota de ninguem, e nem criar linha para um usuario que nao existe.
+   */
+  const { data: cota, error: erroCota } = await admin.rpc('registrar_captacao', {
+    p_broker: brokerUserId,
+    p_teto: TETO_POR_HORA,
+  });
+
+  /*
+   * Falha ao CONTAR nao barra o envio. E o inverso da cota de IA, e de
+   * proposito: la o risco de deixar passar e uma fatura, aqui e um cliente de
+   * verdade que perde o contato com o corretor. Recusar um lead legitimo por
+   * um erro nosso e pior do que aceitar um a mais num ataque.
+   */
+  if (erroCota) {
+    console.error('capture-lead: contagem falhou, seguindo assim mesmo.', erroCota.message);
+  } else if ((cota as { permitido?: boolean } | null)?.permitido === false) {
+    console.warn('capture-lead: teto por hora atingido para o corretor', brokerUserId);
+    /*
+     * 429 com uma frase neutra. Quem esta do outro lado pode ser uma pessoa de
+     * verdade tentando de novo depois de um erro de rede -- ela nao precisa
+     * saber que existe um teto, nem qual e.
+     */
+    return new Response(
+      JSON.stringify({ error: 'Muitos envios agora. Tente de novo em alguns minutos.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
   const { error } = await admin.from('leads').insert({
     user_id: brokerUserId,
     name,
@@ -121,6 +190,19 @@ Deno.serve(async (req) => {
       typeof body.source === 'string' && ALLOWED_SOURCES.has(body.source) ? body.source : 'landing',
     company_id: uuidOrNull(body.companyId),
     development_id: uuidOrNull(body.developmentId),
+    /*
+     * O CONSENTIMENTO VEM DO CLIENTE, MAS QUEM CARIMBA A HORA E O SERVIDOR.
+     *
+     * `consent_at` e `now()` daqui, e nao um horario mandado pelo aparelho: um
+     * registro de consentimento cuja data quem prova e quem se beneficia dela
+     * nao prova nada.
+     *
+     * O texto vai integral e congelado. Mudar o formulario amanha nao pode
+     * reescrever com o que esta pessoa concordou hoje.
+     */
+    consent_at: consentVersao ? new Date().toISOString() : null,
+    consent_versao: consentVersao,
+    consent_texto: consentTexto,
   });
   if (error) {
     console.error('Erro ao inserir lead:', error.message);

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Modal,
   Platform,
@@ -14,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+
+import QRCode from 'react-native-qrcode-svg';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -81,9 +82,22 @@ async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'
   }
 }
 
-function qrCodeUrl(data: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(data)}`;
-}
+/**
+ * O QR CODE É DESENHADO AQUI, NÃO BAIXADO DE FORA.
+ *
+ * Antes, a URL de captação — que contém o **id do corretor** — era enviada para
+ * `api.qrserver.com` só para virar uma imagem. Ou seja: um serviço de terceiro
+ * que ninguém contratou, que não está na política de privacidade e que não tem
+ * contrato de tratamento nenhum recebia o identificador de todo corretor que
+ * abrisse esta tela.
+ *
+ * Não é um vazamento grave — o id sozinho não abre nada —, mas é dado saindo
+ * para fora sem necessidade e sem declaração, e foi apontado na auditoria. Um
+ * QR Code é matemática pura: não há razão para pedir a alguém que a faça.
+ *
+ * De quebra, funciona sem internet e não pisca esperando download.
+ */
+const QR_TAMANHO = 220;
 
 export default function LeadsScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -781,7 +795,7 @@ function WhatsAppCard({
       ) : (
         <>
           <View style={styles.qrWrap}>
-            <Image source={{ uri: qrCodeUrl(link) }} style={styles.qrImage} />
+            <QRCode value={link} size={QR_TAMANHO} backgroundColor="#FFFFFF" color="#000000" />
           </View>
           <View style={styles.cardActions}>
             <Button
@@ -969,7 +983,6 @@ const makeStyles = (colors: AppColors) =>
       textAlign: 'center',
     },
     qrWrap: { alignItems: 'center', marginBottom: spacing.md },
-    qrImage: { width: 160, height: 160, borderRadius: radius.md },
 
     modalBackdrop: {
       flex: 1,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -23,7 +23,22 @@ const DEFAULT_BENEFITS = [
 const WA_TITLE = 'Fale com um especialista';
 const WA_SUBTITLE = 'Deixe seu nome e telefone que abrimos o WhatsApp na hora.';
 
+/**
+ * Versão do texto de consentimento.
+ *
+ * **Mudou `TEXTO_CONSENTIMENTO`? Suba este número.** O registro guarda a versão
+ * junto com o lead, e sem isso um texto novo invalidaria em silêncio o que já
+ * foi consentido — os registros antigos apontariam para uma frase que aquelas
+ * pessoas nunca leram.
+ */
+const VERSAO_CONSENTIMENTO = 1;
+
+const TEXTO_CONSENTIMENTO =
+  'Autorizo o corretor a entrar em contato comigo pelos dados informados, para falar sobre ' +
+  'imóveis. Posso pedir a exclusão dos meus dados a qualquer momento.';
+
 export default function CaptarLeadScreen() {
+  const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const {
     c: brokerId,
@@ -35,6 +50,7 @@ export default function CaptarLeadScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [sending, setSending] = useState(false);
+  const [aceitou, setAceitou] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -70,6 +86,7 @@ export default function CaptarLeadScreen() {
     setError(null);
     if (!name.trim()) return setError('Informe seu nome.');
     if (phone.replace(/\D/g, '').length < 10) return setError('Informe um telefone válido.');
+    if (!aceitou) return setError('Marque a autorização para o corretor entrar em contato.');
     setSending(true);
     const { data, error: fnError } = await supabase.functions.invoke('capture-lead', {
       body: {
@@ -78,6 +95,16 @@ export default function CaptarLeadScreen() {
         phone,
         developmentId,
         source: isWhatsAppFlow ? 'whatsapp' : 'landing',
+        /*
+         * O consentimento vai junto com o dado, e com a VERSÃO do texto.
+         *
+         * "Ela aceitou" sem dizer o quê e quando é palavra contra palavra, e a
+         * LGPD pede consentimento demonstrável. Só um booleano perderia o
+         * sentido no dia em que o texto mudasse: ninguém saberia com o que
+         * aquela pessoa concordou.
+         */
+        consentVersao: VERSAO_CONSENTIMENTO,
+        consentTexto: TEXTO_CONSENTIMENTO,
       },
     });
     setSending(false);
@@ -148,10 +175,34 @@ export default function CaptarLeadScreen() {
               placeholder="(00) 00000-0000"
               keyboardType="phone-pad"
             />
+            {/*
+              O CONSENTIMENTO PRECISA SER UM ATO, NÃO UMA FRASE NO RODAPÉ.
+
+              Aqui havia só um aviso embaixo do botão dizendo para que os dados
+              seriam usados. Aviso não é consentimento: a LGPD pede manifestação
+              livre, informada e INEQUÍVOCA, e ler um rodapé não é manifestar
+              nada.
+
+              A caixa começa desmarcada de propósito. Pré-marcada, ela seria o
+              mesmo aviso de antes com aparência de escolha — que é pior, porque
+              parece consentimento e não é.
+            */}
+            <Pressable
+              onPress={() => setAceitou((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: aceitou }}
+              style={styles.consentRow}
+            >
+              <View style={[styles.checkbox, aceitou && styles.checkboxOn]}>
+                {aceitou ? <Text style={styles.checkboxMark}>✓</Text> : null}
+              </View>
+              <Text style={styles.consentText}>{TEXTO_CONSENTIMENTO}</Text>
+            </Pressable>
+
             <Button label="Enviar meu contato" onPress={submit} loading={sending} style={styles.cta} />
-            <Text style={styles.privacy}>
-              Seus dados são usados só para o corretor entrar em contato.
-            </Text>
+            <Pressable onPress={() => router.push('/privacidade')} hitSlop={8}>
+              <Text style={styles.privacyLink}>Ler a Política de Privacidade</Text>
+            </Pressable>
           </View>
         </>
       )}
@@ -163,6 +214,31 @@ export default function CaptarLeadScreen() {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    consentRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: radius.sm,
+      borderWidth: 2,
+      borderColor: colors.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
+    },
+    checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+    checkboxMark: { color: colors.white, fontWeight: '700', fontSize: 14 },
+    consentText: { ...typography.caption, color: colors.inkMuted, flex: 1, lineHeight: 18 },
+    privacyLink: {
+      ...typography.caption,
+      color: colors.primary,
+      textAlign: 'center',
+      marginTop: spacing.md,
+    },
     hero: {
       backgroundColor: colors.primary,
       borderRadius: radius.xl,
