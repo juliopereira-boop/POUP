@@ -28,18 +28,20 @@ const SUPORTE_EMAIL = 'gestao@poupgestao.com';
  * confere isso na revisão: uma política que diz apenas "a equipe responsável"
  * não identifica ninguém.
  *
- * Os campos opcionais somem do texto quando vazios, em vez de aparecerem em
- * branco — mas **um CNPJ vazio é pendência, não configuração**. A Apple
- * recomenda submeter serviço financeiro por pessoa jurídica (regra 5.1.1(ix)),
- * e uma conta Individual lidando com CPF e renda de terceiros é exatamente o
- * caso que ela olha com lupa.
+ * RAZÃO SOCIAL E NOME FANTASIA SÃO COISAS DIFERENTES, E AS DUAS PRECISAM ESTAR
+ * AQUI. O corretor conhece o produto por "Poup Gestão"; quem responde
+ * juridicamente é a pessoa jurídica inscrita no CNPJ. Uma política que trouxesse
+ * só o nome fantasia não identificaria o controlador, e uma que trouxesse só a
+ * razão social deixaria o titular sem saber que é do POUP que se fala.
  *
- * >>> PREENCHER ANTES DE PUBLICAR NA APP STORE. <<<
+ * A Apple recomenda submeter serviço financeiro por pessoa jurídica
+ * (regra 5.1.1(ix)) — o CNPJ abaixo é o que sustenta isso.
  */
 const CONTROLADOR = {
-  nome: 'Poup Gestão',
-  cnpj: '',
-  endereco: '',
+  razaoSocial: '57.210.027 JULIO CESAR SOUSA PEREIRA',
+  nomeFantasia: 'Poup Gestão',
+  cnpj: '57.210.027/0001-26',
+  endereco: 'Rua Projetada, s/n, Turu, São Luís/MA, CEP 65066-903',
 };
 /** Sincronize com a data em que o conteúdo abaixo mudar de fato. */
 /*
@@ -71,9 +73,9 @@ export default function PrivacyPolicyScreen() {
       <Section title="1. Quem trata os seus dados">
         <Paragraph>
           O <Bold>controlador</Bold> dos dados, na definição da LGPD, é{' '}
-          <Bold>{CONTROLADOR.nome}</Bold>
-          {CONTROLADOR.cnpj ? `, inscrita no CNPJ ${CONTROLADOR.cnpj}` : ''}
-          {CONTROLADOR.endereco ? `, com endereço em ${CONTROLADOR.endereco}` : ''}.
+          <Bold>{CONTROLADOR.nomeFantasia}</Bold>, nome fantasia de{' '}
+          <Bold>{CONTROLADOR.razaoSocial}</Bold>, inscrita no CNPJ {CONTROLADOR.cnpj}, com endereço
+          em {CONTROLADOR.endereco}.
         </Paragraph>
         <Paragraph>
           Dúvidas, solicitações sobre seus dados, pedidos de acesso, correção ou exclusão podem ser
