@@ -115,6 +115,7 @@ const ROTULO_COTA: Record<RecursoIA, string> = {
 };
 
 interface ClienteRpc {
+  auth: { getUser(): Promise<{ data: { user: { id: string } | null } }> };
   rpc(
     nome: string,
     args: Record<string, unknown>,
@@ -159,7 +160,16 @@ async function cobrarUso(
       mensagem: '',
       status: 200,
       estornar: async () => {
-        const { error: e } = await client.rpc('estornar_ia', { p_recurso: recurso, p_peso: peso });
+        const { data: { user } } = await client.auth.getUser();
+        if (!user) return;
+        const service = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+        const { error: e } = await service.rpc('estornar_ia_servico', {
+          p_user: user.id, p_recurso: recurso, p_peso: peso,
+        });
         // Estorno que falha não derruba a resposta: o corretor já está recebendo
         // um erro, e um segundo erro em cima não ajuda ninguém.
         if (e) console.error('cota: estorno falhou', recurso, e.message);
@@ -599,6 +609,20 @@ Deno.serve(async (req) => {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Não autenticado.' }, 401);
+
+    // O plano vem do banco, nunca do corpo da requisição ou de user_metadata.
+    // Antes de qualquer modo, consumo de cota ou chamada ao provedor de IA.
+    const { data: assinatura, error: erroAssinatura } = await supabase
+      .from('subscriptions')
+      .select('plan_tier, status')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (erroAssinatura) {
+      return json({ error: 'Não foi possível verificar sua assinatura. Tente novamente.' }, 503);
+    }
+    if (assinatura?.plan_tier !== 'pro' || assinatura.status !== 'active') {
+      return json({ error: 'A LIA está disponível apenas para assinaturas Pro ativas.' }, 403);
+    }
 
     const body = await req.json().catch(() => null);
     if (!body) return json({ error: 'Corpo inválido.' }, 400);

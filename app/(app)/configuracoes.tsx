@@ -16,7 +16,8 @@ import {
   consentimentoScanEm,
   revogarConsentimentoScan,
 } from '@/features/scan/consent';
-import { canShowBilling } from '@/features/store';
+import { canShowBilling, liaDisponivel } from '@/features/store';
+import { limparConsentimentoLia } from '@/features/lia/consentimento';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -168,6 +169,10 @@ export default function ConfiguracoesScreen() {
         afirmação que ninguém consegue conferir.
       */}
       <Text style={styles.sectionLabel}>Privacidade</Text>
+      {liaDisponivel ? (
+        <Button label="Encerrar autorizações de voz e IA da LIA" variant="secondary"
+          onPress={() => void limparConsentimentoLia()} />
+      ) : null}
       <View style={styles.card}>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Leitura de documento por IA</Text>

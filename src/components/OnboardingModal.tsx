@@ -47,8 +47,8 @@ export function OnboardingModal() {
 
   async function save() {
     setError(null);
-    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !cpf.trim() || !phone.trim() || !uf) {
-      setError('Preencha todos os campos para continuar.');
+    if (!fullName.trim() || !cpf.trim() || !phone.trim() || !uf) {
+      setError('Preencha nome, CPF, telefone e estado para continuar.');
       return;
     }
     if (!isValidCPF(cpf)) {
@@ -58,8 +58,8 @@ export function OnboardingModal() {
     setSaving(true);
     const result = await updateProfile({
       fullName: fullName.trim(),
-      agency: agency.trim(),
-      cnpj: cnpj.trim(),
+      agency: agency.trim() || null,
+      cnpj: cnpj.trim() || null,
       cpf: cpf.trim(),
       phone: phone.trim(),
       uf,
@@ -114,8 +114,8 @@ export function OnboardingModal() {
               placeholder="000.000.000-00"
               keyboardType="numbers-and-punctuation"
             />
-            <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
-            <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
+            <Input label="Imobiliária (opcional)" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária, se houver" />
+            <Input label="CNPJ (opcional)" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
             <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
             <Select
               label="Estado onde você atua"
@@ -142,7 +142,8 @@ export function OnboardingModal() {
             />
             <Text style={styles.hint}>
               Você consegue usar o app sem isso. Só precisamos desses dados na hora de gerar uma
-              proposta em PDF — dá para preencher em Ajustes → Editar perfil.
+              proposta em PDF — dá para preencher em Ajustes → Editar perfil. Imobiliária e CNPJ
+              são opcionais, inclusive para emitir propostas.
             </Text>
           </ScrollView>
         </View>

@@ -52,6 +52,7 @@ const ROTULO_COTA: Record<RecursoIA, string> = {
 };
 
 interface ClienteRpc {
+  auth: { getUser(): Promise<{ data: { user: { id: string } | null } }> };
   rpc(
     nome: string,
     args: Record<string, unknown>,
@@ -96,7 +97,16 @@ async function cobrarUso(
       mensagem: '',
       status: 200,
       estornar: async () => {
-        const { error: e } = await client.rpc('estornar_ia', { p_recurso: recurso, p_peso: peso });
+        const { data: { user } } = await client.auth.getUser();
+        if (!user) return;
+        const service = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
+        const { error: e } = await service.rpc('estornar_ia_servico', {
+          p_user: user.id, p_recurso: recurso, p_peso: peso,
+        });
         // Estorno que falha não derruba a resposta: o corretor já está recebendo
         // um erro, e um segundo erro em cima não ajuda ninguém.
         if (e) console.error('cota: estorno falhou', recurso, e.message);

@@ -50,7 +50,7 @@ const CONTROLADOR = {
  * como revogar o acesso pelo Google e o que acontece com um pedido de exclusão
  * que travou seria descumprir a promessa na própria página que a faz.
  */
-const VIGENCIA = '28 de agosto de 2026';
+const VIGENCIA = '16 de setembro de 2026';
 
 export default function PrivacyPolicyScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -201,9 +201,10 @@ export default function PrivacyPolicyScreen() {
           Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
           assinatura é cancelada antes de a conta ser removida — se o cancelamento não puder ser
           concluído, a exclusão não acontece e avisamos, em vez de deixar uma cobrança sem dono.
-          Nesse caso seu pedido <Bold>fica registrado</Bold> e é retomado até ser concluído: ele
-          não se perde porque um serviço externo estava fora do ar. Se você entrou com a Apple, a
-          autorização também é revogada junto.
+          Quando uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte.
+          A tela informa se o registro foi possível. Você pode tentar novamente ou falar com o
+          suporte; não há retomada automática em segundo plano. Se você entrou com a Apple, a
+          revogação dessa autorização faz parte do processo de exclusão.
         </Paragraph>
         <Paragraph>
           Uma ressalva honesta sobre <Bold>backups</Bold>: nosso banco de dados mantém cópias de
@@ -218,30 +219,39 @@ export default function PrivacyPolicyScreen() {
         </Paragraph>
         <Paragraph>
           As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados
-          seus nem dos seus clientes — são contagens de eventos do aplicativo. Elas são apagadas
+          dos seus clientes — são eventos do aplicativo vinculados à sua conta. Elas são apagadas
           depois de seis meses, e apagadas junto com a conta se você excluí-la.
         </Paragraph>
         <Paragraph>
-          A assistente <Bold>LIA</Bold>: o áudio da negociação <Bold>não é gravado</Bold> nem sai
-          do seu aparelho. A transcrição em texto existe só enquanto a sessão está aberta e é
+          A assistente <Bold>LIA</Bold>: o POUP não grava o áudio da negociação. O reconhecimento
+          de voz do navegador pode enviar áudio ao fornecedor desse serviço, conforme o navegador
+          utilizado; não garantimos transcrição apenas no aparelho. A transcrição em texto existe
+          enquanto a sessão está aberta e é
           descartada quando você encerra — o POUP não a guarda em servidor nenhum. Do que foi
-          falado, o que sobra aqui é apenas a simulação que você decidiu salvar.
+          falado, ficam na sua conta as simulações e os agendamentos que você decidiu salvar.
         </Paragraph>
         <Paragraph>
           O trecho de texto enviado para análise, porém, passa pela Anthropic, que{' '}
-          <Bold>pode mantê-lo por até 30 dias</Bold> antes de descartar, conforme a política dela.
-          Dizer que "nada é armazenado" seria impreciso, e preferimos ser exatos: nós não
-          guardamos; o prestador guarda por esse período, para segurança e prevenção de abuso.
+          tem retenção padrão da API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo
+          fornecedor, incluindo obrigações legais e aplicação de sua política de uso. A mesma
+          regra se aplica às imagens enviadas para leitura de documento. Consulte a política em
+          privacy.claude.com para detalhes.
         </Paragraph>
       </Section>
 
       <Section title="6. Seus direitos e como revogar consentimentos">
         <Paragraph>
           Você pode pedir a qualquer momento para acessar, corrigir ou excluir seus dados. A
-          exclusão da conta está disponível direto no app, em Ajustes → Excluir conta; as demais
+          exclusão da conta está disponível direto no app, em Ajustes → Excluir minha conta,
+          e também na tela de assinatura inativa; as demais
           solicitações podem ser feitas por <Email address={SUPORTE_EMAIL} />.
         </Paragraph>
         <SubTitle>Revogar consentimentos já dados</SubTitle>
+        <Bullet>
+          <Bold>LIA (web)</Bold>: cada abertura pede uma nova autorização. Em Ajustes → Privacidade,
+          “Encerrar autorizações de voz e IA da LIA” interrompe a sessão e bloqueia novos envios.
+          Isso não recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos salvos.
+        </Bullet>
         <Bullet>
           <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê
           quando autorizou e pode desligar com um toque. Além disso, a autorização do titular é

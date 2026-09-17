@@ -74,10 +74,10 @@ export function WelcomeGuide() {
     });
   }
 
-  async function finish(goToCadastros: boolean) {
+  async function finish(goToSimulation: boolean) {
     if (user) await sessionStorage.setItem(guideSeenKey(user.id), '1');
     setVisible(false);
-    if (goToCadastros) router.push('/(app)/cadastros');
+    if (goToSimulation) router.push('/(app)/simuladores');
   }
 
   const current = GUIDE_STEPS[step];
@@ -150,7 +150,7 @@ export function WelcomeGuide() {
           <View style={styles.footer}>
             {isLast ? (
               <>
-                <Button label="Começar pelos cadastros" onPress={() => void finish(true)} />
+                <Button label="Fazer minha primeira simulação" onPress={() => void finish(true)} />
                 <Pressable onPress={() => void finish(false)} hitSlop={8}>
                   <Text style={styles.laterLink}>Explorar por conta própria</Text>
                 </Pressable>

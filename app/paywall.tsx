@@ -3,11 +3,12 @@ import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { AccountActions } from '@/components/AccountActions';
 import { InactiveAccountScreen } from '@/components/InactiveAccountScreen';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { registrar } from '@/features/analytics/eventos';
-import { abrirCheckout } from '@/features/cobranca/abrirCobranca';
+import { abrirCheckout, abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
 import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
@@ -59,8 +60,11 @@ export default function PaywallScreen() {
 
   async function checkAgain() {
     setCheckingAgain(true);
-    await refresh();
-    setCheckingAgain(false);
+    try {
+      await refresh();
+    } finally {
+      setCheckingAgain(false);
+    }
   }
 
   async function subscribe(plan: PlanConfig) {
@@ -87,9 +91,17 @@ export default function PaywallScreen() {
      * Em caso de sucesso o navegador já está saindo da página, então não há o
      * que fazer depois: só o erro tem tratamento.
      */
-    const result = await abrirCheckout(plan.stripePriceId);
-    setLoadingTier(null);
-    if (!result.ok) setError(result.error);
+    // Uma troca de plano altera a assinatura existente, não abre outra cobrança.
+    try {
+      const result = upgradeMode
+        ? await abrirPortalDeCobranca()
+        : await abrirCheckout(plan.stripePriceId);
+      if (!result.ok) setError(result.error);
+    } catch {
+      setError('Não foi possível abrir a cobrança. Tente novamente.');
+    } finally {
+      setLoadingTier(null);
+    }
   }
 
   // No app das lojas, nada de cobrança aparece — nem preço, nem link. Veja
@@ -166,8 +178,21 @@ export default function PaywallScreen() {
       </View>
 
       <Text style={styles.fineprint}>
-        Cobrança mensal recorrente. Cancele quando quiser nas configurações.
+        Cobrança mensal recorrente. Gerencie ou cancele sua assinatura pelo portal de cobrança.
       </Text>
+      <Button
+        label="Gerenciar assinatura"
+        variant="ghost"
+        onPress={async () => {
+          try {
+            const result = await abrirPortalDeCobranca();
+            if (!result.ok) setError(result.error);
+          } catch {
+            setError('Não foi possível abrir o portal de assinatura. Tente novamente.');
+          }
+        }}
+      />
+      <AccountActions />
 
       {upgradeMode && isActive ? (
         <Button

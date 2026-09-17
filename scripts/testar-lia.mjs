@@ -77,6 +77,11 @@ function carregar(nome) {
     if (spec === '@/data') return DB_TOCO;
     if (spec === '@/features/agenda/dates') return datas;
     if (spec === '@/lib/edgeError') return edgeError;
+    if (spec === '@/lib/storage') return { sessionStorage: {
+      getItem: async () => null,
+      setItem: async () => {},
+      removeItem: async () => {},
+    } };
     return require(spec);
   });
   cache.set(nome, exports);

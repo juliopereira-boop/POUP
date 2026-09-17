@@ -17,30 +17,43 @@
  * 3. **A confiança do corretor depende disso.** Um app que abre o microfone sem
  *    avisar é um app que ele desinstala.
  *
- * O consentimento é POR CONTA, não por aparelho: quem aceitou foi uma pessoa, e
- * o `AuthProvider` apaga isto na saída — do mesmo jeito que já faz com o
- * consentimento do scan.
+ * A autorização vale somente para a sessão de uso da LIA. Reabrir a ferramenta,
+ * revogar nas configurações ou trocar de conta exige novo aceite. O registro
+ * persistido é informativo e nunca autoriza uma conversa futura.
  */
 import { sessionStorage } from '@/lib/storage';
 
 const CHAVE = 'poup.lia.consentimento';
+export const VERSAO_AVISO_LIA = 2;
+// Autorização só na sessão atual: um aceite antigo não autoriza outra conversa.
+let autorizado = false;
+const revogacoes = new Set<() => void>();
+
+export function aoRevogarConsentimentoLia(callback: () => void): () => void {
+  revogacoes.add(callback);
+  return () => { revogacoes.delete(callback); };
+}
 
 /** O que o corretor precisa saber antes de o microfone abrir. */
 export const AVISOS_LIA = [
-  'A LIA transcreve o que for falado e envia o TEXTO para um serviço de inteligência artificial (Anthropic) que preenche a simulação.',
-  'O áudio não é gravado nem guardado: só o texto da conversa, e apenas durante a sessão.',
-  'A conversa fica no seu aparelho enquanto a LIA está ligada e some quando você encerra.',
-  'Avise o cliente que a conversa será transcrita. O dado é dele, não seu — e a autorização também.',
+  'A transcrição usa o reconhecimento de voz do navegador. Conforme o navegador, o áudio pode ser processado pelo fornecedor desse serviço; não é garantido processamento apenas no aparelho.',
+  'Na simulação e na agenda, o texto e os dados necessários do cadastro são enviados à Anthropic para interpretação. O POUP não grava o áudio.',
+  'A transcrição fica na memória durante a sessão. Simulações e agendamentos que você salva ficam na sua conta. Dados enviados a terceiros seguem as políticas de retenção desses fornecedores.',
+  'Antes de falar dados de um cliente, informe-o e obtenha a autorização necessária para esta sessão. Você pode recusar e usar os formulários manuais.',
 ];
 
 export async function temConsentimentoLia(): Promise<boolean> {
-  return (await sessionStorage.getItem(CHAVE)) === '1';
+  return autorizado;
 }
 
 export async function darConsentimentoLia(): Promise<void> {
-  await sessionStorage.setItem(CHAVE, '1');
+  autorizado = true;
+  // Registro local informativo; ele NÃO é reutilizado para autorizar outra sessão.
+  await sessionStorage.setItem(CHAVE, JSON.stringify({ versao: VERSAO_AVISO_LIA, em: new Date().toISOString() })).catch(() => undefined);
 }
 
 export async function limparConsentimentoLia(): Promise<void> {
-  await sessionStorage.removeItem(CHAVE);
+  autorizado = false;
+  for (const callback of revogacoes) callback();
+  await sessionStorage.removeItem(CHAVE).catch(() => undefined);
 }

@@ -25,7 +25,7 @@ const PERGUNTAS = [
   },
   {
     q: 'Como excluo minha conta?',
-    a: 'Dentro do app, em Ajustes → Excluir conta. A exclusão é definitiva e apaga leads, simulações, vendas, comissões e arquivos.',
+    a: 'Dentro do app, em Ajustes → Excluir minha conta. Se a assinatura estiver inativa, o mesmo botão aparece nessa tela de bloqueio. A exclusão é definitiva; se alguma etapa falhar, você recebe a orientação para tentar novamente ou falar com o suporte.',
   },
   {
     q: 'Meus dados aparecem em outro aparelho?',

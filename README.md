@@ -96,7 +96,7 @@ src/
     supabase/                      # Implementação concreta (Supabase)
   features/
     registry.ts                    # Fonte única do menu/rotas
-    plans.ts                       # Planos Start/Intermed/Pro (preço, recursos, limites)
+    plans.ts                       # Planos Start/Pro (preço, recursos, limites)
     simulador/
       SimuladorProvider.tsx        # Estado do wizard (persistido em disco)
       calc.ts                     # Todas as fórmulas do fluxo de pagamento
@@ -282,11 +282,10 @@ Dois detalhes que parecem miudeza e não são:
 | Plano | Preço | O que acrescenta |
 | --- | --- | --- |
 | **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, captação com QR Code, calendário, material de venda, cadastros |
-| **Intermed** | R$ 49,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão** |
-| **Pro** | R$ 89,90/mês | Tudo do Intermed **+ a LIA** |
+| **Pro** | R$ 69,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão + LIA na web** |
 
-**A LIA é o que justifica o topo da escada** — é o único recurso exclusivo do Pro, e o degrau de
-Intermed para Pro custa R$ 40.
+O Pro acrescenta acompanhamento de vendas e comissões em todas as plataformas.
+A LIA funciona somente na web, em navegador compatível com reconhecimento de voz.
 
 > **Armazenamento não é atributo de plano e não aparece em lugar nenhum do produto.** Nem no
 > paywall, nem na landing, nem em Ajustes, nem no material de venda. `storageLimitBytes` continua
@@ -300,9 +299,8 @@ Intermed para Pro custa R$ 40.
 
 #### O bloqueio aponta o plano mais barato que resolve
 
-Com dois planos, "assine o Pro" era sempre a resposta certa. Com três, virou a resposta errada na
-maioria das vezes: quem está no Start e esbarrou em **Vendas** precisa do *Intermed* — mandá-lo para
-o Pro é pedir R$ 30 a mais do que o problema dele custa.
+Na oferta atual, quem está no Start e precisa de vendas ou comissões pode migrar ao Pro.
+Clientes já assinantes são encaminhados ao portal de cobrança, sem criar uma segunda assinatura.
 
 `planoMinimoPara(feature)` deriva o plano a partir da funcionalidade (`PLAN_ORDER` está em ordem de
 preço justamente para essa busca), e o `ProFeatureLock` recebe a `feature` que o corretor tentou
@@ -313,12 +311,15 @@ a tela mentindo.
 #### A LIA some inteira fora do Pro
 
 `src/components/lia/Lia.tsx` devolve `null` quando `canUse('lia')` é falso — o botão flutuante nem
-chega a existir. É a diferença entre vender e importunar: quem está no Start ou no Intermed já vê a
+chega a existir. É a diferença entre vender e importunar: quem está no Start já vê a
 LIA na tela de planos, com preço e descrição; repetir isso num botão que acompanha o corretor por
 todas as telas seria propaganda perseguindo quem já disse não.
 
-Durante o **teste gratuito** `canUse` devolve `true` para tudo, inclusive a LIA. É de propósito: é
-assim que o corretor conhece o topo da escada e decide assinar por causa dele.
+A LIA exige **assinatura Pro ativa**: Start, teste gratuito e assinaturas inativas não a liberam.
+O bloqueio é aplicado na interface e na Edge Function `lia-extract`, consultando a assinatura
+do usuário autenticado antes de consumir cota ou chamar a IA. Os demais recursos mantêm a
+regra anterior do teste gratuito. Validação: `npm run testar:acesso-lia` e `npm run testar:planos`.
+Essa regra precisa de deploy do app e da função; não exige migration ou alteração de tabelas.
 
 ### O que libera acesso
 
@@ -1190,11 +1191,9 @@ segunda cópia: PDF e vídeo abrem fora do app no celular, imagem tem fallback q
 falha, e o botão de baixar precisa do nome original — duas implementações divergiriam na primeira
 correção que só uma recebesse.
 
-> O material **não** pede o consentimento da escuta, e isso é deliberado. São coisas diferentes: a
-> simulação abre o microfone numa conversa com o *cliente* e manda o texto para um serviço de IA; o
-> material é o corretor falando sozinho uma palavra para navegar na própria pasta, sem nada saindo
-> do aparelho. Pedir o mesmo aviso nos dois treinaria o corretor a aceitar sem ler — e é justamente
-> na simulação que ele precisa ler.
+> Todas as habilidades pedem autorização ao abrir. Mesmo na navegação por material, o
+> reconhecimento de voz do navegador pode processar áudio em um serviço externo. Não é correto
+> prometer que nada sai do aparelho. A navegação de pastas continua sendo resolvida localmente.
 
 **Empresa antes de empreendimento, quando há mais de uma.** Um corretor com uma construtora só
 entra direto em "Qual empreendimento?" — é a mesma conversa de sempre. Com mais de uma, a primeira
@@ -1260,12 +1259,10 @@ Duas diferenças do item de menu para a escuta ambiente, e as duas são de prop�
   ("posts"); aqui é uma frase inteira com dia, hora, empreendimento e cliente — cortar cedo demais
   mandaria metade do comando para o modelo.
 
-> **Consentimento: só a simulação pede.** O modal de consentimento existe porque a simulação grava
-> uma conversa com o **cliente**, cujos dados não são do corretor. Material e Agenda são o corretor
-> falando sozinho sobre o próprio trabalho. A Agenda **envia a frase** para a IA (é ela que resolve
-> "dia 25 às 10" em data e hora) e diz isso em letras na própria tela — mas sem o peso de um modal
-> sobre dado de terceiro, porque não há terceiro. Repetir o mesmo aviso nas três treinaria o
-> corretor a aceitar sem ler, e é na negociação que ele precisa ler.
+> **Consentimento por abertura, inclusive Agenda.** A frase enviada à IA pode conter dados
+> de clientes. O modal explica fornecedores e finalidade antes do envio. Reabrir uma habilidade
+> exige novo aceite; revogar em Ajustes interrompe a sessão e bloqueia novos envios. Resposta de
+> agendamento recebida depois da revogação não cria um compromisso.
 
 `pareceAgendamento` e o casamento de nome (`resolverDoCatalogo`/`casarPorVoz`) são testados em
 Node puro, sem servidor e sem modelo — `npm run testar:lia`.
@@ -1350,25 +1347,10 @@ poupando tokens de saída sem custar nada em qualidade.
 | antes (3,5 s, sem cache/gatilho/Haiku) | **$2,134** |
 | agora, com cache/gatilho/Haiku, ainda a 3,5 s | **$0,122** |
 
-**17× mais barato, com o mesmo ritmo de resposta de antes.** A conta é feita contra os **R$ 89,90
-do Pro**, e não contra a média dos planos: a LIA é exclusiva do Pro, e quem paga Start ou Intermed
-não gera custo de LLM nenhum — o botão nem existe para eles. Com 30 simulações por corretor:
-
-| usuários | custo total R$ | **lucro R$** | margem |
-|---|---|---|---|
-| 10 | 48,08 | 41,82 | 47% |
-| 30 | 31,88 | 58,02 | 65% |
-| 80 | 26,82 | 63,08 | 70% |
-| 200 | 24,99 | 64,91 | 72% |
-| 400 | 24,39 | **65,51** | **73%** |
-
-Em 10 usuários quem domina não é mais a LIA (R$ 19,80) — é a infra fixa do Supabase e da Vercel
-(R$ 24,30 divididos por dez). Isso se dilui sozinho com a escala. Com 15 simulações/mês em vez de
-30, a margem sobe mais ainda (58% a 84% — ver `npm run custo:lia`).
-
-> A simulação subiu de $0,091 para $0,122 quando a janela ANTES e os nomes do catálogo no gatilho
-> entraram. **É o custo de a LIA funcionar**: sem os dois, ela custava menos e não capturava nada.
-> R$ 0,17 a mais por simulação, contra uma margem de 73%.
+Esses números são estimativas históricas do processamento, não medições de produção nem garantia
+de margem. Para recalcular com a mensalidade atual do Pro (R$ 69,90), execute `npm run custo:lia`.
+Revise as premissas de câmbio, tarifas, infraestrutura, tokens e volume antes de uma decisão comercial.
+Outros recursos de IA têm custos próprios; o modelo não representa o custo total de cada conta.
 
 A Edge Function passou a devolver o **`uso` real** de cada chamada (incluindo quanto veio da cache).
 `scripts/custo-lia.mjs` ainda estima tokens por caracteres; quando houver uso de verdade, troque a
@@ -1490,12 +1472,14 @@ uma mensagem em vez de queimar a aba.
 A LIA abre um microfone numa sala onde há **outra pessoa**, e o titular do dado é o cliente, não
 o corretor. Por isso:
 
-- **Consentimento explícito antes da primeira sessão**, nomeando a Anthropic (regra 5.1.2(i) da
+- **Consentimento explícito a cada abertura**, nomeando a Anthropic (regra 5.1.2(i) da
   App Store) e dizendo com todas as letras que o cliente precisa saber que está sendo transcrito.
-- **O áudio não é gravado nem enviado.** O que sai do aparelho é o texto, no momento da análise.
+- **O POUP não grava o áudio.** O navegador pode enviá-lo ao fornecedor de reconhecimento de voz;
+  o texto necessário é enviado à Anthropic para análise. Não se garante transcrição local.
 - **A transcrição vive só na sessão** e é apagada ao encerrar ou ao entregar para o simulador —
   ela contém nome, CPF e renda de alguém que não é o usuário do app.
-- **O consentimento é da pessoa, não do aparelho**: o `AuthProvider` o apaga no logout.
+- **Aceite antigo não autoriza conversa nova**: a autorização fica na memória da sessão,
+  pode ser revogada em Ajustes e é encerrada na troca de conta/logout.
 - **O sinal de "estou ouvindo" acompanha a navegação.** O botão vira um anel pulsante verde e o
   `LiaProvider` envolve o layout inteiro de `(app)` — se o corretor for consultar um cadastro no
   meio da conversa, o aviso vai junto e a sessão não se perde.
@@ -1738,7 +1722,7 @@ Rode as 5 migrations **em ordem** no SQL Editor do Supabase: `0001_init.sql` →
 **`ai_limits`** — teto de IA por plano e recurso (0028). `-1` = sem teto (só `admin`). RLS: leitura para qualquer logado, **nenhuma policy de escrita** — ninguém aumenta o próprio teto pelo app.
 | Coluna | Tipo | Observação |
 |---|---|---|
-| `plano`, `recurso` | text | PK composta. `plano` ∈ admin/teste/pro/intermed/start/nenhum |
+| `plano`, `recurso` | text | PK composta. `plano` ∈ admin/teste/pro/start/nenhum |
 | `teto_mes`, `teto_minuto` | integer | `-1` = sem teto; `0` = plano não inclui |
 
 **`ai_usage`** — consumo por usuário, recurso e ciclo (0028). RLS: **só leitura** (própria, ou tudo se admin). A escrita passa obrigatoriamente por `consumir_ia()`/`estornar_ia()`.
@@ -1835,7 +1819,6 @@ EXPO_PUBLIC_SUPABASE_URL=            # Supabase Dashboard > Project Settings > A
 EXPO_PUBLIC_SUPABASE_ANON_KEY=       # idem (chave anon/public)
 EXPO_PUBLIC_APP_URL=                 # http://localhost:8081 (local) ou o domínio de produção
 EXPO_PUBLIC_STRIPE_PRICE_START=      # price_... do produto "POUP Start"
-EXPO_PUBLIC_STRIPE_PRICE_INTERMED=   # price_... do produto "POUP Intermed"
 EXPO_PUBLIC_STRIPE_PRICE_PRO=        # price_... do produto "POUP Pro"
 EXPO_PUBLIC_STORE_BUILD=             # "1" força o modo app-de-loja (o eas.json já manda isso)
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # herdada; nenhuma linha do app a lê hoje
@@ -1851,7 +1834,7 @@ precisa daquilo:
 | `EXPO_PUBLIC_SUPABASE_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Vercel · **EAS secrets** | obrigatória | obrigatória |
 | `EXPO_PUBLIC_APP_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
-| `EXPO_PUBLIC_STRIPE_PRICE_START/INTERMED/PRO` | Vercel | obrigatórias | não usadas |
+| `EXPO_PUBLIC_STRIPE_PRICE_START/PRO` | Vercel | obrigatórias | não usadas |
 | `EXPO_PUBLIC_STORE_BUILD` | `eas.json` (versionado) | opcional | já vem no perfil |
 | `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | — | não usada | não usada |
 
@@ -1859,7 +1842,7 @@ precisa daquilo:
   build**: mudar o valor sem redeployar deixa o site publicado com o valor antigo, sem aviso.
 - **EAS** → *Project settings → Environment variables*, ou `eas secret:create`. O `eas.json` do
   repositório declara **só** `EXPO_PUBLIC_STORE_BUILD` — segredo não entra em arquivo versionado.
-- Os três `STRIPE_PRICE_*` não entram no app das lojas porque lá `canShowBilling` é `false`: não há
+- Os dois `STRIPE_PRICE_*` não entram no app das lojas porque lá `canShowBilling` é `false`: não há
   paywall nem botão de assinar, e desde a remoção do checkout do binário o arquivo que os usaria nem
   entra no bundle nativo (ver `src/features/cobranca/`).
 - `EXPO_PUBLIC_APP_URL` **é obrigatória também no app**, e isso costuma surpreender: a tela de Leads
@@ -1918,23 +1901,23 @@ No fim, a tela **sai da conta** e manda para o login. É o que o corretor pediu 
 
 Link expirado ou já usado é o caso **comum**, não a exceção — eles duram pouco e valem uma vez só. Por isso vira uma tela própria ("Link expirado") com o botão de pedir outro, em vez de um erro técnico.
 
-### Configuração do Stripe (os três planos)
+### Configuração do Stripe (Start e Pro)
 
 **Guia completo passo a passo (100% pelo navegador): [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).** Resumo:
 
-1. Crie três Produtos (`POUP Start` R$ 29,90, `POUP Intermed` R$ 49,90, `POUP Pro` R$ 89,90) com preço recorrente mensal; copie os `price_...`.
+1. Aplique as migrations pendentes, incluindo `20260916031259_planos_start_pro.sql`, após revisão do ambiente alvo. Crie dois preços recorrentes BRL/mensais: Start R$ 29,90 e Pro R$ 69,90. Copie os `price_...`.
 2. Copie a publishable key (`pk_...`).
 3. Publique as Edge Functions colando o código de cada uma no Supabase Dashboard. `stripe-webhook` e `get-financing-simulation` vão com **Verify JWT desmarcado** — quem as chama não tem login (o Stripe e o cliente do corretor), e as duas validam por outro caminho (assinatura criptográfica e hash de token).
-4. Configure os segredos: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`, `STRIPE_PRICE_INTERMED`, `STRIPE_PRICE_PRO`.
+4. Configure os segredos: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`, `STRIPE_PRICE_PRO`. Restrinja as opções do portal aos dois preços atuais.
 5. No Stripe Dashboard, aponte um webhook para `https://<projeto>.supabase.co/functions/v1/stripe-webhook`, assinando `checkout.session.completed` e `customer.subscription.*`; copie o `whsec_...` para o segredo acima.
 
 > **Preço no Stripe não se edita — cria-se outro.** Um `Price` é imutável porque
 > assinaturas ativas apontam para ele. Mudar um valor é criar preço novo,
 > arquivar o antigo, trocar as variáveis nos **dois** lados (Vercel e Supabase) e
-> **redeployar a Vercel** — as `EXPO_PUBLIC_*` são embutidas no build, então sem
-> redeploy o site publicado continua vendendo pelo preço velho, sem aviso
-> nenhum. E quem já assina **continua no preço antigo** até você migrar a
-> assinatura dele. O guia detalha os três caminhos de migração.
+> **redeployar a Vercel**. O checkout valida também moeda, valor e periodicidade;
+> o webhook rejeita preços desconhecidos, sem classificá-los como Start.
+> Esta entrega considera a confirmação de que não existem clientes de produção.
+> Caso apareçam assinaturas antigas no inventário, pare a publicação e revise a transição.
 
 ---
 

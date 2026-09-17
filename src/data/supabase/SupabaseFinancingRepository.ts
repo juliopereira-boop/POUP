@@ -12,6 +12,7 @@
  * sem banco, sem rede e sem mock: se a conta morasse junto do acesso a dados,
  * testar exigiria subir um Postgres.
  */
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase';
 import { LIMITE_LISTA } from './limites';
 import type { Json } from '@/data/database.types';
@@ -109,26 +110,16 @@ function corpo(data: Partial<FinancingSimulationInput>) {
  *
  * O banco guarda o hash e nunca o token. Se o banco vazar, os links já
  * emitidos continuam inúteis — é o mesmo raciocínio de não guardar senha em
- * texto claro. `crypto.subtle` existe na web e no React Native moderno (via
- * `expo-crypto` no runtime do Expo); onde não existir, o método devolve erro
- * em vez de gravar um token fraco.
+ * texto claro. A API explícita do Expo funciona também no runtime nativo;
+ * se falhar, não emitimos um token fraco.
  */
-async function hashDoToken(token: string): Promise<string | null> {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
-  if (!c?.subtle) return null;
-  const bytes = new TextEncoder().encode(token);
-  const digest = await c.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+async function hashDoToken(token: string): Promise<string> {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, token);
 }
 
-/** 32 bytes aleatórios em base36. Sorteado no aparelho, nunca no servidor. */
-function sortearToken(): string | null {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
-  if (!c?.getRandomValues) return null;
-  const bytes = new Uint8Array(24);
-  c.getRandomValues(bytes);
+/** 24 bytes criptográficos em base36: preserva o formato dos links existentes. */
+async function sortearToken(): Promise<string> {
+  const bytes = await Crypto.getRandomBytesAsync(24);
   return Array.from(bytes)
     .map((b) => b.toString(36).padStart(2, '0'))
     .join('');
@@ -331,12 +322,12 @@ export class SupabaseFinancingRepository implements FinancingRepository {
     simulationId: string,
     validadeDias: number,
   ): Promise<Result<FinancingShareLink>> {
-    const token = sortearToken();
-    if (!token) {
-      return err('Este dispositivo não consegue gerar um link seguro. Envie o PDF no lugar.');
-    }
-    const hash = await hashDoToken(token);
-    if (!hash) {
+    let token: string;
+    let hash: string;
+    try {
+      token = await sortearToken();
+      hash = await hashDoToken(token);
+    } catch {
       return err('Este dispositivo não consegue gerar um link seguro. Envie o PDF no lugar.');
     }
 

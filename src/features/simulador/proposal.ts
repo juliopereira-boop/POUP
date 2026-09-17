@@ -48,6 +48,18 @@ function pctOf(n: number, total: number): string {
   return `${(total > 0 ? (n / total) * 100 : 0).toFixed(2)}%`;
 }
 
+/** A linha tem seis colunas; um campo isolado ocupa todo o espaço restante. */
+export function agencyRowHtml(profile: UserProfile | null): string {
+  const agency = profile?.agency?.trim();
+  const cnpj = profile?.cnpj?.trim();
+  if (agency && cnpj) {
+    return `<tr><td class="k">IMOBILIÁRIA:</td><td>${esc(agency)}</td><td class="k">CNPJ:</td><td colspan="3">${esc(formatCNPJ(cnpj))}</td></tr>`;
+  }
+  if (agency) return `<tr><td class="k">IMOBILIÁRIA:</td><td colspan="5">${esc(agency)}</td></tr>`;
+  if (cnpj) return `<tr><td class="k">CNPJ:</td><td colspan="5">${esc(formatCNPJ(cnpj))}</td></tr>`;
+  return '';
+}
+
 /**
  * Marca do topo: logo do POUP e, ao lado, a foto redonda da construtora.
  *
@@ -356,7 +368,7 @@ function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): 
     <table class="kv">
       <tr><td class="k">EMPREENDIMENTO:</td><td>${esc(ctx.developmentName)}</td><td class="k">BLOCO:</td><td>${sim.block}</td><td class="k">UNIDADE:</td><td>${esc(sim.unit)}</td></tr>
       <tr><td class="k">CORRETOR:</td><td>${esc(profile?.fullName)}</td><td class="k">CONTATO:</td><td colspan="3">${esc(profile?.phone ? formatPhone(profile.phone) : '')}</td></tr>
-      <tr><td class="k">IMOBILIÁRIA:</td><td>${esc(profile?.agency)}</td><td class="k">CNPJ:</td><td colspan="3">${esc(profile?.cnpj ? formatCNPJ(profile.cnpj) : '')}</td></tr>
+      ${agencyRowHtml(profile)}
     </table>
 
     <div class="band">DADOS PRIMEIRO PROPONENTE</div>

@@ -22,8 +22,9 @@ import { liaDisponivel } from '@/features/store';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
 import {
   AVISOS_LIA,
+  aoRevogarConsentimentoLia,
   darConsentimentoLia,
-  temConsentimentoLia,
+  limparConsentimentoLia,
 } from '@/features/lia/consentimento';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -31,40 +32,40 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 export function Lia() {
   const router = useRouter();
   const lia = useLia();
+  const encerrarLia = lia.encerrar;
   const { canUse } = useFeatureAccess();
+  const acessoPermitido = liaDisponivel && canUse('lia');
 
   const [painelAberto, setPainelAberto] = useState(false);
   const [materialAberto, setMaterialAberto] = useState(false);
   const [agendaAberta, setAgendaAberta] = useState(false);
   const [pedindoConsentimento, setPedindoConsentimento] = useState(false);
-  const [jaConsentiu, setJaConsentiu] = useState<boolean | null>(null);
+  const [habilidadePendente, setHabilidadePendente] = useState<HabilidadeLia | null>(null);
 
   useEffect(() => {
-    void temConsentimentoLia().then(setJaConsentiu);
-  }, []);
+    if (acessoPermitido) return;
+    encerrarLia();
+    setPainelAberto(false);
+    setMaterialAberto(false);
+    setAgendaAberta(false);
+    setPedindoConsentimento(false);
+    setHabilidadePendente(null);
+    void limparConsentimentoLia();
+  }, [acessoPermitido, encerrarLia]);
+
+  useEffect(() => {
+    return aoRevogarConsentimentoLia(() => {
+      encerrarLia();
+      setPainelAberto(false);
+      setMaterialAberto(false);
+      setAgendaAberta(false);
+    });
+  }, [encerrarLia]);
 
   const abrir = useCallback((habilidade: HabilidadeLia) => {
-    /*
-     * SÓ A SIMULAÇÃO PEDE O CONSENTIMENTO DA ESCUTA, E ISSO É DELIBERADO.
-     *
-     * O consentimento existe porque a simulação abre o microfone numa conversa
-     * com o CLIENTE — cujos dados não são do corretor — e manda a conversa
-     * inteira para um serviço de IA. As outras duas são o corretor falando
-     * sozinho sobre o próprio trabalho:
-     *
-     *   - **material**: uma palavra para navegar na própria pasta, sem nada
-     *     saindo do aparelho (o casamento é local);
-     *   - **agenda**: uma frase sobre a própria agenda. Ela SAI do aparelho
-     *     para virar data e hora, e a tela diz isso em letras — mas não carrega
-     *     o peso de um modal de consentimento sobre dado de terceiro, porque
-     *     não há terceiro.
-     *
-     * Repetir o mesmo aviso pesado nas três treinaria o corretor a aceitar sem
-     * ler, e é justamente na simulação que ele precisa ler.
-     */
-    if (habilidade === 'material') setMaterialAberto(true);
-    else if (habilidade === 'agenda') setAgendaAberta(true);
-    else setPainelAberto(true);
+    void limparConsentimentoLia();
+    setHabilidadePendente(habilidade);
+    setPedindoConsentimento(true);
   }, []);
 
   /*
@@ -78,19 +79,19 @@ export function Lia() {
    * caminho. Pedindo antes, o toque em "Começar a ouvir" é sempre um gesto
    * limpo, direto no `iniciar()`.
    */
-  useEffect(() => {
-    if (painelAberto && jaConsentiu === false) setPedindoConsentimento(true);
-  }, [painelAberto, jaConsentiu]);
-
   async function aceitar() {
     await darConsentimentoLia();
-    setJaConsentiu(true);
     setPedindoConsentimento(false);
+    if (habilidadePendente === 'material') setMaterialAberto(true);
+    else if (habilidadePendente === 'agenda') setAgendaAberta(true);
+    else setPainelAberto(true);
+    setHabilidadePendente(null);
   }
 
   function recusar() {
     setPedindoConsentimento(false);
-    setPainelAberto(false);
+    setHabilidadePendente(null);
+    void limparConsentimentoLia();
   }
 
   const levarParaSimulador = useCallback(async () => {
@@ -118,14 +119,13 @@ export function Lia() {
    * O segundo é o PLANO. A LIA é do Pro, e aqui ela some INTEIRA em vez de
    * virar um botão que abre um aviso de upgrade.
    *
-   * É a diferença entre vender e importunar: quem está no Start ou no Intermed
+   * É a diferença entre vender e importunar: quem está no Start
    * já vê a LIA na tela de planos, com preço e descrição. Repetir isso num
    * botão flutuante que acompanha o corretor por todas as telas seria propaganda
    * perseguindo quem já disse não — e ainda ocuparia o canto da tela sem
    * entregar nada.
    *
-   * Durante o teste gratuito `canUse` devolve `true`: é justamente assim que o
-   * corretor conhece a LIA e decide assinar o Pro por causa dela.
+   * O teste gratuito não libera a LIA; é necessária uma assinatura Pro ativa.
    */
   if (!liaDisponivel) return null;
   if (!canUse('lia')) return null;
@@ -166,7 +166,7 @@ function ModalConsentimento({
         <View style={styles.caixa}>
           <View style={styles.topo}>
             <Logo size={30} />
-            <Text style={styles.titulo}>A LIA vai ouvir a conversa</Text>
+            <Text style={styles.titulo}>Autorizar voz e IA nesta sessão</Text>
           </View>
 
           <ScrollView style={styles.lista} contentContainerStyle={styles.listaConteudo}>
@@ -179,10 +179,11 @@ function ModalConsentimento({
           </ScrollView>
 
           <Text style={styles.destaque}>
-            O cliente precisa saber que a conversa está sendo transcrita. Os dados são dele.
+            Ao autorizar, confirmo que informei e obtive a autorização necessária das pessoas
+            cujos dados serão usados nesta sessão.
           </Text>
 
-          <Button label="Entendi, pode ouvir" onPress={aoAceitar} />
+          <Button label="Autorizar esta sessão" onPress={aoAceitar} />
           <Pressable onPress={aoRecusar} style={styles.recusar}>
             <Text style={styles.recusarTexto}>Agora não</Text>
           </Pressable>

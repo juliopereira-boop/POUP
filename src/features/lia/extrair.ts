@@ -42,6 +42,7 @@
 import { mensagemDoErro } from '@/lib/edgeError';
 import { supabase } from '@/lib/supabase';
 import { CAMPOS, campoParaPrompt } from './campos';
+import { temConsentimentoLia } from './consentimento';
 
 export type ModoExtracao = 'parcial' | 'final';
 
@@ -106,6 +107,7 @@ export interface PedidoExtracao {
 }
 
 export async function extrair(p: PedidoExtracao): Promise<ResultadoExtracao | { erro: string }> {
+  if (!(await temConsentimentoLia())) return { erro: 'Autorize uma nova sessão da LIA antes de enviar dados.' };
   const { data, error } = await supabase.functions.invoke('lia-extract', {
     body: {
       versao: VERSAO_CONTRATO,

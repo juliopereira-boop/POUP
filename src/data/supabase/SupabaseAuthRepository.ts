@@ -1,6 +1,7 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
+import * as Crypto from 'expo-crypto';
 
 import { mensagemDoErro } from '@/lib/edgeError';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -19,6 +20,24 @@ function mapUser(user: User | null): AuthUser | null {
     displayName: (meta.full_name as string) ?? (meta.name as string) ?? null,
     avatarUrl: (meta.avatar_url as string) ?? (meta.picture as string) ?? null,
   };
+}
+
+async function appleNonce(): Promise<{ raw: string; hashed: string }> {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  const raw = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return { raw, hashed: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, raw) };
+}
+
+async function linkAppleCode(code: string | null): Promise<boolean> {
+  if (!code) return false;
+  try {
+    const { data, error } = await supabase.functions.invoke('apple-link', {
+      body: { authorizationCode: code },
+    });
+    return !error && data?.vinculado === true;
+  } catch {
+    return false;
+  }
 }
 
 function friendlyError(message: string): string {
@@ -126,6 +145,7 @@ export class SupabaseAuthRepository implements AuthRepository {
     const params = new URLSearchParams(url.hash.replace(/^#/, ''));
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token');
+    if (!access_token || !refresh_token) return err(`O ${nomeAmigavel} não devolveu a sessão. Tente novamente.`);
     if (access_token && refresh_token) {
       const { error: sessionError } = await supabase.auth.setSession({
         access_token,
@@ -164,7 +184,9 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     try {
+      const nonce = await appleNonce();
       const credencial = await AppleAuthentication.signInAsync({
+        nonce: nonce.hashed,
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
@@ -183,6 +205,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credencial.identityToken,
+        nonce: nonce.raw,
       });
       if (error) return err(friendlyError(error.message));
 
@@ -206,21 +229,10 @@ export class SupabaseAuthRepository implements AuthRepository {
         await supabase.auth.updateUser({ data: { full_name: nome } }).catch(() => undefined);
       }
 
-      /*
-       * O `authorizationCode` EXPIRA EM CINCO MINUTOS, e é a única chance de
-       * obter um refresh token da Apple.
-       *
-       * A Apple exige que a autorização seja revogada quando a conta é
-       * excluída — e revogar precisa desse token, que só existe se for trocado
-       * agora. Meses depois, na hora da exclusão, não há mais como consegui-lo.
-       *
-       * Sem `await`: guardar a credencial é conformidade, não login. Se a
-       * Apple estiver fora do ar, o corretor entra do mesmo jeito.
-       */
-      if (credencial.authorizationCode) {
-        void supabase.functions
-          .invoke('apple-link', { body: { authorizationCode: credencial.authorizationCode } })
-          .catch(() => undefined);
+      // O código é de uso único. Uma falha exige nova autenticação, não retry cego.
+      if (!await linkAppleCode(credencial.authorizationCode)) {
+        Alert.alert('Conexão Apple incompleta',
+          'Você entrou, mas não conseguimos concluir o vínculo com a Apple. Ao excluir sua conta, poderá ser necessário confirmar sua identidade com a Apple novamente. Se o problema continuar, fale com o suporte.');
       }
 
       return ok(undefined);
@@ -308,7 +320,8 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async signOut(): Promise<void> {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
     // A limpeza do que ficou no aparelho é do `AuthProvider`
     // (`clearLocalUserData`), que já a fazia antes desta auditoria e conhece as
     // chaves de cada feature. Duplicar aqui só criaria duas listas para
@@ -316,6 +329,32 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async deleteAccount(confirm: string): Promise<Result<void>> {
+    if (confirm !== 'EXCLUIR') return err('Digite EXCLUIR para confirmar.');
+    const { data: current, error: userError } = await supabase.auth.getUser();
+    if (userError || !current.user) return err('Entre novamente antes de excluir a conta.');
+    if (Platform.OS === 'ios' && current.user.identities?.some((identity) => identity.provider === 'apple')) {
+      const { data: status, error: statusError } = await supabase.functions.invoke('apple-link', {
+        body: { action: 'status' },
+      });
+      if (statusError || !status?.configurado) {
+        return err('Não foi possível preparar a exclusão com a Apple. Tente novamente ou fale com o suporte. Sua conta não foi excluída.');
+      }
+      if (!status.vinculado) {
+        try {
+          const nonce = await appleNonce();
+          const credential = await AppleAuthentication.signInAsync({ nonce: nonce.hashed, requestedScopes: [] });
+          // NÃO trocar a sessão Supabase: o servidor compara com a identidade atual.
+          if (!await linkAppleCode(credential.authorizationCode)) {
+            return err('Não foi possível confirmar o vínculo. Use a mesma conta Apple do cadastro e tente novamente. Sua conta não foi excluída.');
+          }
+        } catch (error) {
+          if ((error as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
+            return err('Confirmação Apple cancelada. Sua conta não foi excluída.');
+          }
+          return err('Não foi possível confirmar sua identidade com a Apple. Tente novamente.');
+        }
+      }
+    }
     const { data, error } = await supabase.functions.invoke('delete-account', {
       body: { confirm },
     });

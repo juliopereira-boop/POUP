@@ -112,13 +112,8 @@ export default function LoginScreen() {
       </View>
 
       {/*
-        No app das lojas não existe "criar conta": o POUP é companion de uma
-        assinatura vendida no site, e um cadastro (ou um teste grátis) aqui
-        dentro seria uma oferta comercial fora do In-App Purchase — ver
-        `podeCriarConta` em `features/store.ts`.
-
-        Em vez de um link que não leva a lugar nenhum, uma frase que diz onde
-        resolver. Quem baixou o app sem ter conta precisa saber o que fazer.
+        Cadastro por formulário fica na web por decisão de produto. Login
+        social pode criar uma identidade; não oferece compra dentro do app.
       */}
       {podeCriarConta ? (
         <View style={styles.footer}>
@@ -130,7 +125,7 @@ export default function LoginScreen() {
       ) : (
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Este aplicativo é para quem já tem uma conta POUP.
+            Acesse sua conta POUP. As funcionalidades dependem do acesso disponível na sua conta.
           </Text>
         </View>
       )}

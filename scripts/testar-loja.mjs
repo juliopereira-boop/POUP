@@ -66,7 +66,7 @@ function plans(storeBuild, plataforma) {
   const s = store(storeBuild, plataforma);
   return compilar(path.join(process.cwd(), 'src/features/plans.ts'), (spec) => {
     if (spec === './store') return s;
-    if (spec === '@/lib/env') return { env: { stripePriceStart: '', stripePriceIntermed: '', stripePricePro: '' } };
+    if (spec === '@/lib/env') return { env: { stripePriceStart: '', stripePricePro: '' } };
     if (spec === '@/data/types') return {};
     return require(spec);
   });
@@ -92,7 +92,7 @@ function secao(t) {
   checar('é build de loja', s.isStoreBuild === true);
   checar('cobrança escondida (3.1.1)', s.canShowBilling === false);
   checar('LIA escondida (2.1 / 2.3)', s.liaDisponivel === false);
-  checar('cadastro e teste grátis bloqueados (3.1.1)', s.podeCriarConta === false);
+  checar('formulário de cadastro fica na web por decisão de produto', s.podeCriarConta === false);
 
   // O paywall não pode ANUNCIAR o que aquele binário não entrega.
   const p = plans('1', 'ios');
@@ -120,6 +120,9 @@ function secao(t) {
     checar(`${os}: tratado como loja`, s.isStoreBuild === true);
     checar(`${os}: LIA escondida`, s.liaDisponivel === false);
     checar(`${os}: cadastro bloqueado`, s.podeCriarConta === false);
+    const disabledFlag = store('0', os);
+    checar(`${os}: flag não libera cobrança nativa`, disabledFlag.canShowBilling === false);
+    checar(`${os}: flag não libera LIA nativa`, disabledFlag.liaDisponivel === false);
   }
 }
 

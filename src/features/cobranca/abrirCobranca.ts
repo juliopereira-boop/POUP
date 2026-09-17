@@ -23,6 +23,7 @@
 import { getAppUrl } from '@/lib/appUrl';
 import { supabase } from '@/lib/supabase';
 import { err, ok } from '@/data/types';
+import { mensagemDoErro } from '@/lib/edgeError';
 
 import type { AbrirCheckout, AbrirPortalDeCobranca } from './contrato';
 
@@ -39,7 +40,7 @@ export const abrirCheckout: AbrirCheckout = async (priceId) => {
       cancelUrl: `${getAppUrl()}/paywall?checkout=cancel`,
     },
   });
-  if (error) return err(error.message);
+  if (error) return err(await mensagemDoErro(error, 'Não foi possível iniciar o pagamento.'));
   const url = (data as { url?: string })?.url;
   if (!url) return err('Não foi possível iniciar o pagamento.');
   irPara(url);
@@ -50,7 +51,7 @@ export const abrirPortalDeCobranca: AbrirPortalDeCobranca = async () => {
   const { data, error } = await supabase.functions.invoke('create-billing-portal-session', {
     body: { returnUrl: `${getAppUrl()}/configuracoes` },
   });
-  if (error) return err(error.message);
+  if (error) return err(await mensagemDoErro(error, 'Não foi possível abrir o portal de assinatura.'));
   const url = (data as { url?: string })?.url;
   if (!url) return err('Não foi possível abrir o portal de assinatura.');
   irPara(url);

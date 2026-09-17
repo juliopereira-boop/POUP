@@ -96,11 +96,6 @@ const REGRAS = [
     porque: 'o plano Start fica indisponível no paywall e ninguém consegue assinar.',
   },
   {
-    nome: 'EXPO_PUBLIC_STRIPE_PRICE_INTERMED',
-    contextos: ['web'],
-    porque: 'idem, para o plano Intermed.',
-  },
-  {
     nome: 'EXPO_PUBLIC_STRIPE_PRICE_PRO',
     contextos: ['web'],
     porque: 'idem, para o plano Pro.',

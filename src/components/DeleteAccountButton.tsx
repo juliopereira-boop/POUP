@@ -60,15 +60,19 @@ export function DeleteAccountButton() {
     if (!confirmado || excluindo) return;
     setExcluindo(true);
     setErro(null);
-    const result = await deleteAccount(CONFIRMACAO);
-    if (!result.ok) {
+    try {
+      const result = await deleteAccount(CONFIRMACAO);
+      if (!result.ok) {
+        setErro(result.error);
+        return;
+      }
+      setAberto(false);
+      router.replace('/');
+    } catch {
+      setErro('Não foi possível concluir a exclusão. Tente novamente ou fale com o suporte.');
+    } finally {
       setExcluindo(false);
-      setErro(result.error);
-      return;
     }
-    // A sessão já morreu junto com a conta. A raiz decide para onde mandar.
-    setAberto(false);
-    router.replace('/');
   }
 
   return (
@@ -105,6 +109,7 @@ export function DeleteAccountButton() {
 
               <Text style={styles.aviso}>
                 Se você tem assinatura ativa, ela é cancelada agora e não haverá nova cobrança.
+                {' '}Se entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
               </Text>
 
               <Input

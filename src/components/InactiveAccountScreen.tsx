@@ -16,12 +16,13 @@
  * ------------------------------------------------------------------
  * O QUE SOBRA PARA O CORRETOR FAZER
  * ------------------------------------------------------------------
- * Conferir de novo (a assinatura pode ter sido ativada agora, em outro
- * aparelho) e sair da conta. É pouco, e é o preço de não vender pela loja.
+ * Conferir de novo, sair da conta, acessar suporte/privacidade e excluir a
+ * conta. A gestão essencial nunca depende de uma assinatura ativa.
  */
 import { Text, View, StyleSheet } from 'react-native';
 
 import { Button } from './Button';
+import { AccountActions } from './AccountActions';
 import { Logo } from './Logo';
 import { Screen } from './Screen';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -63,6 +64,7 @@ export function InactiveAccountScreen({
         <View style={styles.actions}>
           <Button label="Conferir de novo" onPress={onCheckAgain} loading={checking} />
           <Button label="Sair da conta" variant="secondary" onPress={onSignOut} />
+          <AccountActions />
         </View>
       </View>
     </Screen>

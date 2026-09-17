@@ -20,8 +20,9 @@ export function useFeatureAccess(): FeatureAccess {
   const isTrial = subscription?.status === 'trialing' && trialDaysLeft !== null;
 
   const check = useCallback(
-    (feature: PlanFeatureKey) => canUse(feature, tier, isTrial),
-    [tier, isTrial],
+    (feature: PlanFeatureKey) =>
+      (feature !== 'lia' || subscription?.status === 'active') && canUse(feature, tier, isTrial),
+    [tier, isTrial, subscription?.status],
   );
 
   return useMemo(() => ({ isTrial, canUse: check }), [isTrial, check]);

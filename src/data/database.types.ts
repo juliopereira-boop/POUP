@@ -150,6 +150,7 @@ export interface Database {
           storage_limit_bytes: number;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
+          stripe_event_created: number;
           current_period_end: string | null;
           cancel_at_period_end: boolean;
           trial_started_at: string | null;
@@ -168,6 +169,7 @@ export interface Database {
           trial_days?: number | null;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
+          stripe_event_created?: number;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
           created_at?: string;
@@ -180,6 +182,7 @@ export interface Database {
           storage_limit_bytes?: number;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
+          stripe_event_created?: number;
           current_period_end?: string | null;
           cancel_at_period_end?: boolean;
           trial_started_at?: string | null;
@@ -1098,6 +1101,27 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      /** Somente service_role; não chamar do aplicativo. */
+      assign_billing_customer: {
+        Args: { p_user_id: string; p_customer_id: string };
+        Returns: string;
+      };
+      /** Sincronização atômica do webhook, exclusiva de service_role. */
+      sync_billing_subscription: {
+        Args: {
+          p_user_id: string;
+          p_status: string;
+          p_price_id: string;
+          p_tier: string;
+          p_storage_limit: number;
+          p_customer_id: string;
+          p_subscription_id: string;
+          p_period_end: string | null;
+          p_cancel_at_period_end: boolean;
+          p_event_created: number;
+        };
+        Returns: boolean;
+      };
       user_storage_used: {
         Args: { uid: string };
         Returns: number;

@@ -414,7 +414,7 @@ function VendaContent() {
           onPress={() =>
             router.push({
               pathname: '/(app)/relatorios/[id]',
-              params: { id: sale.simulationId },
+              params: { id: sale.simulationId! },
             })
           }
           style={styles.blockBtn}
@@ -427,7 +427,7 @@ function VendaContent() {
           onPress={() =>
             router.push({
               pathname: '/(app)/leads/[id]',
-              params: { id: sale.leadId },
+              params: { id: sale.leadId! },
             })
           }
           style={styles.blockBtn}

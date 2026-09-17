@@ -44,8 +44,8 @@ export default function PerfilScreen() {
 
   async function save() {
     setError(null);
-    if (!fullName.trim() || !agency.trim() || !cnpj.trim() || !cpf.trim() || !phone.trim()) {
-      setError('Nome, CPF, imobiliária, CNPJ e telefone são obrigatórios.');
+    if (!fullName.trim() || !cpf.trim() || !phone.trim() || !uf) {
+      setError('Nome, CPF, telefone e estado são obrigatórios.');
       return;
     }
     if (!isValidCPF(cpf)) {
@@ -55,9 +55,9 @@ export default function PerfilScreen() {
     setSaving(true);
     const result = await updateProfile({
       fullName: fullName.trim(),
-      agency: agency.trim(),
+      agency: agency.trim() || null,
       agencyManager: agencyManager.trim() || null,
-      cnpj: cnpj.trim(),
+      cnpj: cnpj.trim() || null,
       cpf: cpf.trim(),
       phone: phone.trim(),
       creci: creci.trim() || null,
@@ -85,9 +85,9 @@ export default function PerfilScreen() {
         placeholder="000.000.000-00"
         keyboardType="numbers-and-punctuation"
       />
-      <Input label="Imobiliária" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária" />
+      <Input label="Imobiliária (opcional)" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária, se houver" />
       <Input label="Gerente imob" value={agencyManager} onChangeText={setAgencyManager} placeholder="Nome do gerente da imobiliária" autoCapitalize="words" />
-      <Input label="CNPJ" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
+      <Input label="CNPJ (opcional)" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
       <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
       <Input label="CRECI (opcional)" value={creci} onChangeText={setCreci} placeholder="Seu registro CRECI" />
       <Select

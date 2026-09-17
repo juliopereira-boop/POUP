@@ -116,10 +116,10 @@ console.log(`\nreducao: ${(antes/agora).toFixed(0)}x mais barato\n`);
 const BRL_USD = 5.40;                 // AJUSTE se o cambio estiver outro
 /*
  * A LIA e exclusiva do PRO, entao a conta e contra a mensalidade do PRO — e nao
- * contra a media dos planos. Quem paga Start ou Intermed nao gera custo de LLM
- * nenhum: o botao da LIA nem existe para eles (`Lia.tsx`).
+ * contra a media dos planos. Quem paga Start nao usa a LIA; outros recursos de IA
+ * podem ter custos separados que este modelo nao contabiliza.
  */
-const MENSALIDADE = 89.90;
+const MENSALIDADE = 69.90;
 const STRIPE = MENSALIDADE * 0.0399 + 0.39;
 const INFRA_FIXA_USD = 45;            // Supabase Pro 25 + Vercel 20
 

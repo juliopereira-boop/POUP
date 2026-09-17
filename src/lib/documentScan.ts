@@ -1,6 +1,7 @@
 import { mensagemDoErro } from './edgeError';
 import { supabase } from './supabase';
 import { type Result, err, ok } from '@/data';
+import { temConsentimentoScan } from '@/features/scan/consent';
 
 export interface ScannedDocument {
   fullName: string;
@@ -12,7 +13,11 @@ export interface ScannedDocument {
 export async function scanDocument(
   imageBase64: string,
   mimeType: string,
+  autorizacaoTitular = false,
 ): Promise<Result<ScannedDocument>> {
+  if (!autorizacaoTitular || !(await temConsentimentoScan())) {
+    return err('Autorize a leitura deste documento antes de enviar a imagem. Você também pode preencher manualmente.');
+  }
   const { data, error } = await supabase.functions.invoke('scan-document', {
     body: { imageBase64, mimeType },
   });

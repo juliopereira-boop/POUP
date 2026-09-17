@@ -35,8 +35,6 @@ export function isProfileComplete(p: UserProfile | null): boolean {
   if (!p) return false;
   return Boolean(
     p.fullName?.trim() &&
-      p.agency?.trim() &&
-      p.cnpj?.trim() &&
       p.cpf?.trim() &&
       p.phone?.trim() &&
       // Sem UF o app não sabe quais empreendimentos do catálogo mostrar, então
@@ -55,12 +53,12 @@ export type SubscriptionStatus =
   | 'none';
 
 /**
- * Os três planos.
+ * Os dois planos disponíveis.
  *
  * A ordem da união é a ordem comercial (mais barato → mais completo), e vários
  * lugares dependem disso para achar "o plano mais barato que tem tal recurso".
  */
-export type PlanTier = 'start' | 'intermed' | 'pro';
+export type PlanTier = 'start' | 'pro';
 
 export interface Subscription {
   status: SubscriptionStatus;

@@ -157,7 +157,7 @@ export const GUIDE_STEPS: GuideStep[] = [
       'Workflow de Leads: crie suas etapas, com nome, ordem e cor',
       'Marque qual etapa é de agendamento e qual é de simulação',
       'Tema claro ou escuro',
-      'Seu perfil e sua imobiliária aparecem nas propostas',
+      'Seu perfil aparece nas propostas; imobiliária e CNPJ são opcionais',
     ],
   },
   {
@@ -165,10 +165,10 @@ export const GUIDE_STEPS: GuideStep[] = [
     title: 'Pronto para vender',
     description: 'Se quiser um roteiro para hoje, é este:',
     bullets: [
-      '1. Aceite sua construtora no catálogo do sistema — ou cadastre empresa e empreendimento',
-      '2. Suba um material de venda desse empreendimento',
-      '3. Publique seu QR Code de captação no story ou no WhatsApp',
-      '4. Faça a primeira simulação e gere a proposta',
+      '1. Abra Simuladores e escolha a simulação que precisa fazer',
+      '2. Para uma proposta de empreendimento, aceite a construtora no catálogo ou cadastre-a',
+      '3. Confira os valores e gere o PDF para o cliente',
+      '4. Depois organize seus materiais e publique seu QR Code de captação',
     ],
   },
 ];

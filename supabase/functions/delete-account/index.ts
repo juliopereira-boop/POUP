@@ -87,7 +87,9 @@ async function listarTudo(admin: Admin, raiz: string): Promise<string[]> {
       const { data, error } = await admin.storage
         .from(BUCKET)
         .list(prefixo, { limit: PAGE, offset });
-      if (error || !data || data.length === 0) break;
+      if (error) throw error;
+      if (!data) throw new Error('Storage não devolveu a listagem de arquivos.');
+      if (data.length === 0) break;
 
       for (const item of data) {
         const caminho = `${prefixo}/${item.name}`;
@@ -149,7 +151,9 @@ async function pararComPendencia(
     console.error('ATENCAO: pendencia de exclusao NAO registrada.', etapa, error.message);
   }
 
-  return json({ error: mensagem }, status);
+  return json({ error: error
+    ? 'Não foi possível concluir nem registrar seu pedido de exclusão. Tente novamente ou fale com o suporte.'
+    : mensagem }, status);
 }
 
 /**
@@ -183,11 +187,8 @@ async function limparPendencia(admin: Admin, userId: string): Promise<void> {
  * Nao ter credencial guardada e sucesso: significa que a conta nunca entrou
  * pela Apple (entrou por e-mail ou Google), e nao ha o que revogar.
  *
- * Os segredos nao estarem configurados TAMBEM e sucesso, e isso e uma escolha
- * consciente: bloquear a exclusao de conta porque falta uma variavel de
- * ambiente seria prender o usuario numa conta que ele pediu para apagar, o que
- * e pior -- inclusive perante a LGPD -- do que uma autorizacao pendente do
- * lado da Apple. O log grita para o operador resolver.
+ * Se há credencial Apple, segredos ausentes são uma pendência operacional.
+ * Não declarar sucesso e apagar a credencial que seria necessária à revogação.
  *
  * O que NAO e sucesso e a Apple recusar a revogacao: ai a exclusao para, porque
  * a credencial existe, da para revogar, e nao revogar seria descumprir a regra.
@@ -251,6 +252,7 @@ async function clientSecretApple(): Promise<string> {
 async function revogarApple(
   admin: Admin,
   userId: string,
+  temIdentidadeApple: boolean,
 ): Promise<{ ok: true } | { ok: false; motivo: string }> {
   const { data, error } = await admin
     .from('apple_credentials')
@@ -260,14 +262,12 @@ async function revogarApple(
 
   if (error) return { ok: false, motivo: `leitura: ${error.message}` };
   // Nunca entrou pela Apple: nada a revogar.
-  if (!data?.refresh_token) return { ok: true };
+  if (!data?.refresh_token) return temIdentidadeApple
+    ? { ok: false, motivo: 'Conta Apple sem credencial para revogação. Reautenticação ou suporte necessários.' }
+    : { ok: true };
 
   if (!APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY || !APPLE_CLIENT_ID) {
-    console.error(
-      'ATENCAO: conta com Sign in with Apple sendo excluida SEM revogacao — ' +
-        'os segredos APPLE_* nao estao configurados nas Edge Functions.',
-    );
-    return { ok: true };
+    return { ok: false, motivo: 'Configuração APPLE_* incompleta.' };
   }
 
   try {
@@ -294,6 +294,7 @@ async function revogarApple(
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
 
   try {
     const authHeader = req.headers.get('Authorization');
@@ -345,11 +346,12 @@ Deno.serve(async (req) => {
      * Não é uma porta trancada: é uma ordem. Tire o admin primeiro, exclua
      * depois. E não afeta corretor nenhum — `app_admins` só tem o dono do app.
      */
-    const { data: ehAdmin } = await admin
+    const { data: ehAdmin, error: adminError } = await admin
       .from('app_admins')
       .select('user_id')
       .eq('user_id', user.id)
       .maybeSingle();
+    if (adminError) throw adminError;
 
     if (ehAdmin) {
       return json(
@@ -386,12 +388,28 @@ Deno.serve(async (req) => {
      * recuperavel; seguir em frente nao e.
      */
 
+    // Preflight sem efeitos externos: não cancelar uma assinatura para só então
+    // descobrir que falta a credencial Apple. O cliente iOS pode recuperá-la.
+    if (user.identities?.some((identity) => identity.provider === 'apple')) {
+      const { data: apple, error: appleError } = await admin.from('apple_credentials')
+        .select('refresh_token').eq('user_id', user.id).maybeSingle();
+      if (appleError || !apple?.refresh_token
+        || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY || !APPLE_CLIENT_ID) {
+        return await pararComPendencia(admin, user.id, 'apple',
+          appleError ? 'Falha ao consultar vínculo Apple.' : 'Vínculo ou configuração Apple pendente.',
+          'Não foi possível preparar a exclusão com a Apple. Seu pedido ficou registrado. ' +
+          'Tente novamente pelo app iOS ou fale com o suporte. Sua conta não foi excluída.');
+      }
+    }
+
     // 1. Assinatura: parar a cobranca antes de perder o vinculo com o cliente.
-    const { data: sub } = await admin
+    const { data: sub, error: subError } = await admin
       .from('subscriptions')
       .select('stripe_subscription_id')
       .eq('user_id', user.id)
       .maybeSingle();
+    if (subError) return await pararComPendencia(admin, user.id, 'stripe', subError.message,
+      'Não foi possível conferir sua assinatura. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
 
     if (sub?.stripe_subscription_id) {
       try {
@@ -414,16 +432,16 @@ Deno.serve(async (req) => {
             'stripe',
             `${(e as Error).name} ${codigo ?? ''}`.trim(),
             'Não foi possível cancelar sua assinatura agora, e não vamos excluir a conta ' +
-              'deixando uma cobrança ativa. Seu pedido de exclusão ficou registrado e será ' +
-              'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte, ' +
-              'que cancelamos manualmente.',
+              'deixando uma cobrança ativa. Seu pedido de exclusão ficou registrado. ' +
+              'Tente de novo em alguns minutos; se continuar, fale com o suporte.',
           );
         }
       }
     }
 
     // 2. Revogar a autorizacao da Apple, se houver.
-    const revogacao = await revogarApple(admin, user.id);
+    const revogacao = await revogarApple(admin, user.id,
+      user.identities?.some((identity) => identity.provider === 'apple') ?? false);
     if (!revogacao.ok) {
       console.error('Exclusao interrompida: revogacao da Apple falhou.', revogacao.motivo);
       return await pararComPendencia(
@@ -431,13 +449,19 @@ Deno.serve(async (req) => {
         user.id,
         'apple',
         revogacao.motivo,
-        'Não foi possível concluir a exclusão agora. Seu pedido ficou registrado e será ' +
-          'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte.',
+        'Não foi possível concluir a exclusão agora. Seu pedido ficou registrado. ' +
+          'Tente de novo em alguns minutos; se continuar, fale com o suporte.',
       );
     }
 
     // 3. Arquivos. Ficam em uploads/<user_id>/...
-    const arquivos = await listarTudo(admin, user.id);
+    let arquivos: string[];
+    try {
+      arquivos = await listarTudo(admin, user.id);
+    } catch (e) {
+      return await pararComPendencia(admin, user.id, 'arquivos', (e as Error).message,
+        'Não foi possível conferir seus arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+    }
     for (let i = 0; i < arquivos.length; i += PAGE) {
       const { error } = await admin.storage.from(BUCKET).remove(arquivos.slice(i, i + PAGE));
       if (error) {
@@ -452,7 +476,7 @@ Deno.serve(async (req) => {
           'arquivos',
           error.message,
           'Não foi possível apagar todos os seus arquivos agora, e não vamos excluir a conta ' +
-            'pela metade. Seu pedido ficou registrado e será retomado — tente de novo em ' +
+            'pela metade. Seu pedido ficou registrado. Tente de novo em ' +
             'alguns minutos.',
         );
       }
@@ -465,7 +489,13 @@ Deno.serve(async (req) => {
      * (uma pasta que apareceu entre a listagem e a remocao, por exemplo). Como
      * a promessa e "tudo apagado", vale conferir em vez de confiar.
      */
-    const sobrou = await listarTudo(admin, user.id);
+    let sobrou: string[];
+    try {
+      sobrou = await listarTudo(admin, user.id);
+    } catch (e) {
+      return await pararComPendencia(admin, user.id, 'conferencia', (e as Error).message,
+        'Não foi possível confirmar a remoção dos arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+    }
     if (sobrou.length > 0) {
       console.error('Exclusao interrompida: sobraram arquivos.', sobrou.length);
       return await pararComPendencia(
@@ -474,9 +504,18 @@ Deno.serve(async (req) => {
         'conferencia',
         `sobraram ${sobrou.length} arquivos`,
         'Alguns arquivos não foram apagados, e a conta continua ativa até que tudo saia. ' +
-          'Seu pedido ficou registrado e será retomado — tente de novo em alguns minutos.',
+          'Seu pedido ficou registrado. Tente de novo em alguns minutos.',
       );
     }
+
+    // Revoga refresh tokens em todos os dispositivos antes de remover o usuário.
+    // Access tokens existentes só expiram no prazo do JWT; a remoção dos dados
+    // e as políticas de acesso continuam necessárias.
+    const { error: signOutError } = await admin.auth.admin.signOut(
+      authHeader.replace(/^Bearer\s+/i, ''), 'global',
+    );
+    if (signOutError) return await pararComPendencia(admin, user.id, 'usuario', signOutError.message,
+      'Não foi possível encerrar suas sessões. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
 
     // 5. O usuario. O cascade leva o resto do app junto.
     const { error: delErr } = await admin.auth.admin.deleteUser(user.id);
@@ -487,8 +526,8 @@ Deno.serve(async (req) => {
         user.id,
         'usuario',
         delErr.message,
-        'Não foi possível excluir a conta agora. Seu pedido ficou registrado e será ' +
-          'retomado — tente de novo em alguns minutos; se continuar, fale com o suporte.',
+        'Não foi possível excluir a conta agora. Seu pedido ficou registrado. ' +
+          'Tente de novo em alguns minutos; se continuar, fale com o suporte.',
         500,
       );
     }

@@ -33,10 +33,8 @@ interface ProFeatureLockProps {
  * ===========================================================================
  * ELA APONTA O PLANO MAIS BARATO QUE RESOLVE, NÃO O MAIS CARO
  * ===========================================================================
- * Com dois planos, "assine o Pro" era sempre a resposta. Com três, virou a
- * resposta errada na maioria das vezes: quem está no Start e esbarrou em
- * Vendas precisa do **Intermed** — mandá-lo para o Pro é pedir R$ 30 a mais do
- * que o problema dele custa, e é o jeito mais rápido de perder o upgrade.
+ * A oferta atual tem Start e Pro. Vendas e comissões fazem parte do Pro.
+ * Derivar o destino da matriz mantém bloqueio e oferta sincronizados.
  *
  * O plano é derivado da funcionalidade (`planoMinimoPara`), e a lista mostrada
  * é a do que aquele plano acrescenta ao que ele já tem. Nada aqui é escrito à

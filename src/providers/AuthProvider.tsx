@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert, Platform } from 'react-native';
 
 import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
@@ -40,8 +41,8 @@ interface AuthContextValue {
 async function clearLocalUserData(): Promise<void> {
   await clearThumbCache();
   // Os consentimentos de IA são de quem os deu, não do aparelho. Vale para a
-  // leitura de documento e, com peso maior, para a LIA: quem autorizou abrir o
-  // microfone numa negociação foi uma pessoa, não este celular.
+  // leitura de documento e para a LIA digitada: quem autorizou o envio dos
+  // dados foi uma pessoa, não este celular.
   await revogarConsentimentoScan();
   await limparConsentimentoLia();
   /*
@@ -82,6 +83,14 @@ async function clearLocalUserData(): Promise<void> {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+async function authResult<T>(action: () => Promise<Result<T>>): Promise<Result<T>> {
+  try {
+    return await action();
+  } catch {
+    return { ok: false, error: 'Não foi possível acessar ou guardar sua sessão com segurança. Verifique a conexão, desbloqueie o aparelho e tente novamente.' };
+  }
+}
+
 function sameUser(a: AuthUser | null, b: AuthUser | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -98,12 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
+    // Troca de conta ou expiração da sessão também revoga o consentimento da LIA.
+    void limparConsentimentoLia();
+  }, [user?.id]);
+
+  useEffect(() => {
     let mounted = true;
 
     db.auth
       .getCurrentUser()
       .then((u) => {
         if (mounted) setUser(u);
+      })
+      .catch(() => {
+        if (mounted) setUser(null);
+        console.warn('Não foi possível recuperar a sessão. Entre novamente.');
       })
       .finally(() => {
         if (mounted) setInitializing(false);
@@ -124,20 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       initializing,
-      signIn: (email, password) => db.auth.signInWithPassword(email, password),
+      signIn: (email, password) => authResult(() => db.auth.signInWithPassword(email, password)),
       signUp: (email, password, fullName) =>
-        db.auth.signUpWithPassword(email, password, fullName),
-      signInWithGoogle: () => db.auth.signInWithGoogle(),
-      signInWithApple: () => db.auth.signInWithApple(),
-      sendPasswordReset: (email) => db.auth.sendPasswordReset(email),
-      applyRecoveryLink: (url) => db.auth.applyRecoveryLink(url),
-      updatePassword: (password) => db.auth.updatePassword(password),
+        authResult(() => db.auth.signUpWithPassword(email, password, fullName)),
+      signInWithGoogle: () => authResult(() => db.auth.signInWithGoogle()),
+      signInWithApple: () => authResult(() => db.auth.signInWithApple()),
+      sendPasswordReset: (email) => authResult(() => db.auth.sendPasswordReset(email)),
+      applyRecoveryLink: (url) => authResult(() => db.auth.applyRecoveryLink(url)),
+      updatePassword: (password) => authResult(() => db.auth.updatePassword(password)),
       // As miniaturas guardadas são URLs assinadas do corretor que está
       // saindo. Deixá-las no aparelho vazaria material de venda para a próxima
       // conta que entrar nele.
       signOut: async () => {
-        await clearLocalUserData();
-        await db.auth.signOut();
+        try {
+          await clearLocalUserData();
+          await db.auth.signOut();
+        } catch {
+          const message = 'Não foi possível encerrar a sessão com segurança. Verifique a conexão, desbloqueie o aparelho e tente sair novamente.';
+          if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(message);
+          else Alert.alert('Não foi possível sair', message);
+        }
       },
       deleteAccount: async (confirm: string) => {
         const result = await db.auth.deleteAccount(confirm);

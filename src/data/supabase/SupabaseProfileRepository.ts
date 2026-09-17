@@ -37,23 +37,38 @@ export class SupabaseProfileRepository implements ProfileRepository {
     userId: string,
     patch: Partial<Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>>,
   ): Promise<Result<UserProfile>> {
-    const { data, error } = await supabase
+    const candidate = {
+      full_name: patch.fullName,
+      agency: patch.agency === undefined ? undefined : patch.agency?.trim() || null,
+      agency_manager: patch.agencyManager,
+      cnpj: patch.cnpj === undefined ? undefined : patch.cnpj?.trim() || null,
+      cpf: patch.cpf,
+      phone: patch.phone,
+      avatar_url: patch.avatarUrl,
+      creci: patch.creci,
+      uf: patch.uf,
+      updated_at: new Date().toISOString(),
+    };
+    // UPDATE preserva colunas omitidas; um UPSERT parcial pode aplicar defaults
+    // a campos que não foram editados. O perfil normalmente nasce no signup.
+    const changes = Object.fromEntries(
+      Object.entries(candidate).filter(([, value]) => value !== undefined),
+    ) as Database['public']['Tables']['profiles']['Update'];
+    let { data, error } = await supabase
       .from('profiles')
-      .upsert({
-        id: userId,
-        full_name: patch.fullName,
-        agency: patch.agency,
-        agency_manager: patch.agencyManager,
-        cnpj: patch.cnpj,
-        cpf: patch.cpf,
-        phone: patch.phone,
-        avatar_url: patch.avatarUrl,
-        creci: patch.creci,
-        uf: patch.uf,
-        updated_at: new Date().toISOString(),
-      })
+      .update(changes)
+      .eq('id', userId)
       .select('*')
-      .single();
+      .maybeSingle();
+    if (!error && !data) {
+      const inserted = await supabase
+        .from('profiles')
+        .insert({ id: userId, ...changes })
+        .select('*')
+        .single();
+      data = inserted.data;
+      error = inserted.error;
+    }
     if (error || !data) {
       if (error && /profiles_cpf_digits_unique/i.test(error.message)) {
         return err('Este CPF já está cadastrado em outra conta.');

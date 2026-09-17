@@ -30,6 +30,10 @@ const MAX_NAME = 200;
 const MAX_EMAIL = 320;
 const MAX_MESSAGE = 2000;
 const MAX_CONSENT_TEXTO = 1000;
+const CONSENT_VERSAO = 1;
+const CONSENT_TEXTO =
+  'Autorizo o corretor a entrar em contato comigo pelos dados informados, para falar sobre ' +
+  'imóveis. Posso pedir a exclusão dos meus dados a qualquer momento.';
 
 /**
  * Quantos envios uma pagina de captacao aceita por hora.
@@ -89,17 +93,23 @@ Deno.serve(async (req) => {
 
   /*
    * Consentimento: so aceito quando vem completo e coerente. Versao sem texto
-   * (ou o contrario) e registro pela metade, que nao serve de prova nenhuma --
-   * melhor gravar nada e saber que nao ha registro.
+   * (ou o contrario) não permite a captação. Não inferir aceite ausente.
    */
   const consentTextoBruto = text(body.consentTexto, MAX_CONSENT_TEXTO);
   const consentVersaoBruta =
     typeof body.consentVersao === 'number' && Number.isInteger(body.consentVersao)
       ? body.consentVersao
       : null;
-  const temConsentimento = Boolean(consentVersaoBruta && consentTextoBruto);
+  const temConsentimento = consentVersaoBruta === CONSENT_VERSAO
+    && consentTextoBruto === CONSENT_TEXTO;
   const consentVersao = temConsentimento ? consentVersaoBruta : null;
   const consentTexto = temConsentimento ? consentTextoBruto : null;
+  if (!temConsentimento) {
+    return new Response(JSON.stringify({ error: 'Confirme a autorização de contato antes de enviar.' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   if (!brokerUserId) {
     return new Response(JSON.stringify({ error: 'Link de captação inválido.' }), {
@@ -160,13 +170,15 @@ Deno.serve(async (req) => {
   });
 
   /*
-   * Falha ao CONTAR nao barra o envio. E o inverso da cota de IA, e de
-   * proposito: la o risco de deixar passar e uma fatura, aqui e um cliente de
-   * verdade que perde o contato com o corretor. Recusar um lead legitimo por
-   * um erro nosso e pior do que aceitar um a mais num ataque.
+   * Sem confirmação do limitador não escrevemos: uma falha de infraestrutura
+   * não pode desativar a proteção contra abuso.
    */
-  if (erroCota) {
-    console.error('capture-lead: contagem falhou, seguindo assim mesmo.', erroCota.message);
+  if (erroCota || typeof (cota as { permitido?: unknown } | null)?.permitido !== 'boolean') {
+    console.error('capture-lead: limitador indisponível.');
+    return new Response(JSON.stringify({ error: 'Envio temporariamente indisponível. Tente novamente.' }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } else if ((cota as { permitido?: boolean } | null)?.permitido === false) {
     console.warn('capture-lead: teto por hora atingido para o corretor', brokerUserId);
     /*

@@ -23,12 +23,9 @@
  * ===========================================================================
  * FALHAR AQUI NAO PODE DERRUBAR O LOGIN
  * ===========================================================================
- * Quem chama nao espera a resposta para deixar o corretor entrar. Se a Apple
- * estiver fora do ar, ou se os segredos nao estiverem configurados, o login
- * continua valendo -- o que se perde e a capacidade de revogar automaticamente
- * na exclusao, e isso e um problema de conformidade, nao de acesso.
- *
- * Por isso todo caminho de erro responde 200 com `{ vinculado: false }`.
+ * O login permanece válido em caso de falha, mas o cliente verifica a resposta
+ * e avisa o usuário. Na exclusão, pode pedir um novo código da MESMA identidade.
+ * Nunca devolvemos o refresh token ao cliente.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -133,19 +130,28 @@ Deno.serve(async (req) => {
     const admin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } },
+      { auth: { persistSession: false, autoRefreshToken: false } },
     );
     const {
       data: { user },
-    } = await admin.auth.getUser();
+    } = await admin.auth.getUser(authHeader.replace(/^Bearer\s+/i, ''));
     if (!user) return json({ error: 'Não autenticado.' }, 401);
+    const appleIdentity = user.identities?.find((identity) => identity.provider === 'apple');
+    if (!appleIdentity) return json({ vinculado: false, motivo: 'identidade_ausente' }, 403);
+
+    const body = (await req.json().catch(() => ({}))) as { authorizationCode?: unknown; action?: unknown };
+    if (body.action === 'status') {
+      const { data, error } = await admin.from('apple_credentials')
+        .select('user_id').eq('user_id', user.id).maybeSingle();
+      if (error) return json({ error: 'Não foi possível verificar o vínculo Apple.' }, 503);
+      return json({ configurado: appleConfigurada(), vinculado: Boolean(data) });
+    }
 
     if (!appleConfigurada()) {
       console.error('apple-link: segredos da Apple ausentes; revogação ficará indisponível.');
       return json({ vinculado: false, motivo: 'nao_configurado' });
     }
 
-    const body = (await req.json().catch(() => ({}))) as { authorizationCode?: unknown };
     const code = typeof body.authorizationCode === 'string' ? body.authorizationCode.trim() : '';
     if (!code || code.length > MAX_CODE) {
       return json({ vinculado: false, motivo: 'codigo_invalido' });
@@ -171,9 +177,20 @@ Deno.serve(async (req) => {
       return json({ vinculado: false, motivo: 'troca_recusada' });
     }
 
-    const dados = (await resposta.json()) as { refresh_token?: string };
-    if (!dados.refresh_token) {
+    const dados = (await resposta.json()) as { refresh_token?: string; id_token?: string };
+    if (!dados.refresh_token || !dados.id_token) {
       return json({ vinculado: false, motivo: 'sem_refresh_token' });
+    }
+
+    // Token recebido diretamente do endpoint TLS da Apple (não do cliente).
+    // Vincular o código à identidade já autenticada evita sobrescrever a
+    // credencial de A com um código de B, o que quebraria a futura revogação.
+    const payload = dados.id_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, '=')));
+    if (claims.iss !== 'https://appleid.apple.com' || claims.aud !== CLIENT_ID
+      || claims.sub !== appleIdentity.identity_data?.sub
+      || typeof claims.exp !== 'number' || claims.exp <= Date.now() / 1000) {
+      return json({ vinculado: false, motivo: 'identidade_divergente' }, 403);
     }
 
     const { error } = await admin.from('apple_credentials').upsert(

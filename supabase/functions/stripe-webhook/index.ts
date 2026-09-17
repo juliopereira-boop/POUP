@@ -14,33 +14,28 @@ const admin = createClient(
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 
 const PRICE_START = Deno.env.get('STRIPE_PRICE_START') ?? '';
-const PRICE_INTERMED = Deno.env.get('STRIPE_PRICE_INTERMED') ?? '';
 const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
 
 const GB = 1024 * 1024 * 1024;
 const PLAN_LIMITS: Record<string, number> = {
   start: 5 * GB,
-  intermed: 15 * GB,
   pro: 25 * GB,
 };
 
 /**
  * Preço do Stripe → plano.
  *
- * O fallback é `start` de propósito, e a escolha importa: se um preço novo for
- * criado no Stripe e alguém esquecer de configurar a variável aqui, o assinante
- * cai no plano MAIS BARATO. Errar para baixo gera um chamado de suporte; errar
- * para cima entrega de graça o que ele deveria pagar, e ninguém reclama de
- * ganhar recurso — o erro passaria despercebido.
+ * Configuração inválida deve falhar e permitir retry, nunca trocar direitos.
  */
-function tierForPrice(priceId: string | null | undefined): 'start' | 'intermed' | 'pro' {
-  if (!priceId) return 'start';
+export function tierForPrice(priceId: string | null | undefined): 'start' | 'pro' {
+  if (!PRICE_START || !PRICE_PRO || PRICE_START === PRICE_PRO) throw new Error('Preços não configurados.');
   if (priceId === PRICE_PRO) return 'pro';
-  if (priceId === PRICE_INTERMED) return 'intermed';
-  return 'start';
+  if (priceId === PRICE_START) return 'start';
+  throw new Error(`Preço não reconhecido: ${priceId ?? 'ausente'}`);
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== 'POST') return new Response('Método não permitido', { status: 405 });
   const signature = req.headers.get('stripe-signature');
   const body = await req.text();
 
@@ -59,7 +54,7 @@ Deno.serve(async (req) => {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = await resolveSubscription(event);
-        if (subscription) await upsertSubscription(subscription);
+        if (subscription) await upsertSubscription(subscription, event.created);
         break;
       }
       default:
@@ -80,14 +75,15 @@ async function resolveSubscription(event: Stripe.Event): Promise<Stripe.Subscrip
     if (!session.subscription) return null;
     return stripe.subscriptions.retrieve(session.subscription as string);
   }
-  return event.data.object as Stripe.Subscription;
+  // Eventos podem chegar repetidos ou fora de ordem; consultar o estado atual
+  // impede reativar a conta com o snapshot de uma notificação antiga.
+  return stripe.subscriptions.retrieve((event.data.object as Stripe.Subscription).id);
 }
 
-async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
+async function upsertSubscription(sub: Stripe.Subscription, eventCreated: number): Promise<void> {
   const userId = sub.metadata?.supabase_user_id;
   if (!userId) {
-    console.warn('subscription sem supabase_user_id nos metadados:', sub.id);
-    return;
+    throw new Error(`Subscription sem supabase_user_id: ${sub.id}`);
   }
 
   const periodEnd = sub.current_period_end
@@ -99,21 +95,18 @@ async function upsertSubscription(sub: Stripe.Subscription): Promise<void> {
   const active = sub.status === 'active' || sub.status === 'trialing';
   const storageLimit = active ? PLAN_LIMITS[tier] : 0;
 
-  const { error } = await admin.from('subscriptions').upsert(
-    {
-      user_id: userId,
-      status: sub.status,
-      plan: priceId,
-      plan_tier: tier,
-      storage_limit_bytes: storageLimit,
-      stripe_customer_id: sub.customer as string,
-      stripe_subscription_id: sub.id,
-      current_period_end: periodEnd,
-      cancel_at_period_end: sub.cancel_at_period_end ?? false,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id' },
-  );
-
-  if (error) console.error('Erro no upsert de subscription:', error);
+  // A RPC faz a ordenação atômica no banco, inclusive entre execuções paralelas.
+  const { error } = await admin.rpc('sync_billing_subscription', {
+    p_user_id: userId,
+    p_status: sub.status,
+    p_price_id: priceId,
+    p_tier: tier,
+    p_storage_limit: storageLimit,
+    p_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+    p_subscription_id: sub.id,
+    p_period_end: periodEnd,
+    p_cancel_at_period_end: sub.cancel_at_period_end ?? false,
+    p_event_created: eventCreated,
+  });
+  if (error) throw error;
 }

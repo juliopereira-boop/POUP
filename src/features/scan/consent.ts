@@ -59,12 +59,12 @@ const KEY = 'poup.scan.aiConsent.v1';
  * concordou com outra coisa, e o aviso volta a aparecer — que é o
  * comportamento correto, não um efeito colateral.
  */
-export const VERSAO_AVISO_SCAN = 2;
+export const VERSAO_AVISO_SCAN = 3;
 
 /** O que o corretor precisa saber antes de mandar o documento de outra pessoa. */
 export const AVISOS_SCAN = [
   'A foto do documento é enviada para um serviço de inteligência artificial (Anthropic) que lê o nome e o CPF.',
-  'A Anthropic pode manter o conteúdo enviado por até 30 dias para segurança e prevenção de abuso, e depois o descarta. O POUP não guarda a foto em momento nenhum.',
+  'A retenção padrão da API Anthropic é de até 30 dias, com exceções previstas pelo fornecedor, como obrigações legais e prevenção de abuso. O POUP não salva a imagem enviada no seu banco ou Storage.',
   'Só use com autorização do titular do documento — e a autorização é pedida a cada leitura.',
   'Você pode desligar a leitura automática a qualquer momento em Ajustes.',
 ];

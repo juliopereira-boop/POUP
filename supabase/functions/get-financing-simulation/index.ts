@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
   const { data: link } = await admin
     .from('financing_share_tokens')
-    .select('id, simulation_id, expires_at, revoked_at, views')
+    .select('id, simulation_id, user_id, expires_at, revoked_at, views')
     .eq('token_hash', hash)
     .maybeSingle();
 
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       'client_name, development_name, unit, block, result, rule_version, created_at, user_id',
     )
     .eq('id', link.simulation_id)
+    .eq('user_id', link.user_id)
     .maybeSingle();
   if (!sim) return invalido();
 

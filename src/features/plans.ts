@@ -31,10 +31,8 @@ export interface PlanFeature {
   includedIn: readonly PlanTier[];
 }
 
-const TODOS: readonly PlanTier[] = ['start', 'intermed', 'pro'];
-/** Do Intermed para cima: gestão do que já foi vendido. */
-const DO_INTERMED: readonly PlanTier[] = ['intermed', 'pro'];
-/** Só no Pro. Hoje é a LIA, e é ela que justifica o topo da escada. */
+const TODOS: readonly PlanTier[] = ['start', 'pro'];
+/** Gestão de vendas/comissões e assistência adicional do Pro. */
 const SO_PRO: readonly PlanTier[] = ['pro'];
 
 export const PLAN_FEATURES: readonly PlanFeature[] = [
@@ -54,8 +52,8 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
   { key: 'cadastros', label: 'Cadastros de empresas e empreendimentos', includedIn: TODOS },
   { key: 'captacao', label: 'Página de captação com QR Code, para o cliente se cadastrar', includedIn: TODOS },
   { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: TODOS },
-  { key: 'vendas', label: 'Vendas realizadas', includedIn: DO_INTERMED },
-  { key: 'comissao', label: 'Controle de comissão', includedIn: DO_INTERMED },
+  { key: 'vendas', label: 'Vendas realizadas', includedIn: SO_PRO },
+  { key: 'comissao', label: 'Controle de comissão', includedIn: SO_PRO },
   { key: 'lia', label: 'LIA: sua assistente pessoal de corretagem', includedIn: SO_PRO },
 ];
 
@@ -131,20 +129,11 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     stripePriceId: env.stripePriceStart,
     features: planFeatureLines('start'),
   },
-  intermed: {
-    tier: 'intermed',
-    name: 'Intermed',
-    priceLabel: 'R$ 49,90/mês',
-    tagline: 'Para acompanhar a venda até a comissão cair',
-    storageLimitBytes: 15 * GB,
-    stripePriceId: env.stripePriceIntermed,
-    features: planFeatureLines('intermed'),
-  },
   pro: {
     tier: 'pro',
     name: 'Pro',
-    priceLabel: 'R$ 89,90/mês',
-    tagline: 'Tudo do POUP, com a LIA ouvindo por você',
+    priceLabel: 'R$ 69,90/mês',
+    tagline: 'Da negociação até o recebimento da comissão',
     storageLimitBytes: 25 * GB,
     stripePriceId: env.stripePricePro,
     highlighted: true,
@@ -153,16 +142,12 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
 };
 
 /** Ordem comercial: do mais barato ao mais completo. */
-export const PLAN_ORDER: PlanTier[] = ['start', 'intermed', 'pro'];
+export const PLAN_ORDER: PlanTier[] = ['start', 'pro'];
 
 /**
  * O plano MAIS BARATO que inclui a funcionalidade.
  *
- * Existe porque, com três degraus, "assine o Pro" virou resposta errada na
- * maioria das vezes: quem está no Start e esbarrou em Vendas precisa ouvir
- * *Intermed*, não Pro — mandar para um plano mais caro do que ele precisa é o
- * jeito mais rápido de perder a venda do upgrade. `PLAN_ORDER` está em ordem de
- * preço justamente para esta busca.
+ * A mesma ordem comercial é usada na oferta e nos bloqueios de acesso.
  */
 export function planoMinimoPara(feature: PlanFeatureKey): PlanConfig | null {
   const tier = PLAN_ORDER.find((t) => canUse(feature, t));
@@ -183,15 +168,14 @@ export function storageLimitFor(tier: PlanTier | null | undefined): number {
  *
  * `isTrial`: durante o período de teste gratuito o `plan_tier` gravado é
  * `'start'` (ver `supabase/migrations/0018_trial_campaign.sql`), mas
- * comercialmente o teste libera o produto INTEIRO — inclusive a LIA, que só
- * existe no Pro. É de propósito: o corretor conhece o topo da escada e decide
- * assinar por ele. O bloqueio só vale para assinatura paga.
+ * o teste libera os demais recursos, mas não a LIA: ela exige o plano Pro.
  */
 export function canUse(
   feature: PlanFeatureKey,
   tier: PlanTier | null | undefined,
   isTrial = false,
 ): boolean {
+  if (feature === 'lia') return tier === 'pro' && !isTrial;
   if (isTrial) return true;
   if (!tier) return false;
   const config = PLAN_FEATURES.find((f) => f.key === feature);

@@ -70,36 +70,44 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
 
   /** A câmera/galeria e o envio propriamente ditos. Só roda após o consentimento. */
   async function escanear() {
-    const cam = await ImagePicker.requestCameraPermissionsAsync();
-    const options: ImagePicker.ImagePickerOptions = {
-      base64: true,
-      quality: 0.7,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    };
-    const result = cam.granted
-      ? await ImagePicker.launchCameraAsync(options)
-      : await ImagePicker.launchImageLibraryAsync(options);
-    const asset = result.canceled ? null : result.assets?.[0];
-    if (!asset?.base64) return;
-
+    if (loading) return;
     setLoading(true);
-    /*
-     * A redução entra ANTES do envio e depois do `setLoading`: numa foto de
-     * celular ela leva um instante perceptível, e o corretor precisa ver que
-     * algo está acontecendo. O ganho é no upload — ver `imagemReduzida.ts`.
-     */
-    const imagem = await reduzirParaEnvio(asset.uri, {
-      base64: asset.base64,
-      mimeType: asset.mimeType ?? 'image/jpeg',
-    });
-    const scan = await scanDocument(imagem.base64, imagem.mimeType);
-    setLoading(false);
+    try {
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      const options: ImagePicker.ImagePickerOptions = {
+        base64: true,
+        quality: 0.7,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      };
+      const result = cam.granted
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+      const asset = result.canceled ? null : result.assets?.[0];
+      if (!asset?.base64) return;
 
-    if (!scan.ok) return notify(scan.error);
-    if (scan.data.confidence === 'baixa') {
-      notify('Não consegui ler com certeza. Confira os dados preenchidos.');
+      /*
+       * A redução entra ANTES do envio e depois do `setLoading`: numa foto de
+       * celular ela leva um instante perceptível, e o corretor precisa ver que
+       * algo está acontecendo. O ganho é no upload — ver `imagemReduzida.ts`.
+       */
+      const imagem = await reduzirParaEnvio(asset.uri, {
+        base64: asset.base64,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+      // A autorização deste titular veio da confirmação imediatamente anterior.
+      // O adaptador também confere se o aviso não foi revogado durante a captura.
+      const scan = await scanDocument(imagem.base64, imagem.mimeType, true);
+
+      if (!scan.ok) return notify(scan.error);
+      if (scan.data.confidence === 'baixa') {
+        notify('Não consegui ler com certeza. Confira os dados preenchidos.');
+      }
+      onScanned(scan.data);
+    } catch {
+      notify('Não foi possível ler o documento. Tente novamente ou preencha os dados manualmente.');
+    } finally {
+      setLoading(false);
     }
-    onScanned(scan.data);
   }
 
   /**

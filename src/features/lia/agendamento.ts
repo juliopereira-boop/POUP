@@ -44,6 +44,7 @@ import { supabase } from '@/lib/supabase';
 import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
 import { VERSAO_CONTRATO } from './extrair';
 import { nomesCitados, normalizar } from './materialPorVoz';
+import { temConsentimentoLia } from './consentimento';
 
 /** "agend" cobre agenda/agendar/agendou/agendado — raiz que não tem uso ambíguo. */
 const RAIZ_INEQUIVOCA = /\bagend/;
@@ -101,6 +102,7 @@ interface PedidoAgendamento {
 }
 
 export async function extrairAgendamento(p: PedidoAgendamento): Promise<ResultadoAgendamento> {
+  if (!(await temConsentimentoLia())) return { erro: 'Autorize uma nova sessão da LIA antes de enviar dados.' };
   const { data, error } = await supabase.functions.invoke('lia-extract', {
     body: {
       versao: VERSAO_CONTRATO,
@@ -251,6 +253,9 @@ export async function agendarPorVoz(
     .filter(Boolean)
     .join(' · ');
 
+  if (!(await temConsentimentoLia())) {
+    return { ok: false, motivo: 'A autorização da LIA foi encerrada. Nenhum compromisso foi salvo.' };
+  }
   const res = await db.appointments.create(userId, {
     title: agendamento.titulo,
     description: descricao,
