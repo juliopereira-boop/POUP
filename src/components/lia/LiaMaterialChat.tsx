@@ -1,35 +1,3 @@
-/**
- * MATERIAL DE VENDA POR VOZ — o mini-chat da LIA.
- *
- * ===========================================================================
- * A CONVERSA
- * ===========================================================================
- *   LIA:      Qual empreendimento?
- *   corretor: "Connect"
- *   LIA:      Connect. E o que você quer?  Book · Posts · Plantas · Vídeos
- *   corretor: "posts"
- *   LIA:      [mostra as mídias, ele toca e envia]
- *
- * ===========================================================================
- * A LIA CONTINUA SEM FALAR
- * ===========================================================================
- * Ela **escreve**. Voz sintetizada no meio de um atendimento é constrangedora:
- * o cliente está do lado, e o corretor não quer que o celular dele comece a
- * falar sozinho. Escrevendo, o fluxo funciona com o telefone na mão, no meio
- * da conversa, sem interromper ninguém — e continua sendo por voz do lado
- * dele, que é onde a rapidez importa.
- *
- * ===========================================================================
- * TODA ETAPA TEM O TOQUE COMO SAÍDA
- * ===========================================================================
- * Cada opção que a LIA lista é também um botão. Se o microfone falhar, se o
- * lugar estiver barulhento, se o nome não casar — o corretor toca e segue.
- * Uma interface só por voz é uma interface que trava quando a voz falha, e
- * numa reunião com cliente na frente isso não é aceitável.
- *
- * Por isso o casamento por voz também nunca chuta: quando fica entre dois
- * candidatos, ele devolve os dois e a LIA pergunta. Ver `materialPorVoz.ts`.
- */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -47,18 +16,13 @@ import { FilePreviewModal, type FilePreviewTarget } from '@/components/FilePrevi
 import { LiaOrbe } from './LiaOrbe';
 import { db, type Company, type Development, type StorageEntry } from '@/data';
 import { CATALOG_MATERIAL_ROOT } from '@/features/catalog/material';
-import { criarEscuta, type Escuta } from '@/features/lia/escuta';
 import { casarPorVoz } from '@/features/lia/materialPorVoz';
 import { fileKind } from '@/features/material/fileKind';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
-/** A pasta raiz do material, igual à da tela de Material de Venda. */
 const RAIZ = 'material';
-
-/** Pausa curta: aqui a fala é uma palavra, não uma negociação. */
-const PAUSA_MS = 700;
 
 type Etapa = 'empresa' | 'empreendimento' | 'pasta' | 'midias';
 
@@ -76,16 +40,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
 
-  /*
-   * A ETAPA INICIAL DEPENDE DE QUANTAS EMPRESAS O CORRETOR TEM.
-   *
-   * Com uma só, perguntar "qual empresa?" seria óbvio e chato de responder —
-   * ele só trabalha com uma. Com mais de uma, pular direto para "qual
-   * empreendimento?" é o oposto: a LIA lista empreendimentos de construtoras
-   * diferentes misturados, e o corretor não sabe qual é de qual até ler o
-   * nome inteiro. Por isso a etapa e a primeira fala nascem vazias e só se
-   * decidem depois que as empresas chegam do banco — ver o efeito abaixo.
-   */
   const [etapa, setEtapa] = useState<Etapa>('empreendimento');
   const [falas, setFalas] = useState<Fala[]>([]);
 
@@ -97,19 +51,12 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   const [itens, setItens] = useState<StorageEntry[]>([]);
   const [miniaturas, setMiniaturas] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(false);
-  const [ouvindo, setOuvindo] = useState(false);
-  const [parcial, setParcial] = useState('');
+  const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
-  /*
-   * A visualização reaproveita o `FilePreviewModal` da tela de Material de
-   * Venda. Abrir mídia tem detalhe demais para ter duas implementações — PDF e
-   * vídeo abrem fora do app no celular, imagem tem fallback quando a URL
-   * assinada falha, e o botão de baixar precisa do nome original. Uma segunda
-   * cópia divergiria na primeira correção que só uma delas recebesse.
-   */
+
   const [previa, setPrevia] = useState<FilePreviewTarget | null>(null);
 
-  const escutaRef = useRef<Escuta | null>(null);
+  const envioRef = useRef(false);
   const rolagemRef = useRef<ScrollView | null>(null);
 
   const empresaDo = useCallback(
@@ -121,16 +68,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
     setFalas((antes) => [...antes, { de, texto }]);
   }, []);
 
-  /* ---------------------------------------------------------- carregar */
-
-  /**
-   * Decide a primeira pergunta a partir de quantas empresas existem.
-   *
-   * Uma empresa só: pula direto para "qual empreendimento?", que é a mesma
-   * conversa de sempre. Mais de uma: pergunta a empresa primeiro, porque sem
-   * isso a lista de empreendimentos mistura obras de construtoras diferentes
-   * e o corretor não tem como saber qual é de qual.
-   */
   const iniciarConversa = useCallback((emps: Company[]) => {
     setEmpresaEscolhida(null);
     setEscolhido(null);
@@ -147,15 +84,22 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
 
   useEffect(() => {
     if (!visivel || !user) return;
+    let atual = true;
     void (async () => {
       const [emps, devs] = await Promise.all([
         db.companies.list(user.id),
         db.developments.list(user.id),
       ]);
+      if (!atual) return;
       setEmpresas(emps);
       setEmpreendimentos(devs);
       iniciarConversa(emps);
-    })();
+    })().catch(() => {
+      if (atual) setErro('Não foi possível carregar os materiais. Feche e tente novamente.');
+    });
+    return () => {
+      atual = false;
+    };
   }, [visivel, user, iniciarConversa]);
 
   const listarPasta = useCallback(
@@ -182,15 +126,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
     [user, empresaDo],
   );
 
-  /* ------------------------------------------------------------ passos */
-
-  /**
-   * Escolher a empresa filtra os empreendimentos e SÓ ENTÃO pergunta qual.
-   *
-   * É a etapa nova: sem ela, com mais de uma construtora, a LIA listaria os
-   * empreendimentos de todas juntos e o corretor precisaria ler o nome
-   * inteiro para saber de qual empresa é cada um.
-   */
   const escolherEmpresa = useCallback(
     (empresa: Company) => {
       setEmpresaEscolhida(empresa);
@@ -225,12 +160,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
     [escolhido, dizer, listarPasta],
   );
 
-  /*
-   * Os empreendimentos LISTADOS, filtrados pela empresa escolhida.
-   *
-   * Sem empresa escolhida (caso de uma construtora só, que pula a etapa), vale
-   * a lista inteira — é o comportamento de sempre.
-   */
   const empreendimentosDaEmpresa = useMemo(
     () =>
       empresaEscolhida
@@ -238,8 +167,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
         : empreendimentos,
     [empreendimentos, empresaEscolhida],
   );
-
-  /* ------------------------------------------------------------- ouvir */
 
   const opcoesAtuais = useMemo(() => {
     if (etapa === 'empresa') {
@@ -260,7 +187,7 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   }, [etapa, empresas, empreendimentosDaEmpresa, itens]);
 
   const processarFala = useCallback(
-    (texto: string) => {
+    async (texto: string) => {
       dizer('corretor', texto);
       const r = casarPorVoz(texto, opcoesAtuais);
 
@@ -269,72 +196,40 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
         return;
       }
       if (!r.achado) {
-        dizer('lia', 'Não achei esse. Fala de novo ou toca na opção.');
+        dizer('lia', 'Não achei esse. Digite novamente ou toque na opção.');
         return;
       }
-      if (typeof r.achado === 'string') void escolherPasta(r.achado);
+      if (typeof r.achado === 'string') await escolherPasta(r.achado);
       // `Development` tem `companyId`; `Company` não. É o que separa os dois
       // sem precisar de um discriminante próprio no casamento por voz.
-      else if ('companyId' in r.achado) void escolherEmpreendimento(r.achado);
+      else if ('companyId' in r.achado) await escolherEmpreendimento(r.achado);
       else void escolherEmpresa(r.achado);
     },
     [dizer, opcoesAtuais, escolherEmpresa, escolherEmpreendimento, escolherPasta],
   );
 
-  /*
-   * A fala mais recente vive numa ref porque o callback da escuta é montado
-   * uma vez e enxergaria para sempre o estado daquele instante — o mesmo
-   * cuidado do `LiaProvider`.
-   */
-  const processarRef = useRef(processarFala);
-  processarRef.current = processarFala;
-
-  const alternarEscuta = useCallback(() => {
-    if (ouvindo) {
-      escutaRef.current?.parar();
-      escutaRef.current = null;
-      setOuvindo(false);
-      setParcial('');
-      return;
-    }
-
-    let acumulado = '';
-    const escuta = criarEscuta({
-      pausaMs: PAUSA_MS,
-      silencioMs: PAUSA_MS * 2,
-      aoOuvir: setParcial,
-      aoFechar: (t) => {
-        acumulado = `${acumulado} ${t}`.trim();
-      },
-      // Uma palavra basta: assim que ele para de falar, a LIA age. Aqui não
-      // existe "juntar a conversa toda" — a resposta é curta por natureza.
-      aoPausar: () => {
-        if (!acumulado) return;
-        const dito = acumulado;
-        acumulado = '';
-        setParcial('');
-        processarRef.current(dito);
-      },
-      aoSilenciar: () => undefined,
-      aoFalhar: (m) => {
-        setErro(m);
-        setOuvindo(false);
-      },
-    });
-    escutaRef.current = escuta;
-    escuta.iniciar();
-    setOuvindo(true);
-  }, [ouvindo]);
-
-  // Fechar sem soltar o microfone deixaria a luz do aparelho acesa.
   useEffect(() => {
     if (!visivel) {
-      escutaRef.current?.parar();
-      escutaRef.current = null;
-      setOuvindo(false);
+      setTexto('');
+      setErro(null);
     }
   }, [visivel]);
-  useEffect(() => () => escutaRef.current?.parar(), []);
+
+  const enviar = async () => {
+    const mensagem = texto.trim();
+    if (!mensagem || envioRef.current) return;
+    envioRef.current = true;
+    setErro(null);
+    try {
+      await processarFala(mensagem);
+      setTexto('');
+    } catch {
+      setErro('Não foi possível concluir. Tente novamente.');
+    } finally {
+      envioRef.current = false;
+      setCarregando(false);
+    }
+  };
 
   useEffect(() => {
     rolagemRef.current?.scrollToEnd({ animated: true });
@@ -352,19 +247,21 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
       <View style={styles.fundo}>
         <View style={styles.folha}>
           <View style={styles.cabecalho}>
-            <LiaOrbe modo={ouvindo ? 'ouvindo' : 'parada'} tamanho={26} compacto />
+            <LiaOrbe modo="parada" tamanho={26} compacto />
             <View style={styles.cabecalhoTextos}>
               <Text style={styles.titulo}>LIA · Material de venda</Text>
-              <Text style={styles.subtitulo}>
-                {ouvindo ? 'Pode falar' : 'Toque no microfone e diga o que quer'}
-              </Text>
+              <Text style={styles.subtitulo}>Digite sua mensagem ou selecione uma opção</Text>
             </View>
             <Pressable onPress={aoFechar} hitSlop={10} accessibilityLabel="Fechar">
               <Text style={styles.fechar}>✕</Text>
             </Pressable>
           </View>
 
-          <ScrollView ref={rolagemRef} style={styles.conversa} contentContainerStyle={styles.conversaConteudo}>
+          <ScrollView
+            ref={rolagemRef}
+            style={styles.conversa}
+            contentContainerStyle={styles.conversaConteudo}
+          >
             {falas.map((f, i) => (
               <View
                 key={`${i}-${f.texto}`}
@@ -376,15 +273,8 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
               </View>
             ))}
 
-            {parcial ? (
-              <View style={[styles.balao, styles.balaoCorretor, styles.balaoParcial]}>
-                <Text style={styles.balaoTextoCorretor}>{parcial}…</Text>
-              </View>
-            ) : null}
-
             {carregando ? <ActivityIndicator style={styles.carregando} /> : null}
 
-            {/* As opções são sempre tocáveis: voz é o caminho rápido, não o único. */}
             {etapa === 'empresa' && empresas.length > 0 ? (
               <View style={styles.opcoes}>
                 {empresas.map((e) => (
@@ -412,7 +302,11 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
             {etapa === 'pasta' && pastas.length > 0 ? (
               <View style={styles.opcoes}>
                 {pastas.map((p) => (
-                  <Pressable key={p.path} style={styles.opcao} onPress={() => void escolherPasta(p.name)}>
+                  <Pressable
+                    key={p.path}
+                    style={styles.opcao}
+                    onPress={() => void escolherPasta(p.name)}
+                  >
                     <Text style={styles.opcaoTexto}>{p.name}</Text>
                   </Pressable>
                 ))}
@@ -422,17 +316,17 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
             {etapa === 'midias' && arquivos.length > 0 ? (
               <View style={styles.grade}>
                 {arquivos.map((a) => (
-                  <Pressable
-                    key={a.path}
-                    style={styles.midia}
-                    onPress={() => void abrir(a)}
-                  >
+                  <Pressable key={a.path} style={styles.midia} onPress={() => void abrir(a)}>
                     {miniaturas[a.path] ? (
                       <Image source={{ uri: miniaturas[a.path] }} style={styles.miniatura} />
                     ) : (
                       <View style={styles.miniaturaVazia}>
                         <Text style={styles.miniaturaIcone}>
-                          {a.mimeType?.includes('pdf') ? '📄' : a.mimeType?.startsWith('video') ? '🎬' : '📎'}
+                          {a.mimeType?.includes('pdf')
+                            ? '📄'
+                            : a.mimeType?.startsWith('video')
+                              ? '🎬'
+                              : '📎'}
                         </Text>
                       </View>
                     )}
@@ -448,16 +342,24 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
           </ScrollView>
 
           <View style={styles.rodape}>
-            <Button
-              label={ouvindo ? 'Parar de ouvir' : '🎤 Falar'}
-              variant={ouvindo ? 'secondary' : 'primary'}
-              onPress={alternarEscuta}
+            <TextInput
+              value={texto}
+              onChangeText={setTexto}
+              multiline
+              maxLength={2000}
+              accessibilityLabel="Buscar material"
+              placeholder="Digite o nome ou selecione uma opção…"
+              style={[
+                styles.subtitulo,
+                { borderWidth: 1, borderRadius: 8, padding: 12, minHeight: 52 },
+              ]}
             />
-            {/*
-              "Começar de novo" fica de fora só na primeira etapa — que é
-              'empresa' quando há mais de uma construtora, e 'empreendimento'
-              quando há só uma (a etapa de empresa nem existe nesse caso).
-            */}
+            <Button
+              label="Enviar"
+              onPress={() => void enviar()}
+              disabled={!texto.trim() || carregando}
+            />
+
             {(empresas.length > 1 ? etapa !== 'empresa' : etapa !== 'empreendimento') ? (
               <Button label="Começar de novo" variant="ghost" onPress={recomecar} />
             ) : null}
@@ -494,7 +396,6 @@ export function LiaMaterialChat({ visivel, aoFechar }: LiaMaterialChatProps) {
   }
 }
 
-/** Bytes → "1,4 MB". Só para a etiqueta da prévia. */
 function tamanhoLegivel(bytes: number | null): string {
   if (bytes == null) return '';
   const mb = bytes / (1024 * 1024);
@@ -565,7 +466,12 @@ const makeStyles = (colors: AppColors) =>
 
     grade: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
     midia: { width: 96, gap: 4 },
-    miniatura: { width: 96, height: 96, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+    miniatura: {
+      width: 96,
+      height: 96,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+    },
     miniaturaVazia: {
       width: 96,
       height: 96,

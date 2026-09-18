@@ -34,7 +34,7 @@ function load(name, f) {
     } },
     webhooks: { constructEventAsync: async () => { if (f.signatureError) throw new Error('signature'); return f.event; } },
   };
-  class Stripe { constructor() { return stripe; } static createFetchHttpClient() { return {}; } }
+  class Stripe { constructor() { if (f.stripeInitError) throw Error('Stripe não configurado'); return stripe; } static createFetchHttpClient() { return {}; } }
   const admin = {
     auth: {
       getUser: async () => ({ data: { user: f.user } }),
@@ -88,6 +88,12 @@ function load(name, f) {
 }
 const has = (f, operation) => f.calls.some(c => c[0] === operation);
 const checkoutBody = { priceId: 'price_pro', successUrl: 'https://poup.example/sucesso', cancelUrl: 'https://poup.example/planos' };
+
+await test('conta sem assinatura se exclui mesmo sem Stripe configurado', async () => {
+  const f = fixture(); f.stripeInitError = true;
+  const res = await load('delete-account', f).call({ confirm: 'EXCLUIR' });
+  assert.equal(res.status, 200); assert.equal(has(f, 'delete'), true); assert.equal(has(f, 'cancel'), false);
+});
 
 for (const env of [{}, { STRIPE_PRICE_START: 'price_same', STRIPE_PRICE_PRO: 'price_same' }]) {
   await test('checkout sem configuração válida falha fechado', async () => {

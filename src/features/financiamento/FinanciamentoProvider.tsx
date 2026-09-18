@@ -70,6 +70,12 @@ import {
 } from './regras';
 import { REGRAS_PADRAO } from './regrasPadrao';
 import { BANCO_OUTRO, acharBanco, type Banco } from './bancos';
+import { FINANCIAMENTO_DRAFT_KEY, FINANCIAMENTO_PREFILL_KEY } from './storageKeys';
+export {
+  FINANCIAMENTO_DRAFT_KEY,
+  FINANCIAMENTO_PREFILL_KEY,
+  FINANCIAMENTO_LOCAL_KEYS,
+} from './storageKeys';
 
 /**
  * Rascunho no aparelho.
@@ -79,10 +85,6 @@ import { BANCO_OUTRO, acharBanco, type Banco } from './bancos';
  * abriria o simulador com o cliente do anterior. É vazamento de dado pessoal
  * entre contas.
  */
-export const FINANCIAMENTO_DRAFT_KEY = 'poup.financiamento.draft';
-export const FINANCIAMENTO_PREFILL_KEY = 'financiamento:prefill';
-export const FINANCIAMENTO_LOCAL_KEYS = [FINANCIAMENTO_DRAFT_KEY, FINANCIAMENTO_PREFILL_KEY];
-
 const SALVAR_DEBOUNCE_MS = 300;
 
 interface FinanciamentoContextValue {
@@ -224,7 +226,8 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
         await sessionStorage.removeItem(FINANCIAMENTO_PREFILL_KEY);
         try {
           const lido: unknown = JSON.parse(prefill);
-          if (lido && typeof lido === 'object') cru = { ...cru, ...(lido as Record<string, unknown>) };
+          if (lido && typeof lido === 'object')
+            cru = { ...cru, ...(lido as Record<string, unknown>) };
         } catch {
           // idem
         }
@@ -363,7 +366,10 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
     setForm((f) =>
       f.proponentes.length >= 4
         ? f
-        : { ...f, proponentes: [...f.proponentes, proponenteVazio(`p${f.proponentes.length + 1}`)] },
+        : {
+            ...f,
+            proponentes: [...f.proponentes, proponenteVazio(`p${f.proponentes.length + 1}`)],
+          },
     );
   }, []);
 
@@ -454,7 +460,8 @@ export function FinanciamentoProvider({ children }: { children: ReactNode }) {
 
   const salvar = useCallback(async () => {
     if (!user) return { ok: false as const, erro: 'Faça login novamente.' };
-    if (!resultado) return { ok: false as const, erro: erro ?? 'Complete a simulação antes de salvar.' };
+    if (!resultado)
+      return { ok: false as const, erro: erro ?? 'Complete a simulação antes de salvar.' };
 
     const dev = empreendimentos.find((d) => d.id === form.developmentId) ?? null;
 

@@ -35,7 +35,7 @@ function load(name, f) {
       };
     },
   };
-  const context = vm.createContext({ exports: {}, Request, Response, TextEncoder, URLSearchParams, AbortSignal,
+  const context = vm.createContext({ exports: {}, Request, Response, TextEncoder, URL, URLSearchParams, AbortSignal,
     atob, btoa, crypto: webcrypto, console: { error() {}, warn() {} },
     Deno: { env: { get: k => f.env[k] }, serve: fn => { handler = fn; } },
     require: () => ({ createClient: (...args) => { f.calls.push(['client', args[2]]); return admin; } }),

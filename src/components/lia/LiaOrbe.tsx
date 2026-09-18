@@ -1,101 +1,21 @@
-/**
- * O ORBE DA LIA — a logo viva.
- *
- * ===========================================================================
- * COMO ELE É FEITO
- * ===========================================================================
- * Quatro camadas, de baixo para cima:
- *
- *   1. **Fumaça** — sete manchas laranjas translúcidas, em dois tons, grandes e sobrepostas,
- *      cada uma girando numa órbita própria com duração diferente. Nenhuma
- *      delas é bonita sozinha; o que produz a nuvem que respira é a soma delas
- *      fora de fase. Durações primas entre si de propósito: com valores
- *      múltiplos, o conjunto reencontra a mesma posição a cada poucos
- *      segundos e o olho percebe o ciclo — que é justamente o que faz uma
- *      animação parecer barata.
- *
- *   2. **Ondas** — quatro anéis que nascem no centro, crescem e se dissolvem,
- *      escalonados no tempo, com a borda afinando enquanto abrem. É o pulso.
- *
- *   3. **Núcleo** — o disco claro que segura a logo e a separa da fumaça.
- *
- *   4. **Logo** — respirando devagar, sempre. Mesmo parada, a LIA está viva.
- *
- * ===========================================================================
- * A DECISÃO QUE FAZ ISSO NÃO PARECER PAPEL DE PAREDE
- * ===========================================================================
- * O pulso não segue o relógio: segue **a voz**. `nivel` é um `Animated.Value`
- * alimentado pelo volume real do microfone (ver `nivelDeVoz.ts`), e ele
- * multiplica a escala das ondas, a opacidade da fumaça e o tamanho do núcleo.
- *
- * Uma animação em laço fixo é bonita por dez segundos e vira papel de parede
- * no décimo primeiro — o olho percebe que ela não tem relação com o que está
- * acontecendo. Reagindo ao volume, o movimento vira informação: dá para ver,
- * sem ler nada, que a LIA está captando *aquela* frase.
- *
- * Quando o volume não está disponível (permissão negada, navegador sem Web
- * Audio), `nivel` fica em zero e sobra a animação de ritmo. Continua bonito,
- * só não é reativo.
- *
- * ===========================================================================
- * "PENSANDO" É O MOVIMENTO INVERTIDO
- * ===========================================================================
- * Enquanto a LIA entende o que ouviu, os anéis **contraem** em vez de
- * expandir, e a fumaça gira mais rápido e mais fechada. É a mesma linguagem
- * visual dizendo a coisa oposta: em vez de emitir, ela recolhe. O corretor
- * entende a diferença sem precisar de legenda.
- */
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { Logo } from '@/components/Logo';
 import { useTheme } from '@/providers/ThemeProvider';
 
-export type ModoOrbe = 'parada' | 'ouvindo' | 'pensando';
+export type ModoOrbe = 'parada' | 'pensando';
 
 interface LiaOrbeProps {
   modo: ModoOrbe;
-  /** Volume da voz, 0 a 1. Vem de `nivelDeVoz.ts`. */
-  nivel?: Animated.Value;
-  /** Diâmetro do círculo interno (a logo fica dentro dele). */
+
   tamanho?: number;
-  /**
-   * Versão enxuta, para o botão flutuante.
-   *
-   * Não é só "menor": é **contida**. O botão vive a 16 px da borda da tela, e
-   * a nuvem do orbe cheio se espalha uns 60 px além dele — o que, na web,
-   * empurra a largura da página e faz o app **rolar para o lado**. Uma tela de
-   * celular que desliza na horizontal parece app quebrado, e o preço não vale
-   * o enfeite.
-   *
-   * Compacto, as manchas orbitam de perto e as ondas param em 1,4x, ficando
-   * praticamente dentro do botão. A garantia final contra a rolagem lateral,
-   * porém, é o `overflow-x: hidden` de `app/+html.tsx` — calibrar animação no
-   * milímetro funciona hoje e quebra na próxima. O espetáculo mora no painel;
-   * aqui o orbe é sinalização.
-   */
+
   compacto?: boolean;
 }
 
-/*
- * `useNativeDriver` é desligado aqui de propósito.
- *
- * Na web o driver nativo não existe: o React Native Web avisa e ignora. Como
- * o mesmo `Animated.Value` do nível é escrito de fora, misturar valores
- * dirigidos por caminhos diferentes é fonte de erro difícil de achar. Um
- * punhado de círculos animados por JS não custa nada perto disso.
- */
 const NATIVO = false;
 
-/**
- * Durações fora de fase, em números primos: o conjunto nunca reencontra a
- * mesma posição. Com valores múltiplos, a nuvem se repetiria a cada poucos
- * segundos e o olho pega o ciclo — que é o que faz animação parecer barata.
- *
- * `escura` alterna o tom: manchas em dois laranjas diferentes dão profundidade,
- * porque as bordas de uma aparecem por dentro da outra em vez de somarem numa
- * mancha chapada.
- */
 const ORBITAS = [
   { duracao: 7000, raio: 34, tamanho: 1.55, atraso: 0, escura: false },
   { duracao: 11000, raio: 24, tamanho: 1.25, atraso: 400, escura: true },
@@ -108,7 +28,7 @@ const ORBITAS = [
 
 const ANEIS = [0, 1, 2, 3];
 
-export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbeProps) {
+export function LiaOrbe({ modo, tamanho = 96, compacto = false }: LiaOrbeProps) {
   const { colors } = useTheme();
 
   const ativo = modo !== 'parada';
@@ -117,13 +37,12 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
   // Um valor fixo quando não há medição de voz: as interpolações não precisam
   // saber se o microfone respondeu.
   const nivelInterno = useRef(new Animated.Value(0)).current;
-  const nivelUsado = nivel ?? nivelInterno;
+  const nivelUsado = nivelInterno;
 
   const orbitas = useRef(ORBITAS.map(() => new Animated.Value(0))).current;
   const aneis = useRef(ANEIS.map(() => new Animated.Value(0))).current;
   const respiro = useRef(new Animated.Value(0)).current;
 
-  /* ------------------------------------------------------------ fumaça */
   useEffect(() => {
     const laços = orbitas.map((valor, i) => {
       const o = ORBITAS[i]!;
@@ -143,7 +62,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
     return () => laços.forEach((l) => l.stop());
   }, [orbitas, pensando]);
 
-  /* ------------------------------------------------------------- ondas */
   useEffect(() => {
     if (!ativo) {
       aneis.forEach((a) => a.setValue(0));
@@ -165,7 +83,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
     return () => laços.forEach((l) => l.stop());
   }, [aneis, ativo, pensando]);
 
-  /* ---------------------------------------------------------- respiração */
   useEffect(() => {
     const laco = Animated.loop(
       Animated.sequence([
@@ -188,9 +105,9 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
   }, [respiro]);
 
   const caixa = tamanho * (compacto ? 1.6 : 3.1);
-  /** Até onde a onda abre. É este número que decide se a página rola. */
+
   const alcance = compacto ? 1.4 : 2.5;
-  /** O quanto a nuvem se afasta do centro. */
+
   const espalha = compacto ? 0.22 : 1;
 
   // A voz empurra tudo: anel maior, fumaça mais densa, núcleo mais cheio.
@@ -201,7 +118,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
 
   return (
     <View style={[styles.caixa, { width: caixa, height: caixa }]} pointerEvents="none">
-      {/* 1. fumaça */}
       {ORBITAS.map((o, i) => {
         const t = orbitas[i]!;
         const d = tamanho * (compacto ? Math.min(o.tamanho, 1.05) : o.tamanho);
@@ -249,7 +165,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
         );
       })}
 
-      {/* 2. ondas */}
       {ativo
         ? ANEIS.map((_, i) => {
             const t = aneis[i]!;
@@ -294,7 +209,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
           })
         : null}
 
-      {/* 3. núcleo */}
       <Animated.View
         style={[
           styles.nucleo,
@@ -316,7 +230,6 @@ export function LiaOrbe({ modo, nivel, tamanho = 96, compacto = false }: LiaOrbe
         ]}
       />
 
-      {/* 4. logo */}
       <Animated.View
         style={{
           transform: [

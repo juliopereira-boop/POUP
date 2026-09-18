@@ -9,6 +9,11 @@ begin;
 \ir ../supabase/migrations/20260916031259_planos_start_pro.sql
 \ir ../supabase/migrations/20260916184253_seguranca_compartilhamento_servicos.sql
 \ir ../supabase/migrations/20260916185809_restringir_rpcs_internas.sql
+select to_regclass('public.apple_reauth_challenges') is null as apple_migration_needed \gset
+\if :apple_migration_needed
+\ir ../supabase/migrations/20260917182632_apple_reautenticacao_multiplataforma.sql
+\endif
+\ir ../supabase/migrations/20260917183518_storage_rpc_respeita_rls.sql
 
 do $$
 declare a uuid := gen_random_uuid(); b uuid := gen_random_uuid(); s uuid := gen_random_uuid();
@@ -35,6 +40,10 @@ begin
     values(s,b,'own-simulation-test',now()+interval '1 day');
   reset role;
   assert not has_table_privilege('authenticated','public.apple_credentials','SELECT');
+  assert not has_table_privilege('authenticated','public.apple_reauth_challenges','SELECT');
+  assert not has_table_privilege('anon','public.apple_reauth_challenges','SELECT');
+  assert not (select prosecdef from pg_proc where oid='public.user_storage_used(uuid)'::regprocedure);
+  assert public.user_storage_used(a)=0;
   assert not has_table_privilege('authenticated','public.financing_simulations','TRUNCATE');
   assert not has_function_privilege('authenticated','public.registrar_exclusao_pendente(uuid,text,text)','EXECUTE');
   assert not has_function_privilege('anon','public.registrar_captacao(uuid,integer)','EXECUTE');

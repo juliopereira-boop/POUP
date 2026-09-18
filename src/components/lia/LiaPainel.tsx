@@ -1,28 +1,5 @@
-/**
- * O painel da sessão de escuta.
- *
- * ===========================================================================
- * A DECISÃO DE DESIGN QUE SUSTENTA TUDO: MOSTRAR O TRECHO
- * ===========================================================================
- * Cada campo capturado aparece com **o pedaço da conversa que o produziu**.
- *
- * Isso não é enfeite. Uma assistente que preenche campos sozinha só é útil se o
- * corretor confiar nela, e ninguém confia numa caixa-preta que escreve
- * "R$ 2.800,00" sem dizer de onde tirou. Vendo `"ela ganha dois e oitocentos"`
- * embaixo do valor, ele confere num piscar de olhos — e, quando estiver errado,
- * sabe na hora **por que** errou. É a diferença entre uma ferramenta que o
- * corretor usa de olho fechado numa reunião e uma que ele para de usar na
- * segunda vez que ela erra sem explicação.
- *
- * ===========================================================================
- * O QUE FALTA É COBRADO NA PAUSA, NÃO O TEMPO TODO
- * ===========================================================================
- * Durante a fala, cobrar seria ruído — o corretor está olhando o cliente, não a
- * tela. Na pausa de três segundos, a lista do que falta sobe em destaque: é o
- * instante em que ele tem atenção sobrando e o assunto ainda está na mesa.
- * Voltou a falar, a cobrança some sozinha.
- */
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Logo } from '@/components/Logo';
@@ -36,16 +13,19 @@ import { radius, spacing, typography, type AppColors } from '@/theme';
 interface LiaPainelProps {
   visivel: boolean;
   aoFechar: () => void;
-  /** Abre o simulador já preenchido. */
+
   aoLevarParaSimulador: () => void;
 }
 
-/** Quanto tempo um campo fica marcado como recém-mudado. */
 const DESTAQUE_MS = 6000;
 
 export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainelProps) {
   const styles = useThemedStyles(makeStyles);
   const lia = useLia();
+  const [texto, setTexto] = useState('');
+  useEffect(() => {
+    if (!visivel) setTexto('');
+  }, [visivel]);
 
   const grupos = agrupar(lia.capturados);
   const total = Object.keys(lia.capturados).length;
@@ -59,130 +39,100 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
             <Logo size={26} />
             <View style={styles.cabecalhoTextos}>
               <Text style={styles.titulo}>LIA · Simulação de poupança</Text>
-              <Text style={styles.subtitulo}>{legendaStatus(lia.status, lia.suporte)}</Text>
+              <Text style={styles.subtitulo}>{legendaStatus(lia.status)}</Text>
             </View>
             <Pressable onPress={aoFechar} hitSlop={10} accessibilityLabel="Fechar">
               <Text style={styles.fechar}>✕</Text>
             </Pressable>
           </View>
 
-          {lia.suporte !== 'ok' ? (
-            <IndisponivelAqui />
-          ) : (
-            <>
-              {/*
-                A camada das etiquetas fica FORA do palco, que recorta a fumaça.
-                Se estivesse dentro, a etiqueta seria cortada justo no fim da
-                subida — quando ela ainda está sendo lida.
-              */}
-              <View style={styles.palcoWrap}>
-                <View style={styles.palco}>
-                  <LiaOrbe modo={modoDoOrbe(lia.status)} nivel={lia.nivelDeVoz} tamanho={84} />
-                </View>
-                <LiaCapturaSurgindo capturados={lia.capturados} />
+          <>
+            <View style={styles.palcoWrap}>
+              <View style={styles.palco}>
+                <LiaOrbe modo={modoDoOrbe(lia.status)} tamanho={84} />
               </View>
+              <LiaCapturaSurgindo capturados={lia.capturados} />
+            </View>
 
-              <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
-                {lia.erro ? <Text style={styles.erro}>{lia.erro}</Text> : null}
+            <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
+              {lia.erro ? <Text style={styles.erro}>{lia.erro}</Text> : null}
 
-                {/*
-                  O resultado de um "agenda para o dia X..." — sucesso ou erro.
-                  Fica até a próxima tentativa: o corretor pode estar de olho
-                  no cliente, não na tela, no instante em que isso acontece.
-                */}
-                {lia.avisoAgendamento ? (
-                  <View
-                    style={[
-                      styles.agendamento,
-                      lia.avisoAgendamento.tipo === 'erro' && styles.agendamentoErro,
-                    ]}
-                  >
-                    <Text style={styles.agendamentoIcone}>
-                      {lia.avisoAgendamento.tipo === 'erro' ? '⚠️' : '📅'}
+              {total > 0 && lia.faltando.length > 0 ? (
+                <View style={styles.faltando}>
+                  <Text style={styles.faltandoTitulo}>Ainda falta preencher</Text>
+                  {lia.faltando.map((chave) => (
+                    <Text key={chave} style={styles.faltandoItem}>
+                      • {CAMPOS_POR_CHAVE[chave]?.rotulo ?? chave}
                     </Text>
-                    <Text style={styles.agendamentoTexto}>{lia.avisoAgendamento.texto}</Text>
-                  </View>
-                ) : null}
+                  ))}
+                </View>
+              ) : null}
 
-                {lia.cobrando && lia.faltando.length > 0 ? (
-                  <View style={styles.faltando}>
-                    <Text style={styles.faltandoTitulo}>Ainda falta perguntar</Text>
-                    {lia.faltando.map((chave) => (
-                      <Text key={chave} style={styles.faltandoItem}>
-                        • {CAMPOS_POR_CHAVE[chave]?.rotulo ?? chave}
-                      </Text>
+              {lia.observacao ? (
+                <View style={styles.observacao}>
+                  <Text style={styles.observacaoTexto}>{lia.observacao}</Text>
+                </View>
+              ) : null}
+
+              {total === 0 ? (
+                <VazioInicial />
+              ) : (
+                grupos.map(({ grupo, itens }) => (
+                  <View key={grupo} style={styles.grupo}>
+                    <Text style={styles.grupoTitulo}>{GRUPO_ROTULO[grupo]}</Text>
+                    {itens.map((c) => (
+                      <CartaoCampo key={c.chave} campo={c} aoDescartar={lia.descartar} />
                     ))}
                   </View>
-                ) : null}
+                ))
+              )}
+            </ScrollView>
 
-                {lia.observacao ? (
-                  <View style={styles.observacao}>
-                    <Text style={styles.observacaoTexto}>{lia.observacao}</Text>
-                  </View>
-                ) : null}
-
-                {total === 0 ? (
-                  <VazioInicial ouvindo={lia.status !== 'desligada'} />
-                ) : (
-                  grupos.map(({ grupo, itens }) => (
-                    <View key={grupo} style={styles.grupo}>
-                      <Text style={styles.grupoTitulo}>{GRUPO_ROTULO[grupo]}</Text>
-                      {itens.map((c) => (
-                        <CartaoCampo key={c.chave} campo={c} aoDescartar={lia.descartar} />
-                      ))}
-                    </View>
-                  ))
-                )}
-
-                {lia.parcial ? (
-                  <Text style={styles.parcial} numberOfLines={2}>
-                    {lia.parcial}…
-                  </Text>
-                ) : null}
-              </ScrollView>
-
-              <View style={styles.rodape}>
-                {lia.status === 'desligada' ? (
-                  <Button label="Começar a ouvir" onPress={() => void lia.iniciar()} />
-                ) : (
-                  <>
-                    {/*
-                      Com tudo preenchido, o rótulo é o destino: a próxima tela
-                      é o botão de gerar o PDF, não mais um formulário. Faltando
-                      alguma coisa, o botão continua existindo — mas diz quantas,
-                      para o corretor decidir se vale seguir assim.
-                    */}
-                    <Button
-                      label={
-                        prontoParaSimular
-                          ? 'Gerar proposta de venda'
-                          : `Continuar assim (${lia.faltando.length} sem preencher)`
-                      }
-                      variant={prontoParaSimular ? 'primary' : 'secondary'}
-                      onPress={aoLevarParaSimulador}
-                      disabled={total === 0}
-                    />
-                    <View style={styles.rodapeLinha}>
-                      <Button label="Encerrar" variant="ghost" onPress={lia.encerrar} />
-                      <Button
-                        label="Reler agora"
-                        variant="ghost"
-                        onPress={lia.entenderAgora}
-                        loading={lia.status === 'entendendo'}
-                      />
-                    </View>
-                  </>
-                )}
-              </View>
-            </>
-          )}
+            <View style={styles.rodape}>
+              <TextInput
+                value={texto}
+                onChangeText={setTexto}
+                multiline
+                maxLength={12000}
+                editable={lia.status !== 'entendendo'}
+                accessibilityLabel="Dados da simulação"
+                placeholder="Digite os dados da negociação ou uma correção…"
+                style={[
+                  styles.vazioTexto,
+                  { borderWidth: 1, borderRadius: 8, padding: 12, minHeight: 80 },
+                ]}
+              />
+              <Button
+                label="Analisar texto"
+                disabled={!texto.trim()}
+                loading={lia.status === 'entendendo'}
+                onPress={() => {
+                  void lia.enviarTexto(texto).then((ok) => {
+                    if (ok) setTexto('');
+                  });
+                }}
+              />
+              <Button
+                label={prontoParaSimular ? 'Conferir no simulador' : 'Continuar no simulador'}
+                variant="secondary"
+                onPress={aoLevarParaSimulador}
+                disabled={total === 0 || !!texto.trim() || lia.status === 'entendendo'}
+              />
+              <Button
+                label="Limpar sessão"
+                variant="ghost"
+                onPress={() => {
+                  lia.encerrar();
+                  setTexto('');
+                }}
+              />
+            </View>
+          </>
         </View>
       </View>
     </Modal>
   );
 }
-
-/* ------------------------------------------------------------------ pedaços */
 
 function CartaoCampo({
   campo,
@@ -211,8 +161,7 @@ function CartaoCampo({
       </View>
       <View style={styles.cartaoLinha}>
         <Text style={styles.cartaoValor}>{campo.exibicao}</Text>
-        {/* O ✓ verde fica: a etiqueta que surgiu no orbe some em segundos, e
-            o card é onde o corretor confere depois, com calma. */}
+
         <Text style={styles.check}>✓</Text>
       </View>
       <Text style={styles.cartaoTrecho} numberOfLines={2}>
@@ -222,51 +171,18 @@ function CartaoCampo({
   );
 }
 
-function VazioInicial({ ouvindo }: { ouvindo: boolean }) {
+function VazioInicial() {
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.vazio}>
-      <Text style={styles.vazioTitulo}>
-        {ouvindo ? 'Pode conversar normalmente.' : 'Pronta para ouvir.'}
-      </Text>
+      <Text style={styles.vazioTitulo}>Digite os dados da negociação</Text>
       <Text style={styles.vazioTexto}>
-        A LIA não fala e não interrompe. Ela ouve a negociação inteira, na ordem que ela acontecer,
-        e vai preenchendo a simulação. Se você corrigir um valor no meio da conversa, ela troca.
-      </Text>
-      <Text style={styles.vazioTexto}>
-        Quando vocês pararem de falar por alguns segundos, ela mostra aqui o que ainda falta
-        perguntar.
+        A LIA organiza o texto em campos da simulação. Você pode enviar correções e deve conferir os
+        valores antes de gerar a proposta.
       </Text>
     </View>
   );
 }
-
-/**
- * Só existe UM caso aqui: navegador sem transcrição de fala.
- *
- * Havia um segundo — "Ainda não neste aplicativo", para o build nativo — e ele
- * ficou inalcançável de propósito: no app das lojas a LIA inteira não é
- * montada (ver `liaDisponivel` em `features/store.ts`), justamente porque um
- * recurso que se anuncia e depois diz "ainda não" reprova nas regras 2.1 e 2.3
- * da App Store.
- *
- * Se algum dia esta mensagem voltar a falar de plataforma, é sinal de que a
- * LIA voltou a aparecer onde não funciona.
- */
-function IndisponivelAqui() {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View style={styles.vazio}>
-      <Text style={styles.vazioTitulo}>Este navegador não transcreve fala</Text>
-      <Text style={styles.vazioTexto}>
-        Abra o POUP no Chrome ou no Edge para usar a escuta ao vivo. O Safari não oferece
-        transcrição contínua de forma confiável.
-      </Text>
-    </View>
-  );
-}
-
-/* ------------------------------------------------------------------ apoio */
 
 function agrupar(
   capturados: Record<string, CampoCapturado>,
@@ -285,19 +201,15 @@ function agrupar(
     .filter((g) => g.itens.length > 0);
 }
 
-/** O status da sessão traduzido para o vocabulário visual do orbe. */
 function modoDoOrbe(status: string): ModoOrbe {
-  if (status === 'ouvindo') return 'ouvindo';
   if (status === 'entendendo') return 'pensando';
   return 'parada';
 }
 
-function legendaStatus(status: string, suporte: string): string {
-  if (suporte !== 'ok') return 'Escuta indisponível neste navegador';
-  if (status === 'ouvindo') return 'Ouvindo a negociação';
-  if (status === 'entendendo') return 'Entendendo o que foi dito…';
-  if (status === 'erro') return 'A escuta parou';
-  return 'Desligada';
+function legendaStatus(status: string): string {
+  if (status === 'entendendo') return 'Analisando o texto…';
+  if (status === 'erro') return 'Não foi possível concluir a análise';
+  return 'Assistente por texto';
 }
 
 const makeStyles = (colors: AppColors) =>
@@ -323,11 +235,6 @@ const makeStyles = (colors: AppColors) =>
     subtitulo: { ...typography.caption, color: colors.inkMuted },
     fechar: { ...typography.heading, color: colors.inkMuted },
 
-    /*
-     * O orbe tem 2,6x o diâmetro do núcleo em caixa (a fumaça precisa de espaço
-     * para orbitar). O palco recorta essa caixa com altura fixa para o painel
-     * não crescer: a fumaça pode vazar por cima, e vazar é o efeito.
-     */
     palcoWrap: { position: 'relative' },
     palco: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 

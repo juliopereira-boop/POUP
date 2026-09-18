@@ -29,7 +29,7 @@ const PERGUNTAS = [
   },
   {
     q: 'Meus dados aparecem em outro aparelho?',
-    a: 'Sim. Tudo fica na sua conta, então basta entrar com o mesmo e-mail em qualquer aparelho.',
+    a: 'Sim. Use o mesmo método de entrada da sua conta. Se usou Apple com e-mail oculto, continue com Apple. Para adicionar outro método à mesma conta, entre primeiro e abra Métodos de acesso. Contas já separadas não são mescladas automaticamente.',
   },
   {
     q: 'O app não está abrindo ou está com erro',
@@ -69,6 +69,9 @@ export default function SupportScreen() {
       ))}
 
       <View style={styles.footer}>
+        <Link href="/excluir-conta">
+          <Text style={styles.link}>Excluir conta e dados</Text>
+        </Link>
         <Link href="/privacidade">
           <Text style={styles.link}>Política de Privacidade</Text>
         </Link>

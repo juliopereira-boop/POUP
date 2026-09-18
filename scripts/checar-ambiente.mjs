@@ -34,7 +34,7 @@
  *     Code apontando para `http://localhost:8081`. O mesmo vale para o link de
  *     simulação compartilhada com o cliente.
  *
- *   * **Só a web** precisa dos três `EXPO_PUBLIC_STRIPE_PRICE_*`. No build de
+ *   * **Só a web** precisa dos dois `EXPO_PUBLIC_STRIPE_PRICE_*`. No build de
  *     loja `canShowBilling` é `false`: não há paywall, não há botão de assinar,
  *     e desde a remoção do checkout do binário o arquivo que usaria esses IDs
  *     nem entra no bundle (ver `src/features/cobranca/`). Exigi-los ali seria
@@ -105,7 +105,7 @@ const REGRAS = [
 /** Onde cada variável é cadastrada, por contexto. Vai na mensagem de erro. */
 const ONDE = {
   web: 'Vercel → Project Settings → Environment Variables (e redeploy: as EXPO_PUBLIC_* são assadas no build).',
-  loja: 'EAS → Project settings → Environment variables, ou `eas secret:create`.',
+  loja: 'EAS → Project settings → Environment variables.',
 };
 
 const argv = process.argv.slice(2);
@@ -138,8 +138,34 @@ for (const regra of REGRAS) {
     continue;
   }
   if (PLACEHOLDERS.has(valor)) {
-    faltando.push({ ...regra, motivo: `ainda está com o valor de exemplo (${valor})` });
+    faltando.push({ ...regra, motivo: 'ainda está com um valor de exemplo' });
+    continue;
   }
+  // Nunca ecoar valores: uma chave privada cadastrada por engano não pode
+  // vazar também pelo log do build.
+  if (regra.nome.endsWith('_URL') && estrito) {
+    try {
+      const url = new URL(valor);
+      const local = /^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/.test(url.hostname)
+        || url.hostname.endsWith('.local') || url.hostname.endsWith('.invalid') || url.hostname.endsWith('.example');
+      if (url.protocol !== 'https:' || local || url.username || url.password || url.search || url.hash) throw new Error();
+    } catch { faltando.push({ ...regra, motivo: 'precisa ser uma URL HTTPS pública válida, sem credenciais ou parâmetros' }); }
+  }
+  if (regra.nome === 'EXPO_PUBLIC_SUPABASE_ANON_KEY') {
+    let role;
+    try { role = JSON.parse(Buffer.from(valor.split('.')[1] ?? '', 'base64url').toString()).role; } catch { /* publishable não é JWT */ }
+    if (!valor.startsWith('sb_publishable_') && role !== 'anon') {
+      faltando.push({ ...regra, motivo: 'use uma chave publishable ou anon; chaves secret/service_role nunca podem entrar no app' });
+    }
+  }
+  if (regra.nome.startsWith('EXPO_PUBLIC_STRIPE_PRICE_') && !/^price_[A-Za-z0-9]+$/.test(valor)) {
+    faltando.push({ ...regra, motivo: 'precisa ser um Price ID real do Stripe, não um exemplo' });
+  }
+}
+
+if (contexto === 'web' && process.env.EXPO_PUBLIC_STRIPE_PRICE_START &&
+    process.env.EXPO_PUBLIC_STRIPE_PRICE_START === process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO) {
+  faltando.push({ nome: 'EXPO_PUBLIC_STRIPE_PRICE_PRO', motivo: 'Start e Pro precisam de Price IDs diferentes', porque: 'evita cobrar o mesmo produto por planos diferentes.' });
 }
 
 const rotulo = contexto === 'loja' ? 'build de loja (iOS/Android)' : 'build da web';

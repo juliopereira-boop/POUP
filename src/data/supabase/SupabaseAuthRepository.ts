@@ -145,7 +145,8 @@ export class SupabaseAuthRepository implements AuthRepository {
     const params = new URLSearchParams(url.hash.replace(/^#/, ''));
     const access_token = params.get('access_token');
     const refresh_token = params.get('refresh_token');
-    if (!access_token || !refresh_token) return err(`O ${nomeAmigavel} não devolveu a sessão. Tente novamente.`);
+    if (!access_token || !refresh_token)
+      return err(`O ${nomeAmigavel} não devolveu a sessão. Tente novamente.`);
     if (access_token && refresh_token) {
       const { error: sessionError } = await supabase.auth.setSession({
         access_token,
@@ -230,9 +231,11 @@ export class SupabaseAuthRepository implements AuthRepository {
       }
 
       // O código é de uso único. Uma falha exige nova autenticação, não retry cego.
-      if (!await linkAppleCode(credencial.authorizationCode)) {
-        Alert.alert('Conexão Apple incompleta',
-          'Você entrou, mas não conseguimos concluir o vínculo com a Apple. Ao excluir sua conta, poderá ser necessário confirmar sua identidade com a Apple novamente. Se o problema continuar, fale com o suporte.');
+      if (!(await linkAppleCode(credencial.authorizationCode))) {
+        Alert.alert(
+          'Conexão Apple incompleta',
+          'Você entrou, mas não conseguimos concluir o vínculo com a Apple. Ao excluir sua conta, poderá ser necessário confirmar sua identidade com a Apple novamente. Se o problema continuar, fale com o suporte.',
+        );
       }
 
       return ok(undefined);
@@ -332,20 +335,66 @@ export class SupabaseAuthRepository implements AuthRepository {
     if (confirm !== 'EXCLUIR') return err('Digite EXCLUIR para confirmar.');
     const { data: current, error: userError } = await supabase.auth.getUser();
     if (userError || !current.user) return err('Entre novamente antes de excluir a conta.');
-    if (Platform.OS === 'ios' && current.user.identities?.some((identity) => identity.provider === 'apple')) {
+    if (current.user.identities?.some((identity) => identity.provider === 'apple')) {
       const { data: status, error: statusError } = await supabase.functions.invoke('apple-link', {
-        body: { action: 'status' },
+        body: { action: 'status', platform: Platform.OS },
       });
       if (statusError || !status?.configurado) {
-        return err('Não foi possível preparar a exclusão com a Apple. Tente novamente ou fale com o suporte. Sua conta não foi excluída.');
+        return err(
+          'Não foi possível preparar a exclusão com a Apple. Tente novamente ou fale com o suporte. Sua conta não foi excluída.',
+        );
       }
       if (!status.vinculado) {
         try {
-          const nonce = await appleNonce();
-          const credential = await AppleAuthentication.signInAsync({ nonce: nonce.hashed, requestedScopes: [] });
-          // NÃO trocar a sessão Supabase: o servidor compara com a identidade atual.
-          if (!await linkAppleCode(credential.authorizationCode)) {
-            return err('Não foi possível confirmar o vínculo. Use a mesma conta Apple do cadastro e tente novamente. Sua conta não foi excluída.');
+          if (Platform.OS !== 'ios') {
+            const { data: authorization, error: startError } = await supabase.functions.invoke(
+              'apple-link',
+              {
+                body: { action: 'reauthorize', platform: Platform.OS },
+              },
+            );
+            if (startError || !authorization?.url)
+              return err(
+                'Não foi possível iniciar a confirmação Apple. Tente novamente ou fale com o suporte.',
+              );
+            const authorizationUrl = new URL(authorization.url);
+            if (authorizationUrl.origin !== 'https://appleid.apple.com')
+              return err('Endereço de confirmação Apple inválido.');
+            if (Platform.OS === 'web') {
+              window.location.assign(authorization.url);
+              return err('Confirme sua conta Apple. Ao voltar, confirme novamente a exclusão.');
+            }
+            const result = await WebBrowser.openAuthSessionAsync(
+              authorization.url,
+              'poup://apple-reauth',
+            );
+            if (
+              result.type !== 'success' ||
+              new URL(result.url).searchParams.get('status') !== 'confirmed'
+            ) {
+              return err('Confirmação Apple não concluída. Sua conta não foi excluída.');
+            }
+            // O retorno do navegador não é prova: consultar o vínculo no servidor.
+            const { data: checked, error: checkError } = await supabase.functions.invoke(
+              'apple-link',
+              {
+                body: { action: 'status', platform: Platform.OS },
+              },
+            );
+            if (checkError || !checked?.vinculado)
+              return err('O vínculo Apple não foi confirmado. Sua conta não foi excluída.');
+          } else {
+            const nonce = await appleNonce();
+            const credential = await AppleAuthentication.signInAsync({
+              nonce: nonce.hashed,
+              requestedScopes: [],
+            });
+            // NÃO trocar a sessão Supabase: o servidor compara com a identidade atual.
+            if (!(await linkAppleCode(credential.authorizationCode))) {
+              return err(
+                'Não foi possível confirmar o vínculo. Use a mesma conta Apple do cadastro e tente novamente. Sua conta não foi excluída.',
+              );
+            }
           }
         } catch (error) {
           if ((error as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
@@ -354,6 +403,10 @@ export class SupabaseAuthRepository implements AuthRepository {
           return err('Não foi possível confirmar sua identidade com a Apple. Tente novamente.');
         }
       }
+    }
+    const { data: verified, error: verifiedError } = await supabase.auth.getUser();
+    if (verifiedError || verified.user?.id !== current.user.id) {
+      return err('A conta mudou durante a confirmação. Reabra a exclusão na conta correta.');
     }
     const { data, error } = await supabase.functions.invoke('delete-account', {
       body: { confirm },
@@ -368,9 +421,7 @@ export class SupabaseAuthRepository implements AuthRepository {
        * inteira. Sem ler o corpo, o corretor veria a mesma frase genérica
        * sempre e não saberia se pode tentar de novo.
        */
-      return err(
-        await mensagemDoErro(error, 'Não foi possível excluir a conta. Tente novamente.'),
-      );
+      return err(await mensagemDoErro(error, 'Não foi possível excluir a conta. Tente novamente.'));
     }
     const payload = data as { deleted?: boolean; error?: string } | null;
     if (!payload?.deleted) {

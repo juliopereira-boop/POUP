@@ -197,6 +197,7 @@ export async function agendarPorVoz(
   userId: string,
   texto: string,
   catalogo: CatalogoAgendamento,
+  sessaoAtiva: () => boolean = () => true,
 ): Promise<ResultadoCriacao> {
   /*
    * SÓ OS NOMES QUE A FRASE PODE ESTAR CITANDO.
@@ -248,12 +249,12 @@ export async function agendarPorVoz(
   const descricao = [
     agendamento.clienteNome ? `Cliente: ${agendamento.clienteNome}` : null,
     agendamento.empreendimentoNome ? `Empreendimento: ${agendamento.empreendimentoNome}` : null,
-    'Agendado pela LIA, por voz.',
+    'Agendado pela LIA, por texto.',
   ]
     .filter(Boolean)
     .join(' · ');
 
-  if (!(await temConsentimentoLia())) {
+  if (!(await temConsentimentoLia()) || !sessaoAtiva()) {
     return { ok: false, motivo: 'A autorização da LIA foi encerrada. Nenhum compromisso foi salvo.' };
   }
   const res = await db.appointments.create(userId, {

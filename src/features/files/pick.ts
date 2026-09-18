@@ -180,16 +180,8 @@ interface PickImageOptions {
 
 /** Converte o que o seletor de fotos devolve no mesmo formato do de arquivos. */
 async function fromGallery(square: boolean): Promise<PickedFile | null> {
-  /*
-   * Permissão só no Android. No iOS o seletor moderno roda fora do app e não
-   * exige autorização nenhuma — pedir ali abriria, à toa, o alerta de acesso
-   * TOTAL à fototeca, que é justamente o que não se quer num app que precisa
-   * de uma foto só.
-   */
-  if (Platform.OS === 'android') {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return null;
-  }
+  // O seletor do sistema concede acesso apenas à imagem escolhida, no iOS e
+  // Android. Não solicitar acesso amplo à galeria para um upload pontual.
 
   let result: ImagePicker.ImagePickerResult;
   try {

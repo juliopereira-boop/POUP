@@ -1,56 +1,4 @@
-/**
- * A SESSÃO DA LIA.
- *
- * ===========================================================================
- * O CICLO, EM UMA FRASE
- * ===========================================================================
- * Ouve → junta o que foi dito → no primeiro silêncio, entende → mostra o que
- * capturou e o que falta → volta a ouvir.
- *
- * ===========================================================================
- * POR QUE O SILÊNCIO É O GATILHO
- * ===========================================================================
- * Chamar o modelo a cada palavra seria caro, lento e pior: metade das frases
- * chega pela metade, e uma frase pela metade produz um valor errado que depois
- * precisa ser desfeito na tela, piscando na cara do corretor.
- *
- * A pausa é o momento natural. Numa negociação ela significa "acabei de dizer
- * uma coisa" — que é exatamente quando vale a pena interpretar. E é o mesmo
- * instante em que o corretor tem atenção sobrando para olhar a tela e ver o que
- * ainda falta. Um gatilho, dois propósitos.
- *
- * ===========================================================================
- * ESTADO + TRECHO NOVO, E UM FECHO QUE RELÊ TUDO
- * ===========================================================================
- * As rodadas parciais mandam o ESTADO já capturado, uma JANELA CURTA do que foi
- * dito antes (contexto) e o PEDAÇO NOVO da conversa (de onde se extrai). A
- * correção continua funcionando justamente por causa do estado: o modelo vê
- * `clienteRenda: 2800`, ouve "na verdade são três e meio", e corrige. Não é
- * preciso reler a conversa inteira para isso.
- *
- * A primeira versão reenviava a conversa inteira a cada rodada. Funcionava, e
- * custava US$ 2,13 por simulação — mais que a mensalidade do corretor. Hoje o
- * custo é linear na duração da reunião, não quadrático.
- *
- * A janela de contexto veio depois, e veio por um erro meu: a primeira versão
- * econômica mandava SÓ o pedaço novo, e em uso real a LIA não capturava quase
- * nada — o modelo recebia "duzentos e dez mil" sem nada em volta e obedecia,
- * corretamente, a regra de não inventar campo para número sem dono. Economia
- * que quebra a funcionalidade não é economia.
- *
- * O que segura a qualidade é o FECHO: antes de gerar o PDF, a conversa inteira
- * é relida pelo modelo bom, sem filtro nenhum. As rodadas parciais são para a
- * tela acompanhar; nenhuma delas decide o que o cliente assina.
- *
- * ===========================================================================
- * UMA CHAMADA POR VEZ, E A ÚLTIMA GANHA
- * ===========================================================================
- * A pessoa volta a falar enquanto a rodada anterior ainda está no ar. Se as
- * respostas voltassem fora de ordem, uma análise velha sobrescreveria uma nova
- * — e o corretor veria o valor corrigido virar de novo o valor antigo. Cada
- * rodada leva um número; resposta com número menor que a última aplicada é
- * descartada.
- */
+/** Sessão de simulação por texto: nenhum acesso ao microfone. */
 import {
   createContext,
   useCallback,
@@ -61,8 +9,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Animated } from 'react-native';
-
 import { db } from '@/data';
 import { useAuth } from '@/providers/AuthProvider';
 import { sessionStorage } from '@/lib/storage';
@@ -75,61 +21,11 @@ import {
   type CapturaBruta,
   type ContextoCatalogo,
 } from './campos';
-import { resolverDoCatalogo, vocabularioDoCatalogo, type ItemCatalogo } from './catalogo';
-import { criarEscuta, suporteDeEscuta, type Escuta, type SuporteEscuta } from './escuta';
-import { extrair, type CampoOuvido, type ModoExtracao } from './extrair';
-import { agendarPorVoz, pareceAgendamento } from './agendamento';
-import { valeAnalisar } from './gatilho';
-import { temConsentimentoLia } from './consentimento';
-import { medirVoz, type MedidorDeVoz } from './nivelDeVoz';
+import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
+import { extrair, type CampoOuvido } from './extrair';
+import { temConsentimentoLia, aoRevogarConsentimentoLia } from './consentimento';
 
-/**
- * DUAS PAUSAS, PORQUE SÃO DUAS COISAS DIFERENTES.
- *
- * `PAUSA_MS` — a frase acabou. É quando a LIA vai INTERPRETAR. Curta de
- * propósito: interpretar é o que a faz parecer rápida, e esperar três segundos
- * para começar a pensar significa ainda estar processando a frase anterior
- * quando a próxima chegar. Com 1,2 s ela trabalha no vão entre as frases, que
- * é tempo que já existia e estava sendo desperdiçado.
- *
- * `SILENCIO_MS` — a conversa parou de verdade. É quando ela COBRA o que falta.
- * Continua nos três segundos pedidos: cobrar a cada respiração faria a lista
- * piscar no canto do olho de quem está negociando.
- */
-const PAUSA_MS = 1200;
-const SILENCIO_MS = 3000;
-
-/**
- * Piso entre duas chamadas ao modelo.
- *
- * Voltou a 3,5 s depois de eu subir para 12 s achando que era necessário para
- * o custo caber — sem recalcular depois que a cache, o gatilho local e o
- * Haiku já tinham feito o trabalho pesado. Refeita a conta: 3,5 s custa
- * US$ 0,09/simulação contra US$ 0,05 a 12 s — uma diferença de R$ 0,21 por
- * simulação, irrelevante perto da margem (cai de 80% para 78% em 400
- * usuários). Não valia trocar a sensação de "ao vivo" por isso.
- */
-const INTERVALO_MINIMO_MS = 3500;
-
-/**
- * Quanto da conversa anterior viaja junto como CONTEXTO.
- *
- * Este número é o conserto do bug que fez a LIA "não entender nada". Mandando
- * só o trecho novo, o modelo recebia "duzentos e dez mil" solto e — obedecendo
- * a regra de não registrar número sem saber de que campo é — devolvia lista
- * vazia. Certíssimo, e inútil.
- *
- * 1.200 caracteres são uns 25 a 30 segundos de fala: o bastante para a frase
- * anterior ("e o apartamento, quanto tá?") estar lá. Em Haiku, com cache no
- * prompt fixo, isso sai por menos de um centavo na simulação inteira.
- *
- * Vai só nas rodadas parciais. O fecho manda a conversa completa de qualquer
- * jeito, então repetir contexto ali seria pagar duas vezes pelo mesmo texto.
- */
-const JANELA_CONTEXTO_CHARS = 1200;
-
-export type StatusLia = 'desligada' | 'ouvindo' | 'entendendo' | 'erro';
-
+export type StatusLia = 'desligada' | 'pronta' | 'entendendo' | 'erro';
 export interface CampoCapturado {
   chave: string;
   /** O valor cru, como o modelo devolveu. É o que vai para o simulador. */
@@ -151,177 +47,52 @@ export interface CampoCapturado {
 }
 
 interface LiaContextValue {
-  suporte: SuporteEscuta;
   status: StatusLia;
-  /** Tudo que já foi transcrito nesta sessão. */
-  transcricao: string;
-  /** A frase em andamento, ainda não fechada pelo reconhecimento. */
-  parcial: string;
   capturados: Record<string, CampoCapturado>;
-  /** Chaves essenciais ainda sem valor. É o que a tela cobra no silêncio. */
   faltando: string[];
-  /** Aviso do modelo sobre algo que atrapalha (nome fora do catálogo etc.). */
   observacao: string | null;
   erro: string | null;
-  /** Verdadeiro depois de uma pausa em que ainda faltava coisa essencial. */
-  cobrando: boolean;
-  /**
-   * Volume da voz, de 0 a 1, para as animações.
-   *
-   * É um `Animated.Value` e não um número de estado porque ele muda ~60 vezes
-   * por segundo: passar isso pelo React seriam 60 renderizações do aplicativo
-   * inteiro a cada segundo de conversa.
-   */
-  nivelDeVoz: Animated.Value;
-
-  iniciar: () => Promise<void>;
+  enviarTexto: (texto: string) => Promise<boolean>;
   encerrar: () => void;
-  /** Força uma interpretação agora, sem esperar a pausa. */
-  entenderAgora: () => void;
-  /** Descarta um campo que a LIA entendeu errado. */
   descartar: (chave: string) => void;
-  /**
-   * Leva o que foi capturado para o simulador e encerra a sessão.
-   *
-   * Devolve `true` quando nada essencial ficou faltando — é o que decide se o
-   * corretor cai direto no botão de gerar o PDF ou na primeira etapa.
-   */
-  levarParaSimulador: () => Promise<boolean>;
-
-  /**
-   * O último agendamento que a LIA tentou criar por voz — sucesso ou erro.
-   *
-   * `null` quando nada foi tentado ainda nesta sessão. Fica até a próxima
-   * tentativa ou até a sessão encerrar; não é um toast que some sozinho,
-   * porque o corretor pode estar de costas para a tela no instante em que
-   * o agendamento aconteceu.
-   */
-  avisoAgendamento: { tipo: 'sucesso' | 'erro'; texto: string } | null;
+  levarParaSimulador: () => Promise<boolean | null>;
 }
-
 const LiaContext = createContext<LiaContextValue | undefined>(undefined);
-
 export function LiaProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-
-  const [suporte] = useState<SuporteEscuta>(() => suporteDeEscuta());
   const [status, setStatus] = useState<StatusLia>('desligada');
-  const [transcricao, setTranscricao] = useState('');
-  const [parcial, setParcial] = useState('');
   const [capturados, setCapturados] = useState<Record<string, CampoCapturado>>({});
   const [observacao, setObservacao] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [cobrando, setCobrando] = useState(false);
-  const [avisoAgendamento, setAvisoAgendamento] = useState<
-    { tipo: 'sucesso' | 'erro'; texto: string } | null
-  >(null);
-
-  const escutaRef = useRef<Escuta | null>(null);
-  const medidorRef = useRef<MedidorDeVoz | null>(null);
-  const nivelDeVozRef = useRef(new Animated.Value(0));
-  /*
-   * A transcrição vive TAMBÉM numa ref, e não é redundância.
-   *
-   * O callback da escuta é montado uma vez, na hora de iniciar, e viveria
-   * eternamente enxergando o estado daquele instante — a conversa chegaria
-   * sempre "vazia" para ele. A ref é a versão que o callback consegue ler.
-   */
-  const transcricaoRef = useRef('');
-  const analisandoRef = useRef(false);
-  /** A sessão está de pé? Ref porque callbacks antigos precisam consultá-la. */
-  const sessaoAtivaRef = useRef(false);
-  const rodadaRef = useRef(0);
-  const ultimaAplicadaRef = useRef(0);
-  /** Quando a última chamada ao modelo COMEÇOU. Base do intervalo mínimo. */
-  const ultimaChamadaRef = useRef(0);
-  const timerRefilaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Marca que chegou texto novo desde a última análise. */
-  const pendenteRef = useRef(false);
-  /**
-   * O que foi falado DESDE a última análise.
-   *
-   * É isto que vai ao modelo nas rodadas parciais, em vez da conversa inteira.
-   * A `transcricaoRef` continua existindo, completa, para o fecho — e é ela
-   * que garante que nada se perde: mesmo que uma rodada parcial erre ou seja
-   * pulada pelo gatilho, a releitura final vê tudo.
-   */
-  const trechoNovoRef = useRef('');
-  /**
-   * Espelho de `capturados` legível pelo callback da análise.
-   *
-   * `analisar` é criado uma vez (dependências vazias, de propósito — ele é
-   * chamado de dentro dos callbacks da escuta, que também são criados uma vez).
-   * Sem o espelho, ele mandaria ao modelo o estado do primeiro instante e o
-   * modelo reenviaria campos que já tínhamos, rodada após rodada.
-   */
   const capturadosRef = useRef<Record<string, CampoCapturado>>({});
-  /** Soma do que a sessão gastou, para medir custo real em vez de estimar. */
-  const usoRef = useRef({ entrada: 0, cacheEscrita: 0, cacheLeitura: 0, saida: 0, chamadas: 0 });
-
-  // Catálogo do corretor, carregado uma vez por sessão de escuta.
   const empreendimentosRef = useRef<ItemCatalogo[]>([]);
-  /** Os clientes do corretor — só para o agendamento casar "cliente fulana". */
-  const leadsRef = useRef<ItemCatalogo[]>([]);
-  /** id → nome, para devolver nome onde o modelo devolveu id. */
   const nomesRef = useRef<Record<string, string>>({});
-  /** Palavras dos nomes do catálogo, para o gatilho não descartar "o connect". */
-  const vocabularioRef = useRef<ReadonlySet<string>>(new Set());
   const contextoRef = useRef<ContextoCatalogo>({
     empresaDoEmpreendimento: {},
     correspondentes: [],
   });
+  const geracao = useRef(0);
+  const ocupado = useRef(false);
+  const owner = useRef(user?.id);
+  owner.current = user?.id;
 
-  const faltando = useMemo(
-    () => CHAVES_ESSENCIAIS.filter((c) => !capturados[c]),
-    [capturados],
-  );
-
-  /** Junta empresas, empreendimentos e correspondentes do corretor. */
-  const carregarCatalogo = useCallback(async () => {
-    if (!user) return;
-    const [empresas, empreendimentos, leads] = await Promise.all([
-      db.companies.list(user.id),
-      db.developments.list(user.id),
-      db.leads.list(user.id),
-    ]);
-
-    empreendimentosRef.current = empreendimentos.map((d) => ({ id: d.id, nome: d.name }));
-    // Só para o agendamento resolver "cliente fulana" — o resto da LIA não usa.
-    leadsRef.current = leads.map((l) => ({ id: l.id, nome: l.name }));
-
-    /*
-     * Correspondentes de TODAS as empresas do corretor, não só da empresa já
-     * escolhida — quando a LIA ouve o nome do correspondente, o empreendimento
-     * pode ainda nem ter sido citado. A ordem da conversa é do cliente, não
-     * nossa.
-     */
-    const listas = await Promise.all(empresas.map((e) => db.companies.listCorrespondents(e.id)));
-    const correspondentes = listas.flat().map((c) => ({ id: c.id, nome: c.name }));
-    contextoRef.current = {
-      empresaDoEmpreendimento: Object.fromEntries(empreendimentos.map((d) => [d.id, d.companyId])),
-      correspondentes,
-    };
-    nomesRef.current = Object.fromEntries([
-      ...empreendimentos.map((d) => [d.id, d.name]),
-      ...correspondentes.map((c) => [c.id, c.nome]),
-    ]);
-    vocabularioRef.current = vocabularioDoCatalogo([
-      ...empreendimentos.map((d) => d.name),
-      ...correspondentes.map((c) => c.nome),
-    ]);
-  }, [user]);
-
-  /**
-   * O nome que o modelo devolveu vira o id do cadastro — ou não vira nada.
-   *
-   * Campos de empreendimento e correspondente chegam como NOME (é o que o
-   * modelo acerta) e o simulador precisa de id. Casar é local e instantâneo.
-   *
-   * Nome que não casa com ninguém, ou que casa com dois, **não vira campo**: um
-   * empreendimento errado arrasta empresa, gerente, comissão e prazo máximo
-   * junto. O corretor recebe a frase do `aviso` explicando o que foi ouvido, o
-   * que é bem melhor que um campo em branco sem explicação.
-   */
+  const encerrar = useCallback(() => {
+    geracao.current += 1;
+    ocupado.current = false;
+    capturadosRef.current = {};
+    empreendimentosRef.current = [];
+    nomesRef.current = {};
+    contextoRef.current = { empresaDoEmpreendimento: {}, correspondentes: [] };
+    setCapturados({});
+    setObservacao(null);
+    setErro(null);
+    setStatus('desligada');
+  }, []);
+  useEffect(() => {
+    encerrar();
+    return encerrar;
+  }, [user?.id, encerrar]);
+  useEffect(() => aoRevogarConsentimentoLia(encerrar), [encerrar]);
   const resolverReferencias = useCallback(
     (campos: CampoOuvido[]): { campos: CampoOuvido[]; avisos: string[] } => {
       const avisos: string[] = [];
@@ -340,7 +111,9 @@ export function LiaProvider({ children }: { children: ReactNode }) {
           continue;
         }
         const itens =
-          tipo === 'empreendimento' ? empreendimentosRef.current : contextoRef.current.correspondentes;
+          tipo === 'empreendimento'
+            ? empreendimentosRef.current
+            : contextoRef.current.correspondentes;
         const { id, aviso } = resolverDoCatalogo(c.valor, itens);
         if (id) resolvidos.push({ ...c, valor: id });
         else if (aviso) avisos.push(aviso);
@@ -351,420 +124,123 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const analisar = useCallback(
-    async (modo: ModoExtracao = 'parcial') => {
-      const fecho = modo === 'final';
-      const conversa = fecho ? transcricaoRef.current.trim() : trechoNovoRef.current.trim();
-      if (!conversa) return;
-
-      /*
-       * O CONTEXTO — o que salva a rodada parcial de ser inútil.
-       *
-       * `transcricaoRef` termina com o trecho novo; o que vem antes dele é o
-       * contexto. Recorta-se o fim porque o começo da reunião não ajuda a
-       * entender a frase de agora — e cada caractere custa.
-       *
-       * No fecho não vai contexto: a conversa inteira já está em `conversa`.
-       */
-      let antes = '';
-      if (!fecho) {
-        const tudo = transcricaoRef.current.trim();
-        const anterior = tudo.endsWith(conversa)
-          ? tudo.slice(0, tudo.length - conversa.length).trim()
-          : tudo;
-        antes = anterior.slice(-JANELA_CONTEXTO_CHARS);
-      }
-
-      /*
-       * O FILTRO MAIS BARATO QUE EXISTE.
-       *
-       * Boa parte do que o microfone capta não tem nenhum dado da simulação:
-       * cumprimento, trânsito, "pois é", o corretor explicando como funciona o
-       * financiamento. Mandar isso ao modelo custa e devolve lista vazia.
-       *
-       * O fecho NUNCA passa por aqui: quando o corretor manda gerar a proposta,
-       * a conversa inteira é relida sem filtro. Assim, um trecho que este gatilho
-       * tenha descartado por engano volta a ser visto antes de virar PDF.
-       */
-      if (!fecho && !valeAnalisar(conversa, vocabularioRef.current)) {
-        trechoNovoRef.current = '';
-        pendenteRef.current = false;
-        return;
-      }
-
-      /*
-       * Uma chamada por vez, e nunca mais rápido que o intervalo mínimo.
-       *
-       * Quando a vez ainda não chegou, a rodada NÃO é descartada: fica agendada
-       * para o instante em que o intervalo fecha. Descartar faria a LIA "perder"
-       * uma frase inteira até a próxima pausa. O fecho fura a fila, porque aí é o
-       * corretor pedindo, e ele não deve esperar por uma regra de custo.
-       */
-      if (analisandoRef.current) {
-        pendenteRef.current = true;
-        return;
-      }
-      const desdeUltima = Date.now() - ultimaChamadaRef.current;
-      if (!fecho && desdeUltima < INTERVALO_MINIMO_MS) {
-        pendenteRef.current = true;
-        if (!timerRefilaRef.current) {
-          timerRefilaRef.current = setTimeout(() => {
-            timerRefilaRef.current = null;
-            if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
-          }, INTERVALO_MINIMO_MS - desdeUltima);
+  const enviarTexto = useCallback(
+    async (texto: string): Promise<boolean> => {
+      const mensagem = texto.trim();
+      if (!user || !mensagem || ocupado.current) return false;
+      ocupado.current = true;
+      const sessao = geracao.current;
+      const uid = user.id;
+      const atual = () => sessao === geracao.current && owner.current === uid;
+      try {
+        if (!(await temConsentimentoLia()) || !atual()) return false;
+        setStatus('entendendo');
+        setErro(null);
+        const [empresas, devs] = await Promise.all([
+          db.companies.list(uid),
+          db.developments.list(uid),
+        ]);
+        const listas = await Promise.all(
+          empresas.map((e) => db.companies.listCorrespondents(e.id)),
+        );
+        if (!atual() || !(await temConsentimentoLia())) return false;
+        const correspondentes = listas.flat().map((c) => ({ id: c.id, nome: c.name }));
+        empreendimentosRef.current = devs.map((d) => ({ id: d.id, nome: d.name }));
+        contextoRef.current = {
+          empresaDoEmpreendimento: Object.fromEntries(devs.map((d) => [d.id, d.companyId])),
+          correspondentes,
+        };
+        nomesRef.current = Object.fromEntries([
+          ...devs.map((d) => [d.id, d.name]),
+          ...correspondentes.map((c) => [c.id, c.nome]),
+        ]);
+        const estado = Object.fromEntries(
+          Object.values(capturadosRef.current).map((c) => [
+            c.chave,
+            nomesRef.current[c.valor] ?? c.valor,
+          ]),
+        );
+        const r = await extrair({
+          modo: 'final',
+          antes: '',
+          agora: mensagem,
+          estado,
+          empreendimentos: devs.map((d) => d.name),
+          correspondentes: correspondentes.map((c) => c.nome),
+        });
+        if (!atual() || !(await temConsentimentoLia())) return false;
+        if ('erro' in r) {
+          setErro(r.erro);
+          setStatus('erro');
+          return false;
         }
-        return;
-      }
-
-      analisandoRef.current = true;
-      ultimaChamadaRef.current = Date.now();
-      pendenteRef.current = false;
-      // Esvazia JÁ: o que chegar durante a chamada é o trecho da PRÓXIMA rodada.
-      // Esvaziar depois perderia tudo que foi falado enquanto o modelo pensava.
-      if (!fecho) trechoNovoRef.current = '';
-      rodadaRef.current += 1;
-      const rodada = rodadaRef.current;
-
-      // `sessaoAtivaRef`, e não o `status`: quem encerra a sessão mexe no estado,
-      // e o estado que este callback enxerga é o do instante em que ele foi
-      // criado. Sem a ref, encerrar durante uma análise deixaria a tela dizendo
-      // "ouvindo" com o microfone já fechado.
-      if (sessaoAtivaRef.current) setStatus('entendendo');
-
-      // O estado vai SEM os trechos: o modelo só precisa saber o que já tem para
-      // decidir o que mudou. Os trechos são da tela, e mandá-los dobraria o
-      // tamanho do estado a cada rodada sem servir para nada.
-      const estado = Object.fromEntries(
-        Object.values(capturadosRef.current).map((c) => [c.chave, c.valor]),
-      );
-
-      /*
-       * O estado vai com os NOMES onde ele guarda ids.
-       *
-       * O modelo devolve nome e nunca vê um UUID — mandar `empreendimento:
-       * dev-a1b2…` no estado seria pedir que ele comparasse o que ouviu com uma
-       * string sem significado, e ele registraria o empreendimento de novo a cada
-       * rodada por achar que ainda não tinha sido capturado.
-       */
-      const estadoLegivel = Object.fromEntries(
-        Object.entries(estado).map(([k, v]) => [k, nomesRef.current[v] ?? v]),
-      );
-
-      const r = await extrair({
-        modo,
-        antes,
-        agora: conversa,
-        estado: estadoLegivel,
-        empreendimentos: empreendimentosRef.current.map((e) => e.nome),
-        correspondentes: contextoRef.current.correspondentes.map((c) => c.nome),
-      });
-
-      analisandoRef.current = false;
-
-      // Chegou depois de uma rodada mais nova: descarta. Aplicar isto agora
-      // desfaria uma correção que o corretor já viu na tela.
-      if (rodada < ultimaAplicadaRef.current) return;
-      ultimaAplicadaRef.current = rodada;
-
-      if ('erro' in r) {
-        setErro(r.erro);
-        if (sessaoAtivaRef.current) setStatus('ouvindo');
-        return;
-      }
-
-      if (r.uso) {
-        const u = usoRef.current;
-        u.entrada += r.uso.entrada;
-        u.cacheEscrita += r.uso.cacheEscrita;
-        u.cacheLeitura += r.uso.cacheLeitura;
-        u.saida += r.uso.saida;
-        u.chamadas += 1;
-      }
-
-      setErro(null);
-
-      // Nome → id, aqui, antes de qualquer coisa olhar para o valor.
-      const { campos: camposResolvidos, avisos } = resolverReferencias(r.campos);
-      setObservacao([r.observacao, ...avisos].filter(Boolean).join(' ') || null);
-
-      /*
-       * FUSÃO, não substituição.
-       *
-       * A resposta traz só o que mudou, então o que já estava capturado
-       * permanece. É o outro lado da economia: sem a fusão, cada rodada teria de
-       * pedir ao modelo que repetisse os catorze campos para não perder nenhum.
-       */
-      setCapturados((antes) => {
-        const agora = Date.now();
-        const novo = { ...antes };
+        const { campos, avisos } = resolverReferencias(r.campos);
+        const novo = { ...capturadosRef.current };
         for (const chave of r.remover) delete novo[chave];
-        for (const c of camposResolvidos) {
+        for (const c of campos) {
           if (!CAMPOS_POR_CHAVE[c.chave]) continue;
-          const anterior = antes[c.chave];
-          const mudou = !!anterior && anterior.valor !== c.valor;
           novo[c.chave] = {
-            chave: c.chave,
-            valor: c.valor,
+            ...c,
             exibicao: exibirValor(c.chave, c.valor, nomesRef.current),
-            trecho: c.trecho,
-            confianca: c.confianca,
-            corrigido: mudou,
-            em: agora,
+            corrigido: !!novo[c.chave] && novo[c.chave].valor !== c.valor,
+            em: Date.now(),
           };
         }
         capturadosRef.current = novo;
-        return novo;
-      });
-
-      if (sessaoAtivaRef.current) setStatus('ouvindo');
-
-      // Chegou fala nova durante a chamada: reanalisa — passando pelo intervalo
-      // mínimo lá em cima, que é o que impede o laço contínuo.
-      if (sessaoAtivaRef.current && pendenteRef.current) void analisar('parcial');
-    },
-    [resolverReferencias],
-  );
-
-  /**
-   * AGENDAR — um caminho lateral, sem interferir na captura de campos.
-   *
-   * ===========================================================================
-   * POR QUE ISTO NÃO USA `analisar`
-   * ===========================================================================
-   * `analisar` acumula ESTADO ao longo da reunião inteira (o que já foi
-   * capturado, corrigido, removido) e decide o que virou o simulador no fim.
-   * Agendar não acumula nada: é uma frase, um compromisso, criado na hora.
-   * Misturar os dois faria uma correção de agendamento ("na verdade é às 15h,
-   * não às 14h") brigar com o modelo de fusão que existe para os CAMPOS da
-   * simulação — que é outra coisa.
-   *
-   * ===========================================================================
-   * NÃO BLOQUEIA A ESCUTA
-   * ===========================================================================
-   * Chamado a partir de `aoFechar`, sem `await` no chamador: enquanto o
-   * agendamento processa (uma chamada de rede), o corretor continua falando e
-   * a captura de campos continua endendo normalmente.
-   */
-  const processarAgendamento = useCallback(
-    async (texto: string) => {
-      if (!user) return;
-      const r = await agendarPorVoz(user.id, texto, {
-        empreendimentos: empreendimentosRef.current,
-        clientes: leadsRef.current,
-        empresaDoEmpreendimento: contextoRef.current.empresaDoEmpreendimento,
-      });
-      setAvisoAgendamento(
-        r.ok ? { tipo: 'sucesso', texto: `Agendado: ${r.resumo}` } : { tipo: 'erro', texto: r.motivo },
-      );
-    },
-    [user],
-  );
-
-  const processarAgendamentoRef = useRef(processarAgendamento);
-  processarAgendamentoRef.current = processarAgendamento;
-
-  const iniciar = useCallback(async () => {
-    if (suporte !== 'ok') return;
-    if (!(await temConsentimentoLia())) return;
-
-    // Dois toques em "Começar a ouvir" deixariam dois reconhecedores vivos, e
-    // o segundo sobrescreveria a referência do primeiro — que ficaria com o
-    // microfone aberto, sem ninguém capaz de fechá-lo.
-    escutaRef.current?.parar();
-    escutaRef.current = null;
-
-    setErro(null);
-    setObservacao(null);
-    setCobrando(false);
-    setAvisoAgendamento(null);
-    sessaoAtivaRef.current = true;
-    transcricaoRef.current = '';
-    trechoNovoRef.current = '';
-    capturadosRef.current = {};
-    usoRef.current = { entrada: 0, cacheEscrita: 0, cacheLeitura: 0, saida: 0, chamadas: 0 };
-    setTranscricao('');
-    setCapturados({});
-    setStatus('ouvindo');
-
-    await carregarCatalogo();
-
-    const escuta = criarEscuta({
-      pausaMs: PAUSA_MS,
-      silencioMs: SILENCIO_MS,
-      aoOuvir: (p) => setParcial(p),
-      aoFechar: (texto) => {
-        transcricaoRef.current = `${transcricaoRef.current} ${texto}`.trim();
-        trechoNovoRef.current = `${trechoNovoRef.current} ${texto}`.trim();
-        setTranscricao(transcricaoRef.current);
-        pendenteRef.current = true;
-        // Voltou a falar: some a cobrança, como pedido.
-        setCobrando(false);
-        // Agendar é um caminho À PARTE da captura de campos — ver o
-        // comentário de `processarAgendamento`. Não bloqueia nem espera.
-        if (pareceAgendamento(texto)) void processarAgendamentoRef.current(texto);
-      },
-      // Frase fechada: pensa já, sem esperar a conversa parar.
-      aoPausar: () => {
-        if (pendenteRef.current) void analisar('parcial');
-      },
-      // Conversa parada: aí sim mostra o que ainda falta perguntar.
-      aoSilenciar: () => {
-        if (pendenteRef.current) void analisar('parcial');
-        setCobrando(true);
-      },
-      aoFalhar: (mensagem) => {
-        sessaoAtivaRef.current = false;
-        setErro(mensagem);
-        setStatus('erro');
-      },
-    });
-
-    escutaRef.current = escuta;
-    escuta.iniciar();
-
-    /*
-     * O medidor de volume é ENFEITE, e por isso vem por último e sem travar
-     * nada: se ele falhar (permissão, navegador sem Web Audio), o orbe cai na
-     * animação por ritmo e a escuta segue igual. Uma animação nunca pode
-     * derrubar a funcionalidade.
-     */
-    void medirVoz((n) => nivelDeVozRef.current.setValue(n)).then((m) => {
-      // A sessão pode ter sido encerrada enquanto a permissão era resolvida.
-      if (!sessaoAtivaRef.current) {
-        m?.parar();
-        return;
+        setCapturados(novo);
+        setObservacao([r.observacao, ...avisos].filter(Boolean).join(' ') || null);
+        setStatus('pronta');
+        return true;
+      } catch {
+        if (atual()) {
+          setErro('Não foi possível analisar o texto. Tente novamente.');
+          setStatus('erro');
+        }
+        return false;
+      } finally {
+        if (atual()) ocupado.current = false;
       }
-      medidorRef.current = m;
-    });
-  }, [analisar, carregarCatalogo, suporte]);
-
-  const encerrar = useCallback(() => {
-    sessaoAtivaRef.current = false;
-    escutaRef.current?.parar();
-    escutaRef.current = null;
-    // Sem isto, a luz do microfone fica acesa depois de encerrar a LIA.
-    medidorRef.current?.parar();
-    medidorRef.current = null;
-    if (timerRefilaRef.current) clearTimeout(timerRefilaRef.current);
-    timerRefilaRef.current = null;
-    pendenteRef.current = false;
-    setStatus('desligada');
-    setParcial('');
-    setCobrando(false);
-  }, []);
-
-  /**
-   * "Reler agora" é um FECHO, não uma rodada parcial.
-   *
-   * Quando o corretor pede explicitamente, ele quer a melhor leitura possível —
-   * conversa inteira, modelo bom. É a mesma passada que roda antes de gerar o
-   * PDF, e é de propósito: assim ele consegue conferir o resultado definitivo
-   * antes de sair da tela.
-   */
-  const entenderAgora = useCallback(() => {
-    void analisar('final');
-  }, [analisar]);
-
+    },
+    [user, resolverReferencias],
+  );
   const descartar = useCallback((chave: string) => {
-    setCapturados((antes) => {
-      const resto = { ...antes };
-      delete resto[chave];
-      capturadosRef.current = resto;
-      return resto;
-    });
+    const novo = { ...capturadosRef.current };
+    delete novo[chave];
+    capturadosRef.current = novo;
+    setCapturados(novo);
   }, []);
-
-  const levarParaSimulador = useCallback(async (): Promise<boolean> => {
-    /*
-     * O FECHO ACONTECE AQUI, E É O QUE DECIDE A PROPOSTA.
-     *
-     * Antes de entregar, a conversa INTEIRA é relida pelo modelo bom. As
-     * rodadas parciais existiram para a tela acompanhar — rápidas, baratas e
-     * vendo só um pedaço de cada vez. Nenhuma delas tem autoridade sobre o que
-     * o cliente vai assinar.
-     *
-     * É também a rede que segura os dois atalhos de custo: um trecho que o
-     * gatilho local descartou por engano, ou um campo que o modelo barato
-     * deixou passar, reaparecem aqui — porque aqui nada é filtrado.
-     */
-    await analisar('final');
-
-    // `capturadosRef`, e não `capturados`: o estado do React ainda não
-    // atualizou quando esta linha roda, e o que vale é o resultado do fecho.
+  const levarParaSimulador = useCallback(async () => {
+    if (ocupado.current || !(await temConsentimentoLia()) || !owner.current) return null;
     const atual = capturadosRef.current;
-    const completo = CHAVES_ESSENCIAIS.every((c) => atual[c]);
-
+    if (!Object.keys(atual).length) return null;
     const bruto: CapturaBruta = Object.fromEntries(
       Object.values(atual).map((c) => [c.chave, c.valor]),
     );
     const estado = paraSimulador(bruto, contextoRef.current);
     await sessionStorage.setItem(PREFILL_KEY, JSON.stringify({ estado }));
+    const completo = CHAVES_ESSENCIAIS.every((c) => atual[c]);
     encerrar();
-    // A transcrição não sobrevive à entrega: ela contém nome, CPF e renda de
-    // uma pessoa que não é o usuário do app.
-    transcricaoRef.current = '';
-    trechoNovoRef.current = '';
-    capturadosRef.current = {};
-    setTranscricao('');
-    setCapturados({});
     return completo;
-  }, [analisar, encerrar]);
-
-  // Sair da conta com o microfone aberto não é aceitável.
-  useEffect(() => {
-    if (!user && escutaRef.current) encerrar();
-  }, [user, encerrar]);
-
-  // Desmontar sem soltar o microfone deixaria a luz do aparelho acesa.
-  useEffect(
-    () => () => {
-      escutaRef.current?.parar();
-      medidorRef.current?.parar();
-    },
-    [],
+  }, [encerrar]);
+  const faltando = useMemo(() => CHAVES_ESSENCIAIS.filter((c) => !capturados[c]), [capturados]);
+  return (
+    <LiaContext.Provider
+      value={{
+        status,
+        capturados,
+        faltando,
+        observacao,
+        erro,
+        enviarTexto,
+        encerrar,
+        descartar,
+        levarParaSimulador,
+      }}
+    >
+      {children}
+    </LiaContext.Provider>
   );
-
-  const value = useMemo<LiaContextValue>(
-    () => ({
-      suporte,
-      status,
-      transcricao,
-      parcial,
-      capturados,
-      faltando,
-      observacao,
-      erro,
-      cobrando,
-      nivelDeVoz: nivelDeVozRef.current,
-      iniciar,
-      encerrar,
-      entenderAgora,
-      descartar,
-      levarParaSimulador,
-      avisoAgendamento,
-    }),
-    [
-      suporte,
-      status,
-      transcricao,
-      parcial,
-      capturados,
-      faltando,
-      observacao,
-      erro,
-      cobrando,
-      iniciar,
-      encerrar,
-      entenderAgora,
-      descartar,
-      levarParaSimulador,
-      avisoAgendamento,
-    ],
-  );
-
-  return <LiaContext.Provider value={value}>{children}</LiaContext.Provider>;
 }
-
 export function useLia(): LiaContextValue {
   const ctx = useContext(LiaContext);
   if (!ctx) throw new Error('useLia deve ser usado dentro de <LiaProvider>.');

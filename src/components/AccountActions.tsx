@@ -11,6 +11,11 @@ export function AccountActions() {
     <View style={{ alignSelf: 'stretch' }}>
       <Button label="Suporte" variant="ghost" onPress={() => router.push('/suporte')} />
       <Button label="Privacidade" variant="ghost" onPress={() => router.push('/privacidade')} />
+      <Button
+        label="Métodos de acesso"
+        variant="ghost"
+        onPress={() => router.push('/acesso-conta')}
+      />
       <DeleteAccountButton />
     </View>
   );

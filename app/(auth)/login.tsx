@@ -70,6 +70,10 @@ export default function LoginScreen() {
       </View>
 
       <Text style={styles.title}>Entrar</Text>
+      <Text style={styles.subtitle}>
+        Já tem conta? Use o mesmo método de entrada do seu cadastro, inclusive ao trocar de
+        aparelho.
+      </Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -135,38 +139,38 @@ export default function LoginScreen() {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-  header: { alignItems: 'center', marginBottom: spacing.xxl },
-  subtitle: {
-    ...typography.body,
-    color: colors.inkMuted,
-    marginTop: spacing.md,
-  },
-  title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
-  cta: { marginTop: spacing.sm },
-  forgot: { alignSelf: 'flex-end', marginBottom: spacing.lg },
-  link: { ...typography.label, color: colors.primary },
-  error: {
-    ...typography.caption,
-    color: colors.danger,
-    backgroundColor: colors.dangerSoft,
-    padding: spacing.md,
-    borderRadius: 8,
-    marginBottom: spacing.lg,
-    overflow: 'hidden',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.xl,
-    gap: spacing.md,
-  },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  socialGap: { marginTop: spacing.md },
-  dividerText: { ...typography.caption, color: colors.inkSubtle },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.xl,
-  },
-  footerText: { ...typography.body, color: colors.inkMuted },
-});
+    header: { alignItems: 'center', marginBottom: spacing.xxl },
+    subtitle: {
+      ...typography.body,
+      color: colors.inkMuted,
+      marginTop: spacing.md,
+    },
+    title: { ...typography.title, color: colors.primary, marginBottom: spacing.lg },
+    cta: { marginTop: spacing.sm },
+    forgot: { alignSelf: 'flex-end', marginBottom: spacing.lg },
+    link: { ...typography.label, color: colors.primary },
+    error: {
+      ...typography.caption,
+      color: colors.danger,
+      backgroundColor: colors.dangerSoft,
+      padding: spacing.md,
+      borderRadius: 8,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: spacing.xl,
+      gap: spacing.md,
+    },
+    line: { flex: 1, height: 1, backgroundColor: colors.border },
+    socialGap: { marginTop: spacing.md },
+    dividerText: { ...typography.caption, color: colors.inkSubtle },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginTop: spacing.xl,
+    },
+    footerText: { ...typography.body, color: colors.inkMuted },
+  });

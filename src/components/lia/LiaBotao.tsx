@@ -1,15 +1,3 @@
-/**
- * O botão da LIA — o ponto de entrada da assistente.
- *
- * Fica flutuando acima da barra inferior. Um toque abre o leque de
- * funcionalidades — hoje três, e cada uma nova entra acrescentando uma linha a
- * `FUNCIONALIDADES`, sem redesenhar nada.
- *
- * O botão MUDA DE CARA quando a LIA está ouvindo: vira um anel pulsante. Numa
- * ferramenta que abre o microfone, o estado "estou gravando" precisa ser
- * visível de relance, de qualquer tela do aplicativo — nunca escondido atrás de
- * um menu.
- */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,11 +32,7 @@ const FUNCIONALIDADES: Funcionalidade[] = [
   },
   {
     chave: 'agenda',
-    /*
-     * "Agendar compromisso", e não "Agenda": a barra inferior JÁ tem uma aba
-     * chamada Agenda, que é um lugar. Este é uma ação — e dois rótulos iguais
-     * para coisas diferentes na mesma tela é como o corretor toca no errado.
-     */
+
     titulo: 'Agendar compromisso',
     descricao: 'Diga o dia, a hora e o que é. Ela marca no calendário.',
     emoji: '📅',
@@ -56,17 +40,16 @@ const FUNCIONALIDADES: Funcionalidade[] = [
 ];
 
 interface LiaBotaoProps {
-  /** Abre a habilidade escolhida. Quem controla a abertura é o layout. */
   onAbrir: (habilidade: HabilidadeLia) => void;
 }
 
 export function LiaBotao({ onAbrir }: LiaBotaoProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
-  const { status, nivelDeVoz } = useLia();
+  const { status } = useLia();
   const [aberto, setAberto] = useState(false);
 
-  const ouvindo = status === 'ouvindo' || status === 'entendendo';
+  const ativa = status === 'pronta' || status === 'entendendo';
 
   // Leque: cada item entra com um atraso, de baixo para cima.
   const leque = useRef(new Animated.Value(0)).current;
@@ -120,39 +103,23 @@ export function LiaBotao({ onAbrir }: LiaBotaoProps) {
         </Animated.View>
       ) : null}
 
-      {/*
-        Ouvindo, o botão VIRA o orbe — a mesma linguagem visual do painel, com a
-        mesma reação à voz. É o sinal de "microfone aberto" que acompanha o
-        corretor por qualquer tela, e ele não pode ser um ícone parado: um
-        ponto estático some no canto da tela em dez segundos.
-
-        O orbe fica atrás do Pressable e sem captura de toque, para a área
-        clicável continuar sendo o botão de 58 px e não a nuvem inteira.
-      */}
-      {ouvindo ? (
+      {ativa ? (
         <View style={styles.orbeAtras} pointerEvents="none">
-          <LiaOrbe
-            modo={status === 'entendendo' ? 'pensando' : 'ouvindo'}
-            nivel={nivelDeVoz}
-            tamanho={58}
-            compacto
-          />
+          <LiaOrbe modo={status === 'entendendo' ? 'pensando' : 'parada'} tamanho={58} compacto />
         </View>
       ) : null}
 
       <Pressable
-        // Ouvindo, o toque leva direto à sessão em andamento: nesse momento o
-        // corretor quer voltar para o que está rolando, não escolher outra coisa.
-        onPress={() => (ouvindo ? onAbrir('simulacao') : setAberto((v) => !v))}
+        onPress={() => (ativa ? onAbrir('simulacao') : setAberto((v) => !v))}
         style={({ pressed }) => [
           styles.botao,
-          ouvindo && styles.botaoOuvindo,
+          ativa && styles.botaoAtivo,
           pressed && styles.botaoPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={ouvindo ? 'LIA está ouvindo. Abrir a sessão.' : 'Abrir a LIA'}
+        accessibilityLabel={ativa ? 'Abrir a sessão de texto da LIA.' : 'Abrir a LIA'}
       >
-        {ouvindo ? null : <Logo size={30} />}
+        {ativa ? null : <Logo size={30} />}
       </Pressable>
     </View>
   );
@@ -177,9 +144,7 @@ const makeStyles = (colors: AppColors) =>
       justifyContent: 'center',
       ...shadow.card,
     },
-    // Ouvindo, o próprio orbe desenha o fundo e a borda: o botão só delimita a
-    // área de toque.
-    botaoOuvindo: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    botaoAtivo: { backgroundColor: 'transparent', borderColor: 'transparent' },
     botaoPressed: { opacity: 0.85, transform: [{ scale: 0.96 }] },
     // (58 * 1,6 - 58) / 2 = 17,4 — o quanto a caixa do orbe passa do botão de
     // cada lado, para ficar centrada nele. Some com os 16 px de margem da tela,

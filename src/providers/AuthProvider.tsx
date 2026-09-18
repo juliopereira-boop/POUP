@@ -8,7 +8,7 @@ import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
 import { revogarConsentimentoScan } from '@/features/scan/consent';
 import { limparConsentimentoLia } from '@/features/lia/consentimento';
-import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/FinanciamentoProvider';
+import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/storageKeys';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
 import { sessionStorage } from '@/lib/storage';
 

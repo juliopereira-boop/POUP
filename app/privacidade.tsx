@@ -65,8 +65,8 @@ export default function PrivacyPolicyScreen() {
       <Text style={styles.vigencia}>Vigente desde {VIGENCIA}</Text>
 
       <Text style={styles.paragraph}>
-        O Poup Gestão ("POUP") é uma ferramenta de trabalho para corretores de imóveis: simulação
-        de financiamento, gestão de leads, propostas, comissões e material de venda. Esta página
+        O Poup Gestão ("POUP") é uma ferramenta de trabalho para corretores de imóveis: simulação de
+        financiamento, gestão de leads, propostas, comissões e material de venda. Esta página
         explica quais dados o app coleta, para quê, e com quem eles são compartilhados.
       </Text>
 
@@ -87,14 +87,18 @@ export default function PrivacyPolicyScreen() {
         <SubTitle>Do corretor, ao criar e usar a conta</SubTitle>
         <Bullet>Nome completo, e-mail e senha (ou login com sua conta Google ou Apple)</Bullet>
         <Bullet>Telefone, CNPJ e CPF, imobiliária e CRECI</Bullet>
-        <Bullet>Estado (UF) onde atua — usado só para filtrar quais empreendimentos aparecem</Bullet>
+        <Bullet>
+          Estado (UF) onde atua — usado só para filtrar quais empreendimentos aparecem
+        </Bullet>
         <Bullet>Foto de perfil, se você optar por enviar uma</Bullet>
 
         <SubTitle>Dos clientes do corretor, quando ele os cadastra</SubTitle>
-        <Bullet>Nome, telefone, e-mail, CPF, renda e data de nascimento informados no cadastro do lead</Bullet>
         <Bullet>
-          Fotos de documentos de identidade (CNH/RG), quando o corretor usa o leitor automático
-          para preencher nome e CPF do cliente
+          Nome, telefone, e-mail, CPF, renda e data de nascimento informados no cadastro do lead
+        </Bullet>
+        <Bullet>
+          Fotos de documentos de identidade (CNH/RG), quando o corretor usa o leitor automático para
+          preencher nome e CPF do cliente
         </Bullet>
 
         <SubTitle>Do uso do app</SubTitle>
@@ -104,11 +108,10 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
         <Bullet>
           <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app — criou
-          uma empresa, começou uma simulação, gerou uma proposta —, em que etapa, quanto tempo
-          levou e se deu certo.{' '}
-          <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos nome, CPF,
-          telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde guardá-los.
-          Servem para descobrir onde o app está confuso ou quebrado.
+          uma empresa, começou uma simulação, gerou uma proposta —, em que etapa, quanto tempo levou
+          e se deu certo. <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos
+          nome, CPF, telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde
+          guardá-los. Servem para descobrir onde o app está confuso ou quebrado.
         </Bullet>
         <Bullet>
           <Bold>Contagem de uso dos recursos de inteligência artificial</Bold>: quantas leituras de
@@ -170,17 +173,16 @@ export default function PrivacyPolicyScreen() {
           <Bold>Stripe</Bold> — processamento de pagamento da assinatura
         </Bullet>
         <Bullet>
-          <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe
-          uma dessas opções
+          <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe uma
+          dessas opções
         </Bullet>
         <Bullet>
           <Bold>Anthropic (Claude)</Bold> — recebe, e somente quando você aciona cada recurso:
           {'\n'}• a <Bold>foto do documento</Bold>, no leitor de CNH/RG;
-          {'\n'}• o <Bold>texto transcrito</Bold> da negociação, enquanto a LIA estiver ligada;
-          {'\n'}• a <Bold>frase</Bold> do agendamento por voz, junto de uma lista com os nomes
-          dos seus empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
-          {'\n'}• o <Bold>texto de apoio</Bold> quando você pede um convite ou uma abordagem
-          pronta.
+          {'\n'}• o <Bold>texto digitado</Bold> da negociação, quando você envia uma análise à LIA;
+          {'\n'}• o <Bold>texto</Bold> do agendamento, junto de uma lista com os nomes dos
+          seus empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
+          {'\n'}• o <Bold>texto de apoio</Bold> quando você pede um convite ou uma abordagem pronta.
           {'\n\n'}
           Segundo a política da Anthropic, o conteúdo enviado pela API pode ser mantido por{' '}
           <Bold>até 30 dias</Bold> para segurança e prevenção de abuso, e depois é descartado. Ele
@@ -201,8 +203,8 @@ export default function PrivacyPolicyScreen() {
           Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
           assinatura é cancelada antes de a conta ser removida — se o cancelamento não puder ser
           concluído, a exclusão não acontece e avisamos, em vez de deixar uma cobrança sem dono.
-          Quando uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte.
-          A tela informa se o registro foi possível. Você pode tentar novamente ou falar com o
+          Quando uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte. A
+          tela informa se o registro foi possível. Você pode tentar novamente ou falar com o
           suporte; não há retomada automática em segundo plano. Se você entrou com a Apple, a
           revogação dessa autorização faz parte do processo de exclusão.
         </Paragraph>
@@ -213,44 +215,42 @@ export default function PrivacyPolicyScreen() {
           consultadas no dia a dia e servem apenas para recuperação de desastre.
         </Paragraph>
         <Paragraph>
-          A foto de documento usada no preenchimento automático é exceção: ela não é guardada em
-          momento algum. É lida e descartada — só o nome e o CPF extraídos ficam no cadastro que
-          você preencheu.
+          O POUP não persiste a foto de documento usada no preenchimento automático em seu banco ou
+          Storage. Só os dados extraídos que você decide salvar ficam no cadastro. O envio à
+          Anthropic segue a retenção do fornecedor descrita abaixo.
         </Paragraph>
         <Paragraph>
-          As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados
-          dos seus clientes — são eventos do aplicativo vinculados à sua conta. Elas são apagadas
-          depois de seis meses, e apagadas junto com a conta se você excluí-la.
+          As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados dos
+          seus clientes — são eventos do aplicativo vinculados à sua conta. Elas são apagadas depois
+          de seis meses, e apagadas junto com a conta se você excluí-la.
         </Paragraph>
         <Paragraph>
-          A assistente <Bold>LIA</Bold>: o POUP não grava o áudio da negociação. O reconhecimento
-          de voz do navegador pode enviar áudio ao fornecedor desse serviço, conforme o navegador
-          utilizado; não garantimos transcrição apenas no aparelho. A transcrição em texto existe
-          enquanto a sessão está aberta e é
-          descartada quando você encerra — o POUP não a guarda em servidor nenhum. Do que foi
-          falado, ficam na sua conta as simulações e os agendamentos que você decidiu salvar.
+          A assistente <Bold>LIA</Bold> funciona por texto e não acessa o microfone. O texto da
+          sessão é descartado ao encerrar, sem ser salvo como conversa nos servidores do POUP.
+          Ficam na sua conta as simulações e os agendamentos que você decidiu salvar.
         </Paragraph>
         <Paragraph>
-          O trecho de texto enviado para análise, porém, passa pela Anthropic, que{' '}
-          tem retenção padrão da API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo
-          fornecedor, incluindo obrigações legais e aplicação de sua política de uso. A mesma
-          regra se aplica às imagens enviadas para leitura de documento. Consulte a política em
-          privacy.claude.com para detalhes.
+          O trecho de texto enviado para análise, porém, passa pela Anthropic, que tem retenção
+          padrão da API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo fornecedor,
+          incluindo obrigações legais e aplicação de sua política de uso. A mesma regra se aplica às
+          imagens enviadas para leitura de documento. Consulte a política em privacy.claude.com para
+          detalhes.
         </Paragraph>
       </Section>
 
       <Section title="6. Seus direitos e como revogar consentimentos">
         <Paragraph>
           Você pode pedir a qualquer momento para acessar, corrigir ou excluir seus dados. A
-          exclusão da conta está disponível direto no app, em Ajustes → Excluir minha conta,
-          e também na tela de assinatura inativa; as demais
-          solicitações podem ser feitas por <Email address={SUPORTE_EMAIL} />.
+          exclusão da conta está disponível direto no app, em Ajustes → Excluir minha conta, e
+          também na tela de assinatura inativa; as demais solicitações podem ser feitas por{' '}
+          <Email address={SUPORTE_EMAIL} />.
         </Paragraph>
         <SubTitle>Revogar consentimentos já dados</SubTitle>
         <Bullet>
           <Bold>LIA (web)</Bold>: cada abertura pede uma nova autorização. Em Ajustes → Privacidade,
-          “Encerrar autorizações de voz e IA da LIA” interrompe a sessão e bloqueia novos envios.
-          Isso não recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos salvos.
+          “Encerrar autorizações de IA da LIA” interrompe a sessão e bloqueia novos envios.
+          Isso não recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos
+          salvos.
         </Bullet>
         <Bullet>
           <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê
@@ -259,9 +259,9 @@ export default function PrivacyPolicyScreen() {
           hora, que tem permissão daquela pessoa.
         </Bullet>
         <Bullet>
-          <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do
-          próprio aparelho. O app continua funcionando; só o preenchimento automático deixa de
-          estar disponível.
+          <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do próprio
+          aparelho. O app continua funcionando; só o preenchimento automático deixa de estar
+          disponível.
         </Bullet>
         <Bullet>
           <Bold>Login com o Google</Bold>: quando você exclui a conta, o vínculo entre a sua conta
@@ -293,7 +293,9 @@ export default function PrivacyPolicyScreen() {
       </Section>
 
       <Section title="8. Menores de idade">
-        <Paragraph>O POUP é uma ferramenta profissional e não é destinado a menores de 18 anos.</Paragraph>
+        <Paragraph>
+          O POUP é uma ferramenta profissional e não é destinado a menores de 18 anos.
+        </Paragraph>
       </Section>
 
       <Section title="9. Mudanças nesta política">
@@ -361,7 +363,12 @@ const makeStyles = (colors: AppColors) =>
     vigencia: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
     paragraph: { ...typography.body, color: colors.ink, marginBottom: spacing.sm, lineHeight: 22 },
     section: { marginTop: spacing.lg },
-    sectionTitle: { ...typography.label, fontSize: 16, color: colors.ink, marginBottom: spacing.sm },
+    sectionTitle: {
+      ...typography.label,
+      fontSize: 16,
+      color: colors.ink,
+      marginBottom: spacing.sm,
+    },
     subTitle: {
       ...typography.label,
       color: colors.inkMuted,

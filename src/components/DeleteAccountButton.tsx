@@ -84,7 +84,7 @@ export function DeleteAccountButton() {
       >
         <Text style={styles.rowLabel}>Excluir minha conta</Text>
         <Text style={styles.rowSubtitle}>
-          Apaga para sempre tudo que você guardou aqui. Não tem como desfazer.
+          Exclui sua conta e seus dados pessoais. Não tem como desfazer pelo aplicativo.
         </Text>
       </Pressable>
 
@@ -94,8 +94,9 @@ export function DeleteAccountButton() {
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.title}>Excluir minha conta</Text>
               <Text style={styles.lead}>
-                Isto apaga sua conta e tudo que ela guarda. Não é possível recuperar depois — nem
-                por nós.
+                Isto exclui sua conta e os dados listados abaixo. O catálogo compartilhado não é
+                apagado. Retenções legais e cópias de segurança seguem a Política de Privacidade.
+                Não é possível desfazer pelo aplicativo.
               </Text>
 
               <View style={styles.list}>
@@ -108,8 +109,8 @@ export function DeleteAccountButton() {
               </View>
 
               <Text style={styles.aviso}>
-                Se você tem assinatura ativa, ela é cancelada agora e não haverá nova cobrança.
-                {' '}Se entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
+                Se você tem assinatura ativa, ela é cancelada agora e não haverá nova cobrança. Se
+                entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
               </Text>
 
               <Input

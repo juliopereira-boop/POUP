@@ -12,10 +12,7 @@ import { Screen } from '@/components/Screen';
 import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
 import { useIsAdmin } from '@/features/admin';
-import {
-  consentimentoScanEm,
-  revogarConsentimentoScan,
-} from '@/features/scan/consent';
+import { consentimentoScanEm, revogarConsentimentoScan } from '@/features/scan/consent';
 import { canShowBilling, liaDisponivel } from '@/features/store';
 import { limparConsentimentoLia } from '@/features/lia/consentimento';
 import { useAuth } from '@/providers/AuthProvider';
@@ -170,8 +167,11 @@ export default function ConfiguracoesScreen() {
       */}
       <Text style={styles.sectionLabel}>Privacidade</Text>
       {liaDisponivel ? (
-        <Button label="Encerrar autorizações de voz e IA da LIA" variant="secondary"
-          onPress={() => void limparConsentimentoLia()} />
+        <Button
+          label="Encerrar autorizações de IA da LIA"
+          variant="secondary"
+          onPress={() => void limparConsentimentoLia()}
+        />
       ) : null}
       <View style={styles.card}>
         <View style={styles.row}>
@@ -193,7 +193,10 @@ export default function ConfiguracoesScreen() {
 
       <Text style={styles.sectionLabel}>Cadastros</Text>
       <View style={styles.card}>
-        <NavRow label="Empresas e empreendimentos" onPress={() => router.push('/(app)/cadastros')} />
+        <NavRow
+          label="Empresas e empreendimentos"
+          onPress={() => router.push('/(app)/cadastros')}
+        />
       </View>
 
       <Text style={styles.sectionLabel}>Leads</Text>
@@ -267,6 +270,11 @@ export default function ConfiguracoesScreen() {
           texto e não se parecem em nada nas consequências. */}
       <Text style={styles.sectionLabel}>Excluir conta</Text>
       <View style={styles.card}>
+        <Button
+          label="Métodos de acesso"
+          variant="ghost"
+          onPress={() => router.push('/acesso-conta')}
+        />
         <DeleteAccountButton />
       </View>
 
@@ -300,7 +308,9 @@ function ThemeToggle() {
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
           >
-            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{opt.label}</Text>
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+              {opt.label}
+            </Text>
           </Pressable>
         );
       })}

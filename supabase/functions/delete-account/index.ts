@@ -54,11 +54,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
-  apiVersion: '2024-11-20.acacia',
-  httpClient: Stripe.createFetchHttpClient(),
-});
-
 /** O corretor precisa digitar isto na tela. Nada acontece por toque errado. */
 const CONFIRMACAO = 'EXCLUIR';
 
@@ -151,9 +146,14 @@ async function pararComPendencia(
     console.error('ATENCAO: pendencia de exclusao NAO registrada.', etapa, error.message);
   }
 
-  return json({ error: error
-    ? 'Não foi possível concluir nem registrar seu pedido de exclusão. Tente novamente ou fale com o suporte.'
-    : mensagem }, status);
+  return json(
+    {
+      error: error
+        ? 'Não foi possível concluir nem registrar seu pedido de exclusão. Tente novamente ou fale com o suporte.'
+        : mensagem,
+    },
+    status,
+  );
 }
 
 /**
@@ -198,6 +198,7 @@ const APPLE_TEAM_ID = Deno.env.get('APPLE_TEAM_ID') ?? '';
 const APPLE_KEY_ID = Deno.env.get('APPLE_KEY_ID') ?? '';
 const APPLE_PRIVATE_KEY = Deno.env.get('APPLE_PRIVATE_KEY') ?? '';
 const APPLE_CLIENT_ID = Deno.env.get('APPLE_CLIENT_ID') ?? '';
+const APPLE_SERVICES_ID = Deno.env.get('APPLE_SERVICES_ID') ?? '';
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -225,7 +226,7 @@ async function importarChaveApple(pem: string): Promise<CryptoKey> {
 }
 
 /** O "client secret" da Apple e um JWT ES256 que assinamos na hora. */
-async function clientSecretApple(): Promise<string> {
+async function clientSecretApple(clientId = APPLE_CLIENT_ID): Promise<string> {
   const agora = Math.floor(Date.now() / 1000);
   const enc = new TextEncoder();
   const h = base64url(enc.encode(JSON.stringify({ alg: 'ES256', kid: APPLE_KEY_ID })));
@@ -236,7 +237,7 @@ async function clientSecretApple(): Promise<string> {
         iat: agora,
         exp: agora + 300,
         aud: 'https://appleid.apple.com',
-        sub: APPLE_CLIENT_ID,
+        sub: clientId,
       }),
     ),
   );
@@ -256,27 +257,39 @@ async function revogarApple(
 ): Promise<{ ok: true } | { ok: false; motivo: string }> {
   const { data, error } = await admin
     .from('apple_credentials')
-    .select('refresh_token')
+    .select('refresh_token, client_id')
     .eq('user_id', userId)
     .maybeSingle();
 
   if (error) return { ok: false, motivo: `leitura: ${error.message}` };
   // Nunca entrou pela Apple: nada a revogar.
-  if (!data?.refresh_token) return temIdentidadeApple
-    ? { ok: false, motivo: 'Conta Apple sem credencial para revogação. Reautenticação ou suporte necessários.' }
-    : { ok: true };
+  if (!data?.refresh_token)
+    return temIdentidadeApple
+      ? {
+          ok: false,
+          motivo:
+            'Conta Apple sem credencial para revogação. Reautenticação ou suporte necessários.',
+        }
+      : { ok: true };
 
-  if (!APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY || !APPLE_CLIENT_ID) {
+  const clientId = data.client_id || APPLE_CLIENT_ID;
+  if (
+    !APPLE_TEAM_ID ||
+    !APPLE_KEY_ID ||
+    !APPLE_PRIVATE_KEY ||
+    !clientId ||
+    ![APPLE_CLIENT_ID, APPLE_SERVICES_ID].filter(Boolean).includes(clientId)
+  ) {
     return { ok: false, motivo: 'Configuração APPLE_* incompleta.' };
   }
 
   try {
-    const secret = await clientSecretApple();
+    const secret = await clientSecretApple(clientId);
     const resposta = await fetch('https://appleid.apple.com/auth/revoke', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: APPLE_CLIENT_ID,
+        client_id: clientId,
         client_secret: secret,
         token: data.refresh_token,
         token_type_hint: 'refresh_token',
@@ -389,16 +402,33 @@ Deno.serve(async (req) => {
      */
 
     // Preflight sem efeitos externos: não cancelar uma assinatura para só então
-    // descobrir que falta a credencial Apple. O cliente iOS pode recuperá-la.
+    // descobrir que falta a credencial Apple. O cliente pode recuperá-la.
     if (user.identities?.some((identity) => identity.provider === 'apple')) {
-      const { data: apple, error: appleError } = await admin.from('apple_credentials')
-        .select('refresh_token').eq('user_id', user.id).maybeSingle();
-      if (appleError || !apple?.refresh_token
-        || !APPLE_TEAM_ID || !APPLE_KEY_ID || !APPLE_PRIVATE_KEY || !APPLE_CLIENT_ID) {
-        return await pararComPendencia(admin, user.id, 'apple',
-          appleError ? 'Falha ao consultar vínculo Apple.' : 'Vínculo ou configuração Apple pendente.',
+      const { data: apple, error: appleError } = await admin
+        .from('apple_credentials')
+        .select('refresh_token, client_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const appleClientId = apple?.client_id || APPLE_CLIENT_ID;
+      if (
+        appleError ||
+        !apple?.refresh_token ||
+        !APPLE_TEAM_ID ||
+        !APPLE_KEY_ID ||
+        !APPLE_PRIVATE_KEY ||
+        !appleClientId ||
+        ![APPLE_CLIENT_ID, APPLE_SERVICES_ID].filter(Boolean).includes(appleClientId)
+      ) {
+        return await pararComPendencia(
+          admin,
+          user.id,
+          'apple',
+          appleError
+            ? 'Falha ao consultar vínculo Apple.'
+            : 'Vínculo ou configuração Apple pendente.',
           'Não foi possível preparar a exclusão com a Apple. Seu pedido ficou registrado. ' +
-          'Tente novamente pelo app iOS ou fale com o suporte. Sua conta não foi excluída.');
+            'Confirme sua identidade com a Apple ou fale com o suporte. Sua conta não foi excluída.',
+        );
       }
     }
 
@@ -408,11 +438,23 @@ Deno.serve(async (req) => {
       .select('stripe_subscription_id')
       .eq('user_id', user.id)
       .maybeSingle();
-    if (subError) return await pararComPendencia(admin, user.id, 'stripe', subError.message,
-      'Não foi possível conferir sua assinatura. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+    if (subError)
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'stripe',
+        subError.message,
+        'Não foi possível conferir sua assinatura. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.',
+      );
 
     if (sub?.stripe_subscription_id) {
       try {
+        // Contas sem assinatura Stripe também precisam conseguir se excluir
+        // se a integração de pagamento ainda não foi configurada.
+        const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+          apiVersion: '2024-11-20.acacia',
+          httpClient: Stripe.createFetchHttpClient(),
+        });
         await stripe.subscriptions.cancel(sub.stripe_subscription_id);
       } catch (e) {
         /*
@@ -440,8 +482,11 @@ Deno.serve(async (req) => {
     }
 
     // 2. Revogar a autorizacao da Apple, se houver.
-    const revogacao = await revogarApple(admin, user.id,
-      user.identities?.some((identity) => identity.provider === 'apple') ?? false);
+    const revogacao = await revogarApple(
+      admin,
+      user.id,
+      user.identities?.some((identity) => identity.provider === 'apple') ?? false,
+    );
     if (!revogacao.ok) {
       console.error('Exclusao interrompida: revogacao da Apple falhou.', revogacao.motivo);
       return await pararComPendencia(
@@ -459,8 +504,13 @@ Deno.serve(async (req) => {
     try {
       arquivos = await listarTudo(admin, user.id);
     } catch (e) {
-      return await pararComPendencia(admin, user.id, 'arquivos', (e as Error).message,
-        'Não foi possível conferir seus arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'arquivos',
+        (e as Error).message,
+        'Não foi possível conferir seus arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.',
+      );
     }
     for (let i = 0; i < arquivos.length; i += PAGE) {
       const { error } = await admin.storage.from(BUCKET).remove(arquivos.slice(i, i + PAGE));
@@ -475,9 +525,8 @@ Deno.serve(async (req) => {
           user.id,
           'arquivos',
           error.message,
-          'Não foi possível apagar todos os seus arquivos agora, e não vamos excluir a conta ' +
-            'pela metade. Seu pedido ficou registrado. Tente de novo em ' +
-            'alguns minutos.',
+          'A exclusão não foi concluída. Parte dos arquivos pode já ter sido removida. ' +
+            'Seu pedido ficou registrado; tente novamente ou fale com o suporte.',
         );
       }
     }
@@ -493,8 +542,13 @@ Deno.serve(async (req) => {
     try {
       sobrou = await listarTudo(admin, user.id);
     } catch (e) {
-      return await pararComPendencia(admin, user.id, 'conferencia', (e as Error).message,
-        'Não foi possível confirmar a remoção dos arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'conferencia',
+        (e as Error).message,
+        'Não foi possível confirmar a remoção dos arquivos. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.',
+      );
     }
     if (sobrou.length > 0) {
       console.error('Exclusao interrompida: sobraram arquivos.', sobrou.length);
@@ -512,10 +566,17 @@ Deno.serve(async (req) => {
     // Access tokens existentes só expiram no prazo do JWT; a remoção dos dados
     // e as políticas de acesso continuam necessárias.
     const { error: signOutError } = await admin.auth.admin.signOut(
-      authHeader.replace(/^Bearer\s+/i, ''), 'global',
+      authHeader.replace(/^Bearer\s+/i, ''),
+      'global',
     );
-    if (signOutError) return await pararComPendencia(admin, user.id, 'usuario', signOutError.message,
-      'Não foi possível encerrar suas sessões. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.');
+    if (signOutError)
+      return await pararComPendencia(
+        admin,
+        user.id,
+        'usuario',
+        signOutError.message,
+        'Não foi possível encerrar suas sessões. Seu pedido ficou registrado. Tente novamente ou fale com o suporte.',
+      );
 
     // 5. O usuario. O cascade leva o resto do app junto.
     const { error: delErr } = await admin.auth.admin.deleteUser(user.id);

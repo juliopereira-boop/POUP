@@ -5,8 +5,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 
-function load(file, mocks = {}) {
-  const context = vm.createContext({ exports: {}, console, URL, URLSearchParams,
+function load(file, mocks = {}, globals = {}) {
+  const context = vm.createContext({ exports: {}, console, URL, URLSearchParams, ...globals,
     require: name => {
       if (!(name in mocks)) throw Error(`Mock ausente: ${name}`);
       return mocks[name];
@@ -140,11 +140,17 @@ function authFixture() {
     f.calls.push([name, options.body]);
     if (f.networkError) throw Error('offline');
     return { data: name === 'delete-account' ? { deleted: true }
-      : options.body.action === 'status' ? f.status : { vinculado: f.vinculado }, error: f.linkError };
+      : options.body.action === 'status' ? f.status
+      : options.body.action === 'reauthorize' ? { url: f.authorizationUrl ?? 'https://appleid.apple.com/auth/authorize?state=test' }
+      : { vinculado: f.vinculado }, error: f.linkError };
   } } };
   f.repo = () => new (load('src/data/supabase/SupabaseAuthRepository.ts', {
     'expo-linking': { createURL: () => 'poup:///' },
-    'expo-web-browser': { openAuthSessionAsync: async () => ({ type: 'success', url: 'poup:///#nothing=1' }) },
+    'expo-web-browser': { openAuthSessionAsync: async () => {
+      f.calls.push(['browser']);
+      if (f.afterBrowser) f.afterBrowser();
+      return f.browserResult ?? { type: 'success', url: 'poup:///#nothing=1' };
+    } },
     'react-native': { Platform: { OS: f.os }, Alert: { alert: (...args) => f.calls.push(['alert', ...args]) } },
     'expo-crypto': cryptoMock,
     'expo-apple-authentication': { AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 },
@@ -152,7 +158,7 @@ function authFixture() {
       signInAsync: async options => { f.calls.push(['apple', options]); if (f.appleError) throw f.appleError; return f.credential; } },
     '@/lib/supabase': { supabase: f.supabase }, '@/lib/appUrl': { getAppUrl: () => 'https://test.invalid' },
     '@/lib/edgeError': { mensagemDoErro: async () => 'Falha' }, '../types': resultMock,
-  }).SupabaseAuthRepository)();
+  }, { window: { location: { assign: url => f.calls.push(['redirect', url]) } } }).SupabaseAuthRepository)();
   return f;
 }
 await test('login Apple vincula nonce hash à requisição e nonce original ao Supabase', async () => {
@@ -205,6 +211,54 @@ await test('vínculo existente e conta sem Apple dispensam confirmação nativa'
 await test('exclusão sem confirmação e callback OAuth sem tokens falham explicitamente', async () => {
   const f = authFixture(); assert.equal((await f.repo().deleteAccount('')).ok, false); assert.equal(f.calls.length, 0);
   assert.equal((await f.repo().signInWithGoogle()).ok, false); assert.equal(f.calls.some(c => c[0] === 'setSession'), false);
+});
+await test('web redireciona para Apple, mas exige nova confirmação antes de excluir', async () => {
+  const f = authFixture(); f.os = 'web';
+  assert.equal((await f.repo().deleteAccount('EXCLUIR')).ok, false);
+  assert.equal(f.calls.some(c => c[0] === 'redirect'), true);
+  assert.equal(f.calls.some(c => c[0] === 'delete-account'), false);
+});
+await test('Android confirma vínculo no servidor e não confia só no deep link', async () => {
+  for (const confirmed of [true, false]) {
+    const f = authFixture(); f.os = 'android';
+    f.browserResult = { type: 'success', url: 'poup://apple-reauth?status=confirmed' };
+    f.afterBrowser = () => { f.status.vinculado = confirmed; };
+    assert.equal((await f.repo().deleteAccount('EXCLUIR')).ok, confirmed);
+    assert.equal(f.calls.some(c => c[0] === 'delete-account'), confirmed);
+    assert.equal(f.calls.some(c => ['login', 'setSession'].includes(c[0])), false);
+  }
+});
+await test('URL adulterada, navegador cancelado e conta trocada não excluem', async () => {
+  for (const mode of ['url', 'cancel', 'account']) {
+    const f = authFixture(); f.os = 'android';
+    f.browserResult = { type: 'success', url: 'poup://apple-reauth?status=confirmed' };
+    if (mode === 'url') f.authorizationUrl = 'https://evil.example/';
+    if (mode === 'cancel') f.browserResult = { type: 'cancel' };
+    if (mode === 'account') f.afterBrowser = () => { f.user = { ...f.user, id: 'other' }; f.status.vinculado = true; };
+    assert.equal((await f.repo().deleteAccount('EXCLUIR')).ok, false);
+    assert.equal(f.calls.some(c => c[0] === 'delete-account'), false);
+  }
+});
+await test('vinculação de acesso valida dono antes de instalar sessão e não mescla contas', async () => {
+  for (const mode of ['valid', 'other', 'existing', 'anonymous', 'cancel']) {
+    const calls = [];
+    const user = { id: 'owner', identities: [] };
+    const auth = {
+      getUser: async token => ({ data: { user: mode === 'anonymous' ? null : { ...user, id: token && mode === 'other' ? 'other' : 'owner' } } }),
+      linkIdentity: async () => { calls.push('link'); return { data: { url: 'https://provider.example' }, error: mode === 'existing' ? { message: 'identity already exists' } : null }; },
+      setSession: async () => { calls.push('session'); return {}; },
+    };
+    const { linkAccountProvider } = load('src/lib/accountAccess.ts', {
+      'expo-apple-authentication': {}, 'expo-crypto': cryptoMock,
+      'expo-linking': { createURL: () => 'poup://acesso-conta' },
+      'expo-web-browser': { openAuthSessionAsync: async () => mode === 'cancel' ? { type: 'cancel' } : { type: 'success', url: 'poup://acesso-conta#access_token=token&refresh_token=refresh' } },
+      'react-native': { Platform: { OS: 'android' } }, './supabase': { supabase: { auth } }, './appUrl': { getAppUrl: () => 'https://poup.example' },
+    });
+    if (mode === 'valid') assert.match(await linkAccountProvider('google'), /mesma conta/);
+    else await assert.rejects(linkAccountProvider('google'));
+    assert.equal(calls.includes('session'), mode === 'valid');
+    if (mode === 'anonymous') assert.equal(calls.length, 0);
+  }
 });
 function financing(crypto = cryptoMock) {
   const f = { inserts: [] };
