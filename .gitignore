@@ -30,6 +30,9 @@ yarn-error.*
 .env
 .env.local
 .env*.local
+.env.*
+!.env.example
+credentials.json
 
 # Supabase local
 supabase/.branches

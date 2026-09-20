@@ -61,6 +61,19 @@ const jwt = role => `header.${Buffer.from(JSON.stringify({ role })).toString('ba
 check({ EXPO_PUBLIC_SUPABASE_ANON_KEY: jwt('service_role') }, 1);
 check({ EXPO_PUBLIC_SUPABASE_ANON_KEY: jwt('anon') }, 0);
 const config = JSON.parse(readFileSync('app.json', 'utf8')).expo;
+const eas = JSON.parse(readFileSync('eas.json', 'utf8'));
+assert.equal(eas.build.preview.environment, 'preview');
+assert.equal(eas.build.preview.distribution, 'internal');
+assert.equal(eas.build.preview.android.buildType, 'apk');
+assert.equal(eas.build['preview-simulator'].extends, 'preview');
+assert.equal(eas.build['preview-simulator'].ios.simulator, true);
+assert.equal(eas.build.production.environment, 'production');
+assert.equal(eas.build.production.distribution, 'store');
+assert.equal(eas.build.production.android.buildType, 'app-bundle');
+for (const profile of ['preview', 'production']) {
+  assert.equal(eas.build[profile].env.EXPO_PUBLIC_STORE_BUILD, '1');
+  assert.equal(eas.build[profile].ios.image, 'auto');
+}
 for (const permission of ['READ_MEDIA_IMAGES', 'READ_MEDIA_VIDEO', 'RECORD_AUDIO', 'SYSTEM_ALERT_WINDOW']) {
   assert.ok(config.android.blockedPermissions.includes(`android.permission.${permission}`));
 }
