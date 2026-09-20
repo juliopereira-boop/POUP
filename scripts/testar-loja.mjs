@@ -66,7 +66,6 @@ function plans(storeBuild, plataforma) {
   const s = store(storeBuild, plataforma);
   return compilar(path.join(process.cwd(), 'src/features/plans.ts'), (spec) => {
     if (spec === './store') return s;
-    if (spec === '@/lib/env') return { env: { stripePriceStart: '', stripePricePro: '' } };
     if (spec === '@/data/types') return {};
     return require(spec);
   });

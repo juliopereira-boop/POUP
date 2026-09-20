@@ -14,8 +14,8 @@ Crie preços recorrentes mensais em BRL, quantidade 1:
 
 | Plano | Centavos | Secret Supabase | Variável web |
 | --- | --- | --- | --- |
-| Start | 2990 | `STRIPE_PRICE_START` | `EXPO_PUBLIC_STRIPE_PRICE_START` |
-| Pro | 6990 | `STRIPE_PRICE_PRO` | `EXPO_PUBLIC_STRIPE_PRICE_PRO` |
+| Start | 2990 | STRIPE_PRICE_START
+| Pro   | 6990 | STRIPE_PRICE_PRO
 
 Se existe Pro de R$ 89,90, crie **outro Price**. Alterar o texto não altera a cobrança. Retire Intermed e o Pro anterior da oferta e do Customer Portal, sem apagar histórico.
 
@@ -31,7 +31,8 @@ O checkout valida valor, moeda, recorrência e preço ativo. O webhook consulta 
 
 No Customer Portal, habilite atualização/cancelamento e ofereça **somente os dois preços atuais**. Defina e teste as regras de rateio e a data de efetivação da troca. Assinantes usam **Gerenciar assinatura**, não outro checkout. O servidor verifica assinaturas existentes e reutiliza checkout aberto compatível.
 
-Na web, use os mesmos IDs e atualize `EXPO_PUBLIC_APP_URL`. Remova `EXPO_PUBLIC_STRIPE_PRICE_INTERMED`. As variáveis públicas são incorporadas no bundle: faça novo build/deploy. O app de loja não precisa dos IDs. A elegibilidade do modelo complementar deve ser confirmada na revisão Apple; esconder preços não garante aprovação.
+Os Price IDs ficam exclusivamente nos secrets das Supabase Edge Functions.
+A web envia apenas o identificador lógico do plano, como "start" ou "pro". As variáveis públicas são incorporadas no bundle: faça novo build/deploy. O app de loja não precisa dos IDs. A elegibilidade do modelo complementar deve ser confirmada na revisão Apple; esconder preços não garante aprovação.
 
 ## Aceite em ambiente de teste
 

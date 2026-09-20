@@ -69,17 +69,6 @@ export default function PaywallScreen() {
 
   async function subscribe(plan: PlanConfig) {
     setError(null);
-    if (!plan.stripePriceId) {
-      // O que falta é configuração nossa, não erro do corretor: o nome da
-      // variável de ambiente vai para o log, e ele vê o que pode fazer.
-      console.error(
-        `[paywall] EXPO_PUBLIC_STRIPE_PRICE_${plan.tier.toUpperCase()} não configurada.`,
-      );
-      setError(
-        `O plano ${plan.name} está indisponível no momento. Tente de novo mais tarde ou fale com o suporte.`,
-      );
-      return;
-    }
     setLoadingTier(plan.tier);
     /*
      * Quem sai do app é o `abrirCheckout`, não esta tela. Antes, ele devolvia a
@@ -95,7 +84,7 @@ export default function PaywallScreen() {
     try {
       const result = upgradeMode
         ? await abrirPortalDeCobranca()
-        : await abrirCheckout(plan.stripePriceId);
+        : await abrirCheckout(plan.tier);
       if (!result.ok) setError(result.error);
     } catch {
       setError('Não foi possível abrir a cobrança. Tente novamente.');

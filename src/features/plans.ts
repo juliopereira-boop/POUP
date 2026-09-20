@@ -1,4 +1,3 @@
-import { env } from '@/lib/env';
 import { liaDisponivel } from './store';
 import type { PlanTier } from '@/data/types';
 
@@ -113,7 +112,6 @@ export interface PlanConfig {
   priceLabel: string;
   tagline: string;
   storageLimitBytes: number;
-  stripePriceId: string;
   /** Todas as funcionalidades do produto, marcadas como incluídas ou não. */
   features: PlanFeatureLine[];
   highlighted?: boolean;
@@ -126,7 +124,6 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     priceLabel: 'R$ 29,90/mês',
     tagline: 'Para começar a organizar a operação',
     storageLimitBytes: 5 * GB,
-    stripePriceId: env.stripePriceStart,
     features: planFeatureLines('start'),
   },
   pro: {
@@ -135,7 +132,6 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
     priceLabel: 'R$ 69,90/mês',
     tagline: 'Da negociação até o recebimento da comissão',
     storageLimitBytes: 25 * GB,
-    stripePriceId: env.stripePricePro,
     highlighted: true,
     features: planFeatureLines('pro'),
   },

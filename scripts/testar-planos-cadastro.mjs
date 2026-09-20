@@ -41,18 +41,19 @@ const mocks = {
     tier: subscription?.tier, subscription,
     trialDaysLeft: subscription?.status === 'trialing' ? 7 : null,
   }) },
-  '@/lib/env': { env: { stripePriceStart: 'price_start', stripePricePro: 'price_pro' } },
-  '@/lib/supabase': { supabase: {
-    from: () => profileQuery(), functions: { invoke: (...args) => invoke(...args) },
-  } },
-  '@/lib/storage': { sessionStorage: {
-    getItem: async k => stored.get(k), setItem: async (k, v) => stored.set(k, v),
-    removeItem: async k => stored.delete(k),
-  } },
-  '@/data': { db: { appointments: { create: async () => { createdAppointments++; return { ok: true }; } } } },
-  'react-native': { Platform: { OS: 'web' } },
-  'expo-print': {}, 'expo-sharing': {},
-  '@/features/pdf/imprimir': {},
+'@/lib/supabase': { supabase: {
+  from: () => profileQuery(), functions: { invoke: (...args) => invoke(...args) },
+} },
+'@/lib/storage': { sessionStorage: {
+  getItem: async k => stored.get(k), setItem: async (k, v) => stored.set(k, v),
+  removeItem: async k => stored.delete(k),
+} },
+'@/data': { db: { appointments: { create: async () => { createdAppointments++; return { /* ... */ }; } } } },
+
+'react-native': { Platform: { OS: 'web' } },
+'expo-print': {},
+'expo-sharing': {},
+'@/features/pdf/imprimir': {},
 };
 function load(relative) {
   const file = path.resolve(relative);
@@ -63,11 +64,20 @@ function load(relative) {
   mod.require = spec => {
     if (Object.hasOwn(mocks, spec)) return mocks[spec];
     if (spec === './remoteImage') return {};
-    const target = spec.startsWith('@/') ? path.resolve('src', spec.slice(2))
-      : path.resolve(path.dirname(file), spec);
-    const alias = '@/' + path.relative(path.resolve('src'), target);
-    if (Object.hasOwn(mocks, alias)) return mocks[alias];
-    return load(`${target}.ts`);
+    const target = spec.startsWith('@/')
+  ? path.resolve('src', spec.slice(2))
+  : path.resolve(path.dirname(file), spec);
+
+const relativoAoSrc = path
+  .relative(path.resolve('src'), target)
+  .split(path.sep)
+  .join('/');
+
+const alias = '@/' + relativoAoSrc;
+
+if (Object.hasOwn(mocks, alias)) return mocks[alias];
+
+return load(`${target}.ts`);
   };
   mod._compile(ts.transpileModule(readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

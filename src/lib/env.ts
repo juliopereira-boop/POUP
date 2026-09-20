@@ -22,9 +22,6 @@ export const env = {
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     PLACEHOLDER_KEY,
   ),
-  stripePublishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '',
-  stripePriceStart: process.env.EXPO_PUBLIC_STRIPE_PRICE_START ?? '',
-  stripePricePro: process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO ?? '',
   appUrl: process.env.EXPO_PUBLIC_APP_URL ?? 'http://localhost:8081',
 } as const;
 

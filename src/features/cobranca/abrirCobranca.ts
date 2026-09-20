@@ -32,10 +32,10 @@ function irPara(url: string): void {
   window.location.assign(url);
 }
 
-export const abrirCheckout: AbrirCheckout = async (priceId) => {
+export const abrirCheckout: AbrirCheckout = async (plan) => {
   const { data, error } = await supabase.functions.invoke('create-checkout-session', {
     body: {
-      priceId,
+      plan,
       successUrl: `${getAppUrl()}/?checkout=success`,
       cancelUrl: `${getAppUrl()}/paywall?checkout=cancel`,
     },

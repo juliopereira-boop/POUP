@@ -87,7 +87,11 @@ function load(name, f) {
   };
 }
 const has = (f, operation) => f.calls.some(c => c[0] === operation);
-const checkoutBody = { priceId: 'price_pro', successUrl: 'https://poup.example/sucesso', cancelUrl: 'https://poup.example/planos' };
+const checkoutBody = {
+  plan: 'pro',
+  successUrl: 'https://poup.example/sucesso',
+  cancelUrl: 'https://poup.example/planos',
+};
 
 await test('conta sem assinatura se exclui mesmo sem Stripe configurado', async () => {
   const f = fixture(); f.stripeInitError = true;
@@ -107,10 +111,15 @@ await test('checkout exige autenticação e método POST', async () => {
   assert.equal((await api.call(checkoutBody, false)).status, 401);
   assert.equal((await api.call({}, true, 'GET')).status, 405);
 });
-for (const priceId of ['price_intermed', 'price_unknown']) {
-  await test(`checkout rejeita ${priceId}`, async () => {
+for (const plan of ['intermed', 'enterprise', 'price_pro', '']) {
+  await test(`checkout rejeita plano inválido ${plan}`, async () => {
     const f = fixture();
-    assert.equal((await load('create-checkout-session', f).call({ ...checkoutBody, priceId })).status, 400);
+
+    assert.equal(
+      (await load('create-checkout-session', f).call({ ...checkoutBody, plan })).status,
+      400,
+    );
+
     assert.equal(has(f, 'price'), false);
   });
 }
@@ -122,15 +131,51 @@ for (const patch of [{ unit_amount: 8990 }, { currency: 'usd' }, { active: false
   });
 }
 await test('Start usa 2990 e Pro usa 6990; vincula cliente antes de cobrar', async () => {
-  for (const [priceId, amount] of [['price_start', 2990], ['price_pro', 6990]]) {
-    const f = fixture(); f.price.unit_amount = amount;
-    assert.equal((await load('create-checkout-session', f).call({ ...checkoutBody, priceId })).status, 200);
+  for (const [plan, priceId, amount] of [
+    ['start', 'price_start', 2990],
+    ['pro', 'price_pro', 6990],
+  ]) {
+    const f = fixture();
+    f.price.unit_amount = amount;
+
+    assert.equal(
+      (
+        await load('create-checkout-session', f).call({
+          ...checkoutBody,
+          plan,
+        })
+      ).status,
+      200,
+    );
+
     const created = f.calls.find(c => c[0] === 'checkout');
+
     assert.equal(created[1].line_items[0].price, priceId);
     assert.equal(created[1].subscription_data.metadata.supabase_user_id, 'owner');
-    assert.match(created[2].idempotencyKey, /^poup-checkout-owner-/);
-    assert.ok(f.calls.findIndex(c => c[0] === 'rpc') < f.calls.indexOf(created));
+    assert.match(
+      created[2].idempotencyKey,
+      new RegExp(`^poup-checkout-owner-${plan}-`),
+    );
+    assert.ok(
+      f.calls.findIndex(c => c[0] === 'rpc') < f.calls.indexOf(created),
+    );
   }
+});
+await test('cliente não consegue escolher Price ID diretamente', async () => {
+  const f = fixture();
+  f.price.unit_amount = 6990;
+
+  const response = await load('create-checkout-session', f).call({
+    ...checkoutBody,
+    plan: 'pro',
+    priceId: 'price_start',
+  });
+
+  assert.equal(response.status, 200);
+
+  const created = f.calls.find(c => c[0] === 'checkout');
+
+  assert.equal(created[1].line_items[0].price, 'price_pro');
 });
 await test('falha ao associar cliente impede cobrança', async () => {
   const f = fixture(); f.rpcError = { message: 'offline' };

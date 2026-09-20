@@ -1818,10 +1818,8 @@ Só variáveis com prefixo `EXPO_PUBLIC_` ficam no bundle do client — segredos
 EXPO_PUBLIC_SUPABASE_URL=            # Supabase Dashboard > Project Settings > API
 EXPO_PUBLIC_SUPABASE_ANON_KEY=       # idem (chave anon/public)
 EXPO_PUBLIC_APP_URL=                 # http://localhost:8081 (local) ou o domínio de produção
-EXPO_PUBLIC_STRIPE_PRICE_START=      # price_... do produto "POUP Start"
-EXPO_PUBLIC_STRIPE_PRICE_PRO=        # price_... do produto "POUP Pro"
 EXPO_PUBLIC_STORE_BUILD=             # "1" força o modo app-de-loja (o eas.json já manda isso)
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=  # herdada; nenhuma linha do app a lê hoje
+
 ```
 
 ### Onde cada uma é cadastrada, e quais são obrigatórias em cada build
@@ -1834,9 +1832,7 @@ precisa daquilo:
 | `EXPO_PUBLIC_SUPABASE_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Vercel · **EAS secrets** | obrigatória | obrigatória |
 | `EXPO_PUBLIC_APP_URL` | Vercel · **EAS secrets** | obrigatória | obrigatória |
-| `EXPO_PUBLIC_STRIPE_PRICE_START/PRO` | Vercel | obrigatórias | não usadas |
 | `EXPO_PUBLIC_STORE_BUILD` | `eas.json` (versionado) | opcional | já vem no perfil |
-| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | — | não usada | não usada |
 
 - **Vercel** → *Project Settings → Environment Variables*. As `EXPO_PUBLIC_*` são **assadas no
   build**: mudar o valor sem redeployar deixa o site publicado com o valor antigo, sem aviso.
@@ -1848,13 +1844,10 @@ precisa daquilo:
 - `EXPO_PUBLIC_APP_URL` **é obrigatória também no app**, e isso costuma surpreender: a tela de Leads
   monta o link da página pública de captação com `env.appUrl` direto, sem passar por `getAppUrl()`.
   Sem a variável, o corretor gera um QR Code apontando para `http://localhost:8081`.
-- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` está no `.env.example` e em `env.ts`, mas **nenhuma linha do
-  aplicativo a lê**: o Checkout é hospedado pelo Stripe e quem cria a sessão é a Edge Function, com a
-  chave secreta. Fica documentada como não-exigência para ninguém perder tempo procurando por ela.
 
 ### A guarda: `npm run checar:ambiente`
 
-`src/lib/env.ts` tem fallback silencioso — sem as chaves do Supabase ele aponta para
+`src/lib/env.ts` tem fallback silencioso — supabase ele aponta para
 `placeholder.supabase.co`, e o app **compila, instala e abre** sem carregar nada. `BackendMissingScreen`
 cobre isso em runtime, mas o estrago já aconteceu: um build de loja assim chega na mão do **revisor da
 Apple** como um app que não faz nada, e isso é reprovação mais um ciclo inteiro de revisão perdido.

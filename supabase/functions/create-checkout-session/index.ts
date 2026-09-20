@@ -14,7 +14,16 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
 
 const PRICE_START = Deno.env.get('STRIPE_PRICE_START') ?? '';
 const PRICE_PRO = Deno.env.get('STRIPE_PRICE_PRO') ?? '';
-const ALLOWED_PRICES = new Set([PRICE_START, PRICE_PRO].filter(Boolean));
+
+const PRICE_BY_PLAN = {
+  start: PRICE_START,
+  pro: PRICE_PRO,
+} as const;
+
+const EXPECTED_AMOUNT_BY_PLAN = {
+  start: 2990,
+  pro: 6990,
+} as const;
 
 export function configuredPrices(): boolean {
   return /^price_\w+$/.test(PRICE_START) && /^price_\w+$/.test(PRICE_PRO) && PRICE_START !== PRICE_PRO;
@@ -54,17 +63,21 @@ Deno.serve(async (req) => {
     } = await supabase.auth.getUser();
     if (!user) return json({ error: 'Não autenticado.' }, 401);
 
-    const { priceId, successUrl, cancelUrl } = await req.json();
-    if (typeof priceId !== 'string' || !priceId.startsWith('price_') || priceId.length > 255) {
-      return json({ error: 'priceId inválido.' }, 400);
-    }
-    if (!ALLOWED_PRICES.has(priceId)) {
-      return json({ error: 'Plano indisponível.' }, 400);
-    }
+    const { plan, successUrl, cancelUrl } = await req.json();
+
+if (plan !== 'start' && plan !== 'pro') {
+  return json({ error: 'Plano inválido.' }, 400);
+}
+
+const priceId = PRICE_BY_PLAN[plan];
+
+if (!priceId) {
+  return json({ error: 'Plano temporariamente indisponível.' }, 503);
+}
 
     // Impede exibir R$ 69,90 enquanto um secret ainda aponta para R$ 89,90.
     const price = await stripe.prices.retrieve(priceId);
-    const expectedAmount = priceId === PRICE_START ? 2990 : 6990;
+    const expectedAmount = EXPECTED_AMOUNT_BY_PLAN[plan];
     if (!price.active || price.currency !== 'brl' || price.unit_amount !== expectedAmount ||
         price.recurring?.interval !== 'month' || price.recurring.interval_count !== 1) {
       console.error('Preço configurado não corresponde à oferta:', priceId);
@@ -126,7 +139,9 @@ Deno.serve(async (req) => {
       allow_promotion_codes: true,
       subscription_data: { metadata: { supabase_user_id: user.id } },
       metadata: { supabase_user_id: user.id, price_id: priceId },
-    }, { idempotencyKey: `poup-checkout-${user.id}-${Math.floor(Date.now() / 1_800_000)}` });
+    }, {
+  idempotencyKey: `poup-checkout-${user.id}-${plan}-${Math.floor(Date.now() / 1_800_000)}`,
+});
 
     return json({ url: session.url });
   } catch (e) {

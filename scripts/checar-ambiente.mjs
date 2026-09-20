@@ -34,13 +34,13 @@
  *     Code apontando para `http://localhost:8081`. O mesmo vale para o link de
  *     simulação compartilhada com o cliente.
  *
- *   * **Só a web** precisa dos dois `EXPO_PUBLIC_STRIPE_PRICE_*`. No build de
+ *   * **SOs Price IDs do Stripe não fazem parte do frontend.
+Eles ficam somente nos secrets das Supabase Edge Functions.*`. No build de
  *     loja `canShowBilling` é `false`: não há paywall, não há botão de assinar,
  *     e desde a remoção do checkout do binário o arquivo que usaria esses IDs
  *     nem entra no bundle (ver `src/features/cobranca/`). Exigi-los ali seria
  *     inventar uma trava que não protege nada.
- *
- *   * **Ninguém** precisa de `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`. Ela está no
+ * Ela está no
  *     `.env.example` e em `env.ts`, mas nenhuma linha do aplicativo a lê — o
  *     Checkout é hospedado pelo Stripe e quem cria a sessão é a Edge Function,
  *     com a chave secreta. Cobrá-la aqui faria alguém perder tempo procurando
@@ -89,16 +89,6 @@ const REGRAS = [
     porque:
       'o link da página de captação e o link de simulação são montados com ela; ' +
       'sem ela, o QR Code do corretor aponta para http://localhost:8081.',
-  },
-  {
-    nome: 'EXPO_PUBLIC_STRIPE_PRICE_START',
-    contextos: ['web'],
-    porque: 'o plano Start fica indisponível no paywall e ninguém consegue assinar.',
-  },
-  {
-    nome: 'EXPO_PUBLIC_STRIPE_PRICE_PRO',
-    contextos: ['web'],
-    porque: 'idem, para o plano Pro.',
   },
 ];
 
@@ -158,14 +148,6 @@ for (const regra of REGRAS) {
       faltando.push({ ...regra, motivo: 'use uma chave publishable ou anon; chaves secret/service_role nunca podem entrar no app' });
     }
   }
-  if (regra.nome.startsWith('EXPO_PUBLIC_STRIPE_PRICE_') && !/^price_[A-Za-z0-9]+$/.test(valor)) {
-    faltando.push({ ...regra, motivo: 'precisa ser um Price ID real do Stripe, não um exemplo' });
-  }
-}
-
-if (contexto === 'web' && process.env.EXPO_PUBLIC_STRIPE_PRICE_START &&
-    process.env.EXPO_PUBLIC_STRIPE_PRICE_START === process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO) {
-  faltando.push({ nome: 'EXPO_PUBLIC_STRIPE_PRICE_PRO', motivo: 'Start e Pro precisam de Price IDs diferentes', porque: 'evita cobrar o mesmo produto por planos diferentes.' });
 }
 
 const rotulo = contexto === 'loja' ? 'build de loja (iOS/Android)' : 'build da web';

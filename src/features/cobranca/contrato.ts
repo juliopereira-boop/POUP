@@ -30,10 +30,10 @@
  * e a navegação para fora sai junto com ela do bundle nativo. A tela fica sem
  * saber que existe um endereço do Stripe do outro lado.
  */
-import type { Result } from '@/data/types';
+import type { PlanTier, Result } from '@/data/types';
 
 /** Leva o corretor ao pagamento do plano. Só existe de verdade na web. */
-export type AbrirCheckout = (priceId: string) => Promise<Result<void>>;
+export type AbrirCheckout = (plan: PlanTier) => Promise<Result<void>>;
 
 /** Leva o corretor ao portal onde ele mexe na assinatura já existente. */
 export type AbrirPortalDeCobranca = () => Promise<Result<void>>;
