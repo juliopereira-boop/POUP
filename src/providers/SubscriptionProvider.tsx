@@ -19,6 +19,7 @@ import {
   trialDaysRemaining,
 } from '@/data';
 import { getPlan, type PlanConfig } from '@/features/plans';
+import { identifyStoreCustomer } from '@/features/cobranca/comprasNaLoja';
 import { useAuth } from './AuthProvider';
 
 interface SubscriptionContextValue {
@@ -32,7 +33,7 @@ interface SubscriptionContextValue {
   trialExpired: boolean;
   loading: boolean;
   initialLoad: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<Subscription | null>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue | undefined>(undefined);
@@ -73,10 +74,15 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       trialAttemptedForUser.current = null;
       setLoading(false);
       setInitialLoad(false);
-      return;
+      return null;
     }
     setLoading(true);
     try {
+      // Web: no-op. Nativo: o UUID não adivinhável do Supabase vira o App
+      // User ID do RevenueCat antes de comprar ou restaurar.
+      const identified = await identifyStoreCustomer(user.id, user.email);
+      if (!identified.ok) console.warn('[revenuecat]', identified.error);
+
       let sub = await db.billing.getSubscription(user.id);
 
       // Concessão preguiçosa do período de teste.
@@ -114,10 +120,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
       // Chegou tarde: o usuário já trocou. Joga fora, quem mandou o pedido
       // novo é que decide.
-      if (myRequest !== requestId.current) return;
+      if (myRequest !== requestId.current) return null;
 
       setSubscription(sub);
       setResolvedUserId(user.id);
+      return sub;
     } finally {
       if (myRequest === requestId.current) {
         setLoading(false);

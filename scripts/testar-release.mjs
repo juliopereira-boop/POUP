@@ -7,8 +7,8 @@ const valid = {
   EXPO_PUBLIC_SUPABASE_URL: 'https://project.supabase.co',
   EXPO_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_test-fixture',
   EXPO_PUBLIC_APP_URL: 'https://poup.example.com',
+  EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: 'appl_testfixture',
 };
-
 let count = 0;
 
 function check(patch, expected, context = 'web') {
@@ -37,6 +37,8 @@ check({}, 0);
 
 // Nem web nem app nativo precisam de Price IDs públicos do Stripe.
 check({}, 0, 'loja');
+check({ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: '' }, 1, 'loja');
+check({ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY: 'sk_secreta' }, 1, 'loja');
 
 for (const url of [
   'http://localhost:8081',

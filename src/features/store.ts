@@ -1,11 +1,9 @@
 import { Platform } from 'react-native';
 
 /**
- * Modelo desta versão: app gratuito complementar ao serviço web (3.1.3(f)),
- * sem compra nem direcionamento para pagamento externo. A aceitação depende
- * da experiência real e da revisão da Apple, não apenas de esconder botões.
- * A flag serve para conferir a experiência de loja NO NAVEGADOR; nunca para
- * habilitar cobrança no binário nativo.
+ * O navegador vende pelo Stripe; iOS/Android vendem pela loja nativa via
+ * RevenueCat. `EXPO_PUBLIC_STORE_BUILD` continua permitindo conferir, no
+ * navegador, a experiência restrita do binário sem levar o Stripe para ela.
  */
 function flagFromEnv(): boolean {
   const raw = process.env.EXPO_PUBLIC_STORE_BUILD;
@@ -13,7 +11,9 @@ function flagFromEnv(): boolean {
 }
 
 export const isStoreBuild: boolean = Platform.OS !== 'web' || flagFromEnv();
-export const canShowBilling: boolean = !isStoreBuild;
+export const usesNativeBilling: boolean = Platform.OS !== 'web';
+export const canShowWebBilling: boolean = !isStoreBuild;
+export const canShowBilling: boolean = usesNativeBilling || canShowWebBilling;
 
 /** LIA digitada, exclusiva do Pro ativo, permanece web nesta versão. Sem voz. */
 export const liaDisponivel: boolean = !isStoreBuild;

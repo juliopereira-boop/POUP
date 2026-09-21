@@ -34,17 +34,12 @@
  *     Code apontando para `http://localhost:8081`. O mesmo vale para o link de
  *     simulação compartilhada com o cliente.
  *
- *   * **SOs Price IDs do Stripe não fazem parte do frontend.
-Eles ficam somente nos secrets das Supabase Edge Functions.*`. No build de
- *     loja `canShowBilling` é `false`: não há paywall, não há botão de assinar,
- *     e desde a remoção do checkout do binário o arquivo que usaria esses IDs
- *     nem entra no bundle (ver `src/features/cobranca/`). Exigi-los ali seria
- *     inventar uma trava que não protege nada.
- * Ela está no
- *     `.env.example` e em `env.ts`, mas nenhuma linha do aplicativo a lê — o
- *     Checkout é hospedado pelo Stripe e quem cria a sessão é a Edge Function,
- *     com a chave secreta. Cobrá-la aqui faria alguém perder tempo procurando
- *     uma chave que não muda nada.
+ *   * **O build da loja** exige a chave pública do RevenueCat. O segredo que
+ *     consulta assinaturas continua exclusivamente no Supabase.
+ *
+ *   * **Os Price IDs e a chave secreta do Stripe não fazem parte do frontend.**
+ *     A web envia somente `start` ou `pro`; a Edge Function escolhe o Price ID
+ *     guardado nos secrets do Supabase. O Checkout é hospedado pelo Stripe.
  *
  * ===========================================================================
  * QUANDO ISTO REPROVA, E QUANDO SÓ AVISA
@@ -73,6 +68,11 @@ const PLACEHOLDERS = new Set(['https://placeholder.supabase.co', 'placeholder-an
  * precisa dizer o que quebra, não só o nome da variável.
  */
 const REGRAS = [
+  {
+    nome: 'EXPO_PUBLIC_REVENUECAT_IOS_API_KEY',
+    contextos: ['loja'],
+    porque: 'sem ela a App Store não consegue carregar, comprar nem restaurar os planos.',
+  },
   {
     nome: 'EXPO_PUBLIC_SUPABASE_URL',
     contextos: ['web', 'loja'],
@@ -147,6 +147,9 @@ for (const regra of REGRAS) {
     if (!valor.startsWith('sb_publishable_') && role !== 'anon') {
       faltando.push({ ...regra, motivo: 'use uma chave publishable ou anon; chaves secret/service_role nunca podem entrar no app' });
     }
+  }
+  if (regra.nome === 'EXPO_PUBLIC_REVENUECAT_IOS_API_KEY' && !/^appl_[A-Za-z0-9]+$/.test(valor)) {
+    faltando.push({ ...regra, motivo: 'precisa ser a chave pública Apple SDK do RevenueCat (appl_...), nunca uma chave secreta' });
   }
 }
 

@@ -23,6 +23,7 @@ import { useRouter } from 'expo-router';
 import { Button } from './Button';
 import { Input } from './Input';
 import { useAuth } from '@/providers/AuthProvider';
+import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
@@ -41,6 +42,7 @@ export function DeleteAccountButton() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { deleteAccount } = useAuth();
+  const { subscription } = useSubscription();
 
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState('');
@@ -109,8 +111,10 @@ export function DeleteAccountButton() {
               </View>
 
               <Text style={styles.aviso}>
-                Se você tem assinatura ativa, ela é cancelada agora e não haverá nova cobrança. Se
-                entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
+                {subscription?.billingProvider === 'revenuecat'
+                  ? 'A exclusão da conta não cancela a assinatura feita pela App Store ou Google Play. Cancele-a nos ajustes da loja antes de excluir para evitar nova cobrança. '
+                  : 'Se você tem assinatura ativa pelo site, ela é cancelada agora e não haverá nova cobrança. '}
+                Se entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
               </Text>
 
               <Input

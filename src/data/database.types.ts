@@ -148,6 +148,12 @@ export interface Database {
           plan: string | null;
           plan_tier: string | null;
           storage_limit_bytes: number;
+          billing_provider: string | null;
+          revenuecat_product_id: string | null;
+          revenuecat_original_app_user_id: string | null;
+          revenuecat_store: string | null;
+          revenuecat_environment: string | null;
+          revenuecat_event_timestamp_ms: number;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
           stripe_event_created: number;
@@ -165,6 +171,12 @@ export interface Database {
           plan?: string | null;
           plan_tier?: string | null;
           storage_limit_bytes?: number;
+          billing_provider?: string | null;
+          revenuecat_product_id?: string | null;
+          revenuecat_original_app_user_id?: string | null;
+          revenuecat_store?: string | null;
+          revenuecat_environment?: string | null;
+          revenuecat_event_timestamp_ms?: number;
           trial_started_at?: string | null;
           trial_days?: number | null;
           stripe_customer_id?: string | null;
@@ -180,6 +192,12 @@ export interface Database {
           plan?: string | null;
           plan_tier?: string | null;
           storage_limit_bytes?: number;
+          billing_provider?: string | null;
+          revenuecat_product_id?: string | null;
+          revenuecat_original_app_user_id?: string | null;
+          revenuecat_store?: string | null;
+          revenuecat_environment?: string | null;
+          revenuecat_event_timestamp_ms?: number;
           stripe_customer_id?: string | null;
           stripe_subscription_id?: string | null;
           stripe_event_created?: number;

@@ -59,6 +59,7 @@ export type SubscriptionStatus =
  * lugares dependem disso para achar "o plano mais barato que tem tal recurso".
  */
 export type PlanTier = 'start' | 'pro';
+export type BillingProvider = 'stripe' | 'revenuecat';
 
 export interface Subscription {
   status: SubscriptionStatus;
@@ -67,6 +68,7 @@ export interface Subscription {
   storageLimitBytes: number;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  billingProvider: BillingProvider | null;
   /**
    * Quando o período de teste gratuito foi concedido a esta conta.
    * `null` = a conta NUNCA usou o teste (é candidata a receber um, se a

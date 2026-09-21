@@ -126,8 +126,9 @@ export default function PrivacyPolicyScreen() {
 
         <SubTitle>Do pagamento</SubTitle>
         <Bullet>
-          Dados de cobrança da assinatura são processados diretamente pelo Stripe. O POUP nunca
-          recebe nem guarda o número do seu cartão.
+          No site, os dados de cobrança são processados pelo Stripe. No aplicativo, compras e
+          assinaturas são processadas pela Apple ou Google e conciliadas pelo RevenueCat. O POUP
+          nunca recebe nem guarda o número completo do seu cartão.
         </Bullet>
       </Section>
 
@@ -148,7 +149,7 @@ export default function PrivacyPolicyScreen() {
       <Section title="3. Para que usamos esses dados">
         <Bullet>Autenticar seu acesso e manter sua conta funcionando</Bullet>
         <Bullet>Gerar simulações, propostas e relatórios que você mesmo solicita</Bullet>
-        <Bullet>Processar a cobrança da assinatura mensal</Bullet>
+        <Bullet>Processar e conciliar a cobrança da assinatura mensal</Bullet>
         <Bullet>
           Preencher automaticamente nome e CPF a partir da foto de um documento, quando você usa
           essa opção — a foto é enviada para leitura e não fica guardada além do necessário para
@@ -171,6 +172,10 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
         <Bullet>
           <Bold>Stripe</Bold> — processamento de pagamento da assinatura
+        </Bullet>
+        <Bullet>
+          <Bold>RevenueCat, Apple e Google</Bold> — processamento, restauração e conciliação das
+          assinaturas feitas nas lojas de aplicativos
         </Bullet>
         <Bullet>
           <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe uma
@@ -201,8 +206,9 @@ export default function PrivacyPolicyScreen() {
         <Paragraph>
           Enquanto sua conta estiver ativa. Se você excluir a conta pelo próprio app (Ajustes →
           Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
-          assinatura é cancelada antes de a conta ser removida — se o cancelamento não puder ser
-          concluído, a exclusão não acontece e avisamos, em vez de deixar uma cobrança sem dono.
+          assinatura Stripe é cancelada antes de a conta ser removida. Assinaturas administradas
+          pela Apple ou Google não são canceladas automaticamente com a exclusão da conta; a tela
+          de confirmação orienta o cancelamento na própria loja para evitar cobranças futuras.
           Quando uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte. A
           tela informa se o registro foi possível. Você pode tentar novamente ou falar com o
           suporte; não há retomada automática em segundo plano. Se você entrou com a Apple, a

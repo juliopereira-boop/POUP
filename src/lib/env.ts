@@ -22,6 +22,9 @@ export const env = {
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     PLACEHOLDER_KEY,
   ),
+  /** Chaves públicas do SDK. As chaves secretas do RevenueCat ficam só no Supabase. */
+  revenueCatIosApiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? '',
+  revenueCatAndroidApiKey: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? '',
   appUrl: process.env.EXPO_PUBLIC_APP_URL ?? 'http://localhost:8081',
 } as const;
 

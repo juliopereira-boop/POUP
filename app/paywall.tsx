@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -9,8 +9,13 @@ import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
 import { registrar } from '@/features/analytics/eventos';
 import { abrirCheckout, abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
+import {
+  loadStorePrices,
+  purchaseStorePlan,
+  restoreStorePurchases,
+} from '@/features/cobranca/comprasNaLoja';
 import { PLANS, PLAN_ORDER, type PlanConfig } from '@/features/plans';
-import { canShowBilling } from '@/features/store';
+import { canShowBilling, usesNativeBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -24,6 +29,9 @@ export default function PaywallScreen() {
   const { pending, upgrade } = useLocalSearchParams<{ pending?: string; upgrade?: string }>();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [checkingAgain, setCheckingAgain] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [storePrices, setStorePrices] = useState<Partial<Record<string, string>>>({});
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /*
@@ -44,6 +52,24 @@ export default function PaywallScreen() {
       });
     }
   }, [veriaOsPlanos, upgrade, trialExpired]);
+
+  useEffect(() => {
+    if (!usesNativeBilling || !veriaOsPlanos) return;
+    let active = true;
+    void loadStorePrices().then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setStorePrices(
+        Object.fromEntries(result.data.map((item) => [item.tier, item.priceLabel])),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [veriaOsPlanos]);
 
   // `upgrade=1` deixa quem já tem assinatura ativa abrir a comparação de planos
   // (é para onde os módulos exclusivos do Pro mandam o usuário do Start).
@@ -69,19 +95,21 @@ export default function PaywallScreen() {
 
   async function subscribe(plan: PlanConfig) {
     setError(null);
+    setNotice(null);
     setLoadingTier(plan.tier);
-    /*
-     * Quem sai do app é o `abrirCheckout`, não esta tela. Antes, ele devolvia a
-     * URL do Stripe e o `Linking.openURL` daqui a abria — e um `openURL` para o
-     * pagamento, numa tela que também é compilada para o iOS, é justamente o
-     * caminho de compra externa que a auditoria mandou tirar do binário. Ver
-     * `src/features/cobranca/abrirCobranca.native.ts`.
-     *
-     * Em caso de sucesso o navegador já está saindo da página, então não há o
-     * que fazer depois: só o erro tem tratamento.
-     */
-    // Uma troca de plano altera a assinatura existente, não abre outra cobrança.
     try {
+      if (usesNativeBilling) {
+        const result = await purchaseStorePlan(plan.tier);
+        if (!result.ok) {
+          if (!result.cancelled) setError(result.error);
+          return;
+        }
+        await refresh();
+        setNotice('Compra confirmada. Seu acesso já foi atualizado.');
+        return;
+      }
+
+      // Na web, trocar de plano continua sendo feito no portal Stripe.
       const result = upgradeMode
         ? await abrirPortalDeCobranca()
         : await abrirCheckout(plan.tier);
@@ -93,8 +121,29 @@ export default function PaywallScreen() {
     }
   }
 
-  // No app das lojas, nada de cobrança aparece — nem preço, nem link. Veja
-  // `src/features/store.ts` e `InactiveAccountScreen`.
+  async function restorePurchases() {
+    setError(null);
+    setNotice(null);
+    setRestoring(true);
+    try {
+      const result = await restoreStorePurchases();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (!result.data) {
+        setNotice('Nenhuma assinatura ativa foi encontrada nesta Conta Apple.');
+        return;
+      }
+      await refresh();
+      setNotice('Compras restauradas. Seu acesso foi atualizado.');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  // A web vende pelo Stripe e o app nativo vende exclusivamente pela loja.
+  // Este fallback só permanece para uma eventual distribuição sem cobrança.
   if (!canShowBilling) {
     return (
       <InactiveAccountScreen
@@ -148,6 +197,7 @@ export default function PaywallScreen() {
       ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
       <View style={styles.plans}>
         {PLAN_ORDER.map((tier) => {
@@ -157,9 +207,17 @@ export default function PaywallScreen() {
             <PlanCard
               key={plan.tier}
               plan={plan}
+              priceLabel={
+                usesNativeBilling
+                  ? storePrices[plan.tier] ?? 'Preço indisponível'
+                  : plan.priceLabel
+              }
               isCurrent={isCurrent}
               loading={loadingTier === plan.tier}
-              disabled={loadingTier !== null}
+              disabled={
+                loadingTier !== null ||
+                (usesNativeBilling && storePrices[plan.tier] === undefined)
+              }
               onSubscribe={() => subscribe(plan)}
             />
           );
@@ -167,8 +225,18 @@ export default function PaywallScreen() {
       </View>
 
       <Text style={styles.fineprint}>
-        Cobrança mensal recorrente. Gerencie ou cancele sua assinatura pelo portal de cobrança.
+        {usesNativeBilling
+          ? 'Assinatura mensal com renovação automática. O pagamento será cobrado na conta da loja do seu dispositivo. A renovação pode ser cancelada nos ajustes da loja até 24 horas antes do fim do período atual.'
+          : 'Cobrança mensal recorrente. Gerencie ou cancele sua assinatura pelo portal de cobrança.'}
       </Text>
+      {usesNativeBilling ? (
+        <Button
+          label="Restaurar compras"
+          variant="secondary"
+          onPress={() => void restorePurchases()}
+          loading={restoring}
+        />
+      ) : null}
       <Button
         label="Gerenciar assinatura"
         variant="ghost"
@@ -181,6 +249,18 @@ export default function PaywallScreen() {
           }
         }}
       />
+      <View style={styles.legalActions}>
+        <Button
+          label="Termos de Uso"
+          variant="ghost"
+          onPress={() => router.push('/termos' as Href)}
+        />
+        <Button
+          label="Política de Privacidade"
+          variant="ghost"
+          onPress={() => router.push('/privacidade')}
+        />
+      </View>
       <AccountActions />
 
       {upgradeMode && isActive ? (
@@ -199,12 +279,14 @@ export default function PaywallScreen() {
 
 function PlanCard({
   plan,
+  priceLabel,
   isCurrent,
   loading,
   disabled,
   onSubscribe,
 }: {
   plan: PlanConfig;
+  priceLabel: string;
   isCurrent: boolean;
   loading: boolean;
   disabled: boolean;
@@ -227,7 +309,7 @@ function PlanCard({
         ) : null}
       </View>
 
-      <Text style={styles.planPrice}>{plan.priceLabel}</Text>
+      <Text style={styles.planPrice}>{priceLabel}</Text>
 
       <View style={styles.features}>
         {plan.features.map((f) => (
@@ -339,6 +421,16 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
       overflow: 'hidden',
     },
+    notice: {
+      ...typography.caption,
+      color: colors.success,
+      backgroundColor: colors.successSoft,
+      padding: spacing.md,
+      borderRadius: 8,
+      marginBottom: spacing.lg,
+      overflow: 'hidden',
+    },
+    legalActions: { width: '100%', marginTop: spacing.sm },
     pendingBanner: {
       width: '100%',
       backgroundColor: colors.primarySoft,

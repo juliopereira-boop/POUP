@@ -86,10 +86,13 @@ if (!priceId) {
 
     const { data: existing, error: existingError } = await supabase
       .from('subscriptions')
-      .select('stripe_customer_id, stripe_subscription_id')
+      .select('stripe_customer_id, stripe_subscription_id, billing_provider, status')
       .eq('user_id', user.id)
       .maybeSingle();
     if (existingError) throw existingError;
+    if (existing?.billing_provider === 'revenuecat' && existing.status === 'active') {
+      return json({ error: 'Você já possui uma assinatura pela loja do celular. Gerencie-a pela App Store ou Google Play.' }, 409);
+    }
     if (existing?.stripe_subscription_id) {
       const current = await stripe.subscriptions.retrieve(existing.stripe_subscription_id);
       if (current.status !== 'canceled' && current.status !== 'incomplete_expired') {

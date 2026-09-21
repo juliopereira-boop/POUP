@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 
 import { openGuide } from '@/features/guide';
 
@@ -83,7 +83,8 @@ export default function ConfiguracoesScreen() {
    * compilada também para o iOS, que deixava o caminho de cobrança externa
    * dentro do binário das lojas. Ver `src/features/cobranca/abrirCobranca.native.ts`.
    *
-   * O botão que chama isto já está atrás de `canShowBilling`.
+   * Na web abre o portal Stripe; no nativo a resolução por plataforma abre a
+   * tela oficial de assinaturas da Apple/Google, nunca um checkout externo.
    */
   async function openBillingPortal() {
     setLoadingPortal(true);
@@ -150,6 +151,8 @@ export default function ConfiguracoesScreen() {
         />
         <Divider />
         <NavRow label="Suporte" onPress={() => router.push('/suporte')} />
+        <Divider />
+        <NavRow label="Termos de Uso" onPress={() => router.push('/termos' as Href)} />
         <Divider />
         <NavRow label="Política de Privacidade" onPress={() => router.push('/privacidade')} />
       </View>
@@ -247,9 +250,7 @@ export default function ConfiguracoesScreen() {
             />
           </>
         ) : null}
-        {/* O portal do Stripe é cobrança de fora da loja: mostrar o botão no
-            app publicado é apontar o caminho, e é rejeição na revisão. Plano e
-            status continuam visíveis — informar não é vender. */}
+        {/* Web: portal Stripe. App: gerenciamento oficial da App Store/Play. */}
         {canShowBilling ? (
           <View style={styles.cardAction}>
             <Button

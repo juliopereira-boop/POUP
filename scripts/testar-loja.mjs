@@ -89,7 +89,8 @@ function secao(t) {
 
   const s = store('1', 'ios');
   checar('é build de loja', s.isStoreBuild === true);
-  checar('cobrança escondida (3.1.1)', s.canShowBilling === false);
+  checar('cobrança nativa liberada (3.1.1)', s.canShowBilling === true);
+  checar('usa In-App Purchase', s.usesNativeBilling === true);
   checar('LIA escondida (2.1 / 2.3)', s.liaDisponivel === false);
   checar('formulário de cadastro fica na web por decisão de produto', s.podeCriarConta === false);
 
@@ -120,7 +121,7 @@ function secao(t) {
     checar(`${os}: LIA escondida`, s.liaDisponivel === false);
     checar(`${os}: cadastro bloqueado`, s.podeCriarConta === false);
     const disabledFlag = store('0', os);
-    checar(`${os}: flag não libera cobrança nativa`, disabledFlag.canShowBilling === false);
+    checar(`${os}: cobrança nativa continua pela loja`, disabledFlag.canShowBilling === true);
     checar(`${os}: flag não libera LIA nativa`, disabledFlag.liaDisponivel === false);
   }
 }
@@ -180,7 +181,7 @@ function secao(t) {
 }
 
 /* ===========================================================================
- * O CAMINHO DE COMPRA NÃO PODE VOLTAR PARA O BUNDLE NATIVO (3.1.1)
+ * O CHECKOUT STRIPE NÃO PODE VOLTAR PARA O BUNDLE NATIVO (3.1.1)
  * ===========================================================================
  * Esconder a tela não bastava: a auditoria pediu para REMOVER o código de
  * checkout do binário das lojas. Quem faz isso é a resolução por plataforma do
@@ -209,6 +210,11 @@ function secao(t) {
   for (const marca of MARCAS) {
     checar(`o arquivo nativo não menciona "${marca}"`, !nativo.includes(marca));
   }
+
+  const comprasNativas = ler('src/features/cobranca/comprasNaLoja.native.ts');
+  checar('o nativo compra com RevenueCat', comprasNativas.includes('purchasePackage'));
+  checar('o nativo permite restaurar compras', comprasNativas.includes('restorePurchases'));
+  checar('o nativo sincroniza a assinatura', comprasNativas.includes('sync-revenuecat-subscription'));
 
   // E a web precisa continuar vendendo: um "conserto" que apagasse o caminho
   // dos dois lados passaria despercebido sem esta metade do teste.

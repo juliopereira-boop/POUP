@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import type { BillingRepository } from '../repositories';
 import {
   type PlanTier,
+  type BillingProvider,
   type Subscription,
   type SubscriptionStatus,
 } from '../types';
@@ -36,6 +37,10 @@ function mapTier(raw: string | null): PlanTier | null {
   return raw === 'start' || raw === 'pro' ? raw : null;
 }
 
+function mapBillingProvider(raw: string | null): BillingProvider | null {
+  return raw === 'stripe' || raw === 'revenuecat' ? raw : null;
+}
+
 function mapSubscription(row: SubscriptionRow): Subscription {
   return {
     status: mapStatus(row.status),
@@ -44,6 +49,7 @@ function mapSubscription(row: SubscriptionRow): Subscription {
     storageLimitBytes: Number(row.storage_limit_bytes ?? 0),
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
+    billingProvider: mapBillingProvider(row.billing_provider),
     trialStartedAt: row.trial_started_at ?? null,
   };
 }
