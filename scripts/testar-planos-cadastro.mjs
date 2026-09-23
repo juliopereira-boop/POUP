@@ -101,7 +101,7 @@ await test('somente Start/Pro, valores novos e vendas/comissões no Pro', () => 
   assert.deepEqual(plans.PLAN_ORDER, ['start', 'pro']);
   assert.deepEqual(Object.keys(plans.PLANS), ['start', 'pro']);
   assert.equal(plans.PLANS.start.priceLabel, 'R$ 29,90/mês');
-  assert.equal(plans.PLANS.pro.priceLabel, 'R$ 69,90/mês');
+  assert.equal(plans.PLANS.pro.priceLabel, 'R$ 59,90/mês');
   for (const key of ['vendas', 'comissao', 'lia']) {
     assert.deepEqual(plans.PLAN_FEATURES.find(f => f.key === key).includedIn, ['pro']);
     assert.equal(plans.planoMinimoPara(key).tier, 'pro');

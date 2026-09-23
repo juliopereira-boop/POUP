@@ -282,7 +282,7 @@ Dois detalhes que parecem miudeza e não são:
 | Plano | Preço | O que acrescenta |
 | --- | --- | --- |
 | **Start** | R$ 29,90/mês | Simulador, proposta em PDF, leads, captação com QR Code, calendário, material de venda, cadastros |
-| **Pro** | R$ 69,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão + LIA na web** |
+| **Pro** | R$ 59,90/mês | Tudo do Start **+ vendas realizadas + controle de comissão + LIA na web** |
 
 O Pro acrescenta acompanhamento de vendas e comissões em todas as plataformas.
 A LIA funciona somente na web, em navegador compatível com reconhecimento de voz.
@@ -1348,7 +1348,7 @@ poupando tokens de saída sem custar nada em qualidade.
 | agora, com cache/gatilho/Haiku, ainda a 3,5 s | **$0,122** |
 
 Esses números são estimativas históricas do processamento, não medições de produção nem garantia
-de margem. Para recalcular com a mensalidade atual do Pro (R$ 69,90), execute `npm run custo:lia`.
+de margem. Para recalcular com a mensalidade atual do Pro (R$ 59,90), execute `npm run custo:lia`.
 Revise as premissas de câmbio, tarifas, infraestrutura, tokens e volume antes de uma decisão comercial.
 Outros recursos de IA têm custos próprios; o modelo não representa o custo total de cada conta.
 
@@ -1898,7 +1898,7 @@ Link expirado ou já usado é o caso **comum**, não a exceção — eles duram 
 
 **Guia completo passo a passo (100% pelo navegador): [`docs/STRIPE_PLANOS.md`](docs/STRIPE_PLANOS.md).** Resumo:
 
-1. Aplique as migrations pendentes, incluindo `20260916031259_planos_start_pro.sql`, após revisão do ambiente alvo. Crie dois preços recorrentes BRL/mensais: Start R$ 29,90 e Pro R$ 69,90. Copie os `price_...`.
+1. Aplique as migrations pendentes, incluindo `20260916031259_planos_start_pro.sql`, após revisão do ambiente alvo. Crie dois preços recorrentes BRL/mensais: Start R$ 29,90 e Pro R$ 59,90. Copie os `price_...`.
 2. Copie a publishable key (`pk_...`).
 3. Publique as Edge Functions colando o código de cada uma no Supabase Dashboard. `stripe-webhook` e `get-financing-simulation` vão com **Verify JWT desmarcado** — quem as chama não tem login (o Stripe e o cliente do corretor), e as duas validam por outro caminho (assinatura criptográfica e hash de token).
 4. Configure os segredos: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_START`, `STRIPE_PRICE_PRO`. Restrinja as opções do portal aos dois preços atuais.

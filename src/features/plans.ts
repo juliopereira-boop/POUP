@@ -129,7 +129,7 @@ export const PLANS: Record<PlanTier, PlanConfig> = {
   pro: {
     tier: 'pro',
     name: 'Pro',
-    priceLabel: 'R$ 69,90/mês',
+    priceLabel: 'R$ 59,90/mês',
     tagline: 'Da negociação até o recebimento da comissão',
     storageLimitBytes: 25 * GB,
     highlighted: true,

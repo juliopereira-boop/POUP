@@ -14,7 +14,7 @@ function fixture() {
     sub: { id: 'sub_test', status: 'active', customer: 'cus_test', metadata: { supabase_user_id: 'owner' },
       items: { data: [{ price: { id: 'price_pro' } }] }, current_period_end: 1800000000 },
     event: { type: 'customer.subscription.updated', created: 100, data: { object: { id: 'sub_test', status: 'active' } } },
-    price: { active: true, currency: 'brl', unit_amount: 6990, recurring: { interval: 'month', interval_count: 1 } },
+    price: { active: true, currency: 'brl', unit_amount: 5990, recurring: { interval: 'month', interval_count: 1 } },
     subscriptions: [], openSessions: [], calls: [], apple: null, storageCalls: 0,
   };
 }
@@ -130,10 +130,10 @@ for (const patch of [{ unit_amount: 8990 }, { currency: 'usd' }, { active: false
     assert.equal(has(f, 'checkout'), false);
   });
 }
-await test('Start usa 2990 e Pro usa 6990; vincula cliente antes de cobrar', async () => {
+await test('Start usa 2990 e Pro usa 5990; vincula cliente antes de cobrar', async () => {
   for (const [plan, priceId, amount] of [
     ['start', 'price_start', 2990],
-    ['pro', 'price_pro', 6990],
+    ['pro', 'price_pro', 5990],
   ]) {
     const f = fixture();
     f.price.unit_amount = amount;
@@ -163,7 +163,7 @@ await test('Start usa 2990 e Pro usa 6990; vincula cliente antes de cobrar', asy
 });
 await test('cliente não consegue escolher Price ID diretamente', async () => {
   const f = fixture();
-  f.price.unit_amount = 6990;
+  f.price.unit_amount = 5990;
 
   const response = await load('create-checkout-session', f).call({
     ...checkoutBody,

@@ -1,6 +1,6 @@
 # Stripe — Start e Pro
 
-Oferta implementada em 16/09/2026: **Start R$ 29,90/mês** e **Pro R$ 69,90/mês**, em BRL. Pro acrescenta vendas/comissões; LIA somente na web compatível. Intermed saiu do produto. O app nativo permanece complementar, sem checkout externo ou chamada para assinar.
+Oferta atual: **Start R$ 29,90/mês** e **Pro R$ 59,90/mês**, em BRL. Pro acrescenta vendas/comissões; LIA somente na web compatível. Intermed saiu do produto. O app nativo permanece complementar, sem checkout externo ou chamada para assinar.
 
 ## Preparação
 
@@ -15,7 +15,7 @@ Crie preços recorrentes mensais em BRL, quantidade 1:
 | Plano | Centavos | Secret Supabase | Variável web |
 | --- | --- | --- | --- |
 | Start | 2990 | STRIPE_PRICE_START
-| Pro   | 6990 | STRIPE_PRICE_PRO
+| Pro   | 5990 | STRIPE_PRICE_PRO
 
 Se existe Pro de R$ 89,90, crie **outro Price**. Alterar o texto não altera a cobrança. Retire Intermed e o Pro anterior da oferta e do Customer Portal, sem apagar histórico.
 

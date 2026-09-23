@@ -119,7 +119,7 @@ const BRL_USD = 5.40;                 // AJUSTE se o cambio estiver outro
  * contra a media dos planos. Quem paga Start nao usa a LIA; outros recursos de IA
  * podem ter custos separados que este modelo nao contabiliza.
  */
-const MENSALIDADE = 69.90;
+const MENSALIDADE = 59.90;
 const STRIPE = MENSALIDADE * 0.0399 + 0.39;
 const INFRA_FIXA_USD = 45;            // Supabase Pro 25 + Vercel 20
 

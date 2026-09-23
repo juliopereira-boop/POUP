@@ -22,7 +22,7 @@ const PRICE_BY_PLAN = {
 
 const EXPECTED_AMOUNT_BY_PLAN = {
   start: 2990,
-  pro: 6990,
+  pro: 5990,
 } as const;
 
 export function configuredPrices(): boolean {
@@ -75,7 +75,7 @@ if (!priceId) {
   return json({ error: 'Plano temporariamente indisponível.' }, 503);
 }
 
-    // Impede exibir R$ 69,90 enquanto um secret ainda aponta para R$ 89,90.
+    // Impede exibir R$ 59,90 enquanto um secret ainda aponta para outro valor.
     const price = await stripe.prices.retrieve(priceId);
     const expectedAmount = EXPECTED_AMOUNT_BY_PLAN[plan];
     if (!price.active || price.currency !== 'brl' || price.unit_amount !== expectedAmount ||
