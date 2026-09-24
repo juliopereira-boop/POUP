@@ -205,6 +205,37 @@ secao('RASCUNHO ANTIGO — o estado novo continua abrindo o de antes');
   checar('e os antigos ficam como estavam', hidratado.unit === '101' && hidratado.block === 2);
 }
 
+/* ======================================================================== */
+secao('USAR TABELA DE PREÇO — a escolha vai inteira para a simulação');
+{
+  const detalhe = {
+    empreendimento: 'Village Connect I', referencia: 'Setembro', pavimento: 4, vendaTabela: 244780,
+    avaliacao: 231900, areaM2: 40.94, vaga: 'moto', ventilacao: 'mais',
+  };
+  const escolha = {
+    companyId: 'canopus', developmentId: 'connect', blockId: 'b2', blockName: 'Bloco 2', blockOrdem: 1,
+    unitId: 'u301', codigo: '301', detalhe,
+  };
+  const construtora = { id: 'canopus', risk: 20, maxInstallments: 60, maxSemiannual: 8, maxAnnual: 4, coincideInstallments: false };
+
+  const novo = E.estadoDaEscolha(escolha, { companyId: null }, construtora);
+  checar('preenche o valor de venda pela tabela', novo.unitValue === brl(244780), novo.unitValue);
+  checar('leva empreendimento, bloco e unidade para o bloco 2',
+    novo.developmentId === 'connect' && novo.blockId === 'b2' && novo.blockName === 'Bloco 2' && novo.unit === '301' && novo.unitId === 'u301');
+  checar('o número do bloco é a posição no cadastro', novo.block === 2);
+  checar('guarda o que a tabela diz da unidade', novo.unitDetails === detalhe);
+  checar('construtora nova: aplica as regras dela', novo.companyRisk === 20 && novo.companyMaxInstallments === 60 && novo.companyCoincide === false);
+  checar('construtora nova: limpa o correspondente da antiga', novo.correspondentId === null && 'correspondentName' in novo);
+
+  const mesma = E.estadoDaEscolha(escolha, { companyId: 'canopus' }, construtora);
+  checar('mesma construtora: mantém o correspondente', !('correspondentId' in mesma) && !('companyRisk' in mesma));
+
+  const estado = { ...E.INITIAL_SIMULADOR_STATE, ...novo, ...E.SEM_UNIDADE };
+  checar('"não usar esta unidade" tira a unidade e mantém o valor', estado.unitId === null && estado.unitDetails === null && estado.unitValue === brl(244780));
+  checar('rascunho antigo abre sem detalhe da tabela', { ...E.INITIAL_SIMULADOR_STATE, unit: '1' }.unitDetails === null);
+  checar('regras de construtora ausente voltam ao padrão', E.regrasDaConstrutora(undefined).companyRisk === null && E.regrasDaConstrutora(undefined).companyCoincide === true);
+}
+
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);
 for (const f of falhas) console.log(`  FALHOU: ${f}`);
 process.exit(falhas.length ? 1 : 0);

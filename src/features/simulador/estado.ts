@@ -6,6 +6,8 @@
  * montar tela nenhuma. O provider reexporta tudo, então quem importava de lá
  * continua importando de lá.
  */
+import type { Company } from '@/data/types';
+import { formatCurrencyBRL } from '@/lib/masks';
 
 export interface Proponent {
   name: string;
@@ -28,6 +30,25 @@ export function emptyProponent(): Proponent {
   return { name: '', cpf: '', email: '', contact: '', rendaBruta: '' };
 }
 
+/**
+ * O que a tabela de preço diz da unidade escolhida.
+ *
+ * Guardado junto da simulação para os dois blocos mostrarem a mesma coisa
+ * ("3º andar · mais ventilado · vaga de moto · 40,94 m²") sem reler a tabela,
+ * e para a proposta de amanhã lembrar de qual tabela o preço saiu.
+ */
+export interface DetalheDaUnidade {
+  empreendimento: string;
+  /** "Setembro". Vazio quando a tabela não tem referência. */
+  referencia: string;
+  pavimento: number;
+  vendaTabela: number;
+  avaliacao: number | null;
+  areaM2: number | null;
+  vaga: 'carro' | 'moto' | null;
+  ventilacao: 'mais' | 'menos' | null;
+}
+
 export interface SimuladorState {
   companyId: string | null;
   developmentId: string | null;
@@ -48,6 +69,8 @@ export interface SimuladorState {
   unitId: string | null;
   /** O VALOR DE VENDA da unidade. O nome do campo é histórico. */
   unitValue: string;
+  /** A unidade veio da tabela de preço: o que a tabela diz dela. `null` = não veio. */
+  unitDetails: DetalheDaUnidade | null;
   companyRisk: number | null;
   companyMaxInstallments: number | null;
   companyMaxSemiannual: number | null;
@@ -93,6 +116,7 @@ export const INITIAL_SIMULADOR_STATE: SimuladorState = {
   unit: '',
   unitId: null,
   unitValue: '',
+  unitDetails: null,
   companyRisk: null,
   companyMaxInstallments: null,
   companyMaxSemiannual: null,
@@ -138,3 +162,66 @@ export function nomeDoBloco(sim: { block?: number | null; blockName?: string | n
   if (nome) return nome;
   return sim.block != null && sim.block > 0 ? String(sim.block) : '';
 }
+
+// ---------------------------------------------------------------- tabela de preço
+
+/** As regras da construtora que o simulador aplica: risco e máximos de parcelas. */
+export function regrasDaConstrutora(c: Company | undefined): Partial<SimuladorState> {
+  return {
+    companyRisk: c?.risk ?? null,
+    companyMaxInstallments: c?.maxInstallments ?? null,
+    companyMaxSemiannual: c?.maxSemiannual ?? null,
+    companyMaxAnnual: c?.maxAnnual ?? null,
+    companyCoincide: c?.coincideInstallments ?? true,
+  };
+}
+
+export interface EscolhaDaTabela {
+  companyId: string | null;
+  developmentId: string;
+  blockId: string;
+  blockName: string;
+  /** Posição do bloco no cadastro (0, 1...). Vira o número do bloco. */
+  blockOrdem: number;
+  unitId: string;
+  codigo: string;
+  detalhe: DetalheDaUnidade;
+}
+
+/**
+ * Tudo o que muda na simulação quando o corretor escolhe a unidade pela
+ * tabela: o imóvel inteiro (construtora, empreendimento, bloco, unidade) e o
+ * valor de venda. É o que faz o bloco 2 já abrir preenchido.
+ *
+ * Trocar de construtora limpa o correspondente — ele é da construtora antiga —
+ * e troca as regras dela (risco, máximos de parcelas).
+ */
+export function estadoDaEscolha(
+  e: EscolhaDaTabela,
+  anterior: Pick<SimuladorState, 'companyId'>,
+  construtora?: Company,
+): Partial<SimuladorState> {
+  const trocou = e.companyId !== anterior.companyId;
+  return {
+    companyId: e.companyId,
+    developmentId: e.developmentId,
+    blockId: e.blockId,
+    blockName: e.blockName,
+    block: e.blockOrdem + 1,
+    unit: e.codigo,
+    unitId: e.unitId,
+    unitValue: formatCurrencyBRL(String(Math.round(e.detalhe.vendaTabela * 100))),
+    unitDetails: e.detalhe,
+    ...(trocou ? { correspondentId: null, correspondentName: null, ...regrasDaConstrutora(construtora) } : {}),
+  };
+}
+
+/** A unidade deixou de vir da tabela: o valor de venda fica, o resto sai. */
+export const SEM_UNIDADE: Partial<SimuladorState> = {
+  blockId: null,
+  blockName: '',
+  block: 0,
+  unit: '',
+  unitId: null,
+  unitDetails: null,
+};

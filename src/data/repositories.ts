@@ -1,4 +1,7 @@
+import type { PickedFile } from '@/features/files/pick';
 import type {
+  ArquivoDaTabela,
+  TabelaDePreco,
   Appointment,
   AppointmentInput,
   AppointmentStatusInfo,
@@ -217,6 +220,38 @@ export interface UnitRepository {
     developmentId: string,
     blocos: BlocoParaSalvar[],
   ): Promise<Result<DevelopmentBlock[]>>;
+}
+
+/** Igual a `BlocosResultado`: "deu erro" é diferente de "a migration não rodou". */
+export type TabelaResultado =
+  | { ok: true; data: TabelaDePreco | null }
+  | { ok: false; error: string; migracaoPendente: boolean };
+
+export interface TextoDoPdf {
+  texto: string;
+  paginas: number;
+}
+
+/**
+ * A tabela de preço do empreendimento e o PDF de onde ela saiu.
+ *
+ * O caminho do mês é: `enviarPdf` (guarda o arquivo) → `lerPdf` (o servidor
+ * devolve o texto) → o aplicativo interpreta (`features/tabelaPreco/importar`)
+ * e mostra para conferir → `salvar`.
+ */
+export interface PriceTableRepository {
+  carregar(developmentId: string): Promise<TabelaResultado>;
+  /** Empreendimento → referência ("Setembro"), só dos que têm tabela com linhas. */
+  referencias(): Promise<Map<string, string>>;
+  /** Substitui a tabela inteira. `null` apaga. Devolve a tabela relida do banco. */
+  salvar(
+    developmentId: string,
+    tabela: Omit<TabelaDePreco, 'atualizadoEm'> | null,
+  ): Promise<Result<TabelaDePreco | null>>;
+  enviarPdf(developmentId: string, arquivo: PickedFile): Promise<Result<ArquivoDaTabela>>;
+  lerPdf(path: string): Promise<Result<TextoDoPdf>>;
+  /** Link temporário (1 hora) para abrir o PDF guardado. */
+  linkDoPdf(path: string): Promise<string | null>;
 }
 
 export interface DevelopmentRepository {

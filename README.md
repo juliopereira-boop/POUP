@@ -966,6 +966,26 @@ Atalhos: **+ Pavimento** (número seguinte, mesma quantidade do anterior), **Rep
 
 **Banco**: migration `20260924150000_blocos_e_unidades.sql` — tabelas `development_blocks` e `development_units` (com `valor` por unidade), acesso **herdado do empreendimento** (catálogo: todos leem, só o admin escreve) e a RPC `salvar_blocos_empreendimento`, que salva tudo numa transação e **preserva o preço** das unidades que continuam existindo. Testes: `npm run testar:unidades` (o gerador) e `scripts/testar-unidades-db.sql` (RLS, preço preservado, recusas e cascata — rode num Postgres local/homologação). Sem a migration, a tela de blocos avisa qual arquivo rodar e o simulador segue com a unidade digitada.
 
+### Tabela de preço (`cadastros/tabela-preco.tsx`, `src/features/tabelaPreco/`)
+
+A tabela da construtora **não traz um preço por apartamento: traz uma regra**. A do Village Connect I (Canopus) tem 13 linhas — o preço depende do **andar**, da **ventilação** (mais / menos ventilado) e da **vaga** (carro / moto) — e uma lista das unidades com vaga de moto. O POUP guarda exatamente isso e calcula o preço de cada unidade na hora (`preco.ts`):
+
+- **andar** → o pavimento do cadastro de blocos;
+- **ventilação** → a terminação do código ("301" termina em 1) + a **regra de ventilação do bloco** (botão *Regra de ventilação* em cada bloco: "finais 1 e 3 mais ventilados", com *Aplicar a todos* e *Inverter* para bloco espelhado);
+- **vaga** → de-para com a lista da construtora: quem está na lista tem a vaga da lista, as demais a outra. A **lista é guardada**, não a vaga de cada unidade, então bloco cadastrado depois da tabela já nasce com a vaga certa.
+
+Linha pode deixar característica em branco ("qualquer"); vence a mais específica, e empate com preços diferentes deixa a unidade **sem preço** (nunca um preço inventado).
+
+**O caminho do mês**: no cadastro do empreendimento, campo **Tabela de preço → Enviar o PDF da tabela**. O PDF vai para o bucket `tabelas-de-preco`, a Edge Function `ler-tabela-preco` devolve o texto (sem IA, pelo pdf.js), `importar.ts` interpreta linhas, referência ("Setembro") e lista de vagas, e a tela da tabela mostra tudo para **conferir antes de salvar**: as linhas editáveis, quantas unidades ficaram com preço e por que as outras não, e o preço de cada unidade desenhado como o prédio. Também dá para **colar o texto** do PDF.
+
+**No simulador**: botão **Usar tabela de preço** no canto da primeira seção → empreendimento → bloco (com a faixa de preço) → unidade (grade por andar, filtro carro/moto). Preenche o valor de venda e leva construtora, empreendimento, bloco e unidade para o bloco 2, com andar, ventilação, vaga, área e avaliação.
+
+**Para ativar** (uma vez):
+1. SQL Editor do Supabase: rode `supabase/migrations/20260924150000_blocos_e_unidades.sql` (se ainda não rodou) e depois `supabase/migrations/20260924180000_tabela_de_preco.sql`.
+2. Edge Functions → *Deploy a new function* → nome `ler-tabela-preco`, cole `supabase/functions/ler-tabela-preco/index.ts` (arquivo único, sem segredo novo).
+
+Testes: `npm run testar:tabela-preco` (84 verificações com o texto real do PDF do Connect, em `scripts/fixtures/`) e `scripts/testar-tabela-preco-db.sql` (RLS, validação, ventilação e Storage — rode num Postgres local/homologação).
+
 ---
 
 ## 🎧 LIA — a assistente que ouve a negociação

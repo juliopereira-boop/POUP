@@ -1123,6 +1123,7 @@ export interface Database {
           development_id: string;
           nome: string;
           ordem: number;
+          terminacoes_mais_ventiladas: number[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -1131,12 +1132,32 @@ export interface Database {
           development_id: string;
           nome: string;
           ordem?: number;
+          terminacoes_mais_ventiladas?: number[] | null;
         };
         Update: {
           nome?: string;
           ordem?: number;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      /**
+       * Tabela de preço por regra (andar × ventilação × vaga) e lista de vagas.
+       * Só leitura direta; escrita pela RPC `salvar_tabela_de_preco`.
+       */
+      development_price_tables: {
+        Row: {
+          development_id: string;
+          referencia: string;
+          regras: Json;
+          vagas: Json | null;
+          arquivo_path: string | null;
+          arquivo_nome: string | null;
+          atualizado_em: string;
+          atualizado_por: string | null;
+        };
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       /** Unidades de um bloco. Escritas pela RPC `salvar_blocos_empreendimento`. */
@@ -1280,6 +1301,11 @@ export interface Database {
       /** Sincroniza todos os blocos de um empreendimento numa transação; preserva preços. */
       salvar_blocos_empreendimento: {
         Args: { p_development: string; p_blocos: Json };
+        Returns: undefined;
+      };
+      /** `p_tabela` nulo apaga a tabela. */
+      salvar_tabela_de_preco: {
+        Args: { p_development: string; p_tabela: Json | null };
         Returns: undefined;
       };
     };

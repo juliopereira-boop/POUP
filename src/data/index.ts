@@ -11,6 +11,7 @@ import type {
   FinancingRepository,
   LeadRepository,
   MaterialRepository,
+  PriceTableRepository,
   ProfileRepository,
   SaleRepository,
   SettingsRepository,
@@ -34,6 +35,7 @@ import { SupabaseCommissionRepository } from './supabase/SupabaseCommissionRepos
 import { SupabaseAnalyticsRepository } from './supabase/SupabaseAnalyticsRepository';
 import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepository';
 import { SupabaseUnitRepository } from './supabase/SupabaseUnitRepository';
+import { SupabasePriceTableRepository } from './supabase/SupabasePriceTableRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -43,6 +45,8 @@ export interface DataLayer {
   developments: DevelopmentRepository;
   /** Blocos e unidades de cada empreendimento, com o preço por unidade. */
   unidades: UnitRepository;
+  /** A tabela de preço do empreendimento (regra, lista de vagas e o PDF). */
+  tabelaPreco: PriceTableRepository;
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;
   simulations: SimulationRepository;
@@ -74,6 +78,7 @@ function createDataLayer(provider: Provider): DataLayer {
         companies: new SupabaseCompanyRepository(),
         developments: new SupabaseDevelopmentRepository(),
         unidades: new SupabaseUnitRepository(),
+        tabelaPreco: new SupabasePriceTableRepository(),
         catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
         financing: new SupabaseFinancingRepository(),
@@ -110,10 +115,13 @@ export type {
   LinhaConsumoIA,
   LinhaEvento,
   MaterialRepository,
+  PriceTableRepository,
   ProfileRepository,
   RecadoDoCorretor,
   SaleRepository,
   SettingsRepository,
   SimulationRepository,
+  TabelaResultado,
+  TextoDoPdf,
   UnitRepository,
 } from './repositories';

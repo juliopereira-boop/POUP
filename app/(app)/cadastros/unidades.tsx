@@ -21,6 +21,15 @@
  * Mas encolher um bloco APAGA unidades — e se elas tinham preço, o corretor
  * precisa saber antes de salvar. Por isso cada bloco mostra quantas unidades
  * com preço vão sair, antes do botão.
+ *
+ * ===========================================================================
+ * A REGRA DE VENTILAÇÃO MORA NO BLOCO
+ * ===========================================================================
+ * A tabela de preço do Connect cobra diferente o apartamento mais ventilado.
+ * Quem é mais ventilado se diz pela TERMINAÇÃO ("finais 1 e 3"), e é regra do
+ * bloco porque, num condomínio, os blocos costumam ser espelhados: o final 1
+ * de um é o final 2 do vizinho. Por isso cada bloco tem o seu botão, com
+ * "Aplicar a todos os blocos" para o caso comum e "Inverter" para o espelhado.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -40,6 +49,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { db, type Development, type DevelopmentBlock } from '@/data';
 import { useIsAdmin } from '@/features/admin';
+import { resumoDaVentilacao, terminacaoDoCodigo } from '@/features/tabelaPreco/preco';
 import {
   LIMITES,
   PAVIMENTO_INICIAL,
@@ -70,6 +80,8 @@ interface BlocoEditavel {
   id: string | null;
   nome: string;
   pavimentos: PavimentoEditavel[];
+  /** Terminações mais ventiladas. `null` = sem regra de ventilação. */
+  ventilacao: number[] | null;
   /** Códigos que JÁ têm preço no banco — para avisar antes de apagar algum. */
   codigosComPreco: Set<string>;
 }
@@ -90,16 +102,18 @@ function blocoDoBanco(b: DevelopmentBlock): BlocoEditavel {
     id: b.id,
     nome: b.nome,
     pavimentos: pavimentosDasUnidades(b.unidades).map(paraEditavel),
+    ventilacao: b.terminacoesMaisVentiladas,
     codigosComPreco: new Set(b.unidades.filter((u) => u.valor != null).map((u) => u.codigo)),
   };
 }
 
-function blocoNovo(nome: string, forma: Pavimento[]): BlocoEditavel {
+function blocoNovo(nome: string, forma: Pavimento[], ventilacao: number[] | null = null): BlocoEditavel {
   return {
     chave: novaChave(),
     id: null,
     nome,
     pavimentos: forma.map(paraEditavel),
+    ventilacao,
     codigosComPreco: new Set(),
   };
 }
@@ -114,7 +128,12 @@ function lerPavimentos(lista: PavimentoEditavel[]): Pavimento[] {
 /** Só a parte que o corretor edita — é o que decide se há algo por salvar. */
 function assinatura(blocos: BlocoEditavel[]): string {
   return JSON.stringify(
-    blocos.map((b) => [b.id, b.nome.trim(), b.pavimentos.map((p) => [p.numero, p.unidades])]),
+    blocos.map((b) => [
+      b.id,
+      b.nome.trim(),
+      b.pavimentos.map((p) => [p.numero, p.unidades]),
+      b.ventilacao ? [...b.ventilacao].sort((x, y) => x - y) : null,
+    ]),
   );
 }
 
@@ -138,6 +157,7 @@ export default function UnidadesScreen() {
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [repetir, setRepetir] = useState<Record<string, string>>({});
+  const [ventilacaoAberta, setVentilacaoAberta] = useState<Record<string, boolean>>({});
 
   const podeEditar = Boolean(dev) && (!dev?.isCatalog || isAdmin) && !migracaoPendente;
 
@@ -245,7 +265,16 @@ export default function UnidadesScreen() {
     const ultimo = blocos.at(-1);
     const forma = ultimo ? lerPavimentos(ultimo.pavimentos) : [];
     const valida = forma.length > 0 && gerarUnidades(forma).ok;
-    setBlocos((atual) => [...atual, blocoNovo(nome, valida ? forma : [PAVIMENTO_INICIAL])]);
+    // Copia também a regra de ventilação: bloco igual costuma ventilar igual.
+    setBlocos((atual) => [
+      ...atual,
+      blocoNovo(nome, valida ? forma : [PAVIMENTO_INICIAL], ultimo?.ventilacao ?? null),
+    ]);
+  }
+
+  function ventilacaoParaTodos(origem: BlocoEditavel) {
+    setSucesso(null);
+    setBlocos((atual) => atual.map((b) => ({ ...b, ventilacao: origem.ventilacao ? [...origem.ventilacao] : null })));
   }
 
   function removerBloco(bloco: BlocoEditavel) {
@@ -289,6 +318,7 @@ export default function UnidadesScreen() {
       payload.push({
         id: b.id,
         nome: b.nome.trim(),
+        ventilacaoMais: b.ventilacao,
         unidades: g.unidades.map((u) => ({ codigo: u.codigo, pavimento: u.pavimento, ordem: u.ordem })),
       });
     }
@@ -372,6 +402,12 @@ export default function UnidadesScreen() {
           onAdicionarPavimento={() => adicionarPavimento(bloco)}
           onRemoverPavimento={(chavePav) => removerPavimento(bloco, chavePav)}
           onRemover={() => removerBloco(bloco)}
+          ventilacaoAberta={Boolean(ventilacaoAberta[bloco.chave])}
+          onAlternarVentilacao={() =>
+            setVentilacaoAberta((v) => ({ ...v, [bloco.chave]: !v[bloco.chave] }))
+          }
+          onVentilacao={(ventilacao) => mudarBloco(bloco.chave, { ventilacao })}
+          onVentilacaoParaTodos={blocos.length > 1 ? () => ventilacaoParaTodos(bloco) : undefined}
         />
       ))}
 
@@ -414,6 +450,10 @@ interface CartaoBlocoProps {
   onAdicionarPavimento: () => void;
   onRemoverPavimento: (chave: string) => void;
   onRemover: () => void;
+  ventilacaoAberta: boolean;
+  onAlternarVentilacao: () => void;
+  onVentilacao: (v: number[] | null) => void;
+  onVentilacaoParaTodos?: () => void;
 }
 
 function CartaoBloco({
@@ -428,6 +468,10 @@ function CartaoBloco({
   onAdicionarPavimento,
   onRemoverPavimento,
   onRemover,
+  ventilacaoAberta,
+  onAlternarVentilacao,
+  onVentilacao,
+  onVentilacaoParaTodos,
 }: CartaoBlocoProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
@@ -437,6 +481,14 @@ function CartaoBloco({
   const precoPerdido = [...bloco.codigosComPreco].filter((c) => !gerados.has(c)).length;
   const comPreco = [...bloco.codigosComPreco].filter((c) => gerados.has(c)).length;
   const forma = geracao?.ok ? pavimentosDasUnidades(unidades) : [];
+  const terminacoes = [
+    ...new Set(unidades.map((u) => terminacaoDoCodigo(u.codigo)).filter((t): t is number => t != null)),
+  ].sort((a, b) => a - b);
+  const mais = bloco.ventilacao ?? [];
+
+  function alternarTerminacao(t: number) {
+    onVentilacao(mais.includes(t) ? mais.filter((x) => x !== t) : [...mais, t].sort((a, b) => a - b));
+  }
 
   return (
     <View style={styles.card}>
@@ -523,6 +575,73 @@ function CartaoBloco({
           </View>
         </>
       ) : null}
+
+      {/* A regra de ventilação: quem é mais ventilado, pela terminação. */}
+      <View style={styles.ventilacao}>
+        <View style={styles.ventilacaoTopo}>
+          <Text style={[styles.ventilacaoResumo, !bloco.ventilacao && styles.ventilacaoSemRegra]}>
+            {resumoDaVentilacao(bloco.ventilacao, terminacoes)}
+          </Text>
+          {editavel ? (
+            <Pressable
+              onPress={onAlternarVentilacao}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: ventilacaoAberta }}
+            >
+              <Text style={styles.link}>{ventilacaoAberta ? 'Fechar' : 'Regra de ventilação'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {editavel && ventilacaoAberta ? (
+          <View style={styles.ventilacaoPainel}>
+            <Text style={styles.ventilacaoDica}>
+              Toque nos finais MAIS ventilados. Os outros ficam menos ventilados. Vale para todos os andares
+              do bloco.
+            </Text>
+            <View style={styles.finais}>
+              {terminacoes.map((t) => {
+                const ehMais = bloco.ventilacao != null && mais.includes(t);
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => alternarTerminacao(t)}
+                    style={[styles.final, ehMais && styles.finalMais]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: ehMais }}
+                    accessibilityLabel={`Final ${t}: ${ehMais ? 'mais' : 'menos'} ventilado`}
+                  >
+                    <Text style={[styles.finalNumero, ehMais && styles.finalTextoMais]}>Final {t}</Text>
+                    <Text style={[styles.finalEstado, ehMais && styles.finalTextoMais]}>
+                      {bloco.ventilacao == null ? '—' : ehMais ? 'mais' : 'menos'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.ventilacaoAcoes}>
+              {bloco.ventilacao ? (
+                <Pressable
+                  onPress={() => onVentilacao(terminacoes.filter((t) => !mais.includes(t)))}
+                  hitSlop={6}
+                >
+                  <Text style={styles.link}>Inverter (bloco espelhado)</Text>
+                </Pressable>
+              ) : null}
+              {onVentilacaoParaTodos && bloco.ventilacao ? (
+                <Pressable onPress={onVentilacaoParaTodos} hitSlop={6}>
+                  <Text style={styles.link}>Aplicar a todos os blocos</Text>
+                </Pressable>
+              ) : null}
+              {bloco.ventilacao ? (
+                <Pressable onPress={() => onVentilacao(null)} hitSlop={6}>
+                  <Text style={styles.deleteLink}>Sem regra</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+      </View>
 
       {/* A prévia: o que vai ser gravado, antes de gravar. */}
       <View style={styles.previa}>
@@ -666,6 +785,34 @@ const makeStyles = (colors: AppColors) =>
       overflow: 'hidden',
     },
 
+    link: { ...typography.label, color: colors.primary },
+    ventilacao: {
+      marginTop: spacing.lg,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    ventilacaoTopo: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    ventilacaoResumo: { ...typography.caption, color: colors.ink, flex: 1 },
+    ventilacaoSemRegra: { color: colors.inkSubtle },
+    ventilacaoPainel: { marginTop: spacing.md, gap: spacing.md },
+    ventilacaoDica: { ...typography.caption, color: colors.inkMuted },
+    finais: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    final: {
+      minWidth: 72,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+    },
+    finalMais: { backgroundColor: colors.successSoft, borderColor: colors.success },
+    finalNumero: { ...typography.label, color: colors.ink },
+    finalEstado: { ...typography.caption, color: colors.inkSubtle },
+    finalTextoMais: { color: colors.success },
+    ventilacaoAcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     deleteLink: { ...typography.label, color: colors.danger },
     addBloco: { marginBottom: spacing.lg },
     error: {

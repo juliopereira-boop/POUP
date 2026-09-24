@@ -8,6 +8,7 @@ import { Input } from '@/components/Input';
 import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
+import { CampoTabelaDePreco } from '@/components/tabelaPreco/CampoTabelaDePreco';
 import { db, type Company, type Development } from '@/data';
 import { UF_OPTIONS } from '@/features/uf';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
@@ -47,6 +48,10 @@ export default function EmpreendimentosScreen() {
 
   function abrirUnidades(id: string) {
     router.push({ pathname: '/(app)/cadastros/unidades', params: { developmentId: id } });
+  }
+
+  function abrirTabela(id: string) {
+    router.push({ pathname: '/(app)/cadastros/tabela-preco', params: { developmentId: id } });
   }
 
   const load = useCallback(async () => {
@@ -175,7 +180,8 @@ export default function EmpreendimentosScreen() {
         <View style={styles.convite}>
           <Text style={styles.conviteTitulo}>{recemCriado.name} foi criado</Text>
           <Text style={styles.conviteTexto}>
-            Cadastre os blocos e as unidades para escolher o apartamento direto no simulador.
+            Cadastre os blocos e as unidades, e envie o PDF da tabela de preço: o simulador passa a
+            preencher o valor de venda sozinho quando o corretor escolhe a unidade.
           </Text>
           <View style={styles.formActions}>
             <Button
@@ -268,12 +274,17 @@ export default function EmpreendimentosScreen() {
         </Text>
 
         {editingId ? (
-          <Button
-            label="Blocos e unidades"
-            variant="secondary"
-            onPress={() => abrirUnidades(editingId)}
-            style={styles.blocosBtn}
-          />
+          <>
+            <Button
+              label="Blocos e unidades"
+              variant="secondary"
+              onPress={() => abrirUnidades(editingId)}
+              style={styles.blocosBtn}
+            />
+            {/* O campo de envio da tabela do mês. A leitura é conferida na tela
+                da tabela antes de virar preço. */}
+            <CampoTabelaDePreco developmentId={editingId} />
+          </>
         ) : null}
 
         <View style={styles.formActions}>
@@ -321,6 +332,9 @@ export default function EmpreendimentosScreen() {
             <View style={styles.itemActions}>
               <Pressable onPress={() => abrirUnidades(d.id)} hitSlop={8}>
                 <Text style={styles.editLink}>Unidades</Text>
+              </Pressable>
+              <Pressable onPress={() => abrirTabela(d.id)} hitSlop={8}>
+                <Text style={styles.editLink}>Tabela</Text>
               </Pressable>
               {d.isCatalog ? null : (
                 <>

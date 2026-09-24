@@ -1,0 +1,169 @@
+TABELA DE SETEMBRO
+
+VILLAGE CONNECT I
+ANDAR POSIÇÃO VAGA M2 AVALIAÇÃO VENDA
+TÉRREO MAIS VENTILADO Moto 40,94 R$ 231.900,00 R$ 244.780,00
+TÉRREO MENOS VENTILADO Moto 40,94 R$ 226.900,00 R$ 240.780,00
+TÉRREO MAIS VENTILADO Carro 40,94 R$ 236.900,00 R$ 254.280,00
+TÉRREO MENOS VENTILADO Carro 40,94 R$ 231.900,00 R$ 250.280,00
+1º ANDAR MENOS VENTILADO Moto 40,94 R$ 231.900,00 R$ 244.780,00
+1º ANDAR MAIS VENTILADO Carro 40,94 R$ 241.900,00 R$ 261.280,00
+1º ANDAR MENOS VENTILADO Carro 40,94 R$ 236.900,00 R$ 256.280,00
+2º ANDAR MAIS VENTILADO Carro 40,94 R$ 241.900,00 R$ 261.280,00
+2º ANDAR MENOS VENTILADO Carro 40,94 R$ 236.900,00 R$ 256.280,00
+3º ANDAR MAIS VENTILADO Moto 40,94 R$ 231.900,00 R$ 244.780,00
+3º ANDAR MENOS VENTILADO Moto 40,94 R$ 226.900,00 R$ 240.780,00
+3º ANDAR MAIS VENTILADO Carro 40,94 R$ 236.900,00 R$ 254.280,00
+3º ANDAR MENOS VENTILADO Carro 40,94 R$ 231.900,00 R$ 249.280,00
+
+UNIDADE ÁREA UH VAGA
+BL 01 APTO 001 40,94 vaga de moto
+BL 02 APTO 001 40,94 vaga de moto
+BL 02 APTO 002 40,94 vaga de moto
+BL 02 APTO 003 40,94 vaga de moto
+BL 02 APTO 004 40,94 vaga de moto
+BL 02 APTO 301 40,94 vaga de moto
+BL 02 APTO 302 40,94 vaga de moto
+BL 02 APTO 303 40,94 vaga de moto
+BL 02 APTO 304 40,94 vaga de moto
+BL 03 APTO 001 40,94 vaga de moto
+BL 03 APTO 002 40,94 vaga de moto
+BL 03 APTO 003 40,94 vaga de moto
+BL 03 APTO 004 40,94 vaga de moto
+BL 03 APTO 301 40,94 vaga de moto
+BL 03 APTO 302 40,94 vaga de moto
+BL 03 APTO 303 40,94 vaga de moto
+BL 03 APTO 304 40,94 vaga de moto
+BL 04 APTO 001 40,94 vaga de moto
+BL 04 APTO 002 40,94 vaga de moto
+
+BL 04 APTO 003 40,94 vaga de moto
+BL 04 APTO 004 40,94 vaga de moto
+BL 04 APTO 301 40,94 vaga de moto
+BL 05 APTO 001 40,94 vaga de moto
+BL 05 APTO 002 40,94 vaga de moto
+BL 05 APTO 003 40,94 vaga de moto
+BL 05 APTO 004 40,94 vaga de moto
+BL 05 APTO 301 40,94 vaga de moto
+BL 05 APTO 302 40,94 vaga de moto
+BL 05 APTO 303 40,94 vaga de moto
+BL 05 APTO 304 40,94 vaga de moto
+BL 16 APTO 001 40,94 vaga de moto
+BL 16 APTO 002 40,94 vaga de moto
+BL 16 APTO 003 40,94 vaga de moto
+BL 16 APTO 004 40,94 vaga de moto
+BL 16 APTO 104 40,94 vaga de moto
+BL 16 APTO 301 40,94 vaga de moto
+BL 16 APTO 302 40,94 vaga de moto
+BL 16 APTO 303 40,94 vaga de moto
+BL 16 APTO 304 40,94 vaga de moto
+BL 17 APTO 001 40,94 vaga de moto
+BL 17 APTO 002 40,94 vaga de moto
+BL 17 APTO 003 40,94 vaga de moto
+BL 17 APTO 004 40,94 vaga de moto
+BL 17 APTO 101 40,94 vaga de moto
+BL 17 APTO 103 40,94 vaga de moto
+BL 17 APTO 301 40,94 vaga de moto
+BL 17 APTO 302 40,94 vaga de moto
+BL 17 APTO 303 40,94 vaga de moto
+BL 17 APTO 304 40,94 vaga de moto
+UNIDADE ÁREA UH VAGA
+
+BL 18 APTO 001 40,94 vaga de moto
+BL 18 APTO 002 40,94 vaga de moto
+BL 18 APTO 003 40,94 vaga de moto
+BL 18 APTO 004 40,94 vaga de moto
+BL 18 APTO 102 40,94 vaga de moto
+BL 18 APTO 104 40,94 vaga de moto
+BL 18 APTO 301 40,94 vaga de moto
+BL 18 APTO 302 40,94 vaga de moto
+BL 18 APTO 303 40,94 vaga de moto
+BL 18 APTO 304 40,94 vaga de moto
+BL 19 APTO 001 40,94 vaga de moto
+BL 19 APTO 002 40,94 vaga de moto
+BL 19 APTO 003 40,94 vaga de moto
+BL 19 APTO 004 40,94 vaga de moto
+BL 19 APTO 301 40,94 vaga de moto
+BL 19 APTO 302 40,94 vaga de moto
+BL 19 APTO 303 40,94 vaga de moto
+BL 19 APTO 304 40,94 vaga de moto
+BL 20 APTO 001 40,94 vaga de moto
+BL 20 APTO 002 40,94 vaga de moto
+BL 20 APTO 003 40,94 vaga de moto
+BL 20 APTO 004 40,94 vaga de moto
+BL 20 APTO 101 40,94 vaga de moto
+BL 20 APTO 103 40,94 vaga de moto
+BL 20 APTO 301 40,94 vaga de moto
+UNIDADE ÁREA UH VAGA
+
+BL 20 APTO 302 40,94 vaga de moto
+BL 20 APTO 303 40,94 vaga de moto
+BL 20 APTO 304 40,94 vaga de moto
+BL 21 APTO 001 40,94 vaga de moto
+BL 21 APTO 002 40,94 vaga de moto
+BL 21 APTO 003 40,94 vaga de moto
+BL 21 APTO 004 40,94 vaga de moto
+BL 21 APTO 102 40,94 vaga de moto
+BL 21 APTO 104 40,94 vaga de moto
+BL 21 APTO 301 40,94 vaga de moto
+BL 21 APTO 302 40,94 vaga de moto
+BL 21 APTO 303 40,94 vaga de moto
+BL 21 APTO 304 40,94 vaga de moto
+BL 22 APTO 001 40,94 vaga de moto
+BL 22 APTO 002 40,94 vaga de moto
+BL 22 APTO 003 40,94 vaga de moto
+BL 22 APTO 004 40,94 vaga de moto
+BL 22 APTO 301 40,94 vaga de moto
+BL 22 APTO 302 40,94 vaga de moto
+BL 22 APTO 303 40,94 vaga de moto
+BL 22 APTO 304 40,94 vaga de moto
+BL 23 APTO 001 40,94 vaga de moto
+BL 23 APTO 002 40,94 vaga de moto
+BL 23 APTO 003 40,94 vaga de moto
+BL 23 APTO 004 40,94 vaga de moto
+UNIDADE ÁREA UH VAGA
+
+BL 23 APTO 101 40,94 vaga de moto
+BL 23 APTO 103 40,94 vaga de moto
+BL 23 APTO 301 40,94 vaga de moto
+BL 23 APTO 302 40,94 vaga de moto
+BL 23 APTO 303 40,94 vaga de moto
+BL 23 APTO 304 40,94 vaga de moto
+BL 24 APTO 001 40,94 vaga de moto
+BL 24 APTO 002 40,94 vaga de moto
+BL 24 APTO 003 40,94 vaga de moto
+BL 24 APTO 004 40,94 vaga de moto
+BL 24 APTO 102 40,94 vaga de moto
+BL 24 APTO 104 40,94 vaga de moto
+BL 24 APTO 301 40,94 vaga de moto
+BL 24 APTO 302 40,94 vaga de moto
+BL 24 APTO 303 40,94 vaga de moto
+BL 24 APTO 304 40,94 vaga de moto
+BL 25 APTO 001 40,94 vaga de moto
+BL 25 APTO 002 40,94 vaga de moto
+BL 25 APTO 003 40,94 vaga de moto
+BL 25 APTO 004 40,94 vaga de moto
+BL 25 APTO 301 40,94 vaga de moto
+BL 25 APTO 302 40,94 vaga de moto
+BL 25 APTO 303 40,94 vaga de moto
+BL 25 APTO 304 40,94 vaga de moto
+BL 28 APTO 001 40,94 vaga de moto
+UNIDADE ÁREA UH VAGA
+
+BL 28 APTO 002 40,94 vaga de moto
+BL 28 APTO 003 40,94 vaga de moto
+BL 28 APTO 004 40,94 vaga de moto
+BL 28 APTO 301 40,94 vaga de moto
+BL 28 APTO 302 40,94 vaga de moto
+BL 28 APTO 303 40,94 vaga de moto
+BL 28 APTO 304 40,94 vaga de moto
+BL 29 APTO 001 40,94 vaga de moto
+BL 29 APTO 002 40,94 vaga de moto
+BL 29 APTO 003 40,94 vaga de moto
+BL 29 APTO 004 40,94 vaga de moto
+BL 29 APTO 301 40,94 vaga de moto
+BL 29 APTO 302 40,94 vaga de moto
+BL 29 APTO 303 40,94 vaga de moto
+BL 29 APTO 304 40,94 vaga de moto
+UNIDADE ÁREA UH VAGA
+

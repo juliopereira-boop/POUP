@@ -22,6 +22,15 @@
  * corretor a digitar um número que o sistema já sabe. As regras são conferidas
  * todas juntas no "Gerar proposta" (`pendencias.ts`), que leva de volta ao
  * bloco certo.
+ *
+ * ===========================================================================
+ * "USAR TABELA DE PREÇO"
+ * ===========================================================================
+ * O botão no canto da primeira seção abre empreendimento → bloco → unidade, e
+ * a unidade escolhida preenche o valor de venda pela tabela. A escolha inteira
+ * (construtora, empreendimento, bloco, unidade) vai junto para o estado, então
+ * o bloco 2 já abre preenchido. O valor continua editável: se o corretor
+ * negociar outro, o cartão avisa que ele difere da tabela, sem desfazer nada.
  */
 import { useMemo, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -34,9 +43,17 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { ToggleField } from '@/components/ToggleField';
 import { CascoSimulador } from '@/components/simulador/CascoSimulador';
 import { EtapasSimulador } from '@/components/simulador/EtapasSimulador';
+import { EscolherUnidadeDaTabela } from '@/components/simulador/EscolherUnidadeDaTabela';
 import { ResumoPoupanca } from '@/components/simulador/ResumoPoupanca';
 import { buildFlow, formatDateBR } from '@/features/simulador/calc';
-import { INITIAL_SIMULADOR_STATE, useSimulador } from '@/features/simulador/SimuladorProvider';
+import {
+  INITIAL_SIMULADOR_STATE,
+  SEM_UNIDADE,
+  estadoDaEscolha,
+  useSimulador,
+} from '@/features/simulador/SimuladorProvider';
+import { rotuloVaga, rotuloVentilacao } from '@/features/tabelaPreco/preco';
+import { rotuloDoPavimento } from '@/features/unidades/gerador';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -59,6 +76,7 @@ export default function SimuladorValores() {
   const sim = useSimulador();
   const flow = useMemo(() => buildFlow(sim), [sim]);
 
+  const [tabelaAberta, setTabelaAberta] = useState(false);
   const [avisoCupom, setAvisoCupom] = useState(false);
   const [cupomAberto, setCupomAberto] = useState(false);
   const [maisAberto, setMaisAberto] = useState(
@@ -110,6 +128,10 @@ export default function SimuladorValores() {
 
   const continuar = () => router.push('/(app)/simulador/dados');
 
+  const detalhe = sim.unitId ? sim.unitDetails : null;
+  const valorDigitado = currencyToNumber(sim.unitValue);
+  const difereDaTabela = detalhe != null && Math.abs(detalhe.vendaTabela - valorDigitado) >= 0.01;
+
   const topo = (
     <>
       <EtapasSimulador atual={1} onIrPara={(e) => e === 2 && continuar()} />
@@ -122,12 +144,60 @@ export default function SimuladorValores() {
       {/* ------------------------------------------------ o imóvel e o banco */}
       <View style={styles.secaoLinha}>
         <Text style={styles.secaoSemMargem}>O imóvel e o banco</Text>
-        {temRascunho ? (
-          <Pressable onPress={comecarDoZero} hitSlop={8} accessibilityRole="button">
-            <Text style={styles.limpar}>Começar do zero</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => setTabelaAberta(true)}
+          hitSlop={6}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.usarTabela, pressed && styles.pressionado]}
+        >
+          <Text style={styles.usarTabelaTexto}>Usar tabela de preço</Text>
+        </Pressable>
       </View>
+
+      {detalhe ? (
+        <View style={styles.unidade}>
+          <View style={styles.unidadeTopo}>
+            <Text style={styles.unidadeNome} numberOfLines={2}>
+              {detalhe.empreendimento} · {sim.blockName || `Bloco ${sim.block}`} · {sim.unit}
+            </Text>
+            <Pressable onPress={() => setTabelaAberta(true)} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.limpar}>Trocar</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.unidadeDetalhe}>
+            {[
+              rotuloDoPavimento(detalhe.pavimento),
+              detalhe.ventilacao ? rotuloVentilacao(detalhe.ventilacao) : null,
+              detalhe.vaga ? rotuloVaga(detalhe.vaga) : null,
+              detalhe.areaM2 != null ? `${String(detalhe.areaM2).replace('.', ',')} m²` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+          <Text style={styles.unidadeDetalhe}>
+            {[
+              detalhe.avaliacao != null ? `Avaliação ${brl(detalhe.avaliacao)}` : null,
+              `Tabela${detalhe.referencia ? ` de ${detalhe.referencia}` : ''}: ${brl(detalhe.vendaTabela)}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+          {difereDaTabela ? (
+            <Pressable
+              onPress={() => sim.setField('unitValue', formatCurrencyBRL(String(Math.round(detalhe.vendaTabela * 100))))}
+              hitSlop={6}
+              accessibilityRole="button"
+            >
+              <Text style={styles.unidadeDiverge}>
+                O valor de venda está diferente da tabela. Toque para usar {brl(detalhe.vendaTabela)}.
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={() => sim.setFields(SEM_UNIDADE)} hitSlop={6} style={styles.unidadeTirar}>
+            <Text style={styles.unidadeTirarTexto}>Não usar esta unidade</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Input
         label="Valor de venda"
         value={sim.unitValue}
@@ -427,6 +497,22 @@ export default function SimuladorValores() {
       ) : null}
 
       <Button label="Continuar: unidade e cliente" onPress={continuar} style={styles.cta} />
+      {temRascunho ? (
+        <Pressable onPress={comecarDoZero} hitSlop={8} accessibilityRole="button" style={styles.zerar}>
+          <Text style={styles.limpar}>Começar do zero</Text>
+        </Pressable>
+      ) : null}
+
+      <EscolherUnidadeDaTabela
+        visivel={tabelaAberta}
+        onFechar={() => setTabelaAberta(false)}
+        developmentIdInicial={sim.developmentId}
+        unitIdAtual={sim.unitId}
+        onEscolher={(escolha, construtora) => {
+          sim.setFields(estadoDaEscolha(escolha, sim, construtora));
+          setTabelaAberta(false);
+        }}
+      />
 
       <Modal visible={avisoCupom} transparent animationType="fade" onRequestClose={fecharAvisoCupom}>
         <View style={styles.modalFundo}>
@@ -454,6 +540,32 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.md,
     },
     limpar: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    zerar: { alignSelf: 'center', marginTop: spacing.lg },
+    pressionado: { opacity: 0.7 },
+    usarTabela: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    usarTabelaTexto: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+    unidade: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+      gap: 2,
+    },
+    unidadeTopo: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+    unidadeNome: { ...typography.label, color: colors.ink, flex: 1 },
+    unidadeDetalhe: { ...typography.caption, color: colors.inkMuted },
+    unidadeDiverge: { ...typography.caption, color: colors.warning, fontWeight: '600', marginTop: spacing.xs },
+    unidadeTirar: { alignSelf: 'flex-start', marginTop: spacing.xs },
+    unidadeTirarTexto: { ...typography.caption, color: colors.inkSubtle, textDecorationLine: 'underline' },
 
     secao: {
       ...typography.label,

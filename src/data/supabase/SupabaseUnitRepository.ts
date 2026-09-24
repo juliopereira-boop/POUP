@@ -65,6 +65,7 @@ const MENSAGENS: Record<string, string> = {
   unidades_demais: 'Um bloco pode ter no máximo 2.000 unidades.',
   unidade_invalida: 'Uma das unidades está com código ou pavimento inválido.',
   codigo_repetido: 'Duas unidades do mesmo bloco ficaram com o mesmo código.',
+  ventilacao_invalida: 'A regra de ventilação de um bloco está inválida. Confira as terminações.',
 };
 
 function mensagemDoErro(erro: ErroPostgrest): string {
@@ -81,6 +82,34 @@ interface LinhaBloco {
   development_id: string;
   nome: string;
   ordem: number;
+  terminacoes_mais_ventiladas?: number[] | null;
+}
+
+/**
+ * A coluna da regra de ventilação ainda não existe: a migration da tabela de
+ * preço (20260924180000) não rodou, mas a dos blocos sim. Os blocos continuam
+ * aparecendo — só sem a regra — em vez de a tela inteira dizer que os blocos
+ * não foram ativados.
+ */
+function colunaAusente(erro: ErroPostgrest | null): boolean {
+  if (!erro) return false;
+  return erro.code === '42703' || /column .* does not exist/i.test(erro.message ?? '');
+}
+
+const COLUNAS_BLOCO = 'id, development_id, nome, ordem';
+
+async function lerBlocos(developmentId: string) {
+  const completo = await supabase
+    .from('development_blocks')
+    .select(`${COLUNAS_BLOCO}, terminacoes_mais_ventiladas`)
+    .eq('development_id', developmentId)
+    .order('ordem', { ascending: true });
+  if (!colunaAusente(completo.error)) return completo;
+  return supabase
+    .from('development_blocks')
+    .select(COLUNAS_BLOCO)
+    .eq('development_id', developmentId)
+    .order('ordem', { ascending: true });
 }
 
 interface LinhaUnidade {
@@ -128,14 +157,7 @@ async function todasAsUnidades(
 
 export class SupabaseUnitRepository implements UnitRepository {
   async listarBlocos(developmentId: string): Promise<BlocosResultado> {
-    const [blocos, unidades] = await Promise.all([
-      supabase
-        .from('development_blocks')
-        .select('id, development_id, nome, ordem')
-        .eq('development_id', developmentId)
-        .order('ordem', { ascending: true }),
-      todasAsUnidades(developmentId),
-    ]);
+    const [blocos, unidades] = await Promise.all([lerBlocos(developmentId), todasAsUnidades(developmentId)]);
 
     const erro = blocos.error ?? unidades.error;
     if (erro) {
@@ -157,6 +179,9 @@ export class SupabaseUnitRepository implements UnitRepository {
       developmentId: b.development_id,
       nome: b.nome,
       ordem: b.ordem,
+      terminacoesMaisVentiladas: Array.isArray(b.terminacoes_mais_ventiladas)
+        ? b.terminacoes_mais_ventiladas.map(Number)
+        : null,
       unidades: porBloco.get(b.id) ?? [],
     }));
     return { ok: true, data };
@@ -168,7 +193,13 @@ export class SupabaseUnitRepository implements UnitRepository {
   ): Promise<Result<DevelopmentBlock[]>> {
     const { error } = await supabase.rpc('salvar_blocos_empreendimento', {
       p_development: developmentId,
-      p_blocos: blocos.map((b) => ({ id: b.id, nome: b.nome.trim(), unidades: b.unidades })),
+      // Sem a chave `ventilacao_mais`, o banco mantém a regra que o bloco tem.
+      p_blocos: blocos.map((b) => ({
+        id: b.id,
+        nome: b.nome.trim(),
+        ...(b.ventilacaoMais !== undefined ? { ventilacao_mais: b.ventilacaoMais } : {}),
+        unidades: b.unidades,
+      })),
     });
     if (error) {
       if (migracaoAusente(error)) return err(MIGRACAO_PENDENTE);

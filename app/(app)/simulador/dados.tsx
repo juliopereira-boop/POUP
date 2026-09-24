@@ -23,6 +23,11 @@
  *
  * Empreendimento sem blocos (ou a migration ainda não rodada) cai no jeito de
  * sempre: bloco e unidade digitados.
+ *
+ * O preço de cada unidade sai da tabela de preço do empreendimento (andar ×
+ * ventilação × vaga — ver `features/tabelaPreco/preco.ts`). Quando a unidade
+ * veio do botão "Usar tabela de preço" do bloco 1, tudo aqui já chega
+ * escolhido, com a vaga, a posição e a área logo abaixo.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -37,13 +42,7 @@ import { CascoSimulador } from '@/components/simulador/CascoSimulador';
 import { EtapasSimulador } from '@/components/simulador/EtapasSimulador';
 import { ProponenteCampos } from '@/components/simulador/ProponenteCampos';
 import { ResumoPoupanca } from '@/components/simulador/ResumoPoupanca';
-import {
-  db,
-  type Company,
-  type Correspondent,
-  type Development,
-  type DevelopmentBlock,
-} from '@/data';
+import { db, type Company, type Correspondent, type Development } from '@/data';
 import { computePoupanca } from '@/features/simulador/calc';
 import {
   pendencias,
@@ -53,9 +52,14 @@ import {
 } from '@/features/simulador/pendencias';
 import {
   ASSOCIATION_OPTIONS,
+  SEM_UNIDADE,
+  regrasDaConstrutora,
   useSimulador,
   type Proponent,
 } from '@/features/simulador/SimuladorProvider';
+import { rotuloVaga, rotuloVentilacao } from '@/features/tabelaPreco/preco';
+import { detalheDe, useUnidadesComPreco } from '@/features/tabelaPreco/useUnidadesComPreco';
+import { rotuloDoPavimento } from '@/features/unidades/gerador';
 import { useGerarProposta } from '@/features/simulador/useGerarProposta';
 import type { ScannedDocument } from '@/lib/documentScan';
 import { currencyToNumber, formatCPF, formatCurrencyBRL } from '@/lib/masks';
@@ -83,8 +87,6 @@ export default function SimuladorDados() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [correspondents, setCorrespondents] = useState<Correspondent[]>([]);
-  const [blocos, setBlocos] = useState<DevelopmentBlock[]>([]);
-  const [blocosCarregados, setBlocosCarregados] = useState(false);
   const [digitarUnidade, setDigitarUnidade] = useState(false);
   const [clienteAberto, setClienteAberto] = useState(() => !proponenteCompleto(sim.proponent1));
   const [preenchidoPelaTabela, setPreenchidoPelaTabela] = useState(false);
@@ -122,36 +124,16 @@ export default function SimuladorDados() {
     };
   }, [sim.companyId]);
 
-  useEffect(() => {
-    let vivo = true;
-    setBlocosCarregados(false);
-    if (!sim.developmentId) {
-      setBlocos([]);
-      setBlocosCarregados(true);
-      return;
-    }
-    void db.unidades.listarBlocos(sim.developmentId).then((res) => {
-      if (!vivo) return;
-      // Sem a migration, ou com erro de leitura: o simulador segue com a
-      // unidade digitada, como sempre funcionou. Não é motivo para travar.
-      setBlocos(res.ok ? res.data : []);
-      setBlocosCarregados(true);
-    });
-    return () => {
-      vivo = false;
-    };
-  }, [sim.developmentId]);
+  // Sem a migration, ou com erro de leitura: o simulador segue com a unidade
+  // digitada, como sempre funcionou. Não é motivo para travar.
+  const unidades = useUnidadesComPreco(sim.developmentId);
+  const blocos = unidades.blocos;
+  const blocosCarregados = !unidades.carregando;
 
   // As regras da construtora (risco, máximo de parcelas) valem assim que ela é
   // conhecida — inclusive quando veio preenchida do lead.
   const aplicarRegras = useCallback(
-    (c: Company | undefined) => {
-      sim.setField('companyRisk', c?.risk ?? null);
-      sim.setField('companyMaxInstallments', c?.maxInstallments ?? null);
-      sim.setField('companyMaxSemiannual', c?.maxSemiannual ?? null);
-      sim.setField('companyMaxAnnual', c?.maxAnnual ?? null);
-      sim.setField('companyCoincide', c?.coincideInstallments ?? true);
-    },
+    (c: Company | undefined) => sim.setFields(regrasDaConstrutora(c)),
     [sim],
   );
   const regrasDe = useRef<string | null>(null);
@@ -179,7 +161,8 @@ export default function SimuladorDados() {
   const blocoEscolhido = blocos.find((b) => b.id === sim.blockId) ?? null;
   const unidadeEscolhida = blocoEscolhido?.unidades.find((u) => u.id === sim.unitId) ?? null;
 
-  const precoTabela = unidadeEscolhida?.valor ?? null;
+  const precoTabela = unidadeEscolhida?.valorDeVenda ?? null;
+  const detalhe = sim.unitId ? sim.unitDetails : null;
   const valorInformado = currencyToNumber(sim.unitValue);
   const divergeDaTabela = precoTabela != null && Math.abs(precoTabela - valorInformado) >= 0.01;
 
@@ -190,11 +173,7 @@ export default function SimuladorDados() {
   // ------------------------------------------------------------ ações
 
   function limparUnidade() {
-    sim.setField('blockId', null);
-    sim.setField('blockName', '');
-    sim.setField('block', 0);
-    sim.setField('unit', '');
-    sim.setField('unitId', null);
+    sim.setFields(SEM_UNIDADE);
     setPreenchidoPelaTabela(false);
   }
 
@@ -224,6 +203,7 @@ export default function SimuladorDados() {
     sim.setField('block', b.ordem + 1);
     sim.setField('unit', '');
     sim.setField('unitId', null);
+    sim.setField('unitDetails', null);
     setPreenchidoPelaTabela(false);
   }
 
@@ -232,10 +212,11 @@ export default function SimuladorDados() {
     if (!u) return;
     sim.setField('unit', u.codigo);
     sim.setField('unitId', u.id);
+    sim.setField('unitDetails', detalheDe(u, dev?.name ?? '', unidades.tabela));
     // Só preenche o que está VAZIO. Valor já digitado pode ser o combinado com
     // o cliente — a diferença aparece logo abaixo, e quem decide é o corretor.
-    if (u.valor != null && currencyToNumber(sim.unitValue) <= 0) {
-      sim.setField('unitValue', paraCampo(u.valor));
+    if (u.valorDeVenda != null && currencyToNumber(sim.unitValue) <= 0) {
+      sim.setField('unitValue', paraCampo(u.valorDeVenda));
       setPreenchidoPelaTabela(true);
     } else {
       setPreenchidoPelaTabela(false);
@@ -246,6 +227,7 @@ export default function SimuladorDados() {
     setDigitarUnidade(true);
     sim.setField('blockId', null);
     sim.setField('unitId', null);
+    sim.setField('unitDetails', null);
   }
 
   function escolherCorrespondente(id: string) {
@@ -337,7 +319,9 @@ export default function SimuladorDados() {
                   value={sim.unitId}
                   options={(blocoEscolhido?.unidades ?? []).map((u) => ({
                     value: u.id,
-                    label: u.valor != null ? `${u.codigo} · ${brl(u.valor)}` : u.codigo,
+                    label: [u.codigo, u.valorDeVenda != null ? brl(u.valorDeVenda) : null, u.vaga]
+                      .filter(Boolean)
+                      .join(' · '),
                   }))}
                   onChange={escolherUnidade}
                   searchable={(blocoEscolhido?.unidades.length ?? 0) > 12}
@@ -345,6 +329,19 @@ export default function SimuladorDados() {
                 />
               </View>
             </View>
+            {detalhe ? (
+              <Text style={styles.detalhe}>
+                {[
+                  rotuloDoPavimento(detalhe.pavimento),
+                  detalhe.ventilacao ? rotuloVentilacao(detalhe.ventilacao) : null,
+                  detalhe.vaga ? rotuloVaga(detalhe.vaga) : null,
+                  detalhe.areaM2 != null ? `${String(detalhe.areaM2).replace('.', ',')} m²` : null,
+                  detalhe.avaliacao != null ? `Avaliação ${brl(detalhe.avaliacao)}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : null}
             <Pressable onPress={passarParaDigitacao} hitSlop={6} style={styles.linkLinha}>
               <Text style={styles.link}>A unidade não está na lista? Digitar à mão</Text>
             </Pressable>
@@ -543,6 +540,7 @@ const makeStyles = (colors: AppColors) =>
     col: { flex: 1 },
     linkLinha: { marginTop: -spacing.sm, marginBottom: spacing.lg, alignSelf: 'flex-start' },
     link: { ...typography.label, color: colors.primary },
+    detalhe: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.sm, marginBottom: spacing.md },
 
     alerta: {
       backgroundColor: colors.warningSoft,

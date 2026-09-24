@@ -317,6 +317,12 @@ export interface DevelopmentBlock {
   developmentId: string;
   nome: string;
   ordem: number;
+  /**
+   * Terminações mais ventiladas ("301" termina em 1); as demais são menos
+   * ventiladas. `null` = o bloco ainda não tem regra de ventilação. É o que a
+   * tabela de preço usa para achar a linha da unidade (`features/tabelaPreco`).
+   */
+  terminacoesMaisVentiladas: number[] | null;
   unidades: DevelopmentUnit[];
 }
 
@@ -328,8 +334,23 @@ export interface BlocoParaSalvar {
    */
   id: string | null;
   nome: string;
+  /**
+   * A regra de ventilação. `undefined` = não mexer na que o bloco já tem;
+   * `null` = remover a regra.
+   */
+  ventilacaoMais?: number[] | null;
   unidades: { codigo: string; pavimento: number; ordem: number }[];
 }
+
+export type {
+  ArquivoDaTabela,
+  ListaDeVagas,
+  RegraDePreco,
+  TabelaDePreco,
+  UnidadeCitada,
+  Vaga,
+  Ventilacao,
+} from '@/features/tabelaPreco/preco';
 
 export interface CompanyMaterial {
   companyId: string;

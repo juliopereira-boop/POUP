@@ -23,13 +23,24 @@ import {
 export {
   ASSOCIATION_OPTIONS,
   INITIAL_SIMULADOR_STATE,
+  SEM_UNIDADE,
   emptyProponent,
+  estadoDaEscolha,
   nomeDoBloco,
+  regrasDaConstrutora,
 } from './estado';
-export type { AssociationType, Proponent, SimuladorState } from './estado';
+export type {
+  AssociationType,
+  DetalheDaUnidade,
+  EscolhaDaTabela,
+  Proponent,
+  SimuladorState,
+} from './estado';
 
 interface SimuladorContextValue extends SimuladorState {
   setField: <K extends keyof SimuladorState>(key: K, value: SimuladorState[K]) => void;
+  /** Vários campos numa atualização só (a escolha da unidade pela tabela). */
+  setFields: (patch: Partial<SimuladorState>) => void;
   setProponent1: (patch: Partial<Proponent>) => void;
   setProponent2: (patch: Partial<Proponent>) => void;
   reset: () => void;
@@ -154,6 +165,7 @@ export function SimuladorProvider({ children }: { children: ReactNode }) {
       editId,
       snapshot: state,
       setField: (key, val) => setState((prev) => ({ ...prev, [key]: val })),
+      setFields: (patch) => setState((prev) => ({ ...prev, ...patch })),
       setProponent1: (patch) =>
         setState((prev) => ({ ...prev, proponent1: { ...prev.proponent1, ...patch } })),
       setProponent2: (patch) =>
