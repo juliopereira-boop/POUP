@@ -49,6 +49,7 @@ import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { db, type Development, type DevelopmentBlock } from '@/data';
 import { useIsAdmin } from '@/features/admin';
+import { esquecerEmpreendimento } from '@/features/tabelaPreco/cache';
 import { resumoDaVentilacao, terminacaoDoCodigo } from '@/features/tabelaPreco/preco';
 import {
   LIMITES,
@@ -327,6 +328,8 @@ export default function UnidadesScreen() {
     const res = await db.unidades.salvarBlocos(developmentId, payload);
     setSalvando(false);
     if (!res.ok) return setErro(res.error);
+    // O simulador guarda os blocos em memória: a próxima abertura relê do banco.
+    esquecerEmpreendimento(developmentId);
 
     const editaveis = res.data.map(blocoDoBanco);
     setBlocos(editaveis);

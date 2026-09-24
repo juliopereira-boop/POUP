@@ -35,6 +35,14 @@
  * preços diferentes, a unidade fica SEM preço e a tela diz por quê: escolher
  * uma das duas em silêncio seria inventar o preço.
  *
+ * ===========================================================================
+ * PREÇO POR UNIDADE, QUANDO A CONSTRUTORA MANDA ASSIM
+ * ===========================================================================
+ * Muitas construtoras mandam o "espelho": um preço para cada apartamento. A
+ * tabela também guarda isso (`precosPorUnidade`), e o preço da unidade VENCE
+ * a regra — é a informação mais específica que existe. As duas formas convivem
+ * no mesmo modelo de arquivo (`modelo.ts`).
+ *
  * Tudo aqui é puro (sem React, sem banco): roda nos testes em Node.
  */
 import { rotuloDoPavimento } from '../unidades/gerador';
@@ -82,6 +90,18 @@ export interface ListaDeVagas {
   unidades: UnidadeCitada[];
 }
 
+/** O preço de UM apartamento, quando a construtora manda o espelho. */
+export interface PrecoDeUnidade {
+  /** Como veio escrito: "02", "Bloco 2" — casa pela chave (`chaves.ts`). */
+  bloco: string;
+  unidade: string;
+  venda: number;
+  avaliacao: number | null;
+  areaM2: number | null;
+  /** A vaga desta unidade, se o espelho diz. Vence a lista de vagas. */
+  vaga: Vaga | null;
+}
+
 export interface ArquivoDaTabela {
   /** Caminho no Storage: `<id do empreendimento>/<arquivo>.pdf`. */
   path: string;
@@ -94,7 +114,9 @@ export interface TabelaDePreco {
   atualizadoEm: string | null;
   regras: RegraDePreco[];
   vagas: ListaDeVagas | null;
-  /** O PDF que a construtora mandou, guardado junto. */
+  /** Preço de apartamentos específicos. Vence a regra. */
+  precosPorUnidade: PrecoDeUnidade[];
+  /** O arquivo que a construtora mandou (PDF ou modelo POUP), guardado junto. */
   arquivo: ArquivoDaTabela | null;
 }
 
@@ -121,11 +143,19 @@ export type PrecoDaUnidade =
       areaM2: number | null;
       vaga: Vaga | null;
       ventilacao: Ventilacao | null;
-      regra: RegraDePreco;
+      /** A linha usada. `null` quando o preço veio da própria unidade. */
+      regra: RegraDePreco | null;
+      origem: 'regra' | 'unidade';
     }
   | { ok: false; motivo: MotivoSemPreco; mensagem: string };
 
 export const LIMITE_REGRAS = 500;
+export const LIMITE_PRECOS_POR_UNIDADE = 20000;
+
+/** A tabela tem algum preço (por regra ou por unidade)? */
+export function temPrecos(t: Pick<TabelaDePreco, 'regras' | 'precosPorUnidade'> | null): boolean {
+  return Boolean(t && (t.regras.length > 0 || (t.precosPorUnidade?.length ?? 0) > 0));
+}
 
 // ---------------------------------------------------------------- rótulos
 
@@ -220,8 +250,11 @@ export function precoDaUnidade(
   bloco: BlocoParaPreco,
   tabela: TabelaDePreco | null,
 ): PrecoDaUnidade {
-  if (!tabela || tabela.regras.length === 0) {
+  if (!temPrecos(tabela) || !tabela) {
     return semPreco('sem_tabela', 'Este empreendimento ainda não tem tabela de preço.');
+  }
+  if (tabela.regras.length === 0) {
+    return semPreco('sem_linha', 'Esta unidade não está no preço por unidade da tabela.');
   }
 
   const ventilacao = ventilacaoDaUnidade(unidade.codigo, bloco.terminacoesMaisVentiladas);
@@ -267,6 +300,7 @@ export function precoDaUnidade(
     vaga: unidade.vaga,
     ventilacao,
     regra,
+    origem: 'regra',
   };
 }
 
@@ -308,18 +342,34 @@ export function precificarBlocos<B extends BlocoDoCadastro<UnidadeDoCadastro>>(
   tabela: TabelaDePreco | null,
 ): BlocoPrecificado<B>[] {
   const vagaDe = leitorDeVagas(tabela);
-  const temRegras = Boolean(tabela && tabela.regras.length > 0);
+  const comTabela = temPrecos(tabela);
+  const fixos = new Map(
+    (tabela?.precosPorUnidade ?? []).map((p) => [chaveDaUnidadeNoBloco(p.bloco, p.unidade), p]),
+  );
   return blocos.map((b) => ({
     ...b,
     unidades: b.unidades.map((u) => {
-      const vaga = vagaDe(b.nome, u.codigo);
-      const preco = precoDaUnidade({ codigo: u.codigo, pavimento: u.pavimento, vaga }, b, tabela);
+      const ventilacao = ventilacaoDaUnidade(u.codigo, b.terminacoesMaisVentiladas);
+      const fixo = fixos.get(chaveDaUnidadeNoBloco(b.nome, u.codigo));
+      const vaga = fixo?.vaga ?? vagaDe(b.nome, u.codigo);
+      const preco: PrecoDaUnidade = fixo
+        ? {
+            ok: true,
+            venda: fixo.venda,
+            avaliacao: fixo.avaliacao,
+            areaM2: fixo.areaM2,
+            vaga,
+            ventilacao,
+            regra: null,
+            origem: 'unidade',
+          }
+        : precoDaUnidade({ codigo: u.codigo, pavimento: u.pavimento, vaga }, b, tabela);
       return {
         ...u,
         vaga,
-        ventilacao: ventilacaoDaUnidade(u.codigo, b.terminacoesMaisVentiladas),
+        ventilacao,
         preco,
-        valorDeVenda: temRegras ? (preco.ok ? preco.venda : null) : (u.valor ?? null),
+        valorDeVenda: comTabela ? (preco.ok ? preco.venda : null) : (u.valor ?? null),
       };
     }),
   }));
@@ -390,6 +440,22 @@ export function faixaDoBloco(bloco: {
 // ---------------------------------------------------------------- validação
 
 export type ValidacaoDasRegras = { ok: true } | { ok: false; erro: string };
+
+/** O preço por unidade: venda positiva e nenhuma unidade repetida. */
+export function validarPrecosPorUnidade(precos: PrecoDeUnidade[]): ValidacaoDasRegras {
+  if (precos.length > LIMITE_PRECOS_POR_UNIDADE) {
+    return { ok: false, erro: `O preço por unidade pode ter no máximo ${LIMITE_PRECOS_POR_UNIDADE} unidades.` };
+  }
+  const vistas = new Set<string>();
+  for (const p of precos) {
+    const nome = `Bloco ${p.bloco}, unidade ${p.unidade}`;
+    if (!(p.venda > 0)) return { ok: false, erro: `${nome}: informe o valor de venda.` };
+    const chave = chaveDaUnidadeNoBloco(p.bloco, p.unidade);
+    if (vistas.has(chave)) return { ok: false, erro: `${nome} aparece duas vezes no preço por unidade.` };
+    vistas.add(chave);
+  }
+  return { ok: true };
+}
 
 /** O que o banco também confere, dito antes, em frase de gente. */
 export function validarRegras(regras: RegraDePreco[]): ValidacaoDasRegras {

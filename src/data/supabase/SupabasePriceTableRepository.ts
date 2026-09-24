@@ -17,6 +17,7 @@ import type { PriceTableRepository, TabelaResultado, TextoDoPdf } from '../repos
 import {
   type ArquivoDaTabela,
   type ListaDeVagas,
+  type PrecoDeUnidade,
   type RegraDePreco,
   type Result,
   type TabelaDePreco,
@@ -32,6 +33,11 @@ const FUNCAO = 'ler-tabela-preco';
 interface ErroPostgrest {
   code?: string;
   message?: string;
+}
+
+function colunaAusente(erro: ErroPostgrest | null): boolean {
+  if (!erro) return false;
+  return erro.code === '42703' || /column .* does not exist/i.test(erro.message ?? '');
 }
 
 function migracaoAusente(erro: ErroPostgrest | null): boolean {
@@ -51,8 +57,11 @@ const MENSAGENS: Record<string, string> = {
   regras_demais: 'A tabela pode ter no máximo 500 linhas.',
   regra_invalida: 'Uma das linhas da tabela está com valor inválido. Confira andar, posição, vaga e valores.',
   regra_repetida: 'Duas linhas da tabela têm a mesma combinação de andar, posição e vaga.',
+  precos_unidades_invalidos: 'O preço por unidade tem uma linha inválida (bloco, unidade ou valor de venda).',
+  precos_unidades_demais: 'O preço por unidade pode ter no máximo 20.000 unidades.',
+  unidade_repetida: 'Uma unidade aparece duas vezes no preço por unidade.',
   vagas_invalidas: 'A lista de vagas está num formato inesperado.',
-  arquivo_invalido: 'O PDF da tabela não pertence a este empreendimento.',
+  arquivo_invalido: 'O arquivo da tabela não pertence a este empreendimento.',
 };
 
 function mensagemDoErro(erro: ErroPostgrest): string {
@@ -71,6 +80,7 @@ interface LinhaTabela {
   referencia: string | null;
   regras: unknown;
   vagas: unknown;
+  precos_unidades?: unknown;
   arquivo_path: string | null;
   arquivo_nome: string | null;
   atualizado_em: string | null;
@@ -125,12 +135,35 @@ function paraVagas(bruto: unknown): ListaDeVagas | null {
   return { vagaDaLista, vagaDasDemais: vagaOuNulo(v.vaga_das_demais), unidades };
 }
 
+function paraPrecosPorUnidade(bruto: unknown): PrecoDeUnidade[] {
+  if (!Array.isArray(bruto)) return [];
+  const lista: PrecoDeUnidade[] = [];
+  for (const item of bruto) {
+    if (!item || typeof item !== 'object') continue;
+    const p = item as Record<string, unknown>;
+    const venda = numeroOuNulo(p.venda);
+    const bloco = String(p.bloco ?? '').trim();
+    const unidade = String(p.unidade ?? '').trim();
+    if (venda == null || venda <= 0 || !bloco || !unidade) continue;
+    lista.push({
+      bloco,
+      unidade,
+      venda,
+      avaliacao: numeroOuNulo(p.avaliacao),
+      areaM2: numeroOuNulo(p.area_m2),
+      vaga: vagaOuNulo(p.vaga),
+    });
+  }
+  return lista;
+}
+
 function paraTabela(l: LinhaTabela): TabelaDePreco {
   return {
     referencia: l.referencia ?? '',
     atualizadoEm: l.atualizado_em,
     regras: paraRegras(l.regras),
     vagas: paraVagas(l.vagas),
+    precosPorUnidade: paraPrecosPorUnidade(l.precos_unidades),
     arquivo: l.arquivo_path ? { path: l.arquivo_path, nome: l.arquivo_nome || 'tabela.pdf' } : null,
   };
 }
@@ -155,21 +188,35 @@ function paraBanco(t: Omit<TabelaDePreco, 'atualizadoEm'>) {
           unidades: t.vagas.unidades.map((u) => ({ bloco: u.bloco, unidade: u.unidade })),
         }
       : null,
+    // Só vai quando há o que mandar: o banco sem a migration do modelo POUP
+    // (20260925100000) não conhece a chave e continua aceitando o resto.
+    ...(t.precosPorUnidade.length > 0
+      ? {
+          precos_unidades: t.precosPorUnidade.map((p) => ({
+            bloco: p.bloco,
+            unidade: p.unidade,
+            venda: p.venda,
+            avaliacao: p.avaliacao,
+            area_m2: p.areaM2,
+            vaga: p.vaga,
+          })),
+        }
+      : {}),
     arquivo: t.arquivo ? { path: t.arquivo.path, nome: t.arquivo.nome } : null,
   };
 }
 
 /** Nome seguro para o Storage: sem barra, sem acento, sem espaço sobrando. */
-function nomeDoArquivo(original: string): string {
+function nomeDoArquivo(original: string, tipo: 'pdf' | 'csv'): string {
   const base = original
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\.pdf$/i, '')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.(pdf|csv)$/i, '')
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^[-.]+|[-.]+$/g, '')
     .slice(0, 80);
-  return `${base || 'tabela'}.pdf`;
+  return `${base || 'tabela'}.${tipo}`;
 }
 
 function carimbo(d = new Date()): string {
@@ -179,11 +226,21 @@ function carimbo(d = new Date()): string {
 
 export class SupabasePriceTableRepository implements PriceTableRepository {
   async carregar(developmentId: string): Promise<TabelaResultado> {
-    const { data, error } = await supabase
+    const colunas = 'development_id, referencia, regras, vagas, arquivo_path, arquivo_nome, atualizado_em';
+    let { data, error } = await supabase
       .from('development_price_tables')
-      .select('development_id, referencia, regras, vagas, arquivo_path, arquivo_nome, atualizado_em')
+      .select(`${colunas}, precos_unidades`)
       .eq('development_id', developmentId)
       .maybeSingle();
+    // A coluna do preço por unidade chegou numa migration posterior: sem ela,
+    // a tabela continua lendo (só sem o preço por unidade).
+    if (colunaAusente(error)) {
+      ({ data, error } = await supabase
+        .from('development_price_tables')
+        .select(colunas)
+        .eq('development_id', developmentId)
+        .maybeSingle());
+    }
     if (error) {
       if (migracaoAusente(error)) return { ok: false, error: MIGRACAO_PENDENTE, migracaoPendente: true };
       return { ok: false, error: 'Não foi possível carregar a tabela de preço.', migracaoPendente: false };
@@ -193,13 +250,23 @@ export class SupabasePriceTableRepository implements PriceTableRepository {
 
   async referencias(): Promise<Map<string, string>> {
     // A RLS já filtra: volta só o que o corretor pode ler.
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('development_price_tables')
-      .select('development_id, referencia, regras');
+      .select('development_id, referencia, regras, precos_unidades');
+    if (colunaAusente(error)) {
+      ({ data, error } = await supabase.from('development_price_tables').select('development_id, referencia, regras'));
+    }
     const mapa = new Map<string, string>();
     if (error || !data) return mapa;
-    for (const l of data as unknown as { development_id: string; referencia: string | null; regras: unknown }[]) {
-      if (Array.isArray(l.regras) && l.regras.length > 0) mapa.set(l.development_id, l.referencia ?? '');
+    for (const l of data as unknown as {
+      development_id: string;
+      referencia: string | null;
+      regras: unknown;
+      precos_unidades?: unknown;
+    }[]) {
+      const temRegras = Array.isArray(l.regras) && l.regras.length > 0;
+      const temUnidades = Array.isArray(l.precos_unidades) && l.precos_unidades.length > 0;
+      if (temRegras || temUnidades) mapa.set(l.development_id, l.referencia ?? '');
     }
     return mapa;
   }
@@ -221,11 +288,15 @@ export class SupabasePriceTableRepository implements PriceTableRepository {
     return ok(relida.data);
   }
 
-  async enviarPdf(developmentId: string, arquivo: PickedFile): Promise<Result<ArquivoDaTabela>> {
-    const path = `${developmentId}/${carimbo()}-${nomeDoArquivo(arquivo.name)}`;
+  async enviarArquivo(
+    developmentId: string,
+    arquivo: PickedFile,
+    tipo: 'pdf' | 'csv',
+  ): Promise<Result<ArquivoDaTabela>> {
+    const path = `${developmentId}/${carimbo()}-${nomeDoArquivo(arquivo.name, tipo)}`;
     const { error } = await supabase.storage
       .from(BUCKET)
-      .upload(path, arquivo.body, { contentType: 'application/pdf', upsert: false });
+      .upload(path, arquivo.body, { contentType: tipo === 'pdf' ? 'application/pdf' : 'text/csv', upsert: false });
     if (error) {
       if (/bucket not found/i.test(error.message)) return err(MIGRACAO_PENDENTE);
       if (/row-level security|unauthorized|not allowed/i.test(error.message)) {
@@ -234,8 +305,14 @@ export class SupabasePriceTableRepository implements PriceTableRepository {
       if (/exceeded|too large|maximum allowed size/i.test(error.message)) {
         return err('PDF grande demais. O limite é 15 MB.');
       }
-      if (/mime|invalid.*type/i.test(error.message)) return err('Envie a tabela em PDF.');
-      return err('Não foi possível enviar o PDF. Tente de novo.');
+      if (/mime|invalid.*type/i.test(error.message)) {
+        return err(
+          tipo === 'csv'
+            ? 'O servidor ainda não aceita o modelo POUP. Rode a migration 20260925100000_tabela_modelo_poup.sql.'
+            : 'Envie a tabela em PDF.',
+        );
+      }
+      return err('Não foi possível enviar o arquivo. Tente de novo.');
     }
     return ok({ path, nome: arquivo.name.slice(0, 200) });
   }

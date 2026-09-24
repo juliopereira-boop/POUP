@@ -980,11 +980,40 @@ Linha pode deixar característica em branco ("qualquer"); vence a mais específi
 
 **No simulador**: botão **Usar tabela de preço** no canto da primeira seção → empreendimento → bloco (com a faixa de preço) → unidade (grade por andar, filtro carro/moto). Preenche o valor de venda e leva construtora, empreendimento, bloco e unidade para o bloco 2, com andar, ventilação, vaga, área e avaliação.
 
-**Para ativar** (uma vez):
-1. SQL Editor do Supabase: rode `supabase/migrations/20260924150000_blocos_e_unidades.sql` (se ainda não rodou) e depois `supabase/migrations/20260924180000_tabela_de_preco.sql`.
-2. Edge Functions → *Deploy a new function* → nome `ler-tabela-preco`, cole `supabase/functions/ler-tabela-preco/index.ts` (arquivo único, sem segredo novo).
+**O modelo POUP (`modelo.ts`) — um formato só para toda construtora.** Em vez de ensinar o app a ler cada PDF novo, a tabela é passada para um CSV padrão, que o app lê direto (sem servidor) e que abre no Excel:
 
-Testes: `npm run testar:tabela-preco` (84 verificações com o texto real do PDF do Connect, em `scripts/fixtures/`) e `scripts/testar-tabela-preco-db.sql` (RLS, validação, ventilação e Storage — rode num Postgres local/homologação).
+```
+MODELO POUP;TABELA DE PREÇO;VERSÃO 1
+EMPREENDIMENTO;Village Connect I
+REFERÊNCIA;Setembro
+VAGA DE QUEM ESTÁ NA LISTA;MOTO
+VAGA DAS DEMAIS UNIDADES;CARRO
+
+[PREÇO POR REGRA]
+ANDAR;POSIÇÃO;VAGA;ÁREA M²;AVALIAÇÃO;VENDA
+TÉRREO;MAIS VENTILADO;MOTO;40,94;231900,00;244780,00
+
+[LISTA DE VAGAS]
+BLOCO;UNIDADE
+02;301
+
+[PREÇO POR UNIDADE]
+BLOCO;UNIDADE;VAGA;ÁREA M²;AVALIAÇÃO;VENDA
+05;104;CARRO;40,94;236900,00;256280,00
+```
+
+Toda seção é opcional; o **preço por unidade** (o "espelho" que muitas construtoras mandam) vence o preço por regra. A leitura aguenta o que o Excel faz com o arquivo (separador `;`/`,`/tab, "001" virando "1", "R$ 244.780,00") e aponta o número da linha que não entendeu. Na tela da tabela: **Baixar esta tabela no modelo POUP** e **Baixar o modelo em branco** (com instruções). Para converter o texto de um PDF: `npm run modelo:tabela -- texto.txt "Empreendimento" saida.csv`.
+
+**Carregamento no simulador**: o que já foi lido fica em memória (`cache.ts`) — reabrir "Usar tabela de preço" ou tocar em "Trocar" é imediato, com atualização por trás — e toda leitura tem prazo (15 s): rede caída vira "Tentar de novo", nunca um carregando sem fim. Salvar tabela ou blocos limpa a memória daquele empreendimento.
+
+**Para ativar** (uma vez), no SQL Editor do Supabase, nesta ordem:
+1. `supabase/migrations/20260924150000_blocos_e_unidades.sql` (se ainda não rodou);
+2. `supabase/migrations/20260924180000_tabela_de_preco.sql`;
+3. `supabase/migrations/20260925100000_tabela_modelo_poup.sql` (preço por unidade e CSV no Storage).
+
+E, só para enviar PDF: Edge Functions → *Deploy a new function* → nome `ler-tabela-preco`, cole `supabase/functions/ler-tabela-preco/index.ts` (arquivo único, sem segredo novo). O modelo POUP não precisa da função.
+
+Testes: `npm run testar:tabela-preco` (120 verificações, com o texto real do PDF do Connect em `scripts/fixtures/`), `scripts/testar-tabela-preco-db.sql` e `scripts/testar-tabela-modelo-db.sql` (RLS, validação, ventilação, preço por unidade e Storage — rode num Postgres local/homologação).
 
 ---
 

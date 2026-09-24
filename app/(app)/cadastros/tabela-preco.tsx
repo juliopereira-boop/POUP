@@ -55,19 +55,27 @@ import {
   type Vaga,
 } from '@/data';
 import { useIsAdmin } from '@/features/admin';
-import { conferirListaDeVagas, lerTextoDaTabela, numeroBR, type LeituraDoPdf } from '@/features/tabelaPreco/importar';
+import { esquecerEmpreendimento } from '@/features/tabelaPreco/cache';
+import {
+  conferirListaDeVagas,
+  conferirUnidadesCitadas,
+  lerTextoDaTabela,
+  numeroBR,
+  type LeituraDoPdf,
+} from '@/features/tabelaPreco/importar';
 import {
   coberturaDaTabela,
   descreverRegra,
   precificarBlocos,
   rotuloVaga,
+  temPrecos,
+  validarPrecosPorUnidade,
   validarRegras,
+  type PrecoDeUnidade,
 } from '@/features/tabelaPreco/preco';
-import {
-  retirarLeitura,
-  rotuloDaEtapa,
-  useEnviarTabelaPdf,
-} from '@/features/tabelaPreco/useEnviarTabelaPdf';
+import { baixarTexto } from '@/features/tabelaPreco/baixarModelo';
+import { gerarModelo, modeloEmBranco, nomeDoArquivoDoModelo } from '@/features/tabelaPreco/modelo';
+import { retirarLeitura, rotuloDaEtapa, useEnviarTabela } from '@/features/tabelaPreco/useEnviarTabela';
 import { rotuloDoPavimento } from '@/features/unidades/gerador';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
@@ -93,6 +101,8 @@ interface Rascunho {
   referencia: string;
   linhas: LinhaEditavel[];
   vagas: ListaDeVagas | null;
+  /** Vem do modelo POUP; aqui só se confere e remove, não se edita. */
+  precosPorUnidade: PrecoDeUnidade[];
   arquivo: ArquivoDaTabela | null;
 }
 
@@ -135,6 +145,7 @@ function rascunhoDe(t: TabelaDePreco | null): Rascunho {
     referencia: t?.referencia ?? '',
     linhas: (t?.regras ?? []).map(paraEditavel),
     vagas: t?.vagas ?? null,
+    precosPorUnidade: t?.precosPorUnidade ?? [],
     arquivo: t?.arquivo ?? null,
   };
 }
@@ -145,6 +156,7 @@ function comoTabela(r: Rascunho): TabelaDePreco {
     atualizadoEm: null,
     regras: r.linhas.map(paraRegra),
     vagas: r.vagas,
+    precosPorUnidade: r.precosPorUnidade,
     arquivo: r.arquivo,
   };
 }
@@ -152,7 +164,7 @@ function comoTabela(r: Rascunho): TabelaDePreco {
 /** O que decide se há algo por salvar. */
 function assinatura(r: Rascunho): string {
   const t = comoTabela(r);
-  return JSON.stringify([t.referencia, t.regras, t.vagas, t.arquivo?.path ?? null]);
+  return JSON.stringify([t.referencia, t.regras, t.vagas, t.precosPorUnidade, t.arquivo?.path ?? null]);
 }
 
 function confirmar(titulo: string, texto: string, acao: string, executar: () => void) {
@@ -201,30 +213,52 @@ export default function TabelaPrecoScreen() {
   const [blocoConferido, setBlocoConferido] = useState<string | null>(null);
   const [verTodasNaoEncontradas, setVerTodasNaoEncontradas] = useState(false);
 
-  const envio = useEnviarTabelaPdf(developmentId ?? null);
+  const envio = useEnviarTabela(developmentId ?? null);
   const podeEditar = Boolean(dev) && (!dev?.isCatalog || isAdmin) && !migracaoPendente;
 
   // ------------------------------------------------------------ carregar
 
-  const aplicarLeitura = useCallback((l: LeituraDoPdf, arquivo: ArquivoDaTabela | null, paginas?: number) => {
+  /**
+   * O que foi lido entra no rascunho. O modelo POUP é a tabela INTEIRA e
+   * substitui tudo; o PDF (ou o texto colado) só troca o que trouxe — um PDF
+   * sem lista de vagas não apaga a lista que já estava.
+   */
+  const aplicarLeitura = useCallback(
+    (l: LeituraDoPdf, arquivo: ArquivoDaTabela | null, paginas?: number, modelo = false) => {
     setSucesso(null);
     setErro(null);
-    setRascunho((r) => ({
-      // A tabela nova traz o mês dela; sem mês no texto, fica o que estava.
-      referencia: l.referencia ?? r.referencia,
-      linhas: l.regras.length > 0 ? l.regras.map(paraEditavel) : r.linhas,
-      vagas: l.vagas ?? r.vagas,
-      arquivo: arquivo ?? r.arquivo,
-    }));
+    setRascunho((r) =>
+      modelo
+        ? {
+            referencia: l.referencia ?? r.referencia,
+            linhas: l.regras.map(paraEditavel),
+            vagas: l.vagas,
+            precosPorUnidade: l.precosPorUnidade,
+            arquivo: arquivo ?? r.arquivo,
+          }
+        : {
+            // A tabela nova traz o mês dela; sem mês no texto, fica o que estava.
+            referencia: l.referencia ?? r.referencia,
+            linhas: l.regras.length > 0 ? l.regras.map(paraEditavel) : r.linhas,
+            vagas: l.vagas ?? r.vagas,
+            precosPorUnidade: r.precosPorUnidade,
+            arquivo: arquivo ?? r.arquivo,
+          },
+    );
     const partes = [
       l.regras.length > 0 ? `${l.regras.length} linha(s) de preço` : null,
-      l.vagas ? `${l.vagas.unidades.length} unidade(s) com vaga de ${l.vagas.vagaDaLista}` : null,
+      l.vagas && l.vagas.unidades.length > 0
+        ? `${l.vagas.unidades.length} unidade(s) com vaga de ${l.vagas.vagaDaLista}`
+        : null,
+      l.precosPorUnidade.length > 0 ? `preço de ${l.precosPorUnidade.length} unidade(s)` : null,
     ].filter(Boolean);
     setLido({
-      mensagem: `Lido${paginas ? ` (${paginas} página${paginas > 1 ? 's' : ''})` : ''}: ${partes.join(' e ')}. Confira abaixo e toque em "Salvar tabela".`,
+      mensagem: `Lido${modelo ? ' do modelo POUP' : paginas ? ` (${paginas} página${paginas > 1 ? 's' : ''})` : ''}: ${partes.join(', ')}. Confira abaixo e toque em "Salvar tabela".`,
       avisos: l.avisos,
     });
-  }, []);
+  },
+    [],
+  );
 
   const carregar = useCallback(async () => {
     if (!user || !developmentId) return;
@@ -251,7 +285,9 @@ export default function TabelaPrecoScreen() {
 
     // Veio do cadastro do empreendimento com um PDF acabado de ler.
     const pendente = retirarLeitura(developmentId);
-    if (pendente && t.ok) aplicarLeitura(pendente.leitura, pendente.arquivo, pendente.paginas);
+    if (pendente && t.ok) {
+      aplicarLeitura(pendente.leitura, pendente.arquivo, pendente.paginas, pendente.formato === 'modelo');
+    }
   }, [user, developmentId, aplicarLeitura]);
 
   useEffect(() => {
@@ -264,6 +300,11 @@ export default function TabelaPrecoScreen() {
   const precificados = useMemo(() => precificarBlocos(blocos, tabelaDoRascunho), [blocos, tabelaDoRascunho]);
   const cobertura = useMemo(() => coberturaDaTabela(precificados), [precificados]);
   const conferencia = useMemo(() => conferirListaDeVagas(blocos, rascunho.vagas), [blocos, rascunho.vagas]);
+  const conferenciaUnidades = useMemo(
+    () => conferirUnidadesCitadas(blocos, rascunho.precosPorUnidade),
+    [blocos, rascunho.precosPorUnidade],
+  );
+  const temAlgumPreco = temPrecos(tabelaDoRascunho);
 
   const maiorPavimento = Math.max(
     4,
@@ -333,7 +374,7 @@ export default function TabelaPrecoScreen() {
   async function enviarPdf() {
     setLido(null);
     const r = await envio.enviar();
-    if (r) aplicarLeitura(r.leitura, r.arquivo, r.paginas);
+    if (r) aplicarLeitura(r.leitura, r.arquivo, r.paginas, r.formato === 'modelo');
   }
 
   function lerColado() {
@@ -359,6 +400,16 @@ export default function TabelaPrecoScreen() {
     else void Linking.openURL(url);
   }
 
+  async function baixarNoModelo(emBranco: boolean) {
+    const nomeDev = dev?.name ?? 'empreendimento';
+    const conteudo = emBranco ? modeloEmBranco(nomeDev) : gerarModelo(comoTabela(rascunho), nomeDev);
+    const nome = emBranco
+      ? 'modelo-tabela-poup.csv'
+      : nomeDoArquivoDoModelo(nomeDev, rascunho.referencia || 'sem-referencia');
+    const r = await baixarTexto(nome, conteudo);
+    if (!r.ok) setErro(r.erro);
+  }
+
   async function gravar(tabela: TabelaDePreco | null) {
     if (!developmentId) return;
     setSalvando(true);
@@ -368,6 +419,8 @@ export default function TabelaPrecoScreen() {
       setErro(res.error);
       return;
     }
+    // O simulador guarda a tabela em memória: sem isto, ele mostraria o preço antigo.
+    esquecerEmpreendimento(developmentId);
     const r = rascunhoDe(res.data);
     setSalva(res.data);
     setRascunho(r);
@@ -388,7 +441,14 @@ export default function TabelaPrecoScreen() {
     if (falhaDeLinha >= 0) return setErro(`Linha ${falhaDeLinha + 1}: informe o valor de venda.`);
     const v = validarRegras(tabela.regras);
     if (!v.ok) return setErro(v.erro);
-    const vazia = tabela.regras.length === 0 && !tabela.vagas && !tabela.arquivo && !tabela.referencia;
+    const vu = validarPrecosPorUnidade(tabela.precosPorUnidade);
+    if (!vu.ok) return setErro(vu.erro);
+    const vazia =
+      tabela.regras.length === 0 &&
+      tabela.precosPorUnidade.length === 0 &&
+      !tabela.vagas &&
+      !tabela.arquivo &&
+      !tabela.referencia;
     if (vazia) {
       if (!salva) return;
       confirmar('Apagar tabela', 'A tabela ficou vazia. Apagar a tabela de preço deste empreendimento?', 'Apagar', () =>
@@ -450,35 +510,47 @@ export default function TabelaPrecoScreen() {
 
       {/* ------------------------------------------------------ o PDF */}
       <View style={styles.card}>
-        <Text style={styles.cardTitulo}>PDF da tabela</Text>
+        <Text style={styles.cardTitulo}>Arquivo da tabela</Text>
         {rascunho.arquivo ? (
           <Pressable onPress={() => void verPdf()} style={styles.arquivo} accessibilityRole="link">
-            <Text style={styles.arquivoIcone}>PDF</Text>
+            <Text style={[styles.arquivoIcone, /\.csv$/i.test(rascunho.arquivo.path) && styles.arquivoIconeCsv]}>
+              {/\.csv$/i.test(rascunho.arquivo.path) ? 'CSV' : 'PDF'}
+            </Text>
             <View style={styles.flex1}>
               <Text style={styles.arquivoNome} numberOfLines={2}>
                 {rascunho.arquivo.nome}
               </Text>
-              <Text style={styles.link}>Abrir o PDF</Text>
+              <Text style={styles.link}>Abrir o arquivo</Text>
             </View>
           </Pressable>
         ) : (
           <Text style={styles.cardTexto}>
-            Envie o PDF que a construtora mandou. O POUP lê as linhas de preço e a lista de vagas, e você
-            confere antes de salvar.
+            Envie a tabela no modelo POUP (.csv) — ou o PDF da construtora, no formato que o POUP já
+            conhece. O POUP lê os preços e a lista de vagas, e você confere antes de salvar.
           </Text>
         )}
         {podeEditar ? (
           <>
             <Button
-              label={rascunho.arquivo ? 'Enviar tabela nova (PDF)' : 'Enviar o PDF da tabela'}
+              label={rascunho.arquivo ? 'Enviar tabela nova' : 'Enviar a tabela'}
               onPress={() => void enviarPdf()}
               loading={envio.etapa !== 'parado'}
               style={styles.mt}
             />
             {etapa ? <Text style={styles.etapa}>{etapa}</Text> : null}
             <Pressable onPress={() => setColarAberto(true)} hitSlop={6} style={styles.linkLinha}>
-              <Text style={styles.link}>Ou cole o texto da tabela</Text>
+              <Text style={styles.link}>Ou cole o texto do PDF</Text>
             </Pressable>
+            <View style={styles.modeloLinks}>
+              {temAlgumPreco ? (
+                <Pressable onPress={() => void baixarNoModelo(false)} hitSlop={6} accessibilityRole="button">
+                  <Text style={styles.link}>Baixar esta tabela no modelo POUP</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => void baixarNoModelo(true)} hitSlop={6} accessibilityRole="button">
+                <Text style={styles.link}>Baixar o modelo em branco</Text>
+              </Pressable>
+            </View>
           </>
         ) : null}
       </View>
@@ -496,7 +568,7 @@ export default function TabelaPrecoScreen() {
       ) : null}
 
       {/* ------------------------------------------------------ conferência */}
-      {tabelaDoRascunho.regras.length > 0 ? (
+      {temAlgumPreco ? (
         <View style={styles.card}>
           <Text style={styles.cardTitulo}>Conferência</Text>
           {semBlocos ? (
@@ -733,8 +805,47 @@ export default function TabelaPrecoScreen() {
         )}
       </View>
 
+      {/* ------------------------------------------------------ preço por unidade */}
+      {rascunho.precosPorUnidade.length > 0 ? (
+        <>
+          <Text style={styles.secao}>Preço por unidade</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardTexto}>
+              {rascunho.precosPorUnidade.length.toLocaleString('pt-BR')} unidade(s) com preço próprio, que vence
+              o preço por regra
+              {semBlocos ? '.' : `: ${conferenciaUnidades.naLista.toLocaleString('pt-BR')} encontrada(s) no cadastro.`}
+            </Text>
+            {conferenciaUnidades.naoEncontradas.length > 0 && !semBlocos ? (
+              <View style={styles.naoEncontradas}>
+                <Text style={styles.naoEncontradasTitulo}>
+                  {conferenciaUnidades.naoEncontradas.length} unidade(s) com preço não estão no cadastro:
+                </Text>
+                {conferenciaUnidades.naoEncontradas.slice(0, 8).map((n) => (
+                  <Text key={`${n.item.bloco}|${n.item.unidade}`} style={styles.naoEncontradaItem}>
+                    • Bloco {n.item.bloco}, unidade {n.item.unidade} — {n.motivo}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {podeEditar ? (
+              <Pressable
+                onPress={() =>
+                  confirmar('Remover preço por unidade', 'Remover o preço por unidade desta tabela?', 'Remover', () =>
+                    mudar({ precosPorUnidade: [] }),
+                  )
+                }
+                hitSlop={6}
+                style={styles.linkLinha}
+              >
+                <Text style={styles.deleteLink}>Remover o preço por unidade</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </>
+      ) : null}
+
       {/* ------------------------------------------------------ preços por bloco */}
-      {!semBlocos && tabelaDoRascunho.regras.length > 0 && blocoEmConferencia ? (
+      {!semBlocos && temAlgumPreco && blocoEmConferencia ? (
         <>
           <Text style={styles.secao}>Preço de cada unidade</Text>
           <View style={styles.chips}>
@@ -889,9 +1000,11 @@ const makeStyles = (colors: AppColors) =>
       borderRadius: 4,
       overflow: 'hidden',
     },
+    arquivoIconeCsv: { backgroundColor: colors.success },
     arquivoNome: { ...typography.label, color: colors.ink },
     etapa: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.sm, textAlign: 'center' },
     linkLinha: { marginTop: spacing.md, alignSelf: 'flex-start' },
+    modeloLinks: { marginTop: spacing.md, gap: spacing.sm, alignItems: 'flex-start' },
     link: { ...typography.label, color: colors.primary },
     lido: {
       backgroundColor: colors.successSoft,

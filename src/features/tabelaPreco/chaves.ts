@@ -13,8 +13,8 @@
 export function normalizar(texto: string): string {
   return texto
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[   ]/g, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
     .toUpperCase();
 }
 

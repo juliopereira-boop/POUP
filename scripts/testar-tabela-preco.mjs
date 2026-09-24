@@ -36,6 +36,7 @@ function carregar(relativo) {
     if (spec === '../unidades/gerador') return carregar('src/features/unidades/gerador.ts');
     if (spec === './chaves') return carregar('src/features/tabelaPreco/chaves.ts');
     if (spec === './preco') return carregar('src/features/tabelaPreco/preco.ts');
+    if (spec === './importar') return carregar('src/features/tabelaPreco/importar.ts');
     return require(spec);
   };
   m._compile(js, arquivo);
@@ -47,6 +48,7 @@ const P = carregar('src/features/tabelaPreco/preco.ts');
 const I = carregar('src/features/tabelaPreco/importar.ts');
 const K = carregar('src/features/tabelaPreco/chaves.ts');
 const G = carregar('src/features/unidades/gerador.ts');
+const MOD = carregar('src/features/tabelaPreco/modelo.ts');
 
 let ok = 0;
 const falhas = [];
@@ -79,7 +81,7 @@ function cadastroDoConnect({ blocos = 29, ventilacao = [1, 3] } = {}) {
 }
 
 function tabelaDe(leitura) {
-  return { referencia: leitura.referencia ?? '', atualizadoEm: null, regras: leitura.regras, vagas: leitura.vagas, arquivo: null };
+  return { referencia: leitura.referencia ?? '', atualizadoEm: null, regras: leitura.regras, vagas: leitura.vagas, precosPorUnidade: leitura.precosPorUnidade ?? [], arquivo: null };
 }
 
 function unidade(blocos, nomeBloco, codigo) {
@@ -307,6 +309,108 @@ secao('VALIDAÇÃO — antes de mandar ao banco');
   const zero = P.validarRegras([{ ...leitura.regras[0], venda: 0 }]);
   checar('venda zero é recusada', !zero.ok && /valor de venda/.test(zero.erro));
   checar('descrição de linha', P.descreverRegra({ pavimento: 1, ventilacao: 'mais', vaga: 'moto' }) === 'Térreo · mais ventilado · moto');
+}
+
+/* ======================================================================== */
+secao('MODELO POUP — ida e volta com a tabela do Connect');
+{
+  const csv = MOD.gerarModelo(tabela, 'Village Connect I');
+  checar('começa com BOM e "MODELO POUP"', csv.startsWith('﻿MODELO POUP;TABELA DE PREÇO;VERSÃO 1'));
+  checar('é reconhecido como modelo', MOD.ehModeloPoup(csv));
+  const volta = MOD.lerModelo(csv);
+  checar('sem avisos na volta', volta && volta.avisos.length === 0, JSON.stringify(volta?.avisos));
+  checar('empreendimento e referência voltam', volta.empreendimento === 'Village Connect I' && volta.referencia === 'Setembro');
+  checar('as 13 linhas voltam idênticas', JSON.stringify(volta.regras) === JSON.stringify(tabela.regras));
+  checar('a lista de vagas volta idêntica (139, moto na lista, carro nas demais)', JSON.stringify(volta.vagas) === JSON.stringify(tabela.vagas));
+  const precosVolta = P.precificarBlocos(cadastroDoConnect(), { ...tabela, ...volta, precosPorUnidade: volta.precosPorUnidade });
+  checar('e o preço de cada unidade é o mesmo que o do PDF',
+    JSON.stringify(precosVolta.map((b) => b.unidades.map((u) => u.valorDeVenda))) === JSON.stringify(blocos.map((b) => b.unidades.map((u) => u.valorDeVenda))));
+  checar('linha do modelo escrita como o corretor lê', csv.includes('TÉRREO;MAIS VENTILADO;MOTO;40,94;231900,00;244780,00') && csv.includes('3º ANDAR;MENOS VENTILADO;CARRO;40,94;231900,00;249280,00'));
+  checar('nome do arquivo', MOD.nomeDoArquivoDoModelo('Village Connect I', 'Setembro') === 'tabela-village-connect-i-setembro.csv');
+}
+
+/* ======================================================================== */
+secao('MODELO POUP — o arquivo depois de passar pelo Excel');
+{
+  const excel = [
+    'MODELO POUP;TABELA DE PREÇO;VERSÃO 1;;;',
+    'EMPREENDIMENTO;Residencial X;;;;',
+    'REFERÊNCIA;Outubro/2026;;;;',
+    'VAGA DE QUEM ESTÁ NA LISTA;Moto;;;;',
+    ';;;;;',
+    '# comentário que o corretor deixou',
+    '[PREÇO POR REGRA];;;;;',
+    'ANDAR;POSIÇÃO;VAGA;ÁREA M²;AVALIAÇÃO;VENDA',
+    'Térreo;Mais;moto;40,94;R$ 231.900,00;R$ 244.780,00',
+    '0;menos;Carro;40.94;231900;250280',
+    '1º andar;Qualquer;;;;261.280,00',
+    '3;MENOS VENTILADO;CARRO;;;249280.5',
+    'QUALQUER;;;;;199000',
+    '12º SUBSOLO;;;;;1',
+    '[LISTA DE VAGAS];;;;;',
+    'BLOCO;UNIDADE;;;;',
+    '2;1;;;;',
+    '"02";"301";;;;',
+  ].join('\n');
+  const l = MOD.lerModelo(excel);
+  checar('sem BOM, com colunas vazias sobrando: ainda é o modelo', l != null);
+  checar('5 linhas válidas lidas', l.regras.length === 5, `(${l.regras.length})`);
+  const [t0, t1, a1, a3, qq] = [l.regras[0], l.regras[1], l.regras[2], l.regras[3], l.regras[4]];
+  checar('"Térreo;Mais;moto" com R$ e milhar', t0.pavimento === 1 && t0.ventilacao === 'mais' && t0.vaga === 'moto' && t0.avaliacao === 231900 && t0.venda === 244780);
+  checar('andar "0" é o térreo; área com ponto', t1.pavimento === 1 && t1.ventilacao === 'menos' && t1.areaM2 === 40.94 && t1.venda === 250280);
+  checar('"1º andar" e posição "Qualquer"', a1.pavimento === 2 && a1.ventilacao === null && a1.venda === 261280);
+  checar('andar "3" é o 3º andar (pavimento 4); decimal com ponto', a3.pavimento === 4 && a3.venda === 249280.5);
+  checar('"QUALQUER" andar', qq.pavimento === null && qq.venda === 199000);
+  checar('linha com andar desconhecido vira aviso com o número da linha', l.avisos.some((a) => a.startsWith('Linha 14:') && /andar/.test(a)), JSON.stringify(l.avisos));
+  checar('sem "vaga das demais": as demais ficam com a outra vaga (carro)', l.vagas?.vagaDaLista === 'moto' && l.vagas.vagaDasDemais === 'carro');
+  checar('"001" que o Excel virou "1" ainda casa com a unidade', P.leitorDeVagas({ vagas: l.vagas })('Bloco 2', '001') === 'moto' && P.leitorDeVagas({ vagas: l.vagas })('Bloco 2', '301') === 'moto');
+  checar('tabulação como separador', MOD.lerModelo('MODELO POUP\tTABELA\n[PREÇO POR REGRA]\nTÉRREO\tMAIS\tMOTO\t\t\t244780,00').regras[0]?.venda === 244780);
+  checar('outro CSV qualquer não é lido como tabela', MOD.lerModelo('nome;telefone\nMaria;9999') === null);
+  const branco = MOD.lerModelo(MOD.modeloEmBranco('Teste'));
+  checar('o modelo em branco é válido e vazio', branco && branco.regras.length === 0 && branco.vagas === null && branco.precosPorUnidade.length === 0 && branco.avisos.length === 0, JSON.stringify(branco?.avisos));
+  checar('valores: "R$ 1.234.567,89"', MOD.valorDoModelo('R$ 1.234.567,89') === 1234567.89);
+  checar('valores: "244.780" é milhar, "40.94" é decimal', MOD.valorDoModelo('244.780') === 244780 && MOD.valorDoModelo('40.94') === 40.94);
+  checar('valores: texto não é número', MOD.valorDoModelo('abc') === null && MOD.valorDoModelo('') === null);
+}
+
+/* ======================================================================== */
+secao('MODELO POUP — preço por unidade (o "espelho")');
+{
+  const espelho = [
+    'MODELO POUP;TABELA DE PREÇO;VERSÃO 1',
+    'REFERÊNCIA;Outubro',
+    'VAGA DE QUEM ESTÁ NA LISTA;MOTO',
+    'VAGA DAS DEMAIS UNIDADES;CARRO',
+    '[PREÇO POR REGRA]',
+    'TÉRREO;QUALQUER;QUALQUER;;;200000,00',
+    '[PREÇO POR UNIDADE]',
+    'BLOCO;UNIDADE;VAGA;ÁREA M²;AVALIAÇÃO;VENDA',
+    '06;001;MOTO;41,20;190000,00;199000,00',
+    '6;1;;;;1,00',
+    '06;002;;;;',
+  ].join('\n');
+  const l = MOD.lerModelo(espelho);
+  checar('1 unidade válida; repetida e sem venda viram aviso', l.precosPorUnidade.length === 1 && l.avisos.length === 2, JSON.stringify(l.avisos));
+  const t = { referencia: 'Outubro', atualizadoEm: null, regras: l.regras, vagas: l.vagas, precosPorUnidade: l.precosPorUnidade, arquivo: null };
+  const b = P.precificarBlocos(cadastroDoConnect({ blocos: 6 }), t);
+  const u1 = unidade(b, 'Bloco 6', '001');
+  const u2 = unidade(b, 'Bloco 6', '002');
+  checar('o preço da unidade vence a regra: Bloco 6 · 001 = 199.000', u1.valorDeVenda === 199000 && u1.preco.origem === 'unidade');
+  checar('com a vaga, a área e a avaliação da unidade', u1.vaga === 'moto' && u1.preco.areaM2 === 41.2 && u1.preco.avaliacao === 190000);
+  checar('a vizinha sem preço próprio usa a regra: 200.000', u2.valorDeVenda === 200000 && u2.preco.origem === 'regra' && u2.vaga === 'carro');
+  checar('unidade de andar sem regra fica sem preço', unidade(b, 'Bloco 6', '101').valorDeVenda === null);
+
+  const soUnidades = { ...t, regras: [] };
+  const b2 = P.precificarBlocos(cadastroDoConnect({ blocos: 6 }), soUnidades);
+  checar('tabela SÓ por unidade: a listada tem preço', unidade(b2, 'Bloco 6', '001').valorDeVenda === 199000);
+  checar('e as outras ficam sem preço, com o motivo', unidade(b2, 'Bloco 6', '002').valorDeVenda === null && unidade(b2, 'Bloco 6', '002').preco.motivo === 'sem_linha');
+  checar('a tabela só por unidade conta como tabela', P.temPrecos(soUnidades) && !P.temPrecos({ regras: [], precosPorUnidade: [] }));
+  const ida = MOD.lerModelo(MOD.gerarModelo(t, 'X'));
+  checar('ida e volta do preço por unidade', JSON.stringify(ida.precosPorUnidade) === JSON.stringify(t.precosPorUnidade));
+  checar('validação: unidade repetida pela chave ("06/001" e "6/1")',
+    !P.validarPrecosPorUnidade([{ bloco: '06', unidade: '001', venda: 1 }, { bloco: '6', unidade: '1', venda: 2 }]).ok);
+  const conf = I.conferirUnidadesCitadas(cadastroDoConnect({ blocos: 2 }), [{ bloco: '06', unidade: '001' }, { bloco: '2', unidade: '001' }]);
+  checar('conferência do preço por unidade contra o cadastro', conf.naLista === 1 && conf.naoEncontradas[0]?.motivo === 'bloco não cadastrado');
 }
 
 /* ======================================================================== */

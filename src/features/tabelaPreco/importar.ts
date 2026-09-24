@@ -40,6 +40,7 @@ import {
   LIMITE_REGRAS,
   descreverRegra,
   type ListaDeVagas,
+  type PrecoDeUnidade,
   type RegraDePreco,
   type UnidadeCitada,
   type Vaga,
@@ -184,6 +185,8 @@ export function outraVaga(v: Vaga): Vaga {
 export interface LeituraDoPdf extends LeituraDaTabela {
   /** A lista de vagas, quando o PDF traz uma. */
   vagas: ListaDeVagas | null;
+  /** Preço apartamento a apartamento. Só o modelo POUP traz (`modelo.ts`). */
+  precosPorUnidade: PrecoDeUnidade[];
   /** As unidades citadas, com o trecho original: é o que a conferência mostra. */
   unidadesLidas: UnidadeLida[];
 }
@@ -206,7 +209,7 @@ export function lerTextoDaTabela(texto: string): LeituraDoPdf {
           unidades: unidadesLidas.map(({ bloco, unidade }) => ({ bloco, unidade })),
         }
       : null;
-  return { ...tabela, vagas, unidadesLidas };
+  return { ...tabela, vagas, unidadesLidas, precosPorUnidade: [] };
 }
 
 // ---------------------------------------------------------------- de-para
@@ -241,8 +244,16 @@ export function conferirListaDeVagas(
   blocos: BlocoDoCadastro[],
   lista: ListaDeVagas | null,
 ): ConferenciaDaLista {
+  return conferirUnidadesCitadas(blocos, lista?.unidades ?? []);
+}
+
+/** O mesmo de-para, para qualquer lista de unidades (a de vagas, a de preço por unidade). */
+export function conferirUnidadesCitadas(
+  blocos: BlocoDoCadastro[],
+  citadas: UnidadeCitada[],
+): ConferenciaDaLista {
   const total = blocos.reduce((s, b) => s + b.unidades.length, 0);
-  if (!lista) return { naLista: 0, foraDaLista: total, naoEncontradas: [] };
+  if (citadas.length === 0) return { naLista: 0, foraDaLista: total, naoEncontradas: [] };
 
   const porChave = new Map<string, BlocoDoCadastro[]>();
   for (const b of blocos) {
@@ -252,7 +263,7 @@ export function conferirListaDeVagas(
 
   let naLista = 0;
   const naoEncontradas: NaoEncontrada[] = [];
-  for (const item of lista.unidades) {
+  for (const item of citadas) {
     const candidatos = porChave.get(chaveDoBloco(item.bloco)) ?? [];
     if (candidatos.length === 0) {
       naoEncontradas.push({ item, motivo: 'bloco não cadastrado' });

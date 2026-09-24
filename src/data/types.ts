@@ -345,6 +345,7 @@ export interface BlocoParaSalvar {
 export type {
   ArquivoDaTabela,
   ListaDeVagas,
+  PrecoDeUnidade,
   RegraDePreco,
   TabelaDePreco,
   UnidadeCitada,

@@ -12,6 +12,11 @@
  * é preencher o valor pela tabela, e uma unidade sem preço não tem o que
  * preencher. Ela continua podendo ser escolhida no bloco 2, com o valor
  * digitado.
+ *
+ * REABRIR É NA HORA. O que já foi carregado fica em memória (`cache.ts`):
+ * tocar em "Trocar" ou abrir de novo mostra a lista e as unidades
+ * imediatamente, e a conferência com o banco acontece por trás. Nenhuma espera
+ * é sem fim — rede caída vira mensagem com "Tentar de novo".
  */
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -20,8 +25,15 @@ import { useRouter } from 'expo-router';
 import { Icon } from '@/components/Icon';
 import { Segmento } from '@/components/Segmento';
 import { GradeDeUnidades, precoCurto } from '@/components/tabelaPreco/GradeDeUnidades';
-import { db, type Company, type Development, type Vaga } from '@/data';
+import { db, type Company, type Vaga } from '@/data';
 import type { EscolhaDaTabela } from '@/features/simulador/estado';
+import {
+  MENSAGEM_SEM_CONEXAO,
+  comPrazo,
+  guardarLista,
+  listaEmCache,
+  type ListaDeTabelas,
+} from '@/features/tabelaPreco/cache';
 import { faixaDoBloco } from '@/features/tabelaPreco/preco';
 import { detalheDe, useUnidadesComPreco, type UnidadeComPreco } from '@/features/tabelaPreco/useUnidadesComPreco';
 import { useAuth } from '@/providers/AuthProvider';
@@ -46,44 +58,81 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
   const router = useRouter();
   const { user } = useAuth();
 
-  const [carregando, setCarregando] = useState(true);
-  const [empreendimentos, setEmpreendimentos] = useState<(Development & { referencia: string })[]>([]);
-  const [construtoras, setConstrutoras] = useState<Company[]>([]);
+  const guardada = user ? listaEmCache(user.id) : null;
+  const [carregando, setCarregando] = useState(!guardada);
+  const [erroLista, setErroLista] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
+  const [empreendimentos, setEmpreendimentos] = useState<ListaDeTabelas['empreendimentos']>(
+    guardada?.empreendimentos ?? [],
+  );
+  const [construtoras, setConstrutoras] = useState<Company[]>(guardada?.construtoras ?? []);
   const [passo, setPasso] = useState<Passo>('empreendimento');
   const [devId, setDevId] = useState<string | null>(null);
   const [blocoId, setBlocoId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(TODAS);
 
-  // A lista é relida a cada abertura: a tabela pode ter chegado agora mesmo.
+  const unidades = useUnidadesComPreco(devId);
+  const { recarregar: reconferirUnidades } = unidades;
+
+  /*
+   * Ao abrir: mostra NA HORA o que já está em memória (a lista de
+   * empreendimentos e as unidades do último), e confere com o banco por trás —
+   * a tabela pode ter mudado. Só a primeira abertura, sem nada em memória,
+   * mostra o carregando; e ele tem prazo.
+   */
   useEffect(() => {
     if (!visivel || !user) return;
     let vivo = true;
-    setCarregando(true);
-    void Promise.all([db.developments.list(user.id), db.tabelaPreco.referencias(), db.companies.list(user.id)]).then(
-      ([devs, refs, comps]) => {
-        if (!vivo) return;
+
+    const posicionar = (lista: ListaDeTabelas['empreendimentos']) => {
+      const inicial =
+        lista.find((d) => d.id === developmentIdInicial) ?? (lista.length === 1 ? lista[0] : null);
+      setDevId(inicial?.id ?? null);
+      setBlocoId(null);
+      setFiltro(TODAS);
+      setPasso(inicial ? 'bloco' : 'empreendimento');
+    };
+
+    const emMemoria = listaEmCache(user.id);
+    setErroLista(null);
+    if (emMemoria) {
+      setEmpreendimentos(emMemoria.empreendimentos);
+      setConstrutoras(emMemoria.construtoras);
+      posicionar(emMemoria.empreendimentos);
+      setCarregando(false);
+      reconferirUnidades();
+    } else {
+      setCarregando(true);
+    }
+
+    comPrazo(Promise.all([db.developments.list(user.id), db.tabelaPreco.referencias(), db.companies.list(user.id)]))
+      .then(([devs, refs, comps]) => {
         const comTabela = devs
           .filter((d) => refs.has(d.id))
           .map((d) => ({ ...d, referencia: refs.get(d.id) ?? '' }))
           .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        guardarLista({ userId: user.id, empreendimentos: comTabela, construtoras: comps });
+        if (!vivo) return;
         setEmpreendimentos(comTabela);
         setConstrutoras(comps);
-        const inicial =
-          comTabela.find((d) => d.id === developmentIdInicial) ?? (comTabela.length === 1 ? comTabela[0] : null);
-        setDevId(inicial?.id ?? null);
-        setBlocoId(null);
-        setFiltro(TODAS);
-        setPasso(inicial ? 'bloco' : 'empreendimento');
+        // Já posicionado pela memória: não tira o corretor do passo em que está.
+        if (!emMemoria) posicionar(comTabela);
         setCarregando(false);
-      },
-    );
+      })
+      .catch(() => {
+        if (!vivo) return;
+        setCarregando(false);
+        if (!emMemoria) setErroLista(MENSAGEM_SEM_CONEXAO);
+      });
     return () => {
       vivo = false;
     };
-  }, [visivel, user, developmentIdInicial]);
+    // `reconferirUnidades` é estável (useCallback); fora das dependências para
+    // não reabrir o efeito à toa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visivel, user, developmentIdInicial, tentativa]);
 
   const dev = empreendimentos.find((d) => d.id === devId) ?? null;
-  const unidades = useUnidadesComPreco(visivel ? devId : null);
   const bloco = unidades.blocos.find((b) => b.id === blocoId) ?? null;
   const faixas = useMemo(
     () => new Map(unidades.blocos.map((b) => [b.id, faixaDoBloco(b)])),
@@ -157,6 +206,21 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
           <ScrollView style={styles.corpo} contentContainerStyle={styles.corpoConteudo}>
             {carregando || (passo !== 'empreendimento' && unidades.carregando) ? (
               <ActivityIndicator color={colors.primary} style={styles.carregando} />
+            ) : erroLista || (passo !== 'empreendimento' && unidades.erro) ? (
+              <View style={styles.vazio}>
+                <Text style={styles.vazioTitulo}>Não carregou</Text>
+                <Text style={styles.vazioTexto}>{erroLista ?? unidades.erro}</Text>
+                <Pressable
+                  onPress={() => {
+                    if (erroLista) setTentativa((t) => t + 1);
+                    else reconferirUnidades();
+                  }}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.link}>Tentar de novo</Text>
+                </Pressable>
+              </View>
             ) : passo === 'empreendimento' ? (
               empreendimentos.length === 0 ? (
                 <View style={styles.vazio}>

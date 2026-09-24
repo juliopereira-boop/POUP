@@ -235,9 +235,10 @@ export interface TextoDoPdf {
 /**
  * A tabela de preço do empreendimento e o PDF de onde ela saiu.
  *
- * O caminho do mês é: `enviarPdf` (guarda o arquivo) → `lerPdf` (o servidor
- * devolve o texto) → o aplicativo interpreta (`features/tabelaPreco/importar`)
- * e mostra para conferir → `salvar`.
+ * O caminho do mês é: `enviarArquivo` (guarda o arquivo) → o texto (do PDF,
+ * pelo servidor com `lerPdf`; do modelo POUP, direto do arquivo) → o
+ * aplicativo interpreta (`features/tabelaPreco`) e mostra para conferir →
+ * `salvar`.
  */
 export interface PriceTableRepository {
   carregar(developmentId: string): Promise<TabelaResultado>;
@@ -248,7 +249,8 @@ export interface PriceTableRepository {
     developmentId: string,
     tabela: Omit<TabelaDePreco, 'atualizadoEm'> | null,
   ): Promise<Result<TabelaDePreco | null>>;
-  enviarPdf(developmentId: string, arquivo: PickedFile): Promise<Result<ArquivoDaTabela>>;
+  /** Guarda o arquivo da construtora: o PDF, ou a tabela no modelo POUP (CSV). */
+  enviarArquivo(developmentId: string, arquivo: PickedFile, tipo: 'pdf' | 'csv'): Promise<Result<ArquivoDaTabela>>;
   lerPdf(path: string): Promise<Result<TextoDoPdf>>;
   /** Link temporário (1 hora) para abrir o PDF guardado. */
   linkDoPdf(path: string): Promise<string | null>;
