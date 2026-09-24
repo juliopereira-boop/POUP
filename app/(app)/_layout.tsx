@@ -83,6 +83,7 @@ export default function AppLayout() {
               name="cadastros/empreendimentos"
               options={{ title: 'Cadastro de Empreendimentos' }}
             />
+            <Stack.Screen name="cadastros/unidades" options={{ title: 'Blocos e unidades' }} />
             <Stack.Screen name="material-venda" options={{ title: 'Material de Venda' }} />
             <Stack.Screen name="comissao/index" options={{ title: 'Controle de Comissão' }} />
             <Stack.Screen name="comissao/[id]" options={{ title: 'Comissão' }} />

@@ -4,6 +4,7 @@ import type {
   AppointmentStatusInfo,
   AppointmentType,
   AuthUser,
+  BlocoParaSalvar,
   CatalogCompany,
   CatalogPhotoKind,
   Company,
@@ -21,6 +22,7 @@ import type {
   Correspondent,
   InvoiceStatus,
   Development,
+  DevelopmentBlock,
   DevelopmentInput,
   FinancingShareLink,
   FinancingSimulation,
@@ -190,6 +192,31 @@ export interface CompanyRepository {
   listCorrespondents(companyId: string): Promise<Correspondent[]>;
   addCorrespondent(userId: string, companyId: string, name: string): Promise<Result<Correspondent>>;
   removeCorrespondent(id: string): Promise<Result<void>>;
+}
+
+/**
+ * A leitura dos blocos distingue "deu erro" de "a migration ainda não rodou".
+ *
+ * As tabelas de blocos chegam por uma migration que é rodada à mão no SQL
+ * Editor. Enquanto ela não roda, a tela de cadastro precisa dizer exatamente
+ * isso — e o simulador precisa seguir funcionando com a unidade digitada, como
+ * sempre funcionou. Um erro genérico faria as duas coisas darem errado.
+ */
+export type BlocosResultado =
+  | { ok: true; data: DevelopmentBlock[] }
+  | { ok: false; error: string; migracaoPendente: boolean };
+
+export interface UnitRepository {
+  /** Blocos e unidades de um empreendimento, na ordem do cadastro. */
+  listarBlocos(developmentId: string): Promise<BlocosResultado>;
+  /**
+   * Substitui a forma do empreendimento inteiro numa transação. Unidades que
+   * continuam existindo (mesmo código, mesmo bloco) mantêm o preço.
+   */
+  salvarBlocos(
+    developmentId: string,
+    blocos: BlocoParaSalvar[],
+  ): Promise<Result<DevelopmentBlock[]>>;
 }
 
 export interface DevelopmentRepository {

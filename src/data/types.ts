@@ -255,10 +255,10 @@ export interface Development {
   /**
    * Valor "a partir de" da unidade, em reais. `null` = não cadastrado.
    *
-   * É preço do EMPREENDIMENTO, não da unidade: o POUP não tem espelho de
-   * vendas, e a unidade é digitada livre na simulação. Uma coluna resolve a
-   * pergunta comercial que importa — "o que cabe em R$ 250 mil?" — sem
-   * arrastar um módulo inteiro de estoque.
+   * É preço do EMPREENDIMENTO, não de uma unidade: responde a pergunta comercial
+   * "o que cabe em R$ 250 mil?" no poder de compra. O preço de cada unidade mora
+   * em `DevelopmentUnit.valor`, que chega pela tabela de preços — e os dois não
+   * se substituem: o "a partir de" existe mesmo para quem nunca cadastrou bloco.
    *
    * Sem valor, o empreendimento fica FORA da lista de unidades compatíveis do
    * poder de compra: não dá para afirmar que cabe nem que não cabe.
@@ -292,6 +292,43 @@ export interface DevelopmentInput {
   uf: string | null;
   /** Valor "a partir de" da unidade, em reais. `null` = não cadastrado. */
   unitValueFrom: number | null;
+}
+
+/**
+ * Uma unidade de um bloco.
+ *
+ * O `codigo` é a chave que casa esta unidade com a linha da tabela de preços da
+ * construtora — por isso ele sai de um gerador testado, e não de digitação.
+ */
+export interface DevelopmentUnit {
+  id: string;
+  blockId: string;
+  codigo: string;
+  /** 1 = térreo. */
+  pavimento: number;
+  ordem: number;
+  /** Valor de venda, em reais. `null` = a tabela de preços ainda não chegou. */
+  valor: number | null;
+  valorAtualizadoEm: string | null;
+}
+
+export interface DevelopmentBlock {
+  id: string;
+  developmentId: string;
+  nome: string;
+  ordem: number;
+  unidades: DevelopmentUnit[];
+}
+
+/** O que a tela de cadastro manda salvar: a forma de cada bloco, já em unidades. */
+export interface BlocoParaSalvar {
+  /**
+   * `null` para bloco novo. Mandar o id do bloco existente é o que preserva o
+   * preço das unidades dele: sem id, o banco cria outro bloco e o antigo sai.
+   */
+  id: string | null;
+  nome: string;
+  unidades: { codigo: string; pavimento: number; ordem: number }[];
 }
 
 export interface CompanyMaterial {

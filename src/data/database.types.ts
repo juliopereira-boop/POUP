@@ -1116,6 +1116,60 @@ export interface Database {
         };
         Relationships: [];
       };
+      /** Blocos (ou quadras) de um empreendimento. Acesso herdado do empreendimento. */
+      development_blocks: {
+        Row: {
+          id: string;
+          development_id: string;
+          nome: string;
+          ordem: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          development_id: string;
+          nome: string;
+          ordem?: number;
+        };
+        Update: {
+          nome?: string;
+          ordem?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      /** Unidades de um bloco. Escritas pela RPC `salvar_blocos_empreendimento`. */
+      development_units: {
+        Row: {
+          id: string;
+          block_id: string;
+          development_id: string;
+          codigo: string;
+          pavimento: number;
+          ordem: number;
+          valor: number | null;
+          valor_atualizado_em: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          block_id: string;
+          development_id: string;
+          codigo: string;
+          pavimento: number;
+          ordem?: number;
+          valor?: number | null;
+          valor_atualizado_em?: string | null;
+        };
+        Update: {
+          valor?: number | null;
+          valor_atualizado_em?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1222,6 +1276,11 @@ export interface Database {
       podar_analytics: {
         Args: { p_dias?: number };
         Returns: number;
+      };
+      /** Sincroniza todos os blocos de um empreendimento numa transação; preserva preços. */
+      salvar_blocos_empreendimento: {
+        Args: { p_development: string; p_blocos: Json };
+        Returns: undefined;
       };
     };
     Enums: Record<string, never>;

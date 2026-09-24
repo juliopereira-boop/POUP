@@ -35,6 +35,19 @@ export default function EmpreendimentosScreen() {
   const [valorUnidade, setValorUnidade] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * O empreendimento recém-criado, para o convite de cadastrar os blocos.
+   *
+   * Blocos pertencem a um empreendimento que já existe no banco, então não dá
+   * para pedi-los no mesmo formulário da criação. O convite logo em seguida é o
+   * que evita o corretor terminar o cadastro sem as unidades — e só descobrir
+   * na hora de simular, com o cliente na frente.
+   */
+  const [recemCriado, setRecemCriado] = useState<Development | null>(null);
+
+  function abrirUnidades(id: string) {
+    router.push({ pathname: '/(app)/cadastros/unidades', params: { developmentId: id } });
+  }
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -116,6 +129,7 @@ export default function EmpreendimentosScreen() {
     }
     // Ver a nota em `cadastros/empresas.tsx`: só a criação é marco do funil.
     if (!editingId) registrar('development_created', { resultado: 'ok', refId: result.data.id });
+    setRecemCriado(editingId ? null : result.data);
     resetForm();
     void load();
   }
@@ -154,6 +168,32 @@ export default function EmpreendimentosScreen() {
             variant="secondary"
             onPress={() => router.push('/(app)/cadastros/empresas')}
           />
+        </View>
+      ) : null}
+
+      {recemCriado ? (
+        <View style={styles.convite}>
+          <Text style={styles.conviteTitulo}>{recemCriado.name} foi criado</Text>
+          <Text style={styles.conviteTexto}>
+            Cadastre os blocos e as unidades para escolher o apartamento direto no simulador.
+          </Text>
+          <View style={styles.formActions}>
+            <Button
+              label="Agora não"
+              variant="ghost"
+              onPress={() => setRecemCriado(null)}
+              style={styles.flex1}
+            />
+            <Button
+              label="Cadastrar blocos"
+              onPress={() => {
+                const id = recemCriado.id;
+                setRecemCriado(null);
+                abrirUnidades(id);
+              }}
+              style={styles.flex1}
+            />
+          </View>
         </View>
       ) : null}
 
@@ -227,6 +267,15 @@ export default function EmpreendimentosScreen() {
           compra do cliente.
         </Text>
 
+        {editingId ? (
+          <Button
+            label="Blocos e unidades"
+            variant="secondary"
+            onPress={() => abrirUnidades(editingId)}
+            style={styles.blocosBtn}
+          />
+        ) : null}
+
         <View style={styles.formActions}>
           {editingId ? (
             <Button label="Cancelar" variant="ghost" onPress={resetForm} style={styles.flex1} />
@@ -267,17 +316,23 @@ export default function EmpreendimentosScreen() {
             </View>
             {/* Empreendimento do catálogo é somente leitura: sem editar nem excluir.
                 Para deixar de usar, o caminho é remover a construtora da lista, em
-                "Cadastro de empresas". */}
-            {d.isCatalog ? null : (
-              <View style={styles.itemActions}>
-                <Pressable onPress={() => startEdit(d)} hitSlop={8}>
-                  <Text style={styles.editLink}>Editar</Text>
-                </Pressable>
-                <Pressable onPress={() => confirmDelete(d)} hitSlop={8}>
-                  <Text style={styles.deleteLink}>Excluir</Text>
-                </Pressable>
-              </View>
-            )}
+                "Cadastro de empresas". As unidades ele pode VER — a tela abre em
+                modo leitura. */}
+            <View style={styles.itemActions}>
+              <Pressable onPress={() => abrirUnidades(d.id)} hitSlop={8}>
+                <Text style={styles.editLink}>Unidades</Text>
+              </Pressable>
+              {d.isCatalog ? null : (
+                <>
+                  <Pressable onPress={() => startEdit(d)} hitSlop={8}>
+                    <Text style={styles.editLink}>Editar</Text>
+                  </Pressable>
+                  <Pressable onPress={() => confirmDelete(d)} hitSlop={8}>
+                    <Text style={styles.deleteLink}>Excluir</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           </View>
         ))
       )}
@@ -322,6 +377,16 @@ const makeStyles = (colors: AppColors) =>
     textArea: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },
     formActions: { flexDirection: 'row', gap: spacing.md },
     flex1: { flex: 1 },
+    blocosBtn: { marginBottom: spacing.md },
+    convite: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.lg,
+      gap: spacing.sm,
+    },
+    conviteTitulo: { ...typography.heading, color: colors.ink },
+    conviteTexto: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.sm },
     sectionLabel: {
       ...typography.label,
       color: colors.inkMuted,

@@ -15,6 +15,7 @@ import type {
   SaleRepository,
   SettingsRepository,
   SimulationRepository,
+  UnitRepository,
 } from './repositories';
 import { SupabaseAuthRepository } from './supabase/SupabaseAuthRepository';
 import { SupabaseProfileRepository } from './supabase/SupabaseProfileRepository';
@@ -32,6 +33,7 @@ import { SupabaseSaleRepository } from './supabase/SupabaseSaleRepository';
 import { SupabaseCommissionRepository } from './supabase/SupabaseCommissionRepository';
 import { SupabaseAnalyticsRepository } from './supabase/SupabaseAnalyticsRepository';
 import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepository';
+import { SupabaseUnitRepository } from './supabase/SupabaseUnitRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -39,6 +41,8 @@ export interface DataLayer {
   billing: BillingRepository;
   companies: CompanyRepository;
   developments: DevelopmentRepository;
+  /** Blocos e unidades de cada empreendimento, com o preço por unidade. */
+  unidades: UnitRepository;
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;
   simulations: SimulationRepository;
@@ -69,6 +73,7 @@ function createDataLayer(provider: Provider): DataLayer {
         billing: new SupabaseBillingRepository(),
         companies: new SupabaseCompanyRepository(),
         developments: new SupabaseDevelopmentRepository(),
+        unidades: new SupabaseUnitRepository(),
         catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
         financing: new SupabaseFinancingRepository(),
@@ -92,6 +97,7 @@ export type {
   AppointmentRepository,
   AuthRepository,
   BillingRepository,
+  BlocosResultado,
   CatalogRepository,
   CommissionRepository,
   CompanyRepository,
@@ -109,4 +115,5 @@ export type {
   SaleRepository,
   SettingsRepository,
   SimulationRepository,
+  UnitRepository,
 } from './repositories';
