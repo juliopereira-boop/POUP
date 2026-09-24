@@ -236,7 +236,7 @@ function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): 
   const mesesParaEntrega = monthsBetween(ctx.todayISO, ctx.deliveryDate);
   const mesesEntregaLabel =
     mesesParaEntrega == null
-      ? '—'
+      ? 'Não informado'
       : mesesParaEntrega <= 0
         ? 'Entregue'
         : `${mesesParaEntrega} ${mesesParaEntrega === 1 ? 'mês' : 'meses'}`;

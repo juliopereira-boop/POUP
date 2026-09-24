@@ -85,7 +85,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'imovel',
     essencial: true,
     comoAparece:
-      'O nome do residencial/condomínio/loteamento. Quase nunca vem completo: "o Vila Nova", "aquele lá do Parque das Águas", "no Reserva", "o connect". Devolva o NOME da lista de empreendimentos fornecida, escrito como está lá — casar por pedaço do nome é o normal, não a exceção.',
+      'O nome do residencial/condomínio/loteamento. Quase nunca vem completo: "o Vila Nova", "aquele lá do Parque das Águas", "no Reserva", "o connect". Devolva o NOME da lista de empreendimentos fornecida, escrito como está lá, casar por pedaço do nome é o normal, não a exceção.',
   },
   {
     chave: 'bloco',
@@ -94,7 +94,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'imovel',
     essencial: true,
     comoAparece:
-      'Bloco, quadra ou torre. Pode vir como letra ("bloco B") — nesse caso converta pela posição no alfabeto (A=1, B=2...). "Sem bloco", "não tem bloco" ou loteamento avulso é 0.',
+      'Bloco, quadra ou torre. Pode vir como letra ("bloco B"), nesse caso converta pela posição no alfabeto (A=1, B=2...). "Sem bloco", "não tem bloco" ou loteamento avulso é 0.',
   },
   {
     chave: 'unidade',
@@ -167,7 +167,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'cliente',
     essencial: false,
     comoAparece:
-      'E-mail do cliente. Ditado por voz costuma virar "arroba" e "ponto" escritos por extenso — normalize para o formato de e-mail.',
+      'E-mail do cliente. Ditado por voz costuma virar "arroba" e "ponto" escritos por extenso, normalize para o formato de e-mail.',
   },
 
   // ------------------------------------------------------- segundo proponente
@@ -250,7 +250,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'pagamento',
     essencial: true,
     comoAparece:
-      'Valor pago no ato da assinatura — a entrada. "Consigo dar cinco mil de entrada", "no ato ele paga 3".',
+      'Valor pago no ato da assinatura, a entrada. "Consigo dar cinco mil de entrada", "no ato ele paga 3".',
   },
   {
     /*
@@ -317,7 +317,7 @@ export const CAMPOS: CampoLia[] = [
     grupo: 'pagamento',
     essencial: false,
     comoAparece:
-      'Valor da parcela do financiamento na Caixa — o que o cliente vai pagar por mês ao banco depois. Não confunda com a mensal da construtora.',
+      'Valor da parcela do financiamento na Caixa, o que o cliente vai pagar por mês ao banco depois. Não confunda com a mensal da construtora.',
   },
   {
     chave: 'anuaisQuantidade',

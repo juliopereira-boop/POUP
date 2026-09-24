@@ -117,7 +117,7 @@ export const BANCOS: Banco[] = [
     sigla: 'Outro',
     cor: '#475569',
     corTexto: '#FFFFFF',
-    linha: 'Qualquer instituição — você informa taxa, prazo e quota',
+    linha: 'Qualquer instituição, você informa taxa, prazo e quota',
     ordem: 99,
   },
 ];

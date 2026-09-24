@@ -25,7 +25,7 @@ export function formatDecimalBR(value: number | null | undefined): string {
 }
 
 export function formatPct(value: number | null | undefined): string {
-  return value == null ? '—' : `${formatDecimalBR(value)}%`;
+  return value == null ? 'Não informado' : `${formatDecimalBR(value)}%`;
 }
 
 /**
@@ -37,7 +37,7 @@ export function formatPct(value: number | null | undefined): string {
 export function describeCommissionRule(
   rule: Pick<CommissionRule, 'defaultPct' | 'installmentsCount'> | null,
 ): string {
-  if (!rule) return '—';
+  if (!rule) return 'Não informado';
   const parcelas = rule.installmentsCount <= 1 ? 'pagamento único' : `${rule.installmentsCount}x`;
   return `${formatPct(rule.defaultPct)} · ${parcelas}`;
 }

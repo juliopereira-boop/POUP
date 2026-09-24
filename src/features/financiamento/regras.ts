@@ -90,7 +90,7 @@ export function estimativa<T>(valor: T, observacao: string): Parametro<T> {
   return {
     valor,
     origem: 'estimativa',
-    fonte: 'POUP — estimativa',
+    fonte: 'POUP, estimativa',
     fonteUrl: null,
     verificadoEm: null,
     observacao,

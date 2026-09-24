@@ -60,7 +60,7 @@ const ATALHOS: Atalho[] = [
   {
     chave: 'poder',
     titulo: 'Poder de compra',
-    descricao: '"Ganho R$ 5.000, compro o quê?" — e quais unidades suas cabem nesse valor.',
+    descricao: '"Ganho R$ 5.000, compro o quê?", e quais unidades suas cabem nesse valor.',
     icone: 'chart',
     rota: '/(app)/financiamento/poder-de-compra',
   },
@@ -184,7 +184,7 @@ export default function EscolherBanco() {
       </View>
 
       <Text style={styles.nota}>
-        As condições cadastradas entram sozinhas — taxa, prazo, quota e limite de renda ficam por
+        As condições cadastradas entram sozinhas, taxa, prazo, quota e limite de renda ficam por
         trás. Você preenche só o valor do imóvel, o que o cliente tem, a renda e o prazo. Para
         digitar a condição que o correspondente aprovou, escolha{' '}
         <Text style={styles.forte}>Outro banco</Text>.
@@ -226,7 +226,7 @@ export default function EscolherBanco() {
             <View style={styles.texto}>
               <Text style={styles.atalhoTitulo}>Regras de financiamento</Text>
               <Text style={styles.detalhe}>
-                Taxas, faixas, quotas, prazos e encargos — versionados, com fonte e auditoria.
+                Taxas, faixas, quotas, prazos e encargos, versionados, com fonte e auditoria.
               </Text>
             </View>
             <Icon name="chevronRight" size={18} color={colors.inkSubtle} />

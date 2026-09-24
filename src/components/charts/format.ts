@@ -54,7 +54,7 @@ export const formatCompactBRL = abbreviateBRL;
 
 /** `12,5%` a partir de um percentual já em 0–100. `null` => `—`. */
 export function formatPercent(pct: number | null, fractionDigits = 1): string {
-  if (pct === null || !Number.isFinite(pct)) return '—';
+  if (pct === null || !Number.isFinite(pct)) return 'Não informado';
   return `${pct.toLocaleString('pt-BR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: fractionDigits,

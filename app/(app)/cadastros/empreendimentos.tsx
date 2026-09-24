@@ -201,7 +201,7 @@ export default function EmpreendimentosScreen() {
           autoCapitalize="words"
         />
         <Select
-          label="Estado (UF) — opcional"
+          label="Estado (UF), opcional"
           placeholder="Não informar"
           value={uf}
           options={UF_OPTIONS}
@@ -218,7 +218,7 @@ export default function EmpreendimentosScreen() {
         {/*
           Este valor é o que faz o "poder de compra" terminar mostrando QUAIS
           empreendimentos seus cabem no bolso do cliente. Sem ele, o
-          empreendimento simplesmente não aparece naquela lista — nem como
+          empreendimento simplesmente não aparece naquela lista, nem como
           compatível nem como incompatível, porque sem preço não dá para
           afirmar nenhum dos dois.
         */}
@@ -260,7 +260,7 @@ export default function EmpreendimentosScreen() {
                   </View>
                 ) : null}
               </View>
-              <Text style={styles.itemMeta}>{d.companyName ?? '—'}</Text>
+              <Text style={styles.itemMeta}>{d.companyName ?? 'Não informado'}</Text>
               {d.isCatalog ? (
                 <Text style={styles.itemNote}>Mantido pelo POUP. As atualizações chegam sozinhas.</Text>
               ) : null}

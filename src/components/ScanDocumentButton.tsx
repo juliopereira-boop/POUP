@@ -195,7 +195,7 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
         A CONFIRMAÇÃO QUE SE REPETE.
 
         Curta de propósito: uma frase e dois botões. Ela aparece a cada
-        documento, e um texto longo repetido vira um botão que ninguém lê — que
+        documento, e um texto longo repetido vira um botão que ninguém lê, que
         é exatamente o consentimento de fachada que a regra 5.1.2(i) quer
         evitar.
 
@@ -213,7 +213,7 @@ export function ScanDocumentButton({ onScanned }: ScanDocumentButtonProps) {
             <Text style={styles.title}>Autorização do titular</Text>
             <Text style={styles.confirmacao}>{CONFIRMACAO_TITULAR}</Text>
             <Button
-              label="Tenho autorização — continuar"
+              label="Tenho autorização, continuar"
               onPress={() => void confirmarAutorizacao()}
             />
             <View style={styles.cancelWrap}>

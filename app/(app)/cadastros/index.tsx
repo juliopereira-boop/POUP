@@ -20,7 +20,7 @@ export default function CadastrosScreen() {
           existe: o atalho precisa ser anunciado aqui, na porta de entrada. */}
       <Text style={styles.intro}>
         Em “Cadastro de empresas”, a aba <Text style={styles.strong}>Catálogo do sistema</Text> traz
-        construtoras que o POUP já configurou — com empreendimentos e regra de comissão prontos.
+        construtoras que o POUP já configurou, com empreendimentos e regra de comissão prontos.
         Você adota com um toque e as atualizações chegam sozinhas.
       </Text>
 

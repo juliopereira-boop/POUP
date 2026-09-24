@@ -57,7 +57,7 @@ function pct(n: number | null): string {
   return `${(n ?? 0).toFixed(1).replace('.', ',')}%`;
 }
 function associationLabel(v: string | null): string {
-  return ASSOCIATION_OPTIONS.find((o) => o.value === v)?.label ?? '—';
+  return ASSOCIATION_OPTIONS.find((o) => o.value === v)?.label ?? 'Não informado';
 }
 function digits(v: string | null | undefined): string {
   return (v ?? '').replace(/\D/g, '');
@@ -311,7 +311,7 @@ export default function SimulationDetailScreen() {
   );
   const mesesLabel =
     mesesEntrega == null
-      ? '—'
+      ? 'Não informado'
       : mesesEntrega <= 0
         ? 'Entregue'
         : `${mesesEntrega} ${mesesEntrega === 1 ? 'mês' : 'meses'}`;
@@ -346,7 +346,7 @@ export default function SimulationDetailScreen() {
           </View>
         </View>
         <Text style={styles.heroDev} numberOfLines={2}>
-          {sim.developmentName?.trim() || '—'}
+          {sim.developmentName?.trim() || 'Não informado'}
           {sim.companyName ? `  ·  ${sim.companyName}` : ''}
         </Text>
         <View style={styles.heroMonthly}>
@@ -415,15 +415,15 @@ export default function SimulationDetailScreen() {
 
       <SectionBand label="Empreendimento" />
       <View style={styles.card}>
-        <Row label="Empresa" value={sim.companyName ?? '—'} />
-        <Row label="Empreendimento" value={sim.developmentName ?? '—'} />
+        <Row label="Empresa" value={sim.companyName ?? 'Não informado'} />
+        <Row label="Empreendimento" value={sim.developmentName ?? 'Não informado'} />
         <Row label="Bloco / Quadra" value={String(st.block)} />
         <Row label="Unidade" value={st.unit} />
         <Row label="Valor da unidade" value={money(st.unitValue)} />
         <Row label="Entrega" value={formatMonthYearBR(sim.deliveryDate)} />
         <Row label="Meses p/ entrega" value={mesesLabel} />
-        <Row label="Gerente" value={sim.managerName ?? '—'} />
-        <Row label="Correspondente" value={st.correspondentName ?? '—'} last />
+        <Row label="Gerente" value={sim.managerName ?? 'Não informado'} />
+        <Row label="Correspondente" value={st.correspondentName ?? 'Não informado'} last />
       </View>
 
       <SectionBand label="Financiamento" />
@@ -650,7 +650,7 @@ function RegistrarVendaModal({
             />
             {/*
               Sem isso o corretor não tem como saber que preencher a comissão
-              aqui SOBRESCREVE a regra que ele cadastrou na construtora — e
+              aqui SOBRESCREVE a regra que ele cadastrou na construtora, e
               acharia que a campanha promocional simplesmente não funcionou.
             */}
             <Text style={styles.commissionHint}>
@@ -671,17 +671,17 @@ function RegistrarVendaModal({
             <Text style={styles.band}>Vai gravado com a venda</Text>
             <View style={styles.card}>
               <Row label="Cliente" value={prefill.clientName} />
-              <Row label="CPF" value={prefill.clientCpf ? formatCPF(prefill.clientCpf) : '—'} />
+              <Row label="CPF" value={prefill.clientCpf ? formatCPF(prefill.clientCpf) : 'Não informado'} />
               <Row
                 label="Telefone"
-                value={prefill.clientPhone ? formatPhone(prefill.clientPhone) : '—'}
+                value={prefill.clientPhone ? formatPhone(prefill.clientPhone) : 'Não informado'}
               />
-              <Row label="E-mail" value={prefill.clientEmail || '—'} />
-              <Row label="Construtora" value={sim.companyName ?? '—'} />
-              <Row label="Empreendimento" value={sim.developmentName ?? '—'} />
+              <Row label="E-mail" value={prefill.clientEmail || 'Não informado'} />
+              <Row label="Construtora" value={sim.companyName ?? 'Não informado'} />
+              <Row label="Empreendimento" value={sim.developmentName ?? 'Não informado'} />
               <Row
                 label="Bloco / Unidade"
-                value={`${prefill.block ?? '—'} / ${prefill.unit ?? '—'}`}
+                value={`${prefill.block ?? 'Não informado'} / ${prefill.unit ?? 'Não informado'}`}
               />
               <Row label="Financiamento" value={moneyOrDash(prefill.financedValue)} />
               <Row label="Subsídio" value={moneyOrDash(prefill.subsidyValue)} />
@@ -713,7 +713,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
     <View style={[styles.row, !last && styles.rowBorder]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue} numberOfLines={2}>
-        {value?.trim() ? value : '—'}
+        {value?.trim() ? value : 'Não informado'}
       </Text>
     </View>
   );

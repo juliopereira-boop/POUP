@@ -89,9 +89,7 @@ export interface AgendamentoOuvido {
 }
 
 export type ResultadoAgendamento =
-  | { ok: true; agendamento: AgendamentoOuvido }
-  | { ok: false; motivo: string }
-  | { erro: string };
+  { ok: true; agendamento: AgendamentoOuvido } | { ok: false; motivo: string } | { erro: string };
 
 interface PedidoAgendamento {
   /** A frase que disparou o gatilho local. */
@@ -102,7 +100,8 @@ interface PedidoAgendamento {
 }
 
 export async function extrairAgendamento(p: PedidoAgendamento): Promise<ResultadoAgendamento> {
-  if (!(await temConsentimentoLia())) return { erro: 'Autorize uma nova sessão da LIA antes de enviar dados.' };
+  if (!(await temConsentimentoLia()))
+    return { erro: 'Autorize uma nova sessão da LIA antes de enviar dados.' };
   const { data, error } = await supabase.functions.invoke('lia-extract', {
     body: {
       versao: VERSAO_CONTRATO,
@@ -117,7 +116,9 @@ export async function extrairAgendamento(p: PedidoAgendamento): Promise<Resultad
   if (error) {
     // Ver a nota em `extrair.ts`: a explicação (limite de uso, por exemplo)
     // vem no corpo da resposta, não em `error.message`.
-    return { erro: await mensagemDoErro(error, 'A LIA não conseguiu processar o agendamento agora.') };
+    return {
+      erro: await mensagemDoErro(error, 'A LIA não conseguiu processar o agendamento agora.'),
+    };
   }
 
   const payload = data as {
@@ -134,7 +135,9 @@ export async function extrairAgendamento(p: PedidoAgendamento): Promise<Resultad
   };
   if (payload?.error) return { erro: payload.error };
   if (payload?.versao !== VERSAO_CONTRATO) {
-    return { erro: 'A LIA no servidor está desatualizada. Publique a função lia-extract novamente.' };
+    return {
+      erro: 'A LIA no servidor está desatualizada. Publique a função lia-extract novamente.',
+    };
   }
 
   const a = payload.agendamento;
@@ -143,7 +146,7 @@ export async function extrairAgendamento(p: PedidoAgendamento): Promise<Resultad
       ok: false,
       motivo:
         payload.motivo?.trim() ||
-        'Não consegui identificar data e horário com segurança. Diga de novo com o dia e a hora.',
+        'Não consegui identificar data e horário com segurança. Digite novamente o dia e a hora.',
     };
   }
 
@@ -183,9 +186,7 @@ export interface CatalogoAgendamento {
   empresaDoEmpreendimento: Record<string, string>;
 }
 
-export type ResultadoCriacao =
-  | { ok: true; resumo: string }
-  | { ok: false; motivo: string };
+export type ResultadoCriacao = { ok: true; resumo: string } | { ok: false; motivo: string };
 
 /**
  * Ouve a frase, resolve os nomes e cria o compromisso. O caminho inteiro.
@@ -214,8 +215,14 @@ export async function agendarPorVoz(
   const r = await extrairAgendamento({
     texto,
     hoje: hojeYmdLocal(),
-    empreendimentos: nomesCitados(texto, catalogo.empreendimentos.map((e) => e.nome)),
-    clientes: nomesCitados(texto, catalogo.clientes.map((c) => c.nome)),
+    empreendimentos: nomesCitados(
+      texto,
+      catalogo.empreendimentos.map((e) => e.nome),
+    ),
+    clientes: nomesCitados(
+      texto,
+      catalogo.clientes.map((c) => c.nome),
+    ),
   });
 
   if ('erro' in r) return { ok: false, motivo: r.erro };
@@ -226,7 +233,8 @@ export async function agendarPorVoz(
   if (!startAt) {
     return {
       ok: false,
-      motivo: 'Entendi o pedido, mas a data ou o horário saíram num formato inválido. Diga de novo.',
+      motivo:
+        'Entendi o pedido, mas a data ou o horário saíram num formato inválido. Digite novamente.',
     };
   }
 
@@ -255,7 +263,10 @@ export async function agendarPorVoz(
     .join(' · ');
 
   if (!(await temConsentimentoLia()) || !sessaoAtiva()) {
-    return { ok: false, motivo: 'A autorização da LIA foi encerrada. Nenhum compromisso foi salvo.' };
+    return {
+      ok: false,
+      motivo: 'A autorização da LIA foi encerrada. Nenhum compromisso foi salvo.',
+    };
   }
   const res = await db.appointments.create(userId, {
     title: agendamento.titulo,
@@ -274,7 +285,7 @@ export async function agendarPorVoz(
 
   return {
     ok: true,
-    resumo: `${agendamento.titulo} — ${dataAgendamentoBR(agendamento.dataISO)} às ${agendamento.hora}.`,
+    resumo: `${agendamento.titulo}, ${dataAgendamentoBR(agendamento.dataISO)} às ${agendamento.hora}.`,
   };
 }
 

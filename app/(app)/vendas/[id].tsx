@@ -47,7 +47,7 @@ function brl(n: number): string {
 
 /** Data em YYYY-MM-DD lida pelas partes locais — nunca por `new Date(iso)`. */
 function dateBR(ymd: string | null): string {
-  if (!ymd) return '—';
+  if (!ymd) return 'Não informado';
   const [y, m, d] = ymd.split('-');
   if (!y || !m || !d) return ymd;
   return `${d}/${m}/${y}`;
@@ -55,9 +55,9 @@ function dateBR(ymd: string | null): string {
 
 /** Timestamp completo (createdAt, originStartedAt): aí o horário existe. */
 function timestampBR(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Não informado';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'Não informado';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -278,7 +278,7 @@ function VendaContent() {
         <View style={styles.distratoBanner}>
           <Text style={styles.distratoTitle}>Venda distratada</Text>
           <Text style={styles.distratoMeta}>Data do distrato: {dateBR(sale.distratoDate)}</Text>
-          <Text style={styles.distratoMeta}>Motivo: {sale.distratoReason?.trim() || '—'}</Text>
+          <Text style={styles.distratoMeta}>Motivo: {sale.distratoReason?.trim() || 'Não informado'}</Text>
         </View>
       ) : null}
 
@@ -368,9 +368,9 @@ function VendaContent() {
       <Text style={styles.band}>Cliente</Text>
       <View style={styles.card}>
         <Row label="Nome" value={sale.clientName} />
-        <Row label="CPF" value={sale.clientCpf ? formatCPF(sale.clientCpf) : '—'} />
-        <Row label="Telefone" value={phoneDigits ? formatPhone(phoneDigits) : '—'} />
-        <Row label="E-mail" value={sale.clientEmail ?? '—'} last />
+        <Row label="CPF" value={sale.clientCpf ? formatCPF(sale.clientCpf) : 'Não informado'} />
+        <Row label="Telefone" value={phoneDigits ? formatPhone(phoneDigits) : 'Não informado'} />
+        <Row label="E-mail" value={sale.clientEmail ?? 'Não informado'} last />
       </View>
       {phoneDigits ? (
         <Button label="💬 Abrir no WhatsApp" onPress={onWhatsApp} style={styles.blockBtn} />
@@ -382,7 +382,7 @@ function VendaContent() {
         <Row label="Subsídio" value={moneyOrDash(sale.subsidyValue)} />
         <Row label="FGTS" value={moneyOrDash(sale.fgtsValue)} />
         <Row label="Recursos próprios" value={moneyOrDash(sale.ownResourcesValue)} />
-        <Row label="Soma informada" value={composicao.length > 0 ? brl(somaComposicao) : '—'} last />
+        <Row label="Soma informada" value={composicao.length > 0 ? brl(somaComposicao) : 'Não informado'} last />
       </View>
       {composicao.length > 0 && Math.abs(diferenca) >= 1 ? (
         <Text style={styles.hint}>
@@ -396,7 +396,7 @@ function VendaContent() {
       <View style={styles.card}>
         <Row
           label="Percentual"
-          value={sale.commissionPct != null ? `${formatPercent(sale.commissionPct)}%` : '—'}
+          value={sale.commissionPct != null ? `${formatPercent(sale.commissionPct)}%` : 'Não informado'}
         />
         <Row label="Valor" value={moneyOrDash(sale.commissionValue)} last />
       </View>
@@ -693,7 +693,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
     <View style={[styles.rowItem, !last && styles.rowBorder]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue} numberOfLines={2}>
-        {value?.trim() ? value : '—'}
+        {value?.trim() ? value : 'Não informado'}
       </Text>
     </View>
   );

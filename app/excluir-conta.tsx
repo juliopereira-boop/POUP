@@ -18,12 +18,13 @@ export default function DeleteAccountPage() {
           accessibilityRole="header"
           style={{ fontSize: 26, fontWeight: '700', color: colors.ink }}
         >
-          Excluir conta e dados — POUP
+          Excluir conta e dados, POUP
         </Text>
         <Text style={{ color: colors.ink }}>
           Você pode excluir sua conta pelo site, sem instalar o aplicativo. A exclusão remove seu
-          perfil, leads, simulações, propostas, vendas, comissões e arquivos pessoais. Uma
-          assinatura existente é cancelada durante o processo.
+          perfil, leads, simulações, propostas, vendas, comissões e arquivos pessoais. Assinaturas
+          feitas pelo site são canceladas durante o processo. Assinaturas da App Store ou Google
+          Play precisam ser canceladas nos ajustes da própria loja para evitar novas cobranças.
         </Text>
         <Text style={{ color: colors.ink }}>
           O catálogo compartilhado da plataforma não é apagado junto com uma conta. Dados que

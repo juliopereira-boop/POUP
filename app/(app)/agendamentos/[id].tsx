@@ -60,9 +60,9 @@ function confirmRemove(message: string, onConfirm: () => void) {
 }
 
 function formatWhen(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Não informado';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'Não informado';
   return `${formatDateBR(d)} às ${formatTimeISO(iso)}`;
 }
 
@@ -383,7 +383,7 @@ export default function AgendamentoDetailScreen() {
         <Text style={[styles.heroWhen, late && styles.lateText]}>
           {late ? '⚠️ ' : ''}
           {formatWhen(appointment.startAt)}
-          {appointment.endAt ? ` – ${formatTimeISO(appointment.endAt)}` : ''}
+          {appointment.endAt ? ` a ${formatTimeISO(appointment.endAt)}` : ''}
         </Text>
         {appointment.leadName ? (
           <Text style={styles.heroMeta}>Lead: {appointment.leadName}</Text>

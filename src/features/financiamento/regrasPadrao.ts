@@ -59,7 +59,7 @@ const VERIFICADO_EM = '2026-08-19';
 
 /** A ressalva que acompanha todo número vindo do manual. */
 const VIA_MANUAL =
-  'Valor registrado no manual técnico do motor (consulta às páginas oficiais em 19/08/2026). Reconfira na fonte antes de apresentar como condição definitiva — estes parâmetros mudam por normativo.';
+  'Valor registrado no manual técnico do motor (consulta às páginas oficiais em 19/08/2026). Reconfira na fonte antes de apresentar como condição definitiva, estes parâmetros mudam por normativo.';
 
 const A_CONFIRMAR = (o_que: string, onde: string) =>
   `${o_que} muda por normativo e não consta do material verificado. Confirme em ${onde} e cadastre em Ajustes → Financiamento → Regras.`;
@@ -75,21 +75,21 @@ const INDEXADORES: Indexador[] = [
     tipo: 'nenhum',
     taxaMensal: oficial(
       0,
-      'CAIXA — modalidade prefixada',
+      'CAIXA, modalidade prefixada',
       CAIXA_FAQ,
       VERIFICADO_EM,
-      'No prefixado não há atualização por TR/IPCA — a correção é zero por definição, não por falta de dado.',
+      'No prefixado não há atualização por TR/IPCA, a correção é zero por definição, não por falta de dado.',
     ),
     fonteOficial: null,
   },
   {
     id: 'TR',
-    nome: 'TR — Taxa Referencial',
+    nome: 'TR, Taxa Referencial',
     descricao:
       'O indexador tradicional do crédito imobiliário. O saldo devedor é corrigido pela TR ANTES de os juros incidirem.',
     tipo: 'mensal',
     taxaMensal: pendente<number>(
-      'A TR é divulgada pelo Banco Central e varia mês a mês; projetá-la é previsão econômica, não condição de contrato. Sem valor cadastrado, a tabela sai SEM correção — e o resultado real será maior. Para ver o efeito, use um cenário hipotético na simulação.',
+      'A TR é divulgada pelo Banco Central e varia mês a mês; projetá-la é previsão econômica, não condição de contrato. Sem valor cadastrado, a tabela sai SEM correção, e o resultado real será maior. Para ver o efeito, use um cenário hipotético na simulação.',
     ),
     fonteOficial: 'Banco Central do Brasil',
   },
@@ -148,7 +148,7 @@ function faixaMcmv(id: string, nome: string, descricao: string): ProdutoFinancia
     ),
     prazoMaxMeses: oficial(
       420,
-      'CAIXA — financiamento habitacional',
+      'CAIXA, financiamento habitacional',
       CAIXA_MCMV,
       VERIFICADO_EM,
       `Prazo de até 35 anos em diversas modalidades. ${VIA_MANUAL}`,
@@ -166,7 +166,7 @@ function faixaMcmv(id: string, nome: string, descricao: string): ProdutoFinancia
     carenciaMaxMeses: pendente<number>(A_CONFIRMAR('O prazo máximo de carência', 'caixa.gov.br')),
     comprometimentoRendaMaxPct: oficial(
       30,
-      'CAIXA — perguntas frequentes',
+      'CAIXA, perguntas frequentes',
       CAIXA_FAQ,
       VERIFICADO_EM,
       `A prestação pode comprometer até 30% da renda familiar bruta em determinadas operações. ${VIA_MANUAL}`,
@@ -179,7 +179,7 @@ function faixaMcmv(id: string, nome: string, descricao: string): ProdutoFinancia
     ),
     sistemas: ['SAC', 'PRICE'],
     indexadorId: 'TR',
-    fonte: 'CAIXA — Minha Casa, Minha Vida (urbana)',
+    fonte: 'CAIXA, Minha Casa, Minha Vida (urbana)',
     fonteUrl: CAIXA_MCMV,
   };
 }
@@ -210,7 +210,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       // Sem banco: vale para a instituição que o corretor estiver atendendo.
       bancoId: null,
       descricao:
-        'Você informa a taxa, o prazo e a quota que o correspondente bancário aprovou para este cliente. É a condição real da negociação — o cálculo é feito em cima dela.',
+        'Você informa a taxa, o prazo e a quota que o correspondente bancário aprovou para este cliente. É a condição real da negociação, o cálculo é feito em cima dela.',
       parametrosManuais: true,
       /*
        * A base do comprometimento e o tratamento da carência são DECISÕES, não
@@ -235,7 +235,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       carenciaMaxMeses: estimativa(36, 'Teto do campo, não regra do banco.'),
       comprometimentoRendaMaxPct: oficial(
         30,
-        'CAIXA — perguntas frequentes',
+        'CAIXA, perguntas frequentes',
         CAIXA_FAQ,
         VERIFICADO_EM,
         `Referência para o alerta de renda: a prestação pode comprometer até 30% da renda familiar bruta em determinadas operações. ${VIA_MANUAL}`,
@@ -272,14 +272,14 @@ export const REGRAS_PADRAO: VersaoRegras = {
       ufs: null,
       faixaRenda: oficial(
         { min: 0, max: 13000 },
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `Renda familiar mensal de até R$ 13.000. ${VIA_MANUAL}`,
       ),
       valorImovelMax: oficial(
         600000,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `Valor do imóvel de até R$ 600.000. ${VIA_MANUAL}`,
@@ -294,31 +294,31 @@ export const REGRAS_PADRAO: VersaoRegras = {
        */
       quotaMaxPct: oficial(
         80,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `Complemento da entrada mínima de 20% informada para a modalidade. ${VIA_MANUAL}`,
       ),
       entradaMinimaPct: oficial(
         20,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `Entrada mínima de 20%. ${VIA_MANUAL}`,
       ),
       prazoMaxMeses: oficial(
         420,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `Prazo de até 35 anos. ${VIA_MANUAL}`,
       ),
       taxaAnualPct: oficial(
         10,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
-        `Taxa NOMINAL de 10% ao ano — que composta equivale a 10,47% efetivos. ${VIA_MANUAL}`,
+        `Taxa NOMINAL de 10% ao ano, que composta equivale a 10,47% efetivos. ${VIA_MANUAL}`,
       ),
       /*
        * NOMINAL, e isto é o ponto do §17 e §18.
@@ -335,7 +335,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       carenciaMaxMeses: pendente<number>(A_CONFIRMAR('O prazo máximo de carência', 'caixa.gov.br')),
       comprometimentoRendaMaxPct: oficial(
         30,
-        'CAIXA — perguntas frequentes',
+        'CAIXA, perguntas frequentes',
         CAIXA_FAQ,
         VERIFICADO_EM,
         `A prestação pode comprometer até 30% da renda familiar bruta em determinadas operações. ${VIA_MANUAL}`,
@@ -345,14 +345,14 @@ export const REGRAS_PADRAO: VersaoRegras = {
       ),
       subsidioMax: oficial(
         0,
-        'CAIXA — MCMV Classe Média',
+        'CAIXA, MCMV Classe Média',
         CAIXA_CLASSE_MEDIA,
         VERIFICADO_EM,
         `A modalidade Classe Média não tem subsídio. ${VIA_MANUAL}`,
       ),
       sistemas: ['SAC', 'PRICE'],
       indexadorId: 'TR',
-      fonte: 'CAIXA — Minha Casa, Minha Vida (Classe Média)',
+      fonte: 'CAIXA, Minha Casa, Minha Vida (Classe Média)',
       fonteUrl: CAIXA_CLASSE_MEDIA,
     },
 
@@ -364,7 +364,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
     {
       id: 'sbpe_tr',
       bancoId: 'caixa',
-      nome: 'SBPE — corrigido pela TR',
+      nome: 'SBPE, corrigido pela TR',
       descricao:
         'Financiamento tradicional, fora do MCMV. Para quem passa do teto de renda do programa ou compra imóvel acima do limite.',
       parametrosManuais: false,
@@ -382,7 +382,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       ufs: null,
       faixaRenda: oficial(
         { min: 0, max: null },
-        'CAIXA — financiamento de imóveis',
+        'CAIXA, financiamento de imóveis',
         CAIXA_NOVO,
         VERIFICADO_EM,
         'O SBPE não tem faixa de renda: o limite é a capacidade de pagamento, verificada pelo comprometimento.',
@@ -391,14 +391,14 @@ export const REGRAS_PADRAO: VersaoRegras = {
         A_CONFIRMAR('O valor máximo do imóvel no SBPE', 'caixa.gov.br (imóvel novo/usado)'),
       ),
       quotaMaxPct: pendente<number>(
-        'A quota do SBPE depende da modalidade, dos recursos e do sistema de amortização — o material verificado informa que ela "pode chegar a 90%", o que é um TETO e não a quota da sua operação. Cadastrar 90% aqui daria ao corretor um número que o banco não confirma. Confirme a quota da modalidade em caixa.gov.br e cadastre.',
+        'A quota do SBPE depende da modalidade, dos recursos e do sistema de amortização, o material verificado informa que ela "pode chegar a 90%", o que é um TETO e não a quota da sua operação. Cadastrar 90% aqui daria ao corretor um número que o banco não confirma. Confirme a quota da modalidade em caixa.gov.br e cadastre.',
       ),
       entradaMinimaPct: pendente<number>(
         A_CONFIRMAR('A entrada mínima do SBPE', 'caixa.gov.br (imóvel novo/usado)'),
       ),
       prazoMaxMeses: oficial(
         420,
-        'CAIXA — financiamento de imóveis',
+        'CAIXA, financiamento de imóveis',
         CAIXA_NOVO,
         VERIFICADO_EM,
         `Prazo de até 35 anos em diversas modalidades. ${VIA_MANUAL}`,
@@ -413,7 +413,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       carenciaMaxMeses: pendente<number>(A_CONFIRMAR('O prazo máximo de carência', 'caixa.gov.br')),
       comprometimentoRendaMaxPct: oficial(
         30,
-        'CAIXA — perguntas frequentes',
+        'CAIXA, perguntas frequentes',
         CAIXA_FAQ,
         VERIFICADO_EM,
         `A prestação pode comprometer até 30% da renda familiar bruta em determinadas operações. ${VIA_MANUAL}`,
@@ -423,20 +423,20 @@ export const REGRAS_PADRAO: VersaoRegras = {
       ),
       subsidioMax: oficial(
         0,
-        'CAIXA — financiamento de imóveis',
+        'CAIXA, financiamento de imóveis',
         CAIXA_NOVO,
         VERIFICADO_EM,
         'O SBPE não tem subsídio de programa habitacional.',
       ),
       sistemas: ['SAC', 'PRICE'],
       indexadorId: 'TR',
-      fonte: 'CAIXA — Aquisição de imóvel novo',
+      fonte: 'CAIXA, Aquisição de imóvel novo',
       fonteUrl: CAIXA_NOVO,
     },
     {
       id: 'sbpe_prefixado',
       bancoId: 'caixa',
-      nome: 'SBPE — prefixado',
+      nome: 'SBPE, prefixado',
       descricao:
         'Taxa fixa, sem atualização por TR ou IPCA. A parcela varia apenas pelo sistema de amortização.',
       parametrosManuais: false,
@@ -454,7 +454,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       ufs: null,
       faixaRenda: oficial(
         { min: 0, max: null },
-        'CAIXA — financiamento de imóveis',
+        'CAIXA, financiamento de imóveis',
         CAIXA_NOVO,
         VERIFICADO_EM,
         'Sem faixa de renda; o limite é a capacidade de pagamento.',
@@ -475,7 +475,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
       carenciaMaxMeses: pendente<number>(A_CONFIRMAR('O prazo máximo de carência', 'caixa.gov.br')),
       comprometimentoRendaMaxPct: oficial(
         30,
-        'CAIXA — perguntas frequentes',
+        'CAIXA, perguntas frequentes',
         CAIXA_FAQ,
         VERIFICADO_EM,
         `A prestação pode comprometer até 30% da renda familiar bruta em determinadas operações. ${VIA_MANUAL}`,
@@ -486,14 +486,14 @@ export const REGRAS_PADRAO: VersaoRegras = {
       subsidioMax: oficial(0, 'CAIXA', CAIXA_NOVO, VERIFICADO_EM, 'Sem subsídio.'),
       sistemas: ['SAC', 'PRICE'],
       indexadorId: 'NONE',
-      fonte: 'CAIXA — Aquisição de imóvel novo',
+      fonte: 'CAIXA, Aquisição de imóvel novo',
       fonteUrl: CAIXA_NOVO,
     },
   ],
 
   seguros: {
     mipPorIdade: pendente<import('./seguros').FaixaMip[]>(
-      'A tábua do MIP por faixa etária é definida na APÓLICE da seguradora, não pela CAIXA. Sem ela, a prestação é apresentada SEM o seguro de morte e invalidez — e o resultado diz isso, em vez de somar um número que ninguém confirmou. Cadastre as faixas em Ajustes → Financiamento → Regras quando tiver a apólice.',
+      'A tábua do MIP por faixa etária é definida na APÓLICE da seguradora, não pela CAIXA. Sem ela, a prestação é apresentada SEM o seguro de morte e invalidez, e o resultado diz isso, em vez de somar um número que ninguém confirmou. Cadastre as faixas em Ajustes → Financiamento → Regras quando tiver a apólice.',
     ),
     dfiPctMensalSobreAvaliacao: pendente<number>(
       'A taxa do DFI (danos físicos ao imóvel) é definida na apólice e incide sobre o valor de avaliação. Sem ela, a prestação sai SEM o seguro do imóvel.',
@@ -506,7 +506,7 @@ export const REGRAS_PADRAO: VersaoRegras = {
   fgts: {
     permitidoNaEntrada: oficial(
       true,
-      'CAIXA — financiamento de imóveis',
+      'CAIXA, financiamento de imóveis',
       CAIXA_NOVO,
       VERIFICADO_EM,
       `O FGTS pode ser utilizado conforme as regras do Fundo. ${VIA_MANUAL}`,
@@ -520,15 +520,15 @@ export const REGRAS_PADRAO: VersaoRegras = {
   sfh: {
     limiteValorImovel: oficial(
       2250000,
-      'CAIXA — financiamento de imóveis',
+      'CAIXA, financiamento de imóveis',
       CAIXA_NOVO,
       VERIFICADO_EM,
       `Referência de enquadramento SFH/SFI: até este valor de avaliação a operação é SFH; acima, SFI. ${VIA_MANUAL}`,
     ),
   },
 
-  fonte: 'CAIXA — páginas oficiais de habitação',
+  fonte: 'CAIXA, páginas oficiais de habitação',
   fonteUrl: CAIXA_NOVO,
   notas:
-    'Versão semeada a partir do manual técnico do motor (consulta às páginas oficiais em 19/08/2026). Os parâmetros que dependem de apólice (MIP, DFI), de tarifa de contrato e de índices do Banco Central/IBGE continuam pendentes de validação — o motor não os inventa.',
+    'Versão semeada a partir do manual técnico do motor (consulta às páginas oficiais em 19/08/2026). Os parâmetros que dependem de apólice (MIP, DFI), de tarifa de contrato e de índices do Banco Central/IBGE continuam pendentes de validação, o motor não os inventa.',
 };

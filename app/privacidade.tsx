@@ -87,9 +87,7 @@ export default function PrivacyPolicyScreen() {
         <SubTitle>Do corretor, ao criar e usar a conta</SubTitle>
         <Bullet>Nome completo, e-mail e senha (ou login com sua conta Google ou Apple)</Bullet>
         <Bullet>Telefone, CNPJ e CPF, imobiliária e CRECI</Bullet>
-        <Bullet>
-          Estado (UF) onde atua — usado só para filtrar quais empreendimentos aparecem
-        </Bullet>
+        <Bullet>Estado (UF) onde atua, usado só para filtrar quais empreendimentos aparecem</Bullet>
         <Bullet>Foto de perfil, se você optar por enviar uma</Bullet>
 
         <SubTitle>Dos clientes do corretor, quando ele os cadastra</SubTitle>
@@ -107,10 +105,10 @@ export default function PrivacyPolicyScreen() {
           Arquivos enviados (material de venda, fotos de empresas e empreendimentos cadastrados)
         </Bullet>
         <Bullet>
-          <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app — criou
-          uma empresa, começou uma simulação, gerou uma proposta —, em que etapa, quanto tempo levou
-          e se deu certo. <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos
-          nome, CPF, telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde
+          <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app, criou uma
+          empresa, começou uma simulação, gerou uma proposta, em que etapa, quanto tempo levou e se
+          deu certo. <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos nome,
+          CPF, telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde
           guardá-los. Servem para descobrir onde o app está confuso ou quebrado.
         </Bullet>
         <Bullet>
@@ -152,8 +150,8 @@ export default function PrivacyPolicyScreen() {
         <Bullet>Processar e conciliar a cobrança da assinatura mensal</Bullet>
         <Bullet>
           Preencher automaticamente nome e CPF a partir da foto de um documento, quando você usa
-          essa opção — a foto é enviada para leitura e não fica guardada além do necessário para
-          essa leitura
+          essa opção, a foto é enviada para leitura e não fica guardada além do necessário para essa
+          leitura
         </Bullet>
         <Bullet>Dar suporte quando você entra em contato</Bullet>
         <Bullet>
@@ -168,25 +166,25 @@ export default function PrivacyPolicyScreen() {
           funcionar:
         </Paragraph>
         <Bullet>
-          <Bold>Supabase</Bold> — banco de dados, login e armazenamento de arquivos
+          <Bold>Supabase</Bold>, banco de dados, login e armazenamento de arquivos
         </Bullet>
         <Bullet>
-          <Bold>Stripe</Bold> — processamento de pagamento da assinatura
+          <Bold>Stripe</Bold>, processamento de pagamento da assinatura
         </Bullet>
         <Bullet>
-          <Bold>RevenueCat, Apple e Google</Bold> — processamento, restauração e conciliação das
+          <Bold>RevenueCat, Apple e Google</Bold>, processamento, restauração e conciliação das
           assinaturas feitas nas lojas de aplicativos
         </Bullet>
         <Bullet>
-          <Bold>Google</Bold> e <Bold>Apple</Bold> — login pela sua conta, quando você escolhe uma
+          <Bold>Google</Bold> e <Bold>Apple</Bold>, login pela sua conta, quando você escolhe uma
           dessas opções
         </Bullet>
         <Bullet>
-          <Bold>Anthropic (Claude)</Bold> — recebe, e somente quando você aciona cada recurso:
+          <Bold>Anthropic (Claude)</Bold>, recebe, e somente quando você aciona cada recurso:
           {'\n'}• a <Bold>foto do documento</Bold>, no leitor de CNH/RG;
           {'\n'}• o <Bold>texto digitado</Bold> da negociação, quando você envia uma análise à LIA;
-          {'\n'}• o <Bold>texto</Bold> do agendamento, junto de uma lista com os nomes dos
-          seus empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
+          {'\n'}• o <Bold>texto</Bold> do agendamento, junto de uma lista com os nomes dos seus
+          empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
           {'\n'}• o <Bold>texto de apoio</Bold> quando você pede um convite ou uma abordagem pronta.
           {'\n\n'}
           Segundo a política da Anthropic, o conteúdo enviado pela API pode ser mantido por{' '}
@@ -194,7 +192,7 @@ export default function PrivacyPolicyScreen() {
           não é usado para treinar modelos.
         </Bullet>
         <Bullet>
-          <Bold>Vercel</Bold> — hospedagem do site e do aplicativo
+          <Bold>Vercel</Bold>, hospedagem do site e do aplicativo
         </Bullet>
         <Paragraph>
           Exigimos de cada um desses prestadores proteção aos seus dados equivalente à descrita
@@ -207,12 +205,12 @@ export default function PrivacyPolicyScreen() {
           Enquanto sua conta estiver ativa. Se você excluir a conta pelo próprio app (Ajustes →
           Excluir conta), apagamos leads, simulações, vendas, comissões e arquivos enviados, e a
           assinatura Stripe é cancelada antes de a conta ser removida. Assinaturas administradas
-          pela Apple ou Google não são canceladas automaticamente com a exclusão da conta; a tela
-          de confirmação orienta o cancelamento na própria loja para evitar cobranças futuras.
-          Quando uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte. A
-          tela informa se o registro foi possível. Você pode tentar novamente ou falar com o
-          suporte; não há retomada automática em segundo plano. Se você entrou com a Apple, a
-          revogação dessa autorização faz parte do processo de exclusão.
+          pela Apple ou Google não são canceladas automaticamente com a exclusão da conta; a tela de
+          confirmação orienta o cancelamento na própria loja para evitar cobranças futuras. Quando
+          uma etapa falha, tentamos registrar o pedido para acompanhamento pelo suporte. A tela
+          informa se o registro foi possível. Você pode tentar novamente ou falar com o suporte; não
+          há retomada automática em segundo plano. Se você entrou com a Apple, a revogação dessa
+          autorização faz parte do processo de exclusão.
         </Paragraph>
         <Paragraph>
           Uma ressalva honesta sobre <Bold>backups</Bold>: nosso banco de dados mantém cópias de
@@ -227,13 +225,13 @@ export default function PrivacyPolicyScreen() {
         </Paragraph>
         <Paragraph>
           As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados dos
-          seus clientes — são eventos do aplicativo vinculados à sua conta. Elas são apagadas depois
+          seus clientes, são eventos do aplicativo vinculados à sua conta. Elas são apagadas depois
           de seis meses, e apagadas junto com a conta se você excluí-la.
         </Paragraph>
         <Paragraph>
           A assistente <Bold>LIA</Bold> funciona por texto e não acessa o microfone. O texto da
-          sessão é descartado ao encerrar, sem ser salvo como conversa nos servidores do POUP.
-          Ficam na sua conta as simulações e os agendamentos que você decidiu salvar.
+          sessão é descartado ao encerrar, sem ser salvo como conversa nos servidores do POUP. Ficam
+          na sua conta as simulações e os agendamentos que você decidiu salvar.
         </Paragraph>
         <Paragraph>
           O trecho de texto enviado para análise, porém, passa pela Anthropic, que tem retenção
@@ -253,15 +251,14 @@ export default function PrivacyPolicyScreen() {
         </Paragraph>
         <SubTitle>Revogar consentimentos já dados</SubTitle>
         <Bullet>
-          <Bold>LIA (web)</Bold>: cada abertura pede uma nova autorização. Em Ajustes → Privacidade,
-          “Encerrar autorizações de IA da LIA” interrompe a sessão e bloqueia novos envios.
-          Isso não recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos
-          salvos.
+          <Bold>LIA</Bold>: cada abertura pede uma nova autorização. Em Ajustes → Privacidade,
+          “Encerrar autorizações de IA da LIA” interrompe a sessão e bloqueia novos envios. Isso não
+          recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos salvos.
         </Bullet>
         <Bullet>
           <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê
           quando autorizou e pode desligar com um toque. Além disso, a autorização do titular é
-          pedida <Bold>a cada documento</Bold> — nenhuma foto é enviada sem que você confirme, na
+          pedida <Bold>a cada documento</Bold>, nenhuma foto é enviada sem que você confirme, na
           hora, que tem permissão daquela pessoa.
         </Bullet>
         <Bullet>
@@ -271,7 +268,7 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
         <Bullet>
           <Bold>Login com o Google</Bold>: quando você exclui a conta, o vínculo entre a sua conta
-          Google e o POUP deixa de existir do nosso lado — não guardamos nenhuma credencial do
+          Google e o POUP deixa de existir do nosso lado, não guardamos nenhuma credencial do
           Google, justamente para não reter mais dado do que o necessário. Por isso a autorização
           que aparece na sua conta Google só o Google pode apagar: acesse{' '}
           <Bold>myaccount.google.com/permissions</Bold>, escolha <Bold>POUP</Bold> e toque em{' '}

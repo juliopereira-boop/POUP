@@ -211,14 +211,14 @@ function buildPrompt(input: {
     'Escreva UMA mensagem chamando a ferramenta gerar_pitch. Destaque os diferenciais do imóvel a partir da descrição fornecida, crie desejo, e SEMPRE termine convidando a pessoa a (a) conhecer o imóvel pessoalmente e (b) fazer uma análise de crédito sem compromisso.',
     'Tom humano e brasileiro, no máximo 3 emojis, sem promessas falsas, sem juridiquês, sem exageros. Máximo ~600 caracteres, com quebras de linha para facilitar a leitura no WhatsApp.',
   ];
-  if (input.brokerName) parts.push(`Você é ${input.brokerName} — pode se apresentar pelo primeiro nome.`);
+  if (input.brokerName) parts.push(`Você é ${input.brokerName}. Pode se apresentar pelo primeiro nome.`);
   if (input.companyName) parts.push(`Construtora/empresa: ${input.companyName}.`);
   if (input.developmentName) parts.push(`Empreendimento: "${input.developmentName}".`);
   if (input.descricao) {
     parts.push(`Descrição do empreendimento (use os diferenciais daqui): ${input.descricao}.`);
   } else {
     parts.push(
-      'Sem descrição detalhada — faça uma mensagem acolhedora sobre a oportunidade de conquistar o imóvel próprio.',
+      'Sem descrição detalhada. Faça uma mensagem acolhedora sobre a oportunidade de conquistar o imóvel próprio.',
     );
   }
   return parts.join('\n');

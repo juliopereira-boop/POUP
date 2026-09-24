@@ -188,7 +188,7 @@ export default function SimularFinanciamento() {
       <Screen>
         <Text style={styles.secaoTitulo}>Escolha o banco</Text>
         <Text style={styles.secaoNota}>
-          As condições daquele banco entram sozinhas — você preenche só o essencial.
+          As condições daquele banco entram sozinhas, você preenche só o essencial.
         </Text>
         <View style={styles.bancoLista}>
           {[...BANCOS]
@@ -244,7 +244,7 @@ export default function SimularFinanciamento() {
               </Text>
               {resultado.primeira?.parcial ? (
                 <Text style={styles.painelNota}>
-                  Encargo principal apenas — seguros e tarifa não estão cadastrados.
+                  Encargo principal apenas, seguros e tarifa não estão cadastrados.
                 </Text>
               ) : null}
             </View>
@@ -325,7 +325,7 @@ export default function SimularFinanciamento() {
 
         Ela é o resultado da conta, não um dado da pergunta: o banco empresta
         até X, e o que sobra é a poupança que a construtora parcela. O campo
-        existe para o caso em que o cliente QUER dar mais que o mínimo — aí o
+        existe para o caso em que o cliente QUER dar mais que o mínimo, aí o
         financiamento encolhe na mesma medida, e a tela mostra isso na hora.
       */}
       <Input
@@ -343,7 +343,7 @@ export default function SimularFinanciamento() {
         {resultado
           ? resultado.entradaAutomatica
             ? `Deixando vazio, o simulador calcula: o banco financia ${formatarBRL(resultado.valorFinanciado)} e sobram ${formatarBRL(resultado.entradaCalculada)} de poupança para a construtora parcelar. Preencha só se o cliente quiser dar mais que isso.`
-            : `Entrada informada. Sem ela, o banco financiaria mais e a poupança seria menor — apague o campo para ver o cálculo automático.`
+            : `Entrada informada. Sem ela, o banco financiaria mais e a poupança seria menor, apague o campo para ver o cálculo automático.`
           : 'Deixe vazio: o simulador calcula quanto o banco financia e quanto sobra de poupança.'}
       </Text>
 
@@ -362,7 +362,7 @@ export default function SimularFinanciamento() {
             {/*
               A faixa aparece no instante em que a renda é digitada, embaixo do
               próprio campo. É a informação que o corretor mais quer nessa hora
-              — e ele não deveria precisar cruzar tabela na cabeça para saber a
+             , e ele não deveria precisar cruzar tabela na cabeça para saber a
               que o cliente tem direito.
             */}
             {faixaDaRenda ? (
@@ -418,7 +418,7 @@ export default function SimularFinanciamento() {
         <>
           <View style={styles.destaque}>
             <Text style={styles.destaqueTexto}>
-              Informe a condição que o correspondente bancário aprovou para este cliente — é ela que
+              Informe a condição que o correspondente bancário aprovou para este cliente, é ela que
               vale, e não a tabela genérica do site.
             </Text>
           </View>
@@ -590,7 +590,7 @@ export default function SimularFinanciamento() {
             keyboardType="numeric"
           />
           <Text style={styles.ajuda}>
-            O banco financia sobre o MENOR entre o preço de venda e a avaliação — e a avaliação
+            O banco financia sobre o MENOR entre o preço de venda e a avaliação, e a avaliação
             costuma vir abaixo do negociado. O seguro do imóvel (DFI) também incide sobre ela.
           </Text>
 
@@ -721,7 +721,7 @@ export default function SimularFinanciamento() {
             Linha, comprometimento, carência e cenário de indexador saem da
             versão de regras publicada pelo administrador, com fonte e
             auditoria. Deixá-los editáveis aqui permitiria ao corretor
-            apresentar como condição do banco um número que ele mesmo digitou —
+            apresentar como condição do banco um número que ele mesmo digitou :
             que é exatamente o que a versão de regras existe para impedir.
             
             Quem vê estes campos: o administrador, em qualquer banco, e o
@@ -805,7 +805,7 @@ export default function SimularFinanciamento() {
               <Text style={styles.ajuda}>
                 {indexadorAtual.nome} é divulgado por fonte externa e ninguém sabe o valor futuro.
                 Escolher um cenário aqui marca o resultado inteiro como{' '}
-                <Text style={styles.forte}>projeção</Text> — inclusive no PDF.
+                <Text style={styles.forte}>projeção</Text>, inclusive no PDF.
               </Text>
             </>
           ) : null}

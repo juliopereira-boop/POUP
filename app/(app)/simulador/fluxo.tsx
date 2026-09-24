@@ -143,7 +143,7 @@ export default function SimuladorFluxo() {
           resultado: 'erro',
           refId: result.data.id,
         });
-        setError(`${printError} A simulação foi salva em Relatórios — dá para gerar o PDF por lá.`);
+        setError(`${printError} A simulação foi salva em Relatórios, dá para gerar o PDF por lá.`);
         return;
       }
 

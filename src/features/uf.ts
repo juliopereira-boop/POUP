@@ -26,7 +26,7 @@ const NOMES: Record<UF, string> = {
 /** Opções para o `Select`, em ordem alfabética de NOME (é como se procura). */
 export const UF_OPTIONS: { value: string; label: string }[] = UFS.map((uf) => ({
   value: uf,
-  label: `${uf} — ${NOMES[uf]}`,
+  label: `${uf}, ${NOMES[uf]}`,
 })).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
 /** `'ma'` -> `'MA'`. `null` quando não é uma UF válida. */
@@ -37,7 +37,7 @@ export function normalizeUF(value: string | null | undefined): string | null {
 
 export function ufLabel(value: string | null | undefined): string {
   const uf = normalizeUF(value);
-  return uf ? `${uf} — ${NOMES[uf as UF]}` : '—';
+  return uf ? `${uf}, ${NOMES[uf as UF]}` : 'Não informado';
 }
 
 /**

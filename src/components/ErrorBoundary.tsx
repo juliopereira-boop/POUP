@@ -94,7 +94,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <Text style={estilos.titulo}>Esta tela travou</Text>
           <Text style={estilos.texto}>
             Alguma coisa quebrou{onde} e o POUP preferiu avisar em vez de sumir com a tela. Seus
-            dados estão salvos — nada foi perdido.
+            dados estão salvos, nada foi perdido.
           </Text>
 
           <View style={estilos.caixa}>
@@ -128,7 +128,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </Pressable>
 
           <Text style={estilos.rodape}>
-            Se acontecer de novo, mande um print desta tela para o suporte — a mensagem acima diz
+            Se acontecer de novo, mande um print desta tela para o suporte, a mensagem acima diz
             exatamente onde consertar.
           </Text>
         </ScrollView>

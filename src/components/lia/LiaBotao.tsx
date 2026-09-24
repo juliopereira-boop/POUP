@@ -21,20 +21,20 @@ const FUNCIONALIDADES: Funcionalidade[] = [
   {
     chave: 'simulacao',
     titulo: 'Simulação de poupança',
-    descricao: 'A LIA ouve a negociação e preenche a simulação sozinha.',
-    emoji: '🎧',
+    descricao: 'Digite os dados da negociação e a LIA preenche a simulação.',
+    emoji: '💬',
   },
   {
     chave: 'material',
     titulo: 'Material de venda',
-    descricao: 'Diga o empreendimento e a pasta. Ela acha a mídia.',
+    descricao: 'Digite o empreendimento e a pasta. A LIA encontra a mídia.',
     emoji: '🖼️',
   },
   {
     chave: 'agenda',
 
     titulo: 'Agendar compromisso',
-    descricao: 'Diga o dia, a hora e o que é. Ela marca no calendário.',
+    descricao: 'Digite o dia, a hora e o compromisso. A LIA marca no calendário.',
     emoji: '📅',
   },
 ];

@@ -64,12 +64,12 @@ function brl(n: number): string {
 }
 
 function pct(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return 'Não informado';
   return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
 
 function dias(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return 'Não informado';
   const v = Math.round(n);
   return `${v} ${v === 1 ? 'dia' : 'dias'}`;
 }

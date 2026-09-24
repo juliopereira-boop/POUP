@@ -10,12 +10,9 @@
  * App Store, e os três eram a mesma classe de erro: **o app das lojas mostrava
  * algo que não podia mostrar**.
  *
- *   * a LIA aparecia e dizia "Ainda não neste aplicativo" (regras 2.1 e 2.3 —
- *     recurso incompleto e metadado que não corresponde ao produto);
  *   * dava para criar conta e começar um teste grátis, num app cuja assinatura
  *     é vendida fora (regra 3.1.1);
- *   * o paywall listava a LIA como parte do plano Pro num binário que não a
- *     entrega.
+ *   * o checkout web não pode aparecer no aplicativo nativo.
  *
  * Todos os três se resolvem com uma constante em `features/store.ts`. E é
  * justamente por serem uma constante que precisam de teste: são três linhas
@@ -91,18 +88,18 @@ function secao(t) {
   checar('é build de loja', s.isStoreBuild === true);
   checar('cobrança nativa liberada (3.1.1)', s.canShowBilling === true);
   checar('usa In-App Purchase', s.usesNativeBilling === true);
-  checar('LIA escondida (2.1 / 2.3)', s.liaDisponivel === false);
+  checar('LIA digitada disponível no iOS', s.liaDisponivel === true);
   checar('formulário de cadastro fica na web por decisão de produto', s.podeCriarConta === false);
 
-  // O paywall não pode ANUNCIAR o que aquele binário não entrega.
+  // O paywall anuncia a LIA porque o mesmo fluxo por texto existe no binário.
   const p = plans('1', 'ios');
   checar(
-    'a LIA some da lista exibida',
-    p.PLAN_FEATURES_VISIVEIS.every((f) => f.key !== 'lia'),
+    'a LIA aparece na lista exibida',
+    p.PLAN_FEATURES_VISIVEIS.some((f) => f.key === 'lia'),
   );
   checar(
-    'o Pro não lista a LIA no app das lojas',
-    p.PLANS.pro.features.every((f) => f.key !== 'lia'),
+    'o Pro lista a LIA no app das lojas',
+    p.PLANS.pro.features.some((f) => f.key === 'lia' && f.included),
   );
   // Mas o DIREITO continua: quem paga o Pro tem a LIA na web.
   checar('o direito à LIA continua valendo', p.canUse('lia', 'pro') === true);
@@ -118,11 +115,11 @@ function secao(t) {
   for (const os of ['ios', 'android']) {
     const s = store('', os);
     checar(`${os}: tratado como loja`, s.isStoreBuild === true);
-    checar(`${os}: LIA escondida`, s.liaDisponivel === false);
+    checar(`${os}: LIA digitada disponível`, s.liaDisponivel === true);
     checar(`${os}: cadastro bloqueado`, s.podeCriarConta === false);
     const disabledFlag = store('0', os);
     checar(`${os}: cobrança nativa continua pela loja`, disabledFlag.canShowBilling === true);
-    checar(`${os}: flag não libera LIA nativa`, disabledFlag.liaDisponivel === false);
+    checar(`${os}: LIA independe da flag`, disabledFlag.liaDisponivel === true);
   }
 }
 
@@ -151,7 +148,7 @@ function secao(t) {
 
   const s = store('1', 'web');
   checar('a flag vence a plataforma', s.isStoreBuild === true);
-  checar('LIA escondida', s.liaDisponivel === false);
+  checar('LIA disponível na simulação web da loja', s.liaDisponivel === true);
   checar('cadastro bloqueado', s.podeCriarConta === false);
   checar('cobrança escondida', s.canShowBilling === false);
 

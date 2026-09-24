@@ -77,15 +77,9 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
 /**
  * A lista que a TELA mostra — que não é a mesma que decide o acesso.
  *
- * `PLAN_FEATURES` é a fonte da verdade do que cada plano libera, e não muda
- * por plataforma: quem assina o Pro tem direito à LIA, esteja no navegador ou
- * no celular. Mas o app das lojas não a exibe (não há transcrição nativa — ver
- * `liaDisponivel`), e anunciar num paywall um recurso que aquele binário não
- * entrega é exatamente o que a regra 2.3 da App Store proíbe.
- *
- * Por isso a separação: uma lista decide o direito, a outra decide o que se
- * promete. Misturar as duas faria o corretor perder acesso ao que pagou, ou
- * faria o app prometer o que não cumpre.
+ * `PLAN_FEATURES` é a fonte da verdade do que cada plano libera. A filtragem
+ * continua aqui para que uma indisponibilidade futura por plataforma também
+ * seja refletida imediatamente na oferta exibida ao cliente.
  */
 export const PLAN_FEATURES_VISIVEIS: readonly PlanFeature[] = PLAN_FEATURES.filter(
   (f) => f.key !== 'lia' || liaDisponivel,

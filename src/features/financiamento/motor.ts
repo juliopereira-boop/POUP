@@ -191,7 +191,7 @@ export const STATUS_ROTULO: Record<StatusCalculo, string> = {
   OFICIAL: 'Condições oficiais cadastradas',
   ESTIMADO: 'Estimativa calculada',
   INFORMADO: 'Condição informada pelo corretor',
-  PROJECAO: 'Projeção — cenário hipotético',
+  PROJECAO: 'Projeção, cenário hipotético',
   SEM_CORRECAO: 'Calculada sem a correção monetária',
   REQUER_VALIDACAO: 'Requer validação da instituição',
 };
@@ -373,7 +373,7 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
   const valorBase = menor(entrada.valorImovel, avaliacao);
   if (entrada.valorAvaliacao <= 0) {
     avisos.push(
-      'Sem o valor de avaliação, a conta usa o preço de venda. A avaliação do banco costuma vir abaixo do preço negociado — e é ela que limita o financiamento.',
+      'Sem o valor de avaliação, a conta usa o preço de venda. A avaliação do banco costuma vir abaixo do preço negociado, e é ela que limita o financiamento.',
     );
   } else if (avaliacao < entrada.valorImovel) {
     avisos.push(
@@ -523,7 +523,7 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
 
      ESTE É O NÚMERO QUE O CORRETOR VEIO BUSCAR.
 
-     O que o banco não cobre é o que o cliente paga com recursos próprios — e,
+     O que o banco não cobre é o que o cliente paga com recursos próprios, e,
      numa venda de construtora, é exatamente a poupança que ela vai parcelar em
      ato, mensais, semestrais e anuais. Ele sai por subtração, e não por
      pergunta. */
@@ -580,18 +580,18 @@ export function simular(entrada: EntradaSimulacao, regras: VersaoRegras): SaidaS
   registrarAcessoriosPendentes(regras, naoCalculados);
   if (crono.primeira?.parcial) {
     avisos.push(
-      'A prestação mostrada é o encargo principal (amortização + juros). Os seguros e a tarifa não estão cadastrados e não foram somados — a prestação real será maior.',
+      'A prestação mostrada é o encargo principal (amortização + juros). Os seguros e a tarifa não estão cadastrados e não foram somados, a prestação real será maior.',
     );
   }
 
   passo(
     '1ª prestação',
-    crono.primeira ? formatarBRL(crono.primeira.prestacaoTotal) : '—',
+    crono.primeira ? formatarBRL(crono.primeira.prestacaoTotal) : 'Não informado',
     crono.primeira
       ? `amortização ${formatarBRL(crono.primeira.amortizacao)} + juros ${formatarBRL(crono.primeira.juros)}${crono.primeira.mip !== null ? ` + MIP ${formatarBRL(crono.primeira.mip)}` : ''}${crono.primeira.dfi !== null ? ` + DFI ${formatarBRL(crono.primeira.dfi)}` : ''}${crono.primeira.tarifa !== null ? ` + tarifa ${formatarBRL(crono.primeira.tarifa)}` : ''}`
       : '',
   );
-  passo('Última prestação', crono.ultima ? formatarBRL(crono.ultima.prestacaoTotal) : '—');
+  passo('Última prestação', crono.ultima ? formatarBRL(crono.ultima.prestacaoTotal) : 'Não informado');
   passo('Total de juros', formatarBRL(crono.totalJuros));
   passo(
     'Total pago',
@@ -974,18 +974,18 @@ function montarComponentes(
   const tarifaIncluida = primeira?.tarifa !== null && primeira?.tarifa !== undefined;
 
   if (mipIncluido) incluidos.push('MIP (morte e invalidez)');
-  else naoIncluidos.push('MIP — a tábua de taxas por faixa etária não está cadastrada');
+  else naoIncluidos.push('MIP, a tábua de taxas por faixa etária não está cadastrada');
 
   if (dfiIncluido) incluidos.push('DFI (danos ao imóvel)');
-  else naoIncluidos.push('DFI — a taxa da apólice não está cadastrada');
+  else naoIncluidos.push('DFI, a taxa da apólice não está cadastrada');
 
   if (tarifaIncluida) incluidos.push('Tarifa de administração');
-  else naoIncluidos.push('Tarifa de administração — não está cadastrada');
+  else naoIncluidos.push('Tarifa de administração, não está cadastrada');
 
   const correcaoAplicada = usaIndexador && correcao.origem !== 'sem_correcao';
   if (usaIndexador) {
     if (correcaoAplicada) incluidos.push(`Correção por ${nomeIndexador ?? 'índice'}`);
-    else naoIncluidos.push(`Correção por ${nomeIndexador ?? 'índice'} — o índice não está cadastrado`);
+    else naoIncluidos.push(`Correção por ${nomeIndexador ?? 'índice'}, o índice não está cadastrado`);
   }
 
   return { incluidos, naoIncluidos, mipIncluido, dfiIncluido, tarifaIncluida, correcaoAplicada };
@@ -1025,7 +1025,7 @@ function classificarStatus(
  * do cliente.
  */
 export const AVISO_LEGAL =
-  'Simulação estimada, gerada pelo POUP a partir dos dados informados. Não é proposta de crédito nem garantia de aprovação. As condições finais — taxa, prazo, seguros, tarifas e enquadramento — dependem de análise de crédito e de avaliação do imóvel pela instituição financeira.';
+  'Simulação estimada, gerada pelo POUP a partir dos dados informados. Não é proposta de crédito nem garantia de aprovação. As condições finais, taxa, prazo, seguros, tarifas e enquadramento, dependem de análise de crédito e de avaliação do imóvel pela instituição financeira.';
 
 export function resumoDaSimulacao(r: ResultadoSimulacao): string {
   return `${formatarBRL(r.valorFinanciado)} em ${formatarPrazo(r.prazoMeses)} · ${r.sistema} · 1ª de ${formatarBRL(r.primeira?.prestacaoTotal ?? ZERO)}`;

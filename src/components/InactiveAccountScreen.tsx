@@ -19,14 +19,15 @@
  * Conferir de novo, sair da conta, acessar suporte/privacidade e excluir a
  * conta. A gestão essencial nunca depende de uma assinatura ativa.
  */
-import { Text, View, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Modal, Text, View, StyleSheet } from 'react-native';
 
 import { Button } from './Button';
 import { AccountActions } from './AccountActions';
 import { Logo } from './Logo';
 import { Screen } from './Screen';
 import { useThemedStyles } from '@/providers/ThemeProvider';
-import { spacing, typography, type AppColors } from '@/theme';
+import { radius, spacing, typography, type AppColors } from '@/theme';
 
 interface InactiveAccountScreenProps {
   /** Recarrega a assinatura do servidor. */
@@ -44,6 +45,7 @@ export function InactiveAccountScreen({
   trialExpired,
 }: InactiveAccountScreenProps) {
   const styles = useThemedStyles(makeStyles);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   return (
     <Screen center>
@@ -57,16 +59,41 @@ export function InactiveAccountScreen({
           aqui.
         </Text>
         <Text style={styles.hint}>
-          Se você acabou de resolver isso, toque em conferir de novo — pode levar alguns instantes
+          Se você acabou de resolver isso, toque em conferir de novo, pode levar alguns instantes
           para aparecer.
         </Text>
 
         <View style={styles.actions}>
           <Button label="Conferir de novo" onPress={onCheckAgain} loading={checking} />
-          <Button label="Sair da conta" variant="secondary" onPress={onSignOut} />
+          <Button
+            label="Sair da conta"
+            variant="secondary"
+            onPress={() => setConfirmingSignOut(true)}
+          />
           <AccountActions />
         </View>
       </View>
+      <Modal
+        visible={confirmingSignOut}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmingSignOut(false)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.dialog} accessibilityRole="alert">
+            <Text style={styles.dialogTitle}>Sair da conta?</Text>
+            <Text style={styles.dialogText}>
+              Você precisará entrar novamente para acessar o POUP neste dispositivo.
+            </Text>
+            <Button label="Sim, sair" variant="danger" onPress={onSignOut} />
+            <Button
+              label="Continuar conectado"
+              variant="secondary"
+              onPress={() => setConfirmingSignOut(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -83,4 +110,21 @@ const makeStyles = (colors: AppColors) =>
     text: { ...typography.body, color: colors.inkMuted, textAlign: 'center' },
     hint: { ...typography.caption, color: colors.inkSubtle, textAlign: 'center' },
     actions: { alignSelf: 'stretch', gap: spacing.md, marginTop: spacing.lg },
+    backdrop: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    dialog: {
+      width: '100%',
+      maxWidth: 440,
+      gap: spacing.md,
+      padding: spacing.xl,
+      borderRadius: radius.xl,
+      backgroundColor: colors.surface,
+    },
+    dialogTitle: { ...typography.heading, color: colors.ink },
+    dialogText: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.sm },
   });

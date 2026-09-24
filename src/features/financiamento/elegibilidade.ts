@@ -109,7 +109,7 @@ export function verificarElegibilidade(e: EntradaElegibilidade): ResultadoElegib
       'financiado',
       'Valor a financiar',
       'reprova',
-      'A entrada, o FGTS e o subsídio já cobrem o imóvel inteiro — não sobra nada para financiar.',
+      'A entrada, o FGTS e o subsídio já cobrem o imóvel inteiro, não sobra nada para financiar.',
     );
   }
 
@@ -353,7 +353,7 @@ export function verificarElegibilidade(e: EntradaElegibilidade): ResultadoElegib
         'reprova',
         prazoPossivel > 0
           ? `O proponente mais velho tem ${e.idadeMaisAlta} anos: idade mais prazo dá ${somado.toFixed(1)}, e o limite é ${idadeMax}. O prazo máximo para essa idade seria ${formatarPrazo(prazoPossivel)}.`
-          : `O proponente mais velho tem ${e.idadeMaisAlta} anos, e idade mais prazo dá ${somado.toFixed(1)} — acima do limite de ${idadeMax}.`,
+          : `O proponente mais velho tem ${e.idadeMaisAlta} anos, e idade mais prazo dá ${somado.toFixed(1)}, acima do limite de ${idadeMax}.`,
       );
     } else {
       add(

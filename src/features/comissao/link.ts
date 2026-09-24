@@ -71,11 +71,11 @@ export async function ensureCommissionForSale(
 function describe(raw: string): string {
   const text = (raw ?? '').trim();
   if (/does not exist|could not find the table|schema cache|PGRST205|42P01/i.test(text)) {
-    console.error('[comissao] tabela ausente — conferir a migration 0023_commissions.sql:', text);
+    console.error('[comissao] tabela ausente, conferir a migration 0023_commissions.sql:', text);
     return 'O controle de comissão está indisponível no momento. A venda foi salva; tente lançar a comissão mais tarde.';
   }
   if (/row-level security|permission denied|42501/i.test(text)) {
-    console.error('[comissao] RLS bloqueou a gravação — conferir políticas da 0023:', text);
+    console.error('[comissao] RLS bloqueou a gravação, conferir políticas da 0023:', text);
     return 'Sem permissão para lançar a comissão desta venda. A venda em si foi salva normalmente.';
   }
   return friendlyError(text) || 'Não foi possível lançar a comissão desta venda.';

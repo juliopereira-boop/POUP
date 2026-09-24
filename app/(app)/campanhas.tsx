@@ -144,7 +144,7 @@ export default function CampanhasScreen() {
     <Screen>
       <Text style={styles.intro}>
         Campanha de lançamento: enquanto ela estiver ativa, toda conta que ainda não usou o teste
-        (inclusive login com Google) ganha um período de teste gratuito — as contas novas no
+        (inclusive login com Google) ganha um período de teste gratuito, as contas novas no
         primeiro acesso, e as que já existiam assim que abrirem o app. Quando o prazo termina, o
         acesso trava e o corretor vai para a tela de assinatura.
       </Text>
@@ -169,7 +169,7 @@ export default function CampanhasScreen() {
           <Text style={styles.metaLabel}>Em teste agora</Text>
           <Text style={styles.metaValue}>
             {activeTrials == null
-              ? '—'
+              ? 'Não informado'
               : `${activeTrials} ${activeTrials === 1 ? 'conta' : 'contas'}`}
           </Text>
         </View>
@@ -223,7 +223,7 @@ export default function CampanhasScreen() {
         <View style={styles.actions}>
           <Button label="Ativar campanha" onPress={activate} loading={saving} />
           <Text style={styles.hint}>
-            Ao ativar, a contagem começa no primeiro acesso de cada conta — contas que já existiam
+            Ao ativar, a contagem começa no primeiro acesso de cada conta, contas que já existiam
             e nunca usaram o teste também recebem, assim que abrirem o app. Ninguém ganha um
             segundo teste, e quem já assina não é afetado. Mudar a quantidade de dias depois não
             altera o prazo de quem já está em teste.

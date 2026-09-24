@@ -42,7 +42,7 @@ import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
 function brl(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return 'Não informado';
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
@@ -160,7 +160,7 @@ export default function HistoricoFinanciamento() {
               <Numero rotulo="1ª parcela" valor={brl(sim.firstInstallment)} />
               <Numero
                 rotulo="Prazo"
-                valor={sim.termMonths ? `${sim.termMonths}x ${sim.amortization ?? ''}` : '—'}
+                valor={sim.termMonths ? `${sim.termMonths}x ${sim.amortization ?? ''}` : 'Não informado'}
               />
             </View>
 

@@ -304,7 +304,7 @@ export default function WorkflowScreen() {
                 />
                 <Text style={styles.automationHint}>
                   O lead entra aqui automaticamente quando um agendamento é criado para ele. Apenas
-                  uma etapa pode ter esta marcação — ao marcar aqui, ela sai da etapa anterior.
+                  uma etapa pode ter esta marcação, ao marcar aqui, ela sai da etapa anterior.
                 </Text>
               </View>
               <View style={styles.automationBlock}>
@@ -318,7 +318,7 @@ export default function WorkflowScreen() {
                 />
                 <Text style={styles.automationHint}>
                   O lead entra aqui automaticamente quando uma simulação é feita para ele. Apenas
-                  uma etapa pode ter esta marcação — ao marcar aqui, ela sai da etapa anterior.
+                  uma etapa pode ter esta marcação, ao marcar aqui, ela sai da etapa anterior.
                 </Text>
               </View>
             </ScrollView>

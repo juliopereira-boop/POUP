@@ -14,10 +14,11 @@
  *    principal. Esses dados são necessários para EMITIR PROPOSTA, não para
  *    abrir o app.
  *
- * Por isso o "Preencher depois": o pedido continua aparecendo a cada abertura
+ * Por isso o "Preencher depois": o pedido reaparece depois de três dias
  * enquanto o cadastro estiver incompleto, mas nunca tranca a porta.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
@@ -27,12 +28,14 @@ import { registrar } from '@/features/analytics/eventos';
 import { UF_OPTIONS } from '@/features/uf';
 import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
 
 export function OnboardingModal() {
   const styles = useThemedStyles(makeStyles);
   const { needsOnboarding, profile, updateProfile } = useProfile();
+  const { user } = useAuth();
 
   const [fullName, setFullName] = useState(profile?.fullName ?? '');
   const [agency, setAgency] = useState(profile?.agency ?? '');
@@ -42,8 +45,33 @@ export function OnboardingModal() {
   const [uf, setUf] = useState<string | null>(profile?.uf ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Adiado nesta sessão. Volta a aparecer na próxima abertura do app. */
   const [adiado, setAdiado] = useState(false);
+  const [adiamentoCarregado, setAdiamentoCarregado] = useState(false);
+  const chaveAdiamento = user ? `poup:onboarding-postponed:${user.id}` : null;
+
+  useEffect(() => {
+    let ativo = true;
+    setAdiamentoCarregado(false);
+    setAdiado(false);
+    if (!chaveAdiamento) {
+      setAdiamentoCarregado(true);
+      return () => {
+        ativo = false;
+      };
+    }
+    void AsyncStorage.getItem(chaveAdiamento)
+      .then((valor) => {
+        if (!ativo) return;
+        const ate = valor ? Number(valor) : 0;
+        setAdiado(Number.isFinite(ate) && ate > Date.now());
+      })
+      .finally(() => {
+        if (ativo) setAdiamentoCarregado(true);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [chaveAdiamento]);
 
   async function save() {
     setError(null);
@@ -76,6 +104,7 @@ export function OnboardingModal() {
      * produto está instalado; a partir daqui, está usável.
      */
     registrar('onboarding_completed', { resultado: 'ok' });
+    if (chaveAdiamento) await AsyncStorage.removeItem(chaveAdiamento).catch(() => undefined);
   }
 
   /**
@@ -87,11 +116,15 @@ export function OnboardingModal() {
   function adiar() {
     registrar('onboarding_completed', { etapa: 'adiado', resultado: 'cancelado' });
     setAdiado(true);
+    if (chaveAdiamento) {
+      const tresDias = Date.now() + 3 * 24 * 60 * 60 * 1000;
+      void AsyncStorage.setItem(chaveAdiamento, String(tresDias));
+    }
   }
 
   return (
     <Modal
-      visible={needsOnboarding && !adiado}
+      visible={adiamentoCarregado && needsOnboarding && !adiado}
       animationType="slide"
       transparent
       onRequestClose={adiar}
@@ -101,12 +134,19 @@ export function OnboardingModal() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.title}>Complete seu cadastro</Text>
             <Text style={styles.subtitle}>
-              Precisamos de alguns dados para personalizar suas simulações e propostas. Seu CPF identifica sua conta.
+              Precisamos de alguns dados para personalizar suas simulações e propostas. Seu CPF
+              identifica sua conta.
             </Text>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
+            <Input
+              label="Nome completo"
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Seu nome"
+              autoCapitalize="words"
+            />
             <Input
               label="Seu CPF"
               value={cpf}
@@ -114,9 +154,26 @@ export function OnboardingModal() {
               placeholder="000.000.000-00"
               keyboardType="numbers-and-punctuation"
             />
-            <Input label="Imobiliária (opcional)" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária, se houver" />
-            <Input label="CNPJ (opcional)" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
-            <Input label="Telefone" value={phone} onChangeText={(t) => setPhone(formatPhone(t))} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
+            <Input
+              label="Imobiliária (opcional)"
+              value={agency}
+              onChangeText={setAgency}
+              placeholder="Nome da imobiliária, se houver"
+            />
+            <Input
+              label="CNPJ (opcional)"
+              value={cnpj}
+              onChangeText={(t) => setCnpj(formatCNPJ(t))}
+              placeholder="00.000.000/0000-00"
+              keyboardType="numbers-and-punctuation"
+            />
+            <Input
+              label="Telefone"
+              value={phone}
+              onChangeText={(t) => setPhone(formatPhone(t))}
+              placeholder="(00) 00000-0000"
+              keyboardType="phone-pad"
+            />
             <Select
               label="Estado onde você atua"
               placeholder="Selecione seu estado"
@@ -134,16 +191,11 @@ export function OnboardingModal() {
             </Text>
 
             <Button label="Salvar e continuar" onPress={save} loading={saving} style={styles.cta} />
-            <Button
-              label="Preencher depois"
-              variant="ghost"
-              onPress={adiar}
-              disabled={saving}
-            />
+            <Button label="Preencher depois" variant="ghost" onPress={adiar} disabled={saving} />
             <Text style={styles.hint}>
               Você consegue usar o app sem isso. Só precisamos desses dados na hora de gerar uma
-              proposta em PDF — dá para preencher em Ajustes → Editar perfil. Imobiliária e CNPJ
-              são opcionais, inclusive para emitir propostas.
+              proposta em PDF, dá para preencher em Ajustes → Editar perfil. Imobiliária e CNPJ são
+              opcionais, inclusive para emitir propostas.
             </Text>
           </ScrollView>
         </View>
@@ -169,7 +221,12 @@ const makeStyles = (colors: AppColors) =>
       borderTopRightRadius: radius.xl,
       padding: spacing.xl,
     },
-    hint: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.sm, marginBottom: spacing.md },
+    hint: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.md,
+    },
     title: { ...typography.title, color: colors.primary, marginBottom: spacing.xs },
     subtitle: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.xl },
     cta: { marginTop: spacing.sm, marginBottom: spacing.lg },

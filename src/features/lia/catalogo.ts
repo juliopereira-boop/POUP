@@ -71,7 +71,7 @@ export function resolverDoCatalogo(nomeDito: string, itens: ItemCatalogo[]): Res
 
   if (ambiguos.length > 1) {
     const nomes = ambiguos.map((i) => i.nome).join(', ');
-    return { id: null, aviso: `"${dito}" pode ser ${nomes}. Diga o nome completo.` };
+    return { id: null, aviso: `"${dito}" pode ser ${nomes}. Digite o nome completo.` };
   }
 
   return { id: null, aviso: `Não achei "${dito}" no seu cadastro.` };

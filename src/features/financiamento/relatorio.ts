@@ -137,7 +137,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
       <tr><th>DFI (danos ao imóvel)</th><td>${money(pri?.dfi ?? null)}</td></tr>
       <tr><th>Tarifa de administração</th><td>${money(pri?.tarifa ?? null)}</td></tr>
       <tr class="tot"><th>Prestação total</th><td>${money(pri?.prestacaoTotal ?? null)}${
-        pri?.parcial ? ' <i>(parcial — faltam encargos não cadastrados)</i>' : ''
+        pri?.parcial ? ' <i>(parcial, faltam encargos não cadastrados)</i>' : ''
       }</td></tr>
     </table>`;
 
@@ -157,7 +157,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   const naoCalculados = r.naoCalculados.length
     ? `<h2>O que não foi calculado</h2>
        <ul class="nc">
-         ${r.naoCalculados.map((n) => `<li><b>${esc(n.o_que)}</b> — ${esc(n.motivo)}</li>`).join('')}
+         ${r.naoCalculados.map((n) => `<li><b>${esc(n.o_que)}</b>, ${esc(n.motivo)}</li>`).join('')}
        </ul>`
     : '';
 
@@ -239,10 +239,10 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
 
   <h2>Identificação</h2>
   <div class="ident">
-    <div><b>Cliente:</b> ${esc(ctx.clienteNome) || '—'}</div>
+    <div><b>Cliente:</b> ${esc(ctx.clienteNome) || 'Não informado'}</div>
     <div><b>Operação:</b> ${esc(OPERACAO_ROTULO[ctx.operacao])}</div>
-    <div><b>Imóvel:</b> ${esc(imovel) || '—'}</div>
-    <div><b>Construtora:</b> ${esc(ctx.empresaNome) || '—'}</div>
+    <div><b>Imóvel:</b> ${esc(imovel) || 'Não informado'}</div>
+    <div><b>Construtora:</b> ${esc(ctx.empresaNome) || 'Não informado'}</div>
     <div><b>Banco:</b> ${esc(nomeDoBanco(r.produto.bancoId))}</div>
     <div><b>Linha:</b> ${esc(r.produto.nome)}</div>
     <div><b>Indexador:</b> ${esc(r.indexador.nome)}${r.correcao.origem === 'sem_correcao' ? ' (sem correção aplicada)' : r.correcao.origem === 'cenario' ? ' (cenário hipotético)' : ''}</div>
@@ -255,10 +255,10 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
     }
     ${
       r.confiabilidade !== 'oficial_configurado'
-        ? '<div><b>Procedência:</b> parâmetros sem confirmação oficial registrada — trate como estimativa.</div>'
+        ? '<div><b>Procedência:</b> parâmetros sem confirmação oficial registrada, trate como estimativa.</div>'
         : ''
     }
-    <div><b>Corretor:</b> ${esc(p?.fullName) || '—'}</div>
+    <div><b>Corretor:</b> ${esc(p?.fullName) || 'Não informado'}</div>
   </div>
 
   ${destaques}
@@ -268,7 +268,7 @@ export function gerarHtmlRelatorio(ctx: ContextoRelatorio): string {
   ${tabela}
 
   <footer>
-    <b>SIMULAÇÃO ESTIMADA — SUJEITA À ANÁLISE DE CRÉDITO E ÀS CONDIÇÕES VIGENTES DA INSTITUIÇÃO FINANCEIRA.</b><br/>
+    <b>SIMULAÇÃO ESTIMADA, SUJEITA À ANÁLISE DE CRÉDITO E ÀS CONDIÇÕES VIGENTES DA INSTITUIÇÃO FINANCEIRA.</b><br/>
     ${esc(AVISO_LEGAL)}<br/>
     Regras aplicadas: versão ${esc(r.versaoRegras)}, vigente desde ${dataBR(r.vigenciaRegras)}.
     ${r.produto.parametrosManuais ? 'Taxa, prazo e quota informados pelo corretor a partir da condição do correspondente bancário.' : ''}

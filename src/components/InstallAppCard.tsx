@@ -36,7 +36,7 @@ const isWeb = Platform.OS === 'web';
 
 /** O passo a passo do iPhone, que é o caso sem botão. */
 const PASSOS_IOS = [
-  'Toque no botão Compartilhar — o quadradinho com a seta para cima, embaixo da tela.',
+  'Toque no botão Compartilhar, o quadradinho com a seta para cima, embaixo da tela.',
   'Deslize a lista para baixo e toque em "Adicionar à Tela de Início".',
   'Toque em "Adicionar", no canto superior direito.',
 ];
@@ -48,7 +48,7 @@ const PASSOS_ANDROID = [
 ];
 
 const PASSOS_DESKTOP = [
-  'Na barra de endereço, procure o ícone de instalar — um monitor com uma seta.',
+  'Na barra de endereço, procure o ícone de instalar, um monitor com uma seta.',
   'Clique nele e depois em "Instalar".',
   'Se não aparecer, abra o menu do navegador e procure "Instalar POUP".',
 ];
@@ -122,7 +122,7 @@ export function InstallHowToModal({ visible, plataforma, onClose }: InstallHowTo
             ))}
             <Text style={styles.sheetHint}>
               Depois disso, o POUP aparece com o ícone laranja junto dos seus outros apps. É só
-              tocar — nunca mais precisa abrir o navegador.
+              tocar, nunca mais precisa abrir o navegador.
             </Text>
             <Button label="Entendi" onPress={onClose} style={styles.cta} />
           </ScrollView>

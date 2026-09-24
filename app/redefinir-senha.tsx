@@ -181,7 +181,7 @@ export default function RedefinirSenhaScreen() {
         <Text style={styles.titulo}>Link expirado</Text>
         <Text style={styles.texto}>
           {motivo ?? 'Este link de redefinição não vale mais.'} Por segurança, o link do e-mail
-          dura pouco tempo e só pode ser usado uma vez. Peça um novo — leva alguns segundos.
+          dura pouco tempo e só pode ser usado uma vez. Peça um novo, leva alguns segundos.
         </Text>
         <Button
           label="Pedir um novo link"

@@ -46,7 +46,7 @@ function brl(n: number): string {
 
 /** YYYY-MM-DD lido por partes locais — `new Date(ymd)` cairia no dia anterior. */
 function dateBR(ymd: string | null): string {
-  if (!ymd) return '—';
+  if (!ymd) return 'Não informado';
   const [y, m, d] = ymd.split('-');
   if (!y || !m || !d) return ymd;
   return `${d}/${m}/${y}`;
@@ -194,7 +194,7 @@ function ComissaoContent() {
       installmentId: inst.id,
       amount: inst.paidValue ?? inst.value,
       clientName: data.commission.clientName,
-      description: `Comissão de intermediação imobiliária — parcela ${inst.number}/${data.installments.length} — ${data.commission.developmentName?.trim() || data.commission.clientName}`,
+      description: `Comissão de intermediação imobiliária, parcela ${inst.number}/${data.installments.length}, ${data.commission.developmentName?.trim() || data.commission.clientName}`,
       dueDate: inst.dueDate,
     });
 
@@ -219,7 +219,7 @@ function ComissaoContent() {
     setNotaTarget({
       inst,
       hint: res.notConfigured
-        ? 'Registre abaixo os dados da nota que você emitiu no portal da prefeitura — fica gravado nesta parcela.'
+        ? 'Registre abaixo os dados da nota que você emitiu no portal da prefeitura, fica gravado nesta parcela.'
         : `Não foi possível emitir automaticamente: ${res.error} Você pode registrar a nota manualmente abaixo.`,
     });
   }
@@ -585,8 +585,8 @@ function ComissaoContent() {
       {installments.length > 0 && Math.abs(diferenca) >= 1 ? (
         <Text style={styles.hint}>
           {diferenca > 0
-            ? `As parcelas somam ${brl(somaParcelas)} — ${brl(diferenca)} a menos que o total da comissão.`
-            : `As parcelas somam ${brl(somaParcelas)} — ${brl(Math.abs(diferenca))} a mais que o total da comissão.`}{' '}
+            ? `As parcelas somam ${brl(somaParcelas)}, ${brl(diferenca)} a menos que o total da comissão.`
+            : `As parcelas somam ${brl(somaParcelas)}, ${brl(Math.abs(diferenca))} a mais que o total da comissão.`}{' '}
           Ajuste o total ou os valores das parcelas.
         </Text>
       ) : null}
@@ -770,7 +770,7 @@ function ReceberModal({
       return;
     }
     void onSaved(
-      `Parcela ${inst.number} recebida em ${dateBR(date)} — ${brl(recebido)} no seu caixa.`,
+      `Parcela ${inst.number} recebida em ${dateBR(date)}, ${brl(recebido)} no seu caixa.`,
     );
   }
 

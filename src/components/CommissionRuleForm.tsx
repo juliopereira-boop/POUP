@@ -633,7 +633,7 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
               ))}
               <Text style={[styles.sum, sumOk ? styles.sumOk : styles.sumBad]}>
                 Soma: {formatDecimalBR(controller.splitSum)}%
-                {sumOk ? ' — certo' : ' — precisa somar 100%'}
+                {sumOk ? ', certo' : ', precisa somar 100%'}
               </Text>
             </>
           ) : (

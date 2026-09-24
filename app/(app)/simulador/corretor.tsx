@@ -105,7 +105,7 @@ function Field({ label, value }: { label: string; value: string | null | undefin
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{value?.trim() ? value : '—'}</Text>
+      <Text style={styles.fieldValue}>{value?.trim() ? value : 'Não informado'}</Text>
     </View>
   );
 }

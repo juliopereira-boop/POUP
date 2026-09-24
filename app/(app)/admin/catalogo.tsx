@@ -52,11 +52,11 @@ const MAX_PHOTO_BYTES = MAX_PHOTO_MB * 1024 * 1024;
 const REFLECT_WARNING =
   'Tudo que for salvo aqui vale imediatamente para TODOS os corretores que já adotaram a ' +
   'construtora: regra de comissão, empreendimentos, material e foto. A adoção é um vínculo, ' +
-  'não uma cópia — não existe "versão antiga" para quem já adotou.';
+  'não uma cópia, não existe "versão antiga" para quem já adotou.';
 
 /** `2026-03-01` -> `Março/2026`, sem passar por `Date` (fuso não atrapalha). */
 function formatDeliveryBR(ymd: string | null): string {
-  if (!ymd) return '—';
+  if (!ymd) return 'Não informado';
   const [year, month] = ymd.split('-');
   const index = Number(month) - 1;
   const name = MONTHS[index];
@@ -491,7 +491,7 @@ export default function CatalogoAdminScreen() {
                     <Text style={styles.itemName}>{c.name}</Text>
                     <Text style={styles.itemMeta}>
                       Comissão: {describeCommissionRule(rules[c.id] ?? null)} · Risco:{' '}
-                      {c.risk != null ? `${c.risk}%` : '—'}
+                      {c.risk != null ? `${c.risk}%` : 'Não informado'}
                     </Text>
                     <Text style={styles.itemMeta}>
                       {devCount === 1 ? '1 empreendimento' : `${devCount} empreendimentos`}
@@ -680,7 +680,7 @@ export default function CatalogoAdminScreen() {
                     <Text style={styles.itemName}>{d.name}</Text>
                     <Text style={styles.itemMeta}>
                       {d.uf ? `${d.uf} · ` : 'Todos os estados · '}Entrega:{' '}
-                      {formatDeliveryBR(d.deliveryDate)} · Gerente: {d.managerName ?? '—'}
+                      {formatDeliveryBR(d.deliveryDate)} · Gerente: {d.managerName ?? 'Não informado'}
                     </Text>
                     <View style={styles.linkRow}>
                       <Pressable onPress={() => startEditDev(d)} hitSlop={8}>
@@ -796,7 +796,7 @@ export default function CatalogoAdminScreen() {
               <View style={styles.card}>
                 <Text style={styles.cardText}>
                   O material que você subir para uma construtora do catálogo fica na pasta do
-                  sistema e é lido por todos os corretores que adotaram — eles não conseguem
+                  sistema e é lido por todos os corretores que adotaram, eles não conseguem
                   alterar nem apagar. Na tela do material, escolha
                   {editing ? ` "${editing.name}"` : ' a construtora'} para chegar nessa pasta.
                 </Text>

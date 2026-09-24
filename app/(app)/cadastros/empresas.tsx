@@ -228,7 +228,7 @@ export default function EmpresasScreen() {
     const message =
       `Remover "${company.name}" da sua lista?\n\n` +
       'A empresa e os empreendimentos dela saem do seu app. ' +
-      'Suas simulações, vendas e comissões já lançadas continuam iguais — nada do seu histórico é apagado. ' +
+      'Suas simulações, vendas e comissões já lançadas continuam iguais, nada do seu histórico é apagado. ' +
       'Você pode adotar de novo quando quiser.';
 
     const doRemove = async () => {
@@ -395,7 +395,7 @@ export default function EmpresasScreen() {
                     <Text style={styles.itemName}>{c.name}</Text>
                     {c.isCatalog ? <SystemBadge /> : null}
                   </View>
-                  <Text style={styles.itemMeta}>Risco: {c.risk != null ? `${c.risk}%` : '—'}</Text>
+                  <Text style={styles.itemMeta}>Risco: {c.risk != null ? `${c.risk}%` : 'Não informado'}</Text>
                   <Text style={styles.itemMeta}>
                     Comissão: {describeCommissionRule(rules[c.id] ?? null)}
                   </Text>
@@ -431,7 +431,7 @@ export default function EmpresasScreen() {
         <>
           <Text style={styles.intro}>
             Construtoras que o POUP já configurou: regra de comissão, empreendimentos e material
-            prontos. Adotar não cria uma cópia — você passa a usar os dados do POUP e recebe as
+            prontos. Adotar não cria uma cópia, você passa a usar os dados do POUP e recebe as
             atualizações automaticamente.
           </Text>
 
@@ -586,7 +586,7 @@ function CatalogSheet({
                 é o POUP.
               </Text>
               <Text style={styles.explainItem}>
-                • <Text style={styles.strong}>As atualizações chegam sozinhas</Text> — regra de
+                • <Text style={styles.strong}>As atualizações chegam sozinhas</Text>, regra de
                 comissão nova, empreendimento novo, material atualizado. Você não reimporta nada.
               </Text>
               <Text style={styles.explainItem}>

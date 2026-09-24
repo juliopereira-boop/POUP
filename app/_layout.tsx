@@ -76,7 +76,7 @@ function ThemedNavigator() {
         <Stack.Screen name="captar" />
         {/*
           A simulação compartilhada com o CLIENTE. Fora de `(app)` porque ele
-          não tem conta nem assinatura — lá dentro o link viraria uma tela de
+          não tem conta nem assinatura, lá dentro o link viraria uma tela de
           login na cara dele.
         */}
         <Stack.Screen name="simulacao/[token]" />

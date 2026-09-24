@@ -239,7 +239,7 @@ function buildPrompt(input: {
   if (input.extra) {
     parts.push(`Detalhes do empreendimento informados pelo corretor (use-os): ${input.extra}.`);
   } else {
-    parts.push('Sem detalhes específicos — faça uma campanha geral e acolhedora.');
+    parts.push('Sem detalhes específicos. Faça uma campanha geral e acolhedora.');
   }
   return parts.join('\n');
 }

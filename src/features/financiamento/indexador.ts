@@ -107,7 +107,7 @@ export function resolverCorrecao(escolha: EscolhaDeIndexador): CorrecaoAplicada 
     return {
       taxaMensal: cenario / 100,
       origem: 'cenario',
-      explicacao: `Cenário hipotético: ${idx.nome} a ${fmt(cenario)}% ao mês. Não é o índice observado — é uma projeção para você ver o efeito.`,
+      explicacao: `Cenário hipotético: ${idx.nome} a ${fmt(cenario)}% ao mês. Não é o índice observado, é uma projeção para você ver o efeito.`,
     };
   }
 
@@ -123,7 +123,7 @@ export function resolverCorrecao(escolha: EscolhaDeIndexador): CorrecaoAplicada 
   return {
     taxaMensal: 0,
     origem: 'sem_correcao',
-    explicacao: `A tabela sai SEM correção pelo ${idx.nome}: o índice não está cadastrado e projetá-lo seria previsão econômica, não condição de contrato. Num contrato indexado o saldo devedor sobe com o índice — o valor real será maior.`,
+    explicacao: `A tabela sai SEM correção pelo ${idx.nome}: o índice não está cadastrado e projetá-lo seria previsão econômica, não condição de contrato. Num contrato indexado o saldo devedor sobe com o índice, o valor real será maior.`,
   };
 }
 

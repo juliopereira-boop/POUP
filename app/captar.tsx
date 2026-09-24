@@ -13,7 +13,7 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, shadow, type AppColors } from '@/theme';
 
 const DEFAULT_TITLE = 'Realize o sonho do seu imóvel';
-const DEFAULT_SUBTITLE = 'Deixe seu contato e um especialista fala com você — sem compromisso.';
+const DEFAULT_SUBTITLE = 'Deixe seu contato e um especialista fala com você, sem compromisso.';
 const DEFAULT_BENEFITS = [
   'Atendimento personalizado e sem compromisso',
   'Simulação de financiamento na hora',
@@ -184,7 +184,7 @@ export default function CaptarLeadScreen() {
               nada.
 
               A caixa começa desmarcada de propósito. Pré-marcada, ela seria o
-              mesmo aviso de antes com aparência de escolha — que é pior, porque
+              mesmo aviso de antes com aparência de escolha, que é pior, porque
               parece consentimento e não é.
             */}
             <Pressable

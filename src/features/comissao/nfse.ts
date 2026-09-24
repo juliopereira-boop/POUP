@@ -83,6 +83,6 @@ export function defaultInvoiceDescription(
   clientName: string,
   developmentName: string | null,
 ): string {
-  const imovel = developmentName ? ` — ${developmentName}` : '';
+  const imovel = developmentName ? `, ${developmentName}` : '';
   return `Comissão de intermediação imobiliária${imovel}. Cliente: ${clientName}.`;
 }

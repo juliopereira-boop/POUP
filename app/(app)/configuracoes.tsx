@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { openGuide } from '@/features/guide';
@@ -24,7 +24,7 @@ import { radius, spacing, typography, type AppColors, type ColorScheme } from '@
 /** ISO -> DD/MM/AAAA. Sem hora: a data basta para saber "quando eu autorizei". */
 function dataCurtaBR(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  return Number.isNaN(d.getTime()) ? 'Não informado' : d.toLocaleDateString('pt-BR');
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -44,6 +44,8 @@ export default function ConfiguracoesScreen() {
   const { subscription, plan } = useSubscription();
   const { isAdmin } = useIsAdmin();
   const [loadingPortal, setLoadingPortal] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const { plataforma, instalavel, jaInstalado } = useInstallPrompt();
   const [comoInstalar, setComoInstalar] = useState(false);
   const [reportando, setReportando] = useState(false);
@@ -87,26 +89,34 @@ export default function ConfiguracoesScreen() {
    * tela oficial de assinaturas da Apple/Google, nunca um checkout externo.
    */
   async function openBillingPortal() {
+    setPortalError(null);
     setLoadingPortal(true);
     const result = await abrirPortalDeCobranca();
     setLoadingPortal(false);
-    // Sucesso significa que o navegador já está indo embora. Só o erro sobra —
-    // e ele vai para o log, porque o portal é caminho de mão única: não há o
-    // que o corretor faça nesta tela além de tentar de novo.
-    if (!result.ok) console.error('[configuracoes] portal de cobrança:', result.error);
+    if (!result.ok) setPortalError(result.error);
   }
 
   const statusLabel = STATUS_LABEL[subscription?.status ?? 'none'] ?? 'Sem assinatura';
+  const billingProvider = subscription?.billingProvider ?? null;
+  const canManageSubscription =
+    (Platform.OS === 'web' && billingProvider === 'stripe') ||
+    (Platform.OS !== 'web' && billingProvider === 'revenuecat');
+  const periodEnd = subscription?.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd)
+    : null;
+  const hasFuturePeriodEnd = Boolean(
+    billingProvider && periodEnd && !Number.isNaN(periodEnd.getTime()) && periodEnd > new Date(),
+  );
 
   return (
     <Screen>
       <Text style={styles.sectionLabel}>Conta</Text>
       <View style={styles.card}>
-        <Row label="Nome" value={profile?.fullName ?? user?.displayName ?? '—'} />
+        <Row label="Nome" value={profile?.fullName ?? user?.displayName ?? 'Não informado'} />
         <Divider />
-        <Row label="Imobiliária" value={profile?.agency ?? '—'} />
+        <Row label="Imobiliária" value={profile?.agency ?? 'Não informado'} />
         <Divider />
-        <Row label="Email" value={user?.email ?? '—'} />
+        <Row label="Email" value={user?.email ?? 'Não informado'} />
         <Divider />
         <NavRow label="Editar perfil" onPress={() => router.push('/(app)/perfil')} />
       </View>
@@ -160,7 +170,7 @@ export default function ConfiguracoesScreen() {
       {/*
         REVOGAR O CONSENTIMENTO DA IA.
 
-        Consentimento que não se pode retirar não é consentimento — vale para a
+        Consentimento que não se pode retirar não é consentimento, vale para a
         LGPD e para a regra 5.1.2(i) da App Store. A leitura de documento manda
         a foto do RG de um cliente para a Anthropic, e o corretor precisa poder
         desligar isso sem falar com ninguém.
@@ -168,19 +178,24 @@ export default function ConfiguracoesScreen() {
         A data fica à vista porque "você autorizou" sem dizer quando é uma
         afirmação que ninguém consegue conferir.
       */}
-      <Text style={styles.sectionLabel}>Privacidade</Text>
+      <Text style={styles.sectionLabel}>Inteligência artificial</Text>
       {liaDisponivel ? (
-        <Button
-          label="Encerrar autorizações de IA da LIA"
-          variant="secondary"
-          onPress={() => void limparConsentimentoLia()}
-        />
+        <View style={styles.aiConsentCard}>
+          <Button
+            label="Revogar autorização da LIA"
+            variant="secondary"
+            onPress={() => void limparConsentimentoLia()}
+          />
+          <Text style={styles.aiConsentHint}>
+            Você poderá autorizar novamente quando utilizar a LIA.
+          </Text>
+        </View>
       ) : null}
       <View style={styles.card}>
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>Leitura de documento por IA</Text>
+          <Text style={styles.rowLabel}>Leitura inteligente de documentos</Text>
           <Text style={styles.rowValue}>
-            {consentScanEm ? `Autorizada em ${dataCurtaBR(consentScanEm)}` : 'Não autorizada'}
+            {consentScanEm ? `Ativada em ${dataCurtaBR(consentScanEm)}` : 'Desativada'}
           </Text>
         </View>
         {consentScanEm ? (
@@ -238,20 +253,26 @@ export default function ConfiguracoesScreen() {
 
       <Text style={styles.sectionLabel}>Assinatura</Text>
       <View style={styles.card}>
-        <Row label="Plano" value={plan?.name ?? '—'} />
+        <Row label="Plano" value={plan?.name ?? 'Não informado'} />
         <Divider />
         <Row label="Status" value={statusLabel} />
-        {subscription?.currentPeriodEnd ? (
+        {!billingProvider && subscription?.status === 'active' ? (
+          <>
+            <Divider />
+            <Row label="Cobrança" value="Acesso concedido, sem renovação automática" />
+          </>
+        ) : null}
+        {hasFuturePeriodEnd && periodEnd ? (
           <>
             <Divider />
             <Row
-              label="Renova em"
-              value={new Date(subscription.currentPeriodEnd).toLocaleDateString('pt-BR')}
+              label={subscription?.cancelAtPeriodEnd ? 'Acesso até' : 'Renova em'}
+              value={periodEnd.toLocaleDateString('pt-BR')}
             />
           </>
         ) : null}
         {/* Web: portal Stripe. App: gerenciamento oficial da App Store/Play. */}
-        {canShowBilling ? (
+        {canShowBilling && canManageSubscription ? (
           <View style={styles.cardAction}>
             <Button
               label="Gerenciar assinatura"
@@ -261,10 +282,15 @@ export default function ConfiguracoesScreen() {
             />
           </View>
         ) : null}
+        {portalError ? <Text style={styles.billingError}>{portalError}</Text> : null}
       </View>
 
       <View style={styles.signOut}>
-        <Button label="Sair da conta" variant="danger" onPress={() => void signOut()} />
+        <Button
+          label="Sair da conta"
+          variant="danger"
+          onPress={() => setConfirmingSignOut(true)}
+        />
       </View>
 
       {/* Longe do "Sair da conta" de propósito: as duas ações se parecem no
@@ -280,6 +306,32 @@ export default function ConfiguracoesScreen() {
       </View>
 
       <ReportarProblema visible={reportando} onClose={() => setReportando(false)} />
+
+      <Modal
+        visible={confirmingSignOut}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmingSignOut(false)}
+      >
+        <View style={styles.signOutBackdrop}>
+          <View style={styles.signOutDialog}>
+            <Text style={styles.signOutTitle}>Sair da conta?</Text>
+            <Text style={styles.signOutDescription}>
+              Você precisará entrar novamente para acessar o POUP neste dispositivo.
+            </Text>
+            <Button
+              label="Sim, sair"
+              variant="danger"
+              onPress={() => void signOut()}
+            />
+            <Button
+              label="Continuar conectado"
+              variant="secondary"
+              onPress={() => setConfirmingSignOut(false)}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <InstallHowToModal
         visible={comoInstalar}
@@ -389,6 +441,19 @@ const makeStyles = (colors: AppColors) =>
     rowValue: { ...typography.body, color: colors.ink, flexShrink: 1, textAlign: 'right' },
     divider: { height: 1, backgroundColor: colors.border },
     cardAction: { paddingVertical: spacing.lg },
+    aiConsentCard: { marginBottom: spacing.sm },
+    aiConsentHint: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      textAlign: 'center',
+      marginTop: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    billingError: {
+      ...typography.caption,
+      color: colors.danger,
+      paddingBottom: spacing.lg,
+    },
     navRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -426,4 +491,26 @@ const makeStyles = (colors: AppColors) =>
     segmentText: { ...typography.label, color: colors.inkMuted },
     segmentTextActive: { color: colors.ink },
     signOut: { marginTop: spacing.xxl },
+    signOutBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    signOutDialog: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: colors.background,
+      borderRadius: radius.xl,
+      padding: spacing.xl,
+      gap: spacing.md,
+    },
+    signOutTitle: { ...typography.heading, color: colors.ink, textAlign: 'center' },
+    signOutDescription: {
+      ...typography.body,
+      color: colors.inkMuted,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+    },
   });

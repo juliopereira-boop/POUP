@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 
 import { Button } from './Button';
 import { Input } from './Input';
+import { abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -48,6 +49,7 @@ export function DeleteAccountButton() {
   const [texto, setTexto] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState(false);
+  const [abrindoAssinatura, setAbrindoAssinatura] = useState(false);
 
   const confirmado = texto.trim().toUpperCase() === CONFIRMACAO;
 
@@ -74,6 +76,17 @@ export function DeleteAccountButton() {
       setErro('Não foi possível concluir a exclusão. Tente novamente ou fale com o suporte.');
     } finally {
       setExcluindo(false);
+    }
+  }
+
+  async function gerenciarAssinatura() {
+    setAbrindoAssinatura(true);
+    setErro(null);
+    try {
+      const result = await abrirPortalDeCobranca();
+      if (!result.ok) setErro(result.error);
+    } finally {
+      setAbrindoAssinatura(false);
     }
   }
 
@@ -116,6 +129,18 @@ export function DeleteAccountButton() {
                   : 'Se você tem assinatura ativa pelo site, ela é cancelada agora e não haverá nova cobrança. '}
                 Se entrou com a Apple, podemos pedir uma nova confirmação com a mesma conta Apple.
               </Text>
+
+              {subscription?.billingProvider === 'revenuecat' ? (
+                <View style={styles.manageWrap}>
+                  <Button
+                    label="Gerenciar assinatura na loja"
+                    variant="secondary"
+                    onPress={() => void gerenciarAssinatura()}
+                    loading={abrindoAssinatura}
+                    disabled={excluindo}
+                  />
+                </View>
+              ) : null}
 
               <Input
                 label={`Para confirmar, digite ${CONFIRMACAO}`}
@@ -181,6 +206,7 @@ const makeStyles = (colors: AppColors) =>
     bullet: { ...typography.body, color: colors.danger },
     listText: { ...typography.body, color: colors.ink, flex: 1 },
     aviso: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
+    manageWrap: { marginBottom: spacing.lg },
     erro: { ...typography.caption, color: colors.danger, marginBottom: spacing.md },
     cancelWrap: { marginTop: spacing.md },
   });

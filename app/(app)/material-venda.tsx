@@ -269,8 +269,6 @@ export default function MaterialVendaScreen() {
     setConfigOpen(false);
   }
 
-
-
   async function uploadTo(path: string): Promise<boolean> {
     if (!user) return false;
     setError(null);
@@ -489,7 +487,7 @@ export default function MaterialVendaScreen() {
             />
           ) : null}
 
-          {/* O teto por arquivo continua à vista — é uma regra que o corretor
+          {/* O teto por arquivo continua à vista, é uma regra que o corretor
               esbarra na hora de escolher o arquivo. Quanto do espaço da conta
               ele já usou não aparece em lugar nenhum: o POUP não se vende como
               hospedagem, e o limite é assunto do banco, não do corretor. */}
@@ -549,7 +547,7 @@ export default function MaterialVendaScreen() {
       {company && development ? (
         <View>
           {/* Subir, criar pasta e apagar só existem para quem pode escrever
-              nesta raiz. A trava real é a policy do Storage — esconder o botão
+              nesta raiz. A trava real é a policy do Storage, esconder o botão
               serve para não oferecer uma ação que ia falhar. */}
           {canEdit ? (
             <View style={styles.toolbar}>
@@ -557,6 +555,8 @@ export default function MaterialVendaScreen() {
                 style={({ pressed }) => [styles.toolBtn, pressed && styles.pressed]}
                 onPress={onUpload}
                 disabled={busy}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy }}
                 accessibilityLabel="Fazer upload"
               >
                 <Text style={styles.toolIcon}>⬆️</Text>
@@ -570,6 +570,8 @@ export default function MaterialVendaScreen() {
                     setFolderModalOpen(true);
                   }}
                   disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: busy }}
                   accessibilityLabel="Adicionar pasta"
                 >
                   <Text style={styles.toolIcon}>📁</Text>
@@ -582,9 +584,11 @@ export default function MaterialVendaScreen() {
             <CatalogNotice />
           )}
 
-          {canEdit ? <Text style={styles.usage}>
+          {canEdit ? (
+            <Text style={styles.usage}>
               {TIPOS_ACEITOS_ROTULO} · máx. {MAX_FILE_MB} MB por arquivo
-            </Text> : null}
+            </Text>
+          ) : null}
 
           {atMaxDepth && canEdit ? (
             <Text style={styles.notice}>
@@ -728,7 +732,6 @@ export default function MaterialVendaScreen() {
         </View>
       </Modal>
 
-
       <Modal
         visible={folderModalOpen}
         animationType="fade"
@@ -774,7 +777,15 @@ function CatalogNotice() {
   );
 }
 
-function Crumb({ label, onPress, active }: { label: string; onPress: () => void; active: boolean }) {
+function Crumb({
+  label,
+  onPress,
+  active,
+}: {
+  label: string;
+  onPress: () => void;
+  active: boolean;
+}) {
   const styles = useThemedStyles(makeStyles);
   return (
     <Pressable onPress={onPress} hitSlop={6}>

@@ -54,7 +54,7 @@ const PORTAS: Porta[] = [
     titulo: 'Simulador de poupança',
     linha: 'Como o saldo é pago à construtora',
     detalhe:
-      'Ato, mensais, semestrais e anuais, com a regra de risco da empresa — e a proposta de compra e venda em PDF no fim.',
+      'Ato, mensais, semestrais e anuais, com a regra de risco da empresa, e a proposta de compra e venda em PDF no fim.',
     icone: 'house',
     rota: '/(app)/simulador',
   },

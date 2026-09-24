@@ -82,7 +82,7 @@ function rotularRecurso(nome: string): string {
 
 /** Milissegundos viram algo legível. Ninguém lê "184320 ms". */
 function duracao(ms: number | null): string {
-  if (ms == null) return '—';
+  if (ms == null) return 'Não informado';
   if (ms < 1000) return `${ms} ms`;
   const s = ms / 1000;
   if (s < 60) return `${s.toFixed(1).replace('.', ',')} s`;
@@ -210,7 +210,7 @@ export default function RastreabilidadeScreen() {
                 </View>
                 <View style={styles.linhaNumeros}>
                   <Text style={styles.numeroGrande}>{d.pessoas}</Text>
-                  <Text style={styles.numeroPequeno}>{topoDoFunil > 0 ? `${pct}%` : '—'}</Text>
+                  <Text style={styles.numeroPequeno}>{topoDoFunil > 0 ? `${pct}%` : 'Não informado'}</Text>
                 </View>
               </View>
             );
@@ -221,7 +221,7 @@ export default function RastreabilidadeScreen() {
       <Text style={styles.sectionLabel}>Consumo de IA neste mês</Text>
       <View style={styles.card}>
         <Text style={styles.cardNota}>
-          O que o uso custa. &quot;Maior&quot; é o consumo do corretor que mais usou — se ele
+          O que o uso custa. &quot;Maior&quot; é o consumo do corretor que mais usou, se ele
           estiver colado no teto do plano, ou o teto está apertado ou o preço está errado.
         </Text>
         {consumo.length === 0 ? (

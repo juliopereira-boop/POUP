@@ -55,7 +55,7 @@ export default function AccountAccessPage() {
         </Text>
         <Text style={{ color: colors.ink }}>
           Use o mesmo método de entrada no iPhone, Android e computador. Se usou Apple com e-mail
-          oculto, continue com Apple — digitar outro e-mail pode abrir outra conta.
+          oculto, continue com Apple, digitar outro e-mail pode abrir outra conta.
         </Text>
         {user ? (
           <>

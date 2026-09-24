@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { AccountActions } from '@/components/AccountActions';
@@ -33,6 +33,8 @@ export default function PaywallScreen() {
   const [storePrices, setStorePrices] = useState<Partial<Record<string, string>>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accountOptionsOpen, setAccountOptionsOpen] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   /*
    * ANTES DOS `Redirect` de propósito: hooks não podem ficar atrás de um
@@ -62,9 +64,7 @@ export default function PaywallScreen() {
         setError(result.error);
         return;
       }
-      setStorePrices(
-        Object.fromEntries(result.data.map((item) => [item.tier, item.priceLabel])),
-      );
+      setStorePrices(Object.fromEntries(result.data.map((item) => [item.tier, item.priceLabel])));
     });
     return () => {
       active = false;
@@ -110,9 +110,7 @@ export default function PaywallScreen() {
       }
 
       // Na web, trocar de plano continua sendo feito no portal Stripe.
-      const result = upgradeMode
-        ? await abrirPortalDeCobranca()
-        : await abrirCheckout(plan.tier);
+      const result = upgradeMode ? await abrirPortalDeCobranca() : await abrirCheckout(plan.tier);
       if (!result.ok) setError(result.error);
     } catch {
       setError('Não foi possível abrir a cobrança. Tente novamente.');
@@ -132,7 +130,7 @@ export default function PaywallScreen() {
         return;
       }
       if (!result.data) {
-        setNotice('Nenhuma assinatura ativa foi encontrada nesta Conta Apple.');
+        setNotice('Não encontramos compras anteriores nesta Conta Apple.');
         return;
       }
       await refresh();
@@ -166,16 +164,14 @@ export default function PaywallScreen() {
       <View style={styles.header}>
         <Logo size={40} />
         <Text style={styles.subtitle}>{subtitle}</Text>
-        <Text style={styles.headerHint}>
-          Veja abaixo tudo o que está incluído em cada plano.
-        </Text>
+        <Text style={styles.headerHint}>Veja abaixo tudo o que está incluído em cada plano.</Text>
       </View>
 
       {trialExpired ? (
         <View style={styles.trialBanner}>
           <Text style={styles.trialText}>
             O período de teste gratuito desta conta acabou e o acesso ficou bloqueado. Escolha um
-            plano abaixo para voltar a usar o POUP — seus dados continuam salvos.
+            plano abaixo para voltar a usar o POUP. Seus dados continuam salvos.
           </Text>
         </View>
       ) : null}
@@ -209,14 +205,13 @@ export default function PaywallScreen() {
               plan={plan}
               priceLabel={
                 usesNativeBilling
-                  ? storePrices[plan.tier] ?? 'Preço indisponível'
+                  ? (storePrices[plan.tier] ?? 'Preço indisponível')
                   : plan.priceLabel
               }
               isCurrent={isCurrent}
               loading={loadingTier === plan.tier}
               disabled={
-                loadingTier !== null ||
-                (usesNativeBilling && storePrices[plan.tier] === undefined)
+                loadingTier !== null || (usesNativeBilling && storePrices[plan.tier] === undefined)
               }
               onSubscribe={() => subscribe(plan)}
             />
@@ -237,31 +232,55 @@ export default function PaywallScreen() {
           loading={restoring}
         />
       ) : null}
-      <Button
-        label="Gerenciar assinatura"
-        variant="ghost"
-        onPress={async () => {
-          try {
-            const result = await abrirPortalDeCobranca();
-            if (!result.ok) setError(result.error);
-          } catch {
-            setError('Não foi possível abrir o portal de assinatura. Tente novamente.');
-          }
-        }}
-      />
-      <View style={styles.legalActions}>
+      {isActive ? (
         <Button
-          label="Termos de Uso"
+          label="Gerenciar assinatura"
           variant="ghost"
-          onPress={() => router.push('/termos' as Href)}
+          onPress={async () => {
+            try {
+              const result = await abrirPortalDeCobranca();
+              if (!result.ok) setError(result.error);
+            } catch {
+              setError('Não foi possível abrir o portal de assinatura. Tente novamente.');
+            }
+          }}
         />
-        <Button
-          label="Política de Privacidade"
-          variant="ghost"
-          onPress={() => router.push('/privacidade')}
-        />
+      ) : null}
+      <View style={styles.footerActions}>
+        <View style={styles.legalActions}>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => router.push('/termos' as Href)}
+            style={({ pressed }) => [styles.footerLink, pressed && styles.footerLinkPressed]}
+          >
+            <Text style={styles.footerLinkText}>Termos de Uso</Text>
+          </Pressable>
+          <Text style={styles.footerSeparator}>•</Text>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => router.push('/privacidade')}
+            style={({ pressed }) => [styles.footerLink, pressed && styles.footerLinkPressed]}
+          >
+            <Text style={styles.footerLinkText}>Política de Privacidade</Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: accountOptionsOpen }}
+          onPress={() => setAccountOptionsOpen((open) => !open)}
+          style={({ pressed }) => [styles.accountToggle, pressed && styles.footerLinkPressed]}
+        >
+          <Text style={styles.accountToggleText}>Ajuda e configurações</Text>
+          <Text style={styles.accountToggleIcon}>{accountOptionsOpen ? '⌃' : '⌄'}</Text>
+        </Pressable>
+
+        {accountOptionsOpen ? (
+          <View style={styles.accountOptions}>
+            <AccountActions includePrivacy={false} />
+          </View>
+        ) : null}
       </View>
-      <AccountActions />
 
       {upgradeMode && isActive ? (
         <Button
@@ -271,8 +290,35 @@ export default function PaywallScreen() {
           style={styles.signout}
         />
       ) : (
-        <Button label="Sair" variant="ghost" onPress={() => void signOut()} style={styles.signout} />
+        <Button
+          label="Sair"
+          variant="ghost"
+          onPress={() => setConfirmingSignOut(true)}
+          style={styles.signout}
+        />
       )}
+
+      <Modal
+        visible={confirmingSignOut}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmingSignOut(false)}
+      >
+        <View style={styles.signOutBackdrop}>
+          <View style={styles.signOutDialog} accessibilityRole="alert">
+            <Text style={styles.signOutTitle}>Sair da conta?</Text>
+            <Text style={styles.signOutDescription}>
+              Você precisará entrar novamente para acessar o POUP neste dispositivo.
+            </Text>
+            <Button label="Sim, sair" variant="danger" onPress={() => void signOut()} />
+            <Button
+              label="Continuar conectado"
+              variant="secondary"
+              onPress={() => setConfirmingSignOut(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -423,14 +469,50 @@ const makeStyles = (colors: AppColors) =>
     },
     notice: {
       ...typography.caption,
-      color: colors.success,
-      backgroundColor: colors.successSoft,
+      color: colors.ink,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
       padding: spacing.md,
-      borderRadius: 8,
+      borderRadius: radius.md,
       marginBottom: spacing.lg,
       overflow: 'hidden',
     },
-    legalActions: { width: '100%', marginTop: spacing.sm },
+    footerActions: {
+      width: '100%',
+      marginTop: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    legalActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    footerLink: { paddingVertical: spacing.sm },
+    footerLinkPressed: { opacity: 0.6 },
+    footerLinkText: { ...typography.caption, color: colors.primary, fontWeight: '600' },
+    footerSeparator: { ...typography.caption, color: colors.inkSubtle },
+    accountToggle: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+    },
+    accountToggleText: { ...typography.label, color: colors.inkMuted },
+    accountToggleIcon: { ...typography.body, color: colors.inkMuted },
+    accountOptions: {
+      marginTop: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     pendingBanner: {
       width: '100%',
       backgroundColor: colors.primarySoft,
@@ -455,4 +537,21 @@ const makeStyles = (colors: AppColors) =>
     },
     trialText: { ...typography.body, color: colors.ink },
     signout: { marginTop: spacing.md },
+    signOutBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    signOutDialog: {
+      width: '100%',
+      maxWidth: 440,
+      gap: spacing.md,
+      padding: spacing.xl,
+      borderRadius: radius.xl,
+      backgroundColor: colors.surface,
+    },
+    signOutTitle: { ...typography.heading, color: colors.ink },
+    signOutDescription: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.sm },
   });

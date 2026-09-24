@@ -576,7 +576,7 @@ export function opcoesDeProduto(regras: VersaoRegras, bancoId: string | null = n
   const lista = bancoId ? produtosDoBanco(regras, bancoId) : regras.produtos;
   return lista.map((p) => ({
     value: p.id,
-    label: produtoCalculavel(p) ? p.nome : `${p.nome} — sem parâmetros cadastrados`,
+    label: produtoCalculavel(p) ? p.nome : `${p.nome}, sem parâmetros cadastrados`,
     disponivel: produtoCalculavel(p),
     descricao: p.descricao,
   }));

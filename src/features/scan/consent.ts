@@ -65,7 +65,7 @@ export const VERSAO_AVISO_SCAN = 3;
 export const AVISOS_SCAN = [
   'A foto do documento é enviada para um serviço de inteligência artificial (Anthropic) que lê o nome e o CPF.',
   'A retenção padrão da API Anthropic é de até 30 dias, com exceções previstas pelo fornecedor, como obrigações legais e prevenção de abuso. O POUP não salva a imagem enviada no seu banco ou Storage.',
-  'Só use com autorização do titular do documento — e a autorização é pedida a cada leitura.',
+  'Só use com autorização do titular do documento, e a autorização é pedida a cada leitura.',
   'Você pode desligar a leitura automática a qualquer momento em Ajustes.',
 ];
 

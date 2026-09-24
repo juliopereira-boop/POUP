@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
     },
 
     aviso:
-      'Simulação estimada. Não é proposta de crédito nem garantia de aprovação. As condições finais — taxa, prazo, seguros, tarifas e enquadramento — dependem de análise da instituição financeira.',
+      'Simulação estimada. Não é proposta de crédito nem garantia de aprovação. As condições finais, incluindo taxa, prazo, seguros, tarifas e enquadramento, dependem de análise da instituição financeira.',
   });
 });
 

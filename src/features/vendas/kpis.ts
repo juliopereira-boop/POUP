@@ -148,7 +148,7 @@ function safePercent(numerator: number, denominator: number): number | null {
 
 interface Ymd {
   year: number;
-  month: number; // 1–12
+  month: number; // 1 a 12
   day: number;
 }
 

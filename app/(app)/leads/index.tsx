@@ -20,13 +20,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
-import {
-  db,
-  type Company,
-  type Development,
-  type Lead,
-  type LeadStage,
-} from '@/data';
+import { db, type Company, type Development, type Lead, type LeadStage } from '@/data';
 import { formatPhone } from '@/lib/masks';
 import { env } from '@/lib/env';
 import { generateInvite, generatePitch } from '@/lib/captacao';
@@ -55,7 +49,6 @@ const SOURCE_LABEL: Record<Lead['source'], string> = {
   meta: 'Facebook/Instagram',
   manual: 'Manual',
 };
-
 
 async function shareOrCopy(text: string): Promise<'copied' | 'shared' | 'failed'> {
   if (Platform.OS === 'web') {
@@ -113,6 +106,9 @@ export default function LeadsScreen() {
         <Pressable
           style={[styles.segmentItem, tab === 'gestao' && styles.segmentItemActive]}
           onPress={() => setTab('gestao')}
+          accessibilityRole="button"
+          accessibilityState={{ selected: tab === 'gestao' }}
+          accessibilityLabel="Gestão de Leads"
         >
           <Text style={[styles.segmentText, tab === 'gestao' && styles.segmentTextActive]}>
             Gestão de Leads
@@ -121,6 +117,9 @@ export default function LeadsScreen() {
         <Pressable
           style={[styles.segmentItem, tab === 'captacao' && styles.segmentItemActive]}
           onPress={() => setTab('captacao')}
+          accessibilityRole="button"
+          accessibilityState={{ selected: tab === 'captacao' }}
+          accessibilityLabel="Captação"
         >
           <Text style={[styles.segmentText, tab === 'captacao' && styles.segmentTextActive]}>
             Captação
@@ -404,7 +403,7 @@ function defaultPitch(brokerName: string | null, developmentName: string | null)
   return [
     `Olá! ${quem ? `Aqui é ${quem}, corretor(a) de imóveis.` : 'Tudo bem?'}`,
     '',
-    `Separei ${imovel} pra te mostrar — acho que você vai gostar 🏡`,
+    `Separei ${imovel} pra te mostrar, acho que você vai gostar 🏡`,
     '',
     'Quer conhecer pessoalmente? Consigo agendar sua visita e também fazer uma análise de crédito sem compromisso pra você saber exatamente quanto pode investir.',
   ].join('\n');
@@ -478,7 +477,7 @@ function AtendimentoModal({
       setGenerating(false);
       if (!res.ok) {
         setMessage(defaultPitch(brokerName, dev.name));
-        setError('A IA não respondeu agora — deixamos uma mensagem padrão pra você ajustar.');
+        setError('A IA não respondeu agora, deixamos uma mensagem padrão pra você ajustar.');
         return;
       }
       setMessage(res.data.mensagem);
@@ -527,7 +526,12 @@ function AtendimentoModal({
             <Text style={styles.modalTitle} numberOfLines={1}>
               💬 Atender {lead?.name ?? ''}
             </Text>
-            <Pressable onPress={onClose} hitSlop={8}>
+            <Pressable
+              onPress={onClose}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar atendimento"
+            >
               <Text style={styles.modalClose}>✕</Text>
             </Pressable>
           </View>
@@ -630,8 +634,10 @@ function CaptacaoTab({
 }
 
 function defaultConvite(brokerName: string | null): string {
-  const quem = brokerName?.trim() ? brokerName.trim().split(' ')[0] : 'eu';
-  return `🏡 Sonhando com o imóvel próprio? Me manda seu nome e telefone que ${quem === 'eu' ? 'eu' : quem} te ajudo a simular e realizar esse sonho! 👇`;
+  const quem = brokerName?.trim() ? brokerName.trim().split(' ')[0] : null;
+  return quem
+    ? `🏡 Sonhando com o imóvel próprio? Envie seu nome e telefone para que ${quem} ajude você a simular e realizar esse sonho! 👇`
+    : '🏡 Sonhando com o imóvel próprio? Envie seu nome e telefone. Eu ajudo você a simular e realizar esse sonho! 👇';
 }
 
 function CaptacaoCard({
@@ -679,7 +685,7 @@ function CaptacaoCard({
     }
     setConvite(res.data.convite);
     setPageTitle(res.data.titulo);
-    setFeedback('Página criada pela IA! Já está no ar — é só divulgar.');
+    setFeedback('Página criada pela IA! Já está no ar, é só divulgar.');
     setTimeout(() => setFeedback(null), 5000);
   }
 
@@ -706,7 +712,7 @@ function CaptacaoCard({
       <Text style={styles.cardText}>
         Descreva o empreendimento e a IA cria pra você uma página de captação bonita + o convite
         pronto pra postar. Quem deixar nome e telefone vira lead automaticamente aqui na Gestão de
-        Leads — sem configurar nada.
+        Leads, sem configurar nada.
       </Text>
 
       {developments.length > 0 ? (
@@ -762,7 +768,12 @@ function CaptacaoCard({
           style={styles.flexBtn}
         />
       </View>
-      <Pressable onPress={() => void Linking.openURL(link)} hitSlop={6}>
+      <Pressable
+        onPress={() => void Linking.openURL(link)}
+        hitSlop={6}
+        accessibilityRole="link"
+        accessibilityLabel="Ver minha página de captação"
+      >
         <Text style={styles.link}>Ver minha página de captação</Text>
       </Pressable>
     </View>
@@ -784,7 +795,7 @@ function WhatsAppCard({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>💬 Falar direto no WhatsApp</Text>
       <Text style={styles.cardText}>
-        Um link e um QR code que abrem uma conversa direto com você — ótimo pra bio do Instagram,
+        Um link e um QR code que abrem uma conversa direto com você, ótimo pra bio do Instagram,
         cartão ou placa. Quem chega por aqui é cadastrado automaticamente na Gestão de Leads, com a
         origem “WhatsApp”, antes de cair na conversa.
       </Text>

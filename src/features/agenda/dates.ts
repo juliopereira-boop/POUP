@@ -121,7 +121,7 @@ export function formatMonthLabel(d: Date): string {
 
 export function formatWeekLabel(d: Date): string {
   const start = startOfWeek(d);
-  return `${formatShortDate(start)} – ${formatShortDate(addDays(start, 6))}`;
+  return `${formatShortDate(start)} a ${formatShortDate(addDays(start, 6))}`;
 }
 
 export function formatDayLabel(d: Date): string {

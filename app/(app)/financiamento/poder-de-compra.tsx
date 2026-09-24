@@ -103,7 +103,7 @@ export default function PoderDeCompra() {
     <Screen>
       <Text style={styles.titulo}>Quanto esse cliente compra?</Text>
       <Text style={styles.sub}>
-        Informe a renda e o que ele tem de entrada. O resultado diz o teto e — o que mais importa —
+        Informe a renda e o que ele tem de entrada. O resultado diz o teto e, o que mais importa :
         o que travou nele.
       </Text>
 

@@ -41,7 +41,7 @@ export function withDay(iso: string, day: number): string {
 }
 
 export function formatDateBR(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Não informado';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
@@ -62,7 +62,7 @@ const MONTH_ABBR = [
 ];
 
 export function formatMonthYearBR(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Não informado';
   const [y, m] = iso.split('-');
   const idx = parseInt(m, 10) - 1;
   return `${MONTH_ABBR[idx] ?? m}/${y}`;

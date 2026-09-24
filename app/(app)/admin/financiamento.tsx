@@ -99,7 +99,7 @@ const CAMPOS: {
 const CAMPOS_GLOBAIS = [
   {
     chave: 'dfi',
-    rotulo: 'DFI — taxa mensal sobre a avaliação (%)',
+    rotulo: 'DFI, taxa mensal sobre a avaliação (%)',
     ajuda: 'Ex.: 0,015. Vem da apólice, não da CAIXA.',
   },
   {
@@ -256,7 +256,7 @@ export default function AdminFinanciamento() {
      * ordenação e some no meio do histórico.
      */
     if (!versaoValida(versao)) {
-      setAviso('A versão precisa estar no formato AAAA.MM — por exemplo 2026.08 (ou 2026.08.1 para uma revisão do mesmo mês).');
+      setAviso('A versão precisa estar no formato AAAA.MM, por exemplo 2026.08 (ou 2026.08.1 para uma revisão do mesmo mês).');
       return;
     }
     if (!produto) return;
@@ -512,14 +512,14 @@ export default function AdminFinanciamento() {
       <Text style={styles.titulo}>Regras de financiamento</Text>
       <Text style={styles.sub}>
         Versão vigente: <Text style={styles.forte}>{regras.versao}</Text> (desde{' '}
-        {regras.vigenciaInicio}). Alterar aqui NÃO recalcula simulação já salva — cada uma guarda
+        {regras.vigenciaInicio}). Alterar aqui NÃO recalcula simulação já salva, cada uma guarda
         as regras do dia em que foi feita.
       </Text>
 
       {/* --------------------------------------------- bancos liberados */}
       <Text style={styles.secao}>Bancos visíveis para os corretores</Text>
       <Text style={styles.texto}>
-        A Caixa e "Outro banco" aparecem sempre. Os demais só depois de você liberar — enquanto
+        A Caixa e "Outro banco" aparecem sempre. Os demais só depois de você liberar, enquanto
         isso, só você os vê.
       </Text>
       <View style={{ height: spacing.sm }} />
@@ -646,7 +646,7 @@ export default function AdminFinanciamento() {
 
           <Escolha
             titulo="O comprometimento de renda compara"
-            ajuda="'Até 30% da renda' não diz de qual prestação se fala — e a mesma operação passa ou não conforme a conta inclua os seguros."
+            ajuda="'Até 30% da renda' não diz de qual prestação se fala, e a mesma operação passa ou não conforme a conta inclua os seguros."
             opcoes={(Object.keys(BASE_COMPROMETIMENTO_ROTULO) as BaseComprometimento[]).map((k) => ({
               valor: k,
               rotulo: BASE_COMPROMETIMENTO_ROTULO[k],
@@ -684,11 +684,11 @@ export default function AdminFinanciamento() {
             </View>
           ))}
           {/* ---------------------------------------------- a tábua do MIP */}
-          <Text style={styles.secao}>MIP — tábua por faixa etária</Text>
+          <Text style={styles.secao}>MIP, tábua por faixa etária</Text>
           <Text style={styles.texto}>
             O MIP não é um número: é uma tábua da apólice, com uma taxa por faixa de idade. Enquanto
             ela estiver vazia, a prestação sai <Text style={styles.forte}>sem</Text> o seguro de
-            morte e invalidez — e o resultado diz isso ao corretor e no PDF.
+            morte e invalidez, e o resultado diz isso ao corretor e no PDF.
           </Text>
           <View style={{ height: spacing.md }} />
 
@@ -747,7 +747,7 @@ export default function AdminFinanciamento() {
           </Pressable>
           <Text style={styles.ajuda}>
             A taxa é sobre o <Text style={styles.forte}>saldo devedor</Text> do mês, multiplicada
-            pela pactuação de renda de cada proponente — por isso o MIP cai ao longo do contrato.
+            pela pactuação de renda de cada proponente, por isso o MIP cai ao longo do contrato.
             Faixa incompleta é descartada na publicação: meia tábua faria a prestação mudar conforme
             a idade de quem compra, sem ninguém entender por quê.
           </Text>
@@ -770,7 +770,7 @@ export default function AdminFinanciamento() {
           />
           <Text style={styles.ajuda}>
             É o dia em que você <Text style={styles.forte}>abriu a página oficial e leu</Text> os
-            números — não a data de hoje por hábito. Ela fica congelada na versão publicada e não é
+            números, não a data de hoje por hábito. Ela fica congelada na versão publicada e não é
             atualizada depois.
           </Text>
 
@@ -789,7 +789,7 @@ export default function AdminFinanciamento() {
             </Text>
           </Pressable>
           <Text style={styles.ajuda}>
-            Sem esta confirmação — ou faltando fonte, URL ou data — a versão é publicada como{' '}
+            Sem esta confirmação, ou faltando fonte, URL ou data, a versão é publicada como{' '}
             <Text style={styles.forte}>estimativa</Text>, e a simulação diz isso ao cliente.
             Digitar números não torna nada oficial.
           </Text>

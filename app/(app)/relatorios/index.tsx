@@ -53,7 +53,7 @@ export default function RelatoriosScreen() {
 
   const companyOptions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of sims) if (s.companyId) map.set(s.companyId, s.companyName ?? '—');
+    for (const s of sims) if (s.companyId) map.set(s.companyId, s.companyName ?? 'Não informado');
     return [
       { value: '', label: 'Todas as empresas' },
       ...[...map].map(([value, label]) => ({ value, label })),
@@ -65,7 +65,7 @@ export default function RelatoriosScreen() {
     for (const s of sims) {
       if (!s.developmentId) continue;
       if (companyFilter && s.companyId !== companyFilter) continue;
-      map.set(s.developmentId, s.developmentName ?? '—');
+      map.set(s.developmentId, s.developmentName ?? 'Não informado');
     }
     return [
       { value: '', label: 'Todos os empreendimentos' },
@@ -252,7 +252,7 @@ function SimulationCard({ sim, onPress }: { sim: Simulation; onPress: () => void
       </View>
 
       <Text style={styles.cardDev} numberOfLines={1}>
-        {sim.developmentName?.trim() || '—'}
+        {sim.developmentName?.trim() || 'Não informado'}
         {sim.companyName ? <Text style={styles.cardCompany}>{`  ·  ${sim.companyName}`}</Text> : null}
       </Text>
 

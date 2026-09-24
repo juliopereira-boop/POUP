@@ -71,13 +71,13 @@ function brl(n: number): string {
 }
 
 function pct(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return 'Não informado';
   return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
 
 /** YYYY-MM-DD lido por partes locais — `new Date(ymd)` cairia no dia anterior. */
 function dateBR(ymd: string | null): string {
-  if (!ymd) return '—';
+  if (!ymd) return 'Não informado';
   const [y, m, d] = ymd.split('-');
   if (!y || !m || !d) return ymd;
   return `${d}/${m}/${y}`;
@@ -263,7 +263,7 @@ function ComissaoContent() {
             />
             <Text style={styles.filterHint}>
               {filters.basis === 'vencimento'
-                ? 'Mostra o que vence no período — é a leitura de cobrança.'
+                ? 'Mostra o que vence no período, é a leitura de cobrança.'
                 : filters.basis === 'venda'
                   ? 'Mostra a comissão das vendas fechadas no período, mesmo que os recebimentos caiam depois.'
                   : 'Mostra o que entrou no caixa no período; parcelas ainda não recebidas ficam de fora.'}
@@ -352,7 +352,7 @@ function Painel({
       <View style={styles.empty}>
         <Text style={styles.emptyEmoji}>🪙</Text>
         <Text style={styles.emptyText}>
-          Nenhuma comissão no período escolhido. A comissão é criada junto com a venda — registre a
+          Nenhuma comissão no período escolhido. A comissão é criada junto com a venda, registre a
           venda em “Vendas Realizadas” e as parcelas aparecem aqui.
         </Text>
       </View>
@@ -434,7 +434,7 @@ function Painel({
           styles={styles}
           width={kpiWidth}
           label="Ticket médio"
-          value={kpis.ticketMedioComissao === null ? '—' : brl(kpis.ticketMedioComissao)}
+          value={kpis.ticketMedioComissao === null ? 'Não informado' : brl(kpis.ticketMedioComissao)}
           caption="por comissão"
         />
         <KpiCard

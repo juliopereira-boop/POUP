@@ -64,7 +64,7 @@ interface Payload {
 
 /** Centavos → texto. O resumo vem em centavos, como o motor guarda. */
 function brl(centavos: number | null): string {
-  if (centavos === null || !Number.isFinite(centavos)) return '—';
+  if (centavos === null || !Number.isFinite(centavos)) return 'Não informado';
   return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
@@ -135,7 +135,7 @@ export default function SimulacaoPublica() {
         <Text style={styles.destaqueValor}>{brl(r.primeira)}</Text>
         {r.parcial ? (
           <Text style={styles.destaqueNota}>
-            Sem seguros e tarifa do banco — a parcela final será um pouco maior.
+            Sem seguros e tarifa do banco, a parcela final será um pouco maior.
           </Text>
         ) : null}
       </View>
@@ -144,11 +144,11 @@ export default function SimulacaoPublica() {
         <Item rotulo="Valor do imóvel" valor={brl(r.valorImovel)} />
         <Item rotulo="Entrada" valor={brl(r.entradaTotal)} />
         <Item rotulo="Financiamento" valor={brl(r.valorFinanciado)} />
-        <Item rotulo="Prazo" valor={r.prazoMeses ? `${r.prazoMeses} meses` : '—'} />
-        <Item rotulo="Sistema" valor={r.sistema ?? '—'} />
+        <Item rotulo="Prazo" valor={r.prazoMeses ? `${r.prazoMeses} meses` : 'Não informado'} />
+        <Item rotulo="Sistema" valor={r.sistema ?? 'Não informado'} />
         <Item
           rotulo="Taxa"
-          valor={r.taxaAnualPct !== null ? `${r.taxaAnualPct.toFixed(2).replace('.', ',')}% a.a.` : '—'}
+          valor={r.taxaAnualPct !== null ? `${r.taxaAnualPct.toFixed(2).replace('.', ',')}% a.a.` : 'Não informado'}
         />
         <Item rotulo="Última parcela" valor={brl(r.ultima)} />
         <Item rotulo="Juros totais" valor={brl(r.totalJuros)} />
@@ -156,7 +156,7 @@ export default function SimulacaoPublica() {
 
       <View style={styles.corretor}>
         <Text style={styles.corretorTitulo}>Seu corretor</Text>
-        <Text style={styles.corretorNome}>{dados.corretor.nome ?? '—'}</Text>
+        <Text style={styles.corretorNome}>{dados.corretor.nome ?? 'Não informado'}</Text>
         <Text style={styles.corretorLinha}>
           {[dados.corretor.imobiliaria, dados.corretor.creci ? `CRECI ${dados.corretor.creci}` : null]
             .filter(Boolean)

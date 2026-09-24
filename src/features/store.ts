@@ -15,8 +15,8 @@ export const usesNativeBilling: boolean = Platform.OS !== 'web';
 export const canShowWebBilling: boolean = !isStoreBuild;
 export const canShowBilling: boolean = usesNativeBilling || canShowWebBilling;
 
-/** LIA digitada, exclusiva do Pro ativo, permanece web nesta versão. Sem voz. */
-export const liaDisponivel: boolean = !isStoreBuild;
+/** LIA por texto, sem acesso ao microfone, disponível no web e nos apps nativos. */
+export const liaDisponivel = true;
 
 /**
  * Decisão de produto: formulário de cadastro disponível na web. Não é uma

@@ -42,11 +42,20 @@ export function DateField({ label, value, onChange, placeholder, readOnly }: Dat
   const labelNode = label ? <Text style={styles.label}>{label}</Text> : null;
 
   if (Platform.OS === 'web') {
+    const handleWebChange = (e: {
+      currentTarget?: { value?: string };
+      target?: { value?: string };
+    }) => {
+      const next = e.currentTarget?.value ?? e.target?.value ?? '';
+      if (next) onChange(next);
+    };
     const input = createElement('input', {
       type: 'date',
       value: value ?? '',
       disabled: readOnly,
-      onChange: (e: { target: { value: string } }) => onChange(e.target.value),
+      onChange: handleWebChange,
+      onInput: handleWebChange,
+      'aria-label': label ?? placeholder ?? 'Data',
       style: {
         height: 52,
         width: '100%',

@@ -14,7 +14,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     icon: 'house',
     title: 'Bem-vindo ao POUP',
     description:
-      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 13 passos rápidos — leva menos de dois minutos.',
+      'Do primeiro contato até a comissão paga, tudo em um só lugar. Vamos te mostrar o caminho em 13 passos rápidos, leva menos de dois minutos.',
     bullets: [
       'Você pode sair do guia quando quiser',
       'Para rever depois: Ajustes › Guia do app',
@@ -23,7 +23,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   {
     icon: 'building',
     where: 'Início › Cadastros › Empresas',
-    title: 'Comece pelos cadastros — se houver o que cadastrar',
+    title: 'Comece pelos cadastros, se houver o que cadastrar',
     description:
       'O simulador, a proposta e a comissão trabalham com as regras da construtora. Antes de digitar qualquer coisa, abra a aba “Catálogo do sistema”: se a sua construtora já estiver lá, é só aceitar e tudo entra pronto.',
     bullets: [
@@ -41,7 +41,7 @@ export const GUIDE_STEPS: GuideStep[] = [
       'São construtoras que o POUP já cadastrou, com regra de comissão, empreendimentos e material de venda. Toque na construtora, leia o aviso e aceite: na hora tudo passa a valer na sua conta.',
     bullets: [
       'As atualizações do POUP chegam sozinhas: regra ajustada ou empreendimento novo aparece na sua conta',
-      'Por isso a empresa do catálogo é somente leitura — você não edita os dados dela',
+      'Por isso a empresa do catálogo é somente leitura, você não edita os dados dela',
       'Suas simulações, vendas e comissões já lançadas não mudam: elas guardam os valores do dia',
       'Pode remover da sua lista quando quiser, sem perder histórico',
     ],
@@ -67,7 +67,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     bullets: [
       'Publique o QR Code no story, na placa ou no cartão',
       'Um link de WhatsApp que cadastra a pessoa antes de abrir a conversa',
-      'O cliente escolhe se cadastrar — e você tem o consentimento registrado',
+      'O cliente escolhe se cadastrar, e você tem o consentimento registrado',
       'Todo lead que chega cai na Gestão de Leads com a origem certa',
     ],
   },
@@ -79,7 +79,7 @@ export const GUIDE_STEPS: GuideStep[] = [
       'Cada lead com ficha completa e a etapa do funil sempre visível. Nada de contato esquecido.',
     bullets: [
       'Toque no lead para abrir a ficha dele',
-      'Guarde CPF, renda, telefone, e-mail e observações — é o que alimenta a simulação',
+      'Guarde CPF, renda, telefone, e-mail e observações, é o que alimenta a simulação',
       'Use os filtros para achar por nome, CPF, empresa, empreendimento ou etapa',
       'A etapa do lead muda dentro da ficha dele',
     ],
@@ -129,7 +129,7 @@ export const GUIDE_STEPS: GuideStep[] = [
       'Fechou? Abra o relatório da simulação e toque em “Registrar venda realizada”. A venda entra aqui com todos os dados do cliente e do negócio.',
     bullets: [
       'A aba Painel mostra seus indicadores: VGV, ticket médio, comissão, ciclo de venda, conversão e distrato',
-      'Filtre por período, construtora, empreendimento ou situação — os indicadores recalculam na hora',
+      'Filtre por período, construtora, empreendimento ou situação, os indicadores recalculam na hora',
       'A aba Vendas lista tudo, com busca por cliente, CPF ou unidade',
       'Se um negócio cair, registre o distrato sem perder o histórico',
     ],
@@ -143,7 +143,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     bullets: [
       'A regra fica em Cadastros › Empresas: percentual, campanhas promocionais e em quantas vezes recebe',
       'Se a construtora veio do catálogo do sistema, a regra já vem pronta',
-      'A parcela vencida aparece em vermelho — nada passa batido',
+      'A parcela vencida aparece em vermelho, nada passa batido',
       'Marque como recebida direto na lista, com um toque',
       'Registre a nota fiscal de cada parcela',
     ],

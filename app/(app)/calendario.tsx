@@ -194,6 +194,9 @@ export default function CalendarioScreen() {
             key={seg.value}
             style={[styles.segmentItem, mode === seg.value && styles.segmentItemActive]}
             onPress={() => setMode(seg.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: mode === seg.value }}
+            accessibilityLabel={`Visualização por ${seg.label.toLowerCase()}`}
           >
             <Text style={[styles.segmentText, mode === seg.value && styles.segmentTextActive]}>
               {seg.label}
@@ -203,16 +206,31 @@ export default function CalendarioScreen() {
       </View>
 
       <View style={styles.header}>
-        <Pressable onPress={goPrev} style={styles.navBtn} accessibilityLabel="Período anterior">
+        <Pressable
+          onPress={goPrev}
+          style={styles.navBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Período anterior"
+        >
           <Text style={styles.navText}>‹</Text>
         </Pressable>
         <Text style={styles.periodLabel} numberOfLines={1}>
           {periodLabel}
         </Text>
-        <Pressable onPress={goNext} style={styles.navBtn} accessibilityLabel="Próximo período">
+        <Pressable
+          onPress={goNext}
+          style={styles.navBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Próximo período"
+        >
           <Text style={styles.navText}>›</Text>
         </Pressable>
-        <Pressable onPress={goToday} style={styles.todayBtn}>
+        <Pressable
+          onPress={goToday}
+          style={styles.todayBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Ir para hoje"
+        >
           <Text style={styles.todayText}>Hoje</Text>
         </Pressable>
       </View>
@@ -389,7 +407,7 @@ function AppointmentCard({
       <View style={styles.cardMain}>
         <Text style={[styles.cardTime, late && styles.lateText]}>
           {formatTimeISO(item.startAt)}
-          {item.endAt ? ` – ${formatTimeISO(item.endAt)}` : ''}
+          {item.endAt ? ` a ${formatTimeISO(item.endAt)}` : ''}
           {late ? ' ⚠️ Atrasado' : ''}
         </Text>
         <Text style={[styles.cardTitle, late && styles.lateText]} numberOfLines={1}>

@@ -130,7 +130,7 @@ export function ReportarProblema({ visible, onClose, etapa }: Props) {
 
                 <Text style={styles.aviso}>
                   Não escreva nome, CPF ou telefone de cliente. Descreva pelo que aconteceu, não por
-                  quem — a gente acha o resto pela tela.
+                  quem, a gente acha o resto pela tela.
                 </Text>
 
                 {erro ? <Text style={styles.erro}>{erro}</Text> : null}

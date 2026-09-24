@@ -260,7 +260,7 @@ export default function ResultadoFinanciamento() {
         </Text>
         {pri?.parcial ? (
           <Text style={styles.heroiParcial}>
-            Sem seguros e tarifa — os parâmetros não estão cadastrados. A parcela real será um pouco
+            Sem seguros e tarifa, os parâmetros não estão cadastrados. A parcela real será um pouco
             maior.
           </Text>
         ) : null}
@@ -278,12 +278,12 @@ export default function ResultadoFinanciamento() {
         {/*
           A versão de regras só pode ser chamada de oficial quando tem fonte,
           URL, data de verificação e a confirmação de quem publicou. Sem os
-          quatro, o cliente precisa ver que aquilo é estimativa — e vê aqui e no
+          quatro, o cliente precisa ver que aquilo é estimativa, e vê aqui e no
           PDF, não escondido num rodapé.
         */}
         {r.confiabilidade !== 'oficial_configurado' ? (
           <Text style={styles.procedenciaAlerta}>
-            Parâmetros sem procedência oficial confirmada — trate como estimativa.
+            Parâmetros sem procedência oficial confirmada, trate como estimativa.
           </Text>
         ) : null}
       </View>
@@ -512,7 +512,7 @@ export default function ResultadoFinanciamento() {
           <Text style={styles.pendentesTitulo}>O que não foi calculado</Text>
           {r.naoCalculados.map((n) => (
             <Text key={n.o_que} style={styles.pendenteItem}>
-              <Text style={styles.forte}>{n.o_que}</Text> — {n.motivo}
+              <Text style={styles.forte}>{n.o_que}</Text>, {n.motivo}
             </Text>
           ))}
         </View>
@@ -534,7 +534,7 @@ export default function ResultadoFinanciamento() {
             </View>
           ))}
           <Text style={styles.traceDetalhe}>
-            Custo Efetivo Total (CET): não calculado — depende de todos os componentes contratuais
+            Custo Efetivo Total (CET): não calculado, depende de todos os componentes contratuais
             (tarifas de contratação, avaliação, registro e apólices efetivas). Um CET incompleto
             seria pior que nenhum, porque é com ele que o cliente compara bancos.
           </Text>
@@ -598,7 +598,7 @@ function marcador(situacao: string): string {
 }
 
 function formatarCelula(v: unknown, formato: string): string {
-  if (v === null || v === undefined) return '—';
+  if (v === null || v === undefined) return 'Não informado';
   if (formato === 'dinheiro' && typeof v === 'number') return formatarBRL(v as never);
   if (formato === 'percentual' && typeof v === 'number') return formatarPct(v);
   return String(v);

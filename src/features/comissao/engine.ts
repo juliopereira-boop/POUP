@@ -110,7 +110,7 @@ const YMD_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
 
 interface Ymd {
   year: number;
-  month: number; // 1–12
+  month: number; // 1 a 12
   day: number;
 }
 
