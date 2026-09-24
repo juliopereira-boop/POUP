@@ -20,7 +20,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "br.com.poup.app",
       "usesAppleSignIn": true,
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleLocalizations": [
