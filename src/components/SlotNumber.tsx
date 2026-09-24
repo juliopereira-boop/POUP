@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, type TextStyle } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
 
 import { colors } from '@/theme';
 
 interface SlotNumberProps {
   value: number;
-  style?: TextStyle;
+  style?: StyleProp<TextStyle>;
   durationMs?: number;
 }
 

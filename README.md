@@ -20,7 +20,7 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 8. [Cadastros: Empresas, Empreendimentos e Correspondentes](#🏢-cadastros-empresas-empreendimentos-e-correspondentes)
 9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
 10. [Simulador de financiamento habitacional](#🏦-simulador-de-financiamento-habitacional)
-11. [Simulador de poupança (o wizard de 5 etapas)](#🧮-simulador-de-poupança-o-wizard-de-5-etapas)
+11. [Simulador de poupança (dois blocos)](#🧮-simulador-de-poupança-dois-blocos-valores-depois-unidade-e-cliente)
 12. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
 13. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
 14. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
@@ -78,13 +78,11 @@ app/                                # Rotas (Expo Router, file-based)
       index.tsx                    # Hub (empresas / empreendimentos)
       empresas.tsx                 # CRUD de empresas + regras de negócio + correspondentes
       empreendimentos.tsx          # CRUD de empreendimentos + regras de negócio
+      unidades.tsx                 # Blocos e unidades de um empreendimento (gerador por pavimento)
     simulador/
-      _layout.tsx                  # <SimuladorProvider> + Stack das 5 etapas
-      index.tsx                    # Etapa 1 — Empreendimento
-      corretor.tsx                 # Etapa 2 — Corretor
-      cliente.tsx                  # Etapa 3 — Cliente
-      financiamento.tsx            # Etapa 4 — Financiamento
-      fluxo.tsx                    # Etapa 5 — Fluxo de pagamento + Gerar proposta
+      _layout.tsx                  # <SimuladorProvider> + Stack dos 2 blocos
+      index.tsx                    # Bloco 1 — Valores (a conta, com a parcela ao vivo)
+      dados.tsx                    # Bloco 2 — Unidade e cliente + Gerar proposta
 src/
   components/                       # UI compartilhada (Button, Input, Logo, WordMark,
                                      # MonthYearField, NumberPickerField, ScanDocumentButton...)
@@ -199,9 +197,9 @@ Exige autenticação **e** assinatura ativa:
 
 ### O Simulador: um wizard com estado compartilhado
 
-`app/(app)/simulador/_layout.tsx` envolve as 5 rotas do wizard em um único `<SimuladorProvider>` e depois um `<Stack>` aninhado com uma tela por etapa. Como esse layout só é montado uma vez (a guarda acima não o desmonta em reconferências de assinatura, graças ao `initialLoad`), o estado do `SimuladorProvider` sobrevive enquanto o usuário navega `index → corretor → cliente → financiamento → fluxo` com `router.push`.
+`app/(app)/simulador/_layout.tsx` envolve as 2 rotas do simulador em um único `<SimuladorProvider>` e depois um `<Stack>` aninhado com uma tela por bloco. Como esse layout só é montado uma vez (a guarda acima não o desmonta em reconferências de assinatura, graças ao `initialLoad`), o estado do `SimuladorProvider` sobrevive enquanto o usuário navega `index` (valores) → `dados` (unidade e cliente) com `router.push`.
 
-**O que acontece quando o corretor toca no card "Simulador" no menu:** `app/(app)/index.tsx` faz `router.push('/(app)/simulador')`, que resolve para `app/(app)/simulador/index.tsx` — a **Etapa 1 (Empreendimento)**. Como é `push` (não `replace`), o Menu continua embaixo na pilha: o gesto de "voltar" retorna ao Menu. O `SimuladorProvider` monta nesse momento e persiste durante todas as etapas seguintes.
+**O que acontece quando o corretor toca no card "Simulador" no menu:** `app/(app)/index.tsx` faz `router.push('/(app)/simulador')`, que resolve para `app/(app)/simulador/index.tsx` — o **Bloco 1 (Valores)**. Como é `push` (não `replace`), o Menu continua embaixo na pilha: o gesto de "voltar" retorna ao Menu. O `SimuladorProvider` monta nesse momento e persiste durante os dois blocos.
 
 O wizard também é **persistido em disco** (rascunho automático, ver §9) como segunda camada de proteção contra perda de progresso, mesmo que o app inteiro seja recarregado.
 
@@ -392,14 +390,14 @@ Todos os campos de "Regras de Negócio" são **opcionais** — só `name` bloque
 
 ### Correspondentes
 
-Não têm tela própria: são gerenciados **dentro do formulário de edição da empresa**, e só depois que a empresa já foi salva (`editingId` precisa existir — por isso o cadastro pede para salvar a empresa antes de adicionar correspondentes). Cada correspondente é `{id, companyId, name}`, guardado numa tabela própria (`correspondents`) e listado no Simulador (Etapa 2) filtrado pela empresa escolhida na Etapa 1.
+Não têm tela própria: são gerenciados **dentro do formulário de edição da empresa**, e só depois que a empresa já foi salva (`editingId` precisa existir — por isso o cadastro pede para salvar a empresa antes de adicionar correspondentes). Cada correspondente é `{id, companyId, name}`, guardado numa tabela própria (`correspondents`) e listado no Simulador (bloco 2, "Unidade e cliente") filtrado pela construtora escolhida.
 
 ### Empreendimento (`Development`)
 
 Sempre vinculado a uma empresa (`companyId`). Campos de "Regras de Negócio":
 
 - **Data de entrega** — escolhida via `MonthYearField` (seletor **só de mês/ano**; internamente é guardada como uma data ISO no dia 1º do mês, ex.: `2028-03-01`, porque a coluna do banco é `date`). No PDF da proposta, essa data aparece só como `Mar/2028`, nunca com o dia.
-- **Gerente responsável** (opcional, texto livre) — este é o "Gerente" (do empreendimento/construtora) que aparece na Etapa 2 do Simulador e no PDF, distinto do "Gerente Imob." (que vem do perfil do corretor, é o gerente da imobiliária).
+- **Gerente responsável** (opcional, texto livre) — este é o "Gerente" (do empreendimento/construtora) que aparece no bloco 2 do Simulador e no PDF, distinto do "Gerente Imob." (que vem do perfil do corretor, é o gerente da imobiliária).
 
 ---
 
@@ -896,94 +894,77 @@ de repetir os mesmos dois bugs.
 
 ---
 
-## 🧮 Simulador de poupança (o wizard de 5 etapas)
+## 🧮 Simulador de poupança (dois blocos: valores, depois unidade e cliente)
 
-Rotas em `app/(app)/simulador/`, estado compartilhado em `src/features/simulador/SimuladorProvider.tsx`, fórmulas centralizadas em `src/features/simulador/calc.ts`.
+Rotas em `app/(app)/simulador/` (`index.tsx` e `dados.tsx`), estado em `src/features/simulador/estado.ts` (puro) servido pelo `SimuladorProvider.tsx`, fórmulas em `calc.ts`, regras de validação em `pendencias.ts`, geração da proposta em `useGerarProposta.ts`.
+
+**Por que dois blocos, nesta ordem.** O cliente está na mesa e a pergunta é "quanto fica por mês?". O simulador antigo tinha cinco etapas e só mostrava a parcela na quinta. Agora os **valores** vêm primeiro e a parcela aparece enquanto o corretor digita; construtora, unidade e cliente vêm depois — são dados da proposta, e **nenhum deles entra na conta** (nome, CPF, renda, e-mail e telefone só saem impressos no PDF).
+
+O resultado fica **fixo no topo** das duas telas (`components/simulador/ResumoPoupanca.tsx`, dentro de `CascoSimulador.tsx`): a parcela mensal grande, com a animação de "caça-níquel" (`SlotNumber`), e a poupança logo abaixo.
 
 ### Persistência do rascunho
 
 Toda mudança de estado é salva (com debounce de 300ms) em `AsyncStorage` sob a chave `poup.simulador.draft`, e restaurada automaticamente se o wizard for remontado (ex.: o app foi encerrado pelo sistema operacional em segundo plano). O rascunho só é apagado quando a proposta é gerada com sucesso (`sim.reset()`) — **nunca** ao trocar de tela ou perder foco, para não apagar o trabalho do corretor no meio de um atendimento.
 
-### Etapa 1 — Empreendimento (`index.tsx`)
+### Bloco 1 — Valores (`index.tsx`)
 
-- Seleciona **Empresa** → carrega as regras de negócio dela para dentro do estado (`companyRisk`, `companyMaxInstallments`, `companyMaxSemiannual`, `companyMaxAnnual`, `companyCoincide`) — trocar de empresa **reseta** o empreendimento escolhido.
-- Seleciona **Empreendimento** (filtrado pela empresa escolhida).
-- **Bloco/Quadra**: seletor numérico nativo, 0 a 100.
-- **Unidade**: texto livre.
-- **Valor da unidade**: campo monetário (R$).
-- Validação para avançar: empresa, empreendimento, unidade e valor da unidade preenchidos.
+- **O imóvel e o banco**: Valor de venda, Financiamento aprovado pelo banco, Subsídio, FGTS. O texto "valores informados pela instituição financeira… o POUP não faz análise de crédito" fica embaixo dos campos (auditoria de App Store, regra 5.1.1(ix)).
+- **Como o cliente paga a poupança**: Ato + vencimento, Parcelas mensais + dia do vencimento, e opcionalmente Semestrais e Anuais.
+- **Cupom e taxa CEF** (recolhidos por padrão): mesmo comportamento de antes — o cupom mostra o aviso da construtora na primeira vez; a taxa CEF é informativa e **não entra** no cálculo.
+- **Começar do zero**: aparece quando há rascunho de outra simulação, para o corretor começar limpo com um cliente novo.
+- **Nada trava o "Continuar"**: o bloco 2 pode preencher o valor de venda pela tabela de preços. Tudo é conferido no "Gerar proposta".
 
-### Etapa 2 — Corretor (`corretor.tsx`)
+### Bloco 2 — Unidade e cliente (`dados.tsx`)
 
-- Mostra (somente leitura) nome, imobiliária, telefone, CNPJ e "Gerente imob." vindos do **perfil** do corretor logado, com atalho para editar o perfil.
-- Mostra (somente leitura) o "Gerente" **responsável pelo empreendimento** escolhido na Etapa 1 (vem do cadastro do empreendimento, não é editável aqui).
-- Seleciona o **Correspondente** dentre os cadastrados para a empresa escolhida (obrigatório **apenas se a empresa tiver algum correspondente cadastrado**).
+- **Construtora** → carrega as regras dela (`companyRisk`, `companyMaxInstallments`, `companyMaxSemiannual`, `companyMaxAnnual`, `companyCoincide`). Trocar de construtora limpa empreendimento, unidade e correspondente.
+- **Empreendimento** → se ele tem **blocos cadastrados** (ver *Blocos e unidades* abaixo), o corretor escolhe **Bloco** e **Unidade** numa lista; senão, digita bloco e unidade como sempre. Existe o atalho "a unidade não está na lista? Digitar à mão".
+- **Preço da tabela**: se a unidade escolhida tem preço cadastrado e o valor de venda está vazio, ele é preenchido. Se está **diferente**, o app mostra a diferença e oferece "Usar R$ X" — **nunca troca sozinho**, porque o corretor pode ter negociado outro valor.
+- **O cliente**: 1º proponente (os 5 campos, com o botão de escanear documento), 2º proponente opcional com tipo de associação. Vindo de um lead ("Simular" no lead), já chega preenchido e aparece resumido, com "Editar".
+- **Corretor e correspondente**: uma linha com o perfil do corretor e o gerente do empreendimento; o correspondente é obrigatório só se a construtora tiver algum cadastrado.
+- **Gerar proposta**: confere tudo (`pendencias.ts`) e lista o que falta, dizendo se está nos valores ou aqui — com botão "Ir para os valores". Depois gera o PDF e salva em Relatórios exatamente como antes.
 
-### Etapa 3 — Cliente (`cliente.tsx`)
+### As regras (`pendencias.ts`, testadas em `npm run testar:simulador`)
 
-- **1º Proponente** obrigatório: nome, CPF, renda bruta, email, contato.
-- **2º Proponente** opcional (+ botão "2º proponente"): exige selecionar um **Tipo de associação** (Cônjuge/Parente/Fiador/Sócio) e os mesmos 5 campos.
-- Botão de **escanear documento** (ícone discreto 🪪) em cada proponente — ver §11. Preenche automaticamente **apenas** nome e CPF; os demais campos continuam manuais.
+Todas as que as cinco etapas antigas exigiam, agora num lugar só: valor de venda, vencimento do ato, ao menos 1 mensal, construtora, empreendimento, unidade, correspondente (se houver), proponentes completos. Os **limites da construtora** (máximo de mensais, semestrais, anuais) passam a ser conferidos também no fim, porque agora os valores podem ser digitados antes de a construtora ser escolhida.
 
-### Etapa 4 — Financiamento (`financiamento.tsx`)
+A única regra nova: **parcela mensal negativa** é recusada — ato + semestrais + anuais maiores que a poupança deixariam o PDF com "36 × −R$ 800,00".
 
-Campos: **Financiamento aprovado**, **Subsídio aprovado**, **FGTS** (todos R$). Mostra (somente leitura) o **Risco da poupança** cadastrado na empresa.
-
-**Cupom** (desconto opcional): botão "+" que, na primeira vez, mostra um aviso ("o cupom será validado pela construtora antes da confirmação da venda") — só depois de fechar esse aviso uma vez (`couponWarningSeen`) é que o seletor de tipo abre diretamente nas próximas vezes. Tipo `R$` (valor fixo) ou `%` (percentual sobre o valor da unidade); pode ser removido com swipe.
-
-**Taxa CEF**: toggle "cliente paga" (`cefClientPays`, padrão `true`). Se ativo, mostra toggle "Parcelar?" (+ quantidade de parcelas, se sim) e o campo "Parcela CEF". Esses valores são só informativos/negociação — aparecem na tabela "NEGOCIAÇÃO" do PDF, mas **não entram** no cálculo da poupança.
-
-**Cálculo de risco em tempo real** (recalculado a cada tecla):
+### As fórmulas (`calc.ts`, sem mudança)
 
 ```
-cupom = couponType === 'R$' ? couponValue
-      : couponType === '%' ? unitValue * pct / 100
-      : 0
-financiamentoTotal = financiamento + subsídio + FGTS + cupom
-poupança            = valorDaUnidade − financiamentoTotal
-poupançaPct         = poupança / valorDaUnidade × 100
-dentroDoRisco       = poupançaPct <= riscoDaEmpresa
+cupom          = couponType === 'R$' ? couponValue
+               : couponType === '%' ? valorDeVenda * pct / 100
+               : 0
+poupança       = max(0, valorDeVenda − financiamento − subsídio − FGTS − cupom)
+poupançaPct    = poupança / valorDeVenda × 100
+dentroDoRisco  = poupançaPct <= riscoDaConstrutora
+
+restante       = poupança − ato − semestralTotal − anualTotal
+valorMensal    = restante / quantidadeMensais
+
+1º venc. mensal     = vencimentoDoAto + 1 mês
+offset              = construtora.coincideInstallments ? 0 : 1
+semestral[i]        = 1ºVencimentoMensal + 6×(i+1) + offset  meses
+anual[i]            = 1ºVencimentoMensal + 12×(i+1) + offset meses
+
+saldo          = poupança − (ato + valorMensal×quantidadeMensais + semestralTotal + anualTotal)
 ```
 
-O card de status muda de cor (neutro se a empresa não tem risco cadastrado; verde "✓ Dentro do risco"; vermelho "⚠ Ultrapassou o risco") e mostra a poupança e o financiamento total calculados.
+O resumo do topo mostra "Falta distribuir R$ X" quando `|saldo| ≥ 1`.
 
-### Etapa 5 — Fluxo de pagamento (`fluxo.tsx`)
+### Blocos e unidades (`cadastros/unidades.tsx`)
 
-Esta é a etapa que decide **como a poupança será parcelada** entre ato, mensais e (opcionalmente) semestrais/anuais, e onde a proposta em PDF é gerada.
-
-Todas as fórmulas vivem em `src/features/simulador/calc.ts`:
+Aberto pelo atalho **Unidades** em cada empreendimento (ou pelo botão dentro da edição, ou pelo convite logo depois de criar um). O corretor informa a **forma** de cada bloco — pavimentos e quantas unidades cada um tem — e os códigos saem de `src/features/unidades/gerador.ts`:
 
 ```
-poupança (computePoupanca) = max(0, valorDaUnidade − financiamento − subsídio − FGTS − cupom)
-financiamentoSoma (computeFinancingSum) = financiamento + subsídio + FGTS
+pavimento 1 (térreo), 4 unidades   →  001  002  003  004
+pavimento 2 (1º andar), 4 unidades →  101  102  103  104
+pavimento 11 (10º andar)           →  1001 1002 ...
 ```
 
-Campos da etapa:
-- **Ato do cliente** (R$) + **vencimento** (data).
-- **Parcelas mensais**: quantidade (limitada ao `companyMaxInstallments`, se houver) — o **valor de cada parcela mensal é calculado, não digitado**, e aparece com uma animação de "caça-níquel" (`SlotNumber`):
-  ```
-  restante     = poupança − ato − semestralTotal − anualTotal
-  valorMensal  = restante / quantidadeMensais
-  ```
-- **Semestrais** (opcional, "+ Semestrais"): quantidade (≤ `companyMaxSemiannual`) × valor de cada uma → `semestralTotal`.
-- **Anuais** (opcional, "+ Anuais"): quantidade (≤ `companyMaxAnnual`) × valor de cada uma → `anualTotal`.
+Atalhos: **+ Pavimento** (número seguinte, mesma quantidade do anterior), **Repetir até o pavimento N** (o prédio inteiro de uma vez) e **+ Bloco** (copia a forma do anterior). No máximo 99 unidades por pavimento: com dois dígitos fixos para a posição, o código nunca é ambíguo — o que importa porque a **tabela de preços vai casar as unidades pelo código**.
 
-**Vencimentos** — a cadeia de datas:
-```
-1º vencimento mensal   = vencimentoDoAto + 1 mês
-offset                 = empresa.coincideInstallments ? 0 : 1   (mês extra se não pode coincidir)
-1º vencimento semestral[i] = 1ºVencimentoMensal + 6×(i+1) + offset  meses
-1º vencimento anual[i]     = 1ºVencimentoMensal + 12×(i+1) + offset meses
-```
-
-**Saldo a distribuir** (checagem de fechamento — deve ser ~R$ 0,00):
-```
-distribuído = ato + valorMensal×quantidadeMensais + semestralTotal + anualTotal
-saldo       = poupança − distribuído
-```
-O card fica verde quando `|saldo| < 1` (arredondamento de centavos) e vermelho caso contrário — sinal visual de que os valores digitados não fecham com a poupança calculada.
-
-**Botão "Gerar proposta"**: exige vencimento do ato e ao menos 1 parcela mensal. Ao concluir a geração/impressão do PDF com sucesso, a simulação inteira é **resetada** (`sim.reset()`, apagando também o rascunho salvo) e o corretor é redirecionado ao menu (`router.replace('/(app)')`) — para não deixar dados de um cliente "vazando" para a próxima simulação.
+**Banco**: migration `20260924150000_blocos_e_unidades.sql` — tabelas `development_blocks` e `development_units` (com `valor` por unidade), acesso **herdado do empreendimento** (catálogo: todos leem, só o admin escreve) e a RPC `salvar_blocos_empreendimento`, que salva tudo numa transação e **preserva o preço** das unidades que continuam existindo. Testes: `npm run testar:unidades` (o gerador) e `scripts/testar-unidades-db.sql` (RLS, preço preservado, recusas e cascata — rode num Postgres local/homologação). Sem a migration, a tela de blocos avisa qual arquivo rodar e o simulador segue com a unidade digitada.
 
 ---
 
@@ -1556,7 +1537,7 @@ O `expo-print` do Expo, na web, [só chama `window.print()`](https://github.com/
 
 ## 🪪 Scanner de documento (CNH/RG) com Claude
 
-O botão de escanear (ícone discreto 🪪, na Etapa 3 do Simulador, um por proponente) usa a **API da Anthropic** (modelo `claude-haiku-4-5-20251001`, com visão) para ler nome e CPF de documentos e preencher os campos automaticamente — **sempre editáveis**, nunca salvos sem revisão do corretor.
+O botão de escanear (ícone discreto 🪪, no bloco 2 do Simulador, um por proponente) usa a **API da Anthropic** (modelo `claude-haiku-4-5-20251001`, com visão) para ler nome e CPF de documentos e preencher os campos automaticamente — **sempre editáveis**, nunca salvos sem revisão do corretor.
 
 - Aceita: CNH modelo antigo, CNH modelo novo (Mercosul), RG modelo antigo e a nova Carteira de Identidade Nacional (CIN).
 - Fluxo: pede permissão de câmera (`expo-image-picker`) → se negada, cai para a galeria → converte a imagem em base64 → chama a edge function `scan-document`.

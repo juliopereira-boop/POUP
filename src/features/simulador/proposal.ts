@@ -14,6 +14,7 @@ import {
 import { imprimirHtmlNaWeb } from '@/features/pdf/imprimir';
 import { LOGO_DATA_URI } from './logoDataUri';
 import { fetchImageAsDataUri } from './remoteImage';
+import { nomeDoBloco } from './estado';
 import type { SimuladorState } from './SimuladorProvider';
 
 export interface ProposalContext {
@@ -366,7 +367,7 @@ function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): 
     <div class="band">PROPOSTA DE COMPRA E VENDA</div>
 
     <table class="kv">
-      <tr><td class="k">EMPREENDIMENTO:</td><td>${esc(ctx.developmentName)}</td><td class="k">BLOCO:</td><td>${sim.block}</td><td class="k">UNIDADE:</td><td>${esc(sim.unit)}</td></tr>
+      <tr><td class="k">EMPREENDIMENTO:</td><td>${esc(ctx.developmentName)}</td><td class="k">BLOCO:</td><td>${esc(nomeDoBloco(sim) || '—')}</td><td class="k">UNIDADE:</td><td>${esc(sim.unit)}</td></tr>
       <tr><td class="k">CORRETOR:</td><td>${esc(profile?.fullName)}</td><td class="k">CONTATO:</td><td colspan="3">${esc(profile?.phone ? formatPhone(profile.phone) : '')}</td></tr>
       ${agencyRowHtml(profile)}
     </table>

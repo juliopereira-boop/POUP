@@ -17,11 +17,10 @@ export default function SimuladorLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Simulador · Empreendimento' }} />
-        <Stack.Screen name="corretor" options={{ title: 'Simulador · Corretor' }} />
-        <Stack.Screen name="cliente" options={{ title: 'Simulador · Cliente' }} />
-        <Stack.Screen name="financiamento" options={{ title: 'Simulador · Financiamento' }} />
-        <Stack.Screen name="fluxo" options={{ title: 'Simulador · Fluxo de pagamento' }} />
+        {/* Dois blocos: primeiro os valores (a conta), depois a unidade e o cliente
+            (a proposta). Ver o cabeçalho de `index.tsx`. */}
+        <Stack.Screen name="index" options={{ title: 'Simulação de poupança' }} />
+        <Stack.Screen name="dados" options={{ title: 'Unidade e cliente' }} />
       </Stack>
     </SimuladorProvider>
   );

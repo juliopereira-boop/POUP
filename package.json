@@ -29,7 +29,8 @@
     "testar:apple-web": "node scripts/testar-apple-web.mjs",
     "testar:release": "node scripts/testar-release.mjs",
     "testar:unidades": "node scripts/testar-unidades.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades",
+    "testar:simulador": "node scripts/testar-simulador.mjs",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {

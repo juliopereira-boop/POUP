@@ -36,6 +36,7 @@ import { canShowBilling } from '@/features/store';
 import {
   ASSOCIATION_OPTIONS,
   EDIT_DRAFT_KEY,
+  nomeDoBloco,
   setPendingEditId,
   type SimuladorState,
 } from '@/features/simulador/SimuladorProvider';
@@ -417,9 +418,9 @@ export default function SimulationDetailScreen() {
       <View style={styles.card}>
         <Row label="Empresa" value={sim.companyName ?? 'Não informado'} />
         <Row label="Empreendimento" value={sim.developmentName ?? 'Não informado'} />
-        <Row label="Bloco / Quadra" value={String(st.block)} />
+        <Row label="Bloco / Quadra" value={nomeDoBloco(st) || 'Não informado'} />
         <Row label="Unidade" value={st.unit} />
-        <Row label="Valor da unidade" value={money(st.unitValue)} />
+        <Row label="Valor de venda" value={money(st.unitValue)} />
         <Row label="Entrega" value={formatMonthYearBR(sim.deliveryDate)} />
         <Row label="Meses p/ entrega" value={mesesLabel} />
         <Row label="Gerente" value={sim.managerName ?? 'Não informado'} />

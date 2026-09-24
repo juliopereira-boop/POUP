@@ -11,69 +11,22 @@ import { useGlobalSearchParams } from 'expo-router';
 
 import { LoadingScreen } from '@/components/Loading';
 import { sessionStorage } from '@/lib/storage';
+import {
+  INITIAL_SIMULADOR_STATE,
+  emptyProponent,
+  type Proponent,
+  type SimuladorState,
+} from './estado';
 
-export interface Proponent {
-  name: string;
-  cpf: string;
-  email: string;
-  contact: string;
-  rendaBruta: string;
-}
-
-export type AssociationType = 'conjuge' | 'parente' | 'fiador' | 'socio';
-
-export const ASSOCIATION_OPTIONS: { value: AssociationType; label: string }[] = [
-  { value: 'conjuge', label: 'Cônjuge' },
-  { value: 'parente', label: 'Parente' },
-  { value: 'fiador', label: 'Fiador' },
-  { value: 'socio', label: 'Sócio' },
-];
-
-export function emptyProponent(): Proponent {
-  return { name: '', cpf: '', email: '', contact: '', rendaBruta: '' };
-}
-
-export interface SimuladorState {
-  companyId: string | null;
-  developmentId: string | null;
-  block: number;
-  unit: string;
-  unitValue: string;
-  companyRisk: number | null;
-  companyMaxInstallments: number | null;
-  companyMaxSemiannual: number | null;
-  companyMaxAnnual: number | null;
-  companyCoincide: boolean;
-  correspondentId: string | null;
-  correspondentName: string | null;
-  proponent1: Proponent;
-  hasSecondProponent: boolean;
-  association: AssociationType | null;
-  proponent2: Proponent;
-
-  financingApproved: string;
-  subsidy: string;
-  fgts: string;
-  couponType: 'R$' | '%' | null;
-  couponValue: string;
-  couponWarningSeen: boolean;
-
-  cefClientPays: boolean;
-  cefInstallment: boolean;
-  cefInstallmentsCount: string;
-  cefParcela: string;
-
-  ato: string;
-  atoDueDate: string | null;
-  mensaisCount: string;
-  mensalDueDay: string;
-  semestralEnabled: boolean;
-  semestralCount: string;
-  semestralValue: string;
-  anualEnabled: boolean;
-  anualCount: string;
-  anualValue: string;
-}
+// O estado mora em `estado.ts`, que é puro. Reexportado daqui para quem já
+// importava do provider não precisar mudar nada.
+export {
+  ASSOCIATION_OPTIONS,
+  INITIAL_SIMULADOR_STATE,
+  emptyProponent,
+  nomeDoBloco,
+} from './estado';
+export type { AssociationType, Proponent, SimuladorState } from './estado';
 
 interface SimuladorContextValue extends SimuladorState {
   setField: <K extends keyof SimuladorState>(key: K, value: SimuladorState[K]) => void;
@@ -84,46 +37,7 @@ interface SimuladorContextValue extends SimuladorState {
   snapshot: SimuladorState;
 }
 
-const INITIAL: SimuladorState = {
-  companyId: null,
-  developmentId: null,
-  block: 0,
-  unit: '',
-  unitValue: '',
-  companyRisk: null,
-  companyMaxInstallments: null,
-  companyMaxSemiannual: null,
-  companyMaxAnnual: null,
-  companyCoincide: true,
-  correspondentId: null,
-  correspondentName: null,
-  proponent1: emptyProponent(),
-  hasSecondProponent: false,
-  association: null,
-  proponent2: emptyProponent(),
-  financingApproved: '',
-  subsidy: '',
-  fgts: '',
-  couponType: null,
-  couponValue: '',
-  couponWarningSeen: false,
-  cefClientPays: true,
-  cefInstallment: false,
-  cefInstallmentsCount: '',
-  cefParcela: '',
-  ato: '',
-  atoDueDate: null,
-  mensaisCount: '',
-  mensalDueDay: '',
-  semestralEnabled: false,
-  semestralCount: '',
-  semestralValue: '',
-  anualEnabled: false,
-  anualCount: '',
-  anualValue: '',
-};
-
-export const INITIAL_SIMULADOR_STATE: SimuladorState = INITIAL;
+const INITIAL: SimuladorState = INITIAL_SIMULADOR_STATE;
 
 const DRAFT_KEY = 'poup.simulador.draft';
 export const EDIT_DRAFT_KEY = 'poup.simulador.edit.draft';

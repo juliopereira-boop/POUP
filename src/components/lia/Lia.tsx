@@ -79,7 +79,9 @@ export function Lia() {
     if (completo === null) return;
     setPainelAberto(false);
 
-    router.push(completo ? '/simulador/fluxo' : '/simulador');
+    // Completo = os valores já vieram todos da conversa; o que falta é a unidade
+    // e o cliente, que moram no bloco 2.
+    router.push(completo ? '/simulador/dados' : '/simulador');
   }, [lia, router]);
 
   if (!liaDisponivel) return null;
