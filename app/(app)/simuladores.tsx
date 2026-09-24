@@ -9,18 +9,19 @@
  * venda:
  *
  *   **Financiamento** — quanto o BANCO empresta, qual a parcela, se enquadra.
- *                       Vem primeiro, quando o cliente ainda está decidindo se
- *                       consegue comprar.
  *   **Poupança**      — como o saldo é pago à CONSTRUTORA: ato, mensais,
- *                       semestrais, anuais. Vem depois, quando ele já decidiu.
+ *                       semestrais, anuais.
  *
- * Empilhar as duas atrás do mesmo botão fazia o corretor entrar na errada e
- * voltar. Duas portas, com uma frase cada, resolvem — e o custo é um toque a
- * mais só para quem já sabia o que queria.
+ * ===========================================================================
+ * SÓ OS DOIS NOMES
+ * ===========================================================================
+ * Os cartões já tiveram uma frase de resumo, um parágrafo de detalhe e um
+ * rodapé explicando a ligação entre os dois. Era texto demais para uma tela
+ * que o corretor abre com o cliente na frente e só precisa de um toque. Quem
+ * usa o POUP sabe a diferença pelo nome; o que sobra é peso para o olho.
  *
- * As rotas antigas continuam existindo: `/(app)/simulador` é o fluxo da
- * poupança, intocado. Este arquivo não move nada de lugar, só passa a ser a
- * entrada.
+ * `/(app)/simulador` continua sendo a poupança e `/(app)/financiamento` o
+ * financiamento: esta tela é só a entrada.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
@@ -33,31 +34,13 @@ import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
 interface Porta {
   chave: string;
   titulo: string;
-  linha: string;
-  detalhe: string;
   icone: IconName;
   rota: Href;
 }
 
 const PORTAS: Porta[] = [
-  {
-    chave: 'financiamento',
-    titulo: 'Simulador de financiamento',
-    linha: 'Quanto o banco empresta e qual a parcela',
-    detalhe:
-      'SAC ou PRICE, poder de compra, comparação de cenários e enquadramento estimado. Fica salvo no cliente.',
-    icone: 'chart',
-    rota: '/(app)/financiamento',
-  },
-  {
-    chave: 'poupanca',
-    titulo: 'Simulador de poupança',
-    linha: 'Como o saldo é pago à construtora',
-    detalhe:
-      'Ato, mensais, semestrais e anuais, com a regra de risco da empresa, e a proposta de compra e venda em PDF no fim.',
-    icone: 'house',
-    rota: '/(app)/simulador',
-  },
+  { chave: 'financiamento', titulo: 'Simulador de financiamento', icone: 'chart', rota: '/(app)/financiamento' },
+  { chave: 'poupanca', titulo: 'Simulador de poupança', icone: 'house', rota: '/(app)/simulador' },
 ];
 
 export default function SimuladoresScreen() {
@@ -67,9 +50,6 @@ export default function SimuladoresScreen() {
 
   return (
     <Screen>
-      <Text style={styles.titulo}>Simulador</Text>
-      <Text style={styles.sub}>O que você quer simular agora?</Text>
-
       <View style={styles.lista}>
         {PORTAS.map((p) => (
           <Pressable
@@ -80,36 +60,26 @@ export default function SimuladoresScreen() {
             style={({ pressed }) => [styles.cartao, pressed && styles.cartaoPressionado]}
           >
             <View style={styles.icone}>
-              <Icon name={p.icone} size={24} color={colors.primary} strokeWidth={1.8} />
+              <Icon name={p.icone} size={26} color={colors.primary} strokeWidth={1.8} />
             </View>
-            <View style={styles.texto}>
-              <Text style={styles.cartaoTitulo}>{p.titulo}</Text>
-              <Text style={styles.cartaoLinha}>{p.linha}</Text>
-              <Text style={styles.cartaoDetalhe}>{p.detalhe}</Text>
-            </View>
+            <Text style={styles.cartaoTitulo}>{p.titulo}</Text>
             <Icon name="chevronRight" size={20} color={colors.inkSubtle} />
           </Pressable>
         ))}
       </View>
-
-      <Text style={styles.rodape}>
-        Os dois ficam ligados ao mesmo cliente: feito o financiamento, o simulador de poupança já
-        abre com o valor informado pelo banco, o subsídio e o FGTS preenchidos.
-      </Text>
     </Screen>
   );
 }
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
-    titulo: { ...typography.title, color: colors.primary },
-    sub: { ...typography.body, color: colors.inkMuted, marginBottom: spacing.xl },
-    lista: { gap: spacing.lg },
+    lista: { gap: spacing.lg, marginTop: spacing.sm },
     cartao: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.lg,
-      padding: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xl,
       borderRadius: radius.lg,
       backgroundColor: colors.surface,
       borderWidth: 1,
@@ -118,21 +88,12 @@ const makeStyles = (colors: AppColors) =>
     },
     cartaoPressionado: { opacity: 0.85, transform: [{ scale: 0.995 }] },
     icone: {
-      width: 52,
-      height: 52,
+      width: 56,
+      height: 56,
       borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primarySoft,
     },
-    texto: { flex: 1, gap: 3 },
-    cartaoTitulo: { ...typography.heading, color: colors.ink },
-    cartaoLinha: { ...typography.body, color: colors.primary, fontWeight: '600' },
-    cartaoDetalhe: { ...typography.caption, color: colors.inkMuted, lineHeight: 18 },
-    rodape: {
-      ...typography.caption,
-      color: colors.inkMuted,
-      marginTop: spacing.xl,
-      lineHeight: 19,
-    },
+    cartaoTitulo: { ...typography.heading, color: colors.ink, flex: 1 },
   });
