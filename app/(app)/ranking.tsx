@@ -17,6 +17,10 @@
  *
  * Participar é escolha: aparecer mostra nome, cidade e resultado aos outros
  * corretores (LGPD). Quem não participa vê o ranking, mas não aparece nele.
+ *
+ * E participar é do plano Pro PAGO (`20260925180000_ranking_so_pro.sql`):
+ * todo mundo vê o placar, só assinante disputa. Quem deixa o Pro sai da lista
+ * sem perder a escolha — reassinou, volta.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -39,6 +43,8 @@ import { Screen } from '@/components/Screen';
 import { Segmento } from '@/components/Segmento';
 import { db } from '@/data';
 import { useIsAdmin } from '@/features/admin';
+import { canShowBilling } from '@/features/store';
+import { useFeatureAccess } from '@/features/useFeatureAccess';
 import {
   corDoParticipante,
   faltaParaParticipar,
@@ -87,7 +93,11 @@ export default function RankingScreen() {
   const [regrasAbertas, setRegrasAbertas] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  const participa = Boolean(profile?.rankingParticipa);
+  const { canUse } = useFeatureAccess();
+  const pro = canUse('ranking');
+  // A escolha fica guardada mesmo sem o Pro; aparecer, só com ele.
+  const escolheuParticipar = Boolean(profile?.rankingParticipa);
+  const participa = escolheuParticipar && pro;
   const hoje = useMemo(() => new Date(), []);
 
   const carregar = useCallback(async () => {
@@ -127,6 +137,11 @@ export default function RankingScreen() {
   const semCidade = escopo === 'cidade' && !profile?.cidade;
   const semEstado = escopo === 'estado' && !profile?.uf;
   const lugar = rotuloDoEscopo(escopo, profile?.cidade ?? null, profile?.uf ?? null);
+
+  function conhecerOPro() {
+    if (canShowBilling) router.push({ pathname: '/paywall', params: { upgrade: '1' } });
+    else setAviso('A participação no ranking está disponível para assinantes do plano Pro.');
+  }
 
   async function sair() {
     const r = await db.ranking.participar(false);
@@ -168,6 +183,24 @@ export default function RankingScreen() {
           <Text style={styles.heroTexto}>
             Você está no ranking. Sua primeira venda comprovada da temporada já coloca você na lista.
           </Text>
+        ) : !pro ? (
+          <>
+            <View style={styles.seloPro}>
+              <Text style={styles.seloProTexto}>PLANO PRO</Text>
+            </View>
+            <Text style={styles.heroTexto}>
+              {escolheuParticipar
+                ? 'Sua participação está pausada: disputar o ranking é para assinantes do plano Pro. Assine e você volta para a lista com as suas vendas.'
+                : 'Todo corretor acompanha o placar. Para aparecer nele e disputar com as suas vendas, assine o plano Pro.'}
+            </Text>
+            <Pressable
+              onPress={conhecerOPro}
+              style={({ pressed }) => [styles.heroBotao, pressed && styles.pressionado]}
+              accessibilityRole="button"
+            >
+              <Text style={styles.heroBotaoTexto}>{escolheuParticipar ? 'Voltar a disputar' : 'Quero disputar'}</Text>
+            </Pressable>
+          </>
         ) : (
           <>
             <Text style={styles.heroTexto}>
@@ -284,6 +317,7 @@ export default function RankingScreen() {
             ['Uma unidade, um dono', 'Se duas contas registram a mesma unidade (ou o mesmo comprador no mesmo empreendimento), a venda fica em disputa e não conta para ninguém até a auditoria decidir.'],
             ['Teto de 20 por mês', 'Acima de 20 vendas no mês, as excedentes contam depois de conferidas pela auditoria.'],
             ['Com nome e CRECI', 'Para participar é preciso CPF, CRECI e cidade no perfil. Uma conta por CPF.'],
+            ['Para assinantes Pro', 'Todo corretor vê o ranking; disputar é do plano Pro. Quem sai do Pro sai da lista e volta ao assinar de novo, com as mesmas vendas.'],
             ['Contestação e auditoria', 'Viu algo estranho? Toque na posição e conteste. Fraude comprovada tira a conta do ranking.'],
           ].map(([t, d]) => (
             <View key={t} style={styles.regra}>
@@ -291,7 +325,7 @@ export default function RankingScreen() {
               <Text style={styles.regraTexto}>{d}</Text>
             </View>
           ))}
-          {participa ? (
+          {escolheuParticipar ? (
             <Pressable onPress={() => void sair()} hitSlop={6} style={styles.sair}>
               <Text style={styles.sairTexto}>Sair do ranking</Text>
             </Pressable>
@@ -580,6 +614,15 @@ function Contestar({ alvo, onFechar }: { alvo: LinhaDoRanking | null; onFechar: 
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    seloPro: {
+      alignSelf: 'flex-start',
+      backgroundColor: OURO,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 2,
+      marginTop: spacing.md,
+    },
+    seloProTexto: { ...typography.caption, fontWeight: '800', color: '#3B2A00', letterSpacing: 1 },
     flex1: { flex: 1 },
     pressionado: { opacity: 0.8 },
     link: { ...typography.label, color: colors.primary },

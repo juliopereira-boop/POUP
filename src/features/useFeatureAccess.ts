@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 
-import { canUse, type PlanFeatureKey } from '@/features/plans';
+import { canUse, SO_ASSINATURA_PAGA, type PlanFeatureKey } from '@/features/plans';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 
 export interface FeatureAccess {
@@ -21,7 +21,7 @@ export function useFeatureAccess(): FeatureAccess {
 
   const check = useCallback(
     (feature: PlanFeatureKey) =>
-      (feature !== 'lia' || subscription?.status === 'active') && canUse(feature, tier, isTrial),
+      (!SO_ASSINATURA_PAGA.includes(feature) || subscription?.status === 'active') && canUse(feature, tier, isTrial),
     [tier, isTrial, subscription?.status],
   );
 

@@ -1028,11 +1028,14 @@ Aba **Ranking** na barra de baixo, ao lado de Leads. Quem vendeu mais na **cidad
 3. **Uma unidade, um dono**: a mesma unidade (ou o mesmo comprador no mesmo empreendimento) em duas contas fica **em disputa** e não conta para ninguém até a auditoria decidir; repetida na mesma conta conta uma vez.
 4. **Teto de 20 vendas/mês**: as excedentes esperam a auditoria.
 5. **Participar é opcional e tem rosto** (LGPD): aparecer exige CPF, CRECI e cidade no perfil; conta única por CPF. O banco desliga a participação se o perfil ficar incompleto, mesmo editado direto.
-6. **Contestação e auditoria**: qualquer corretor contesta uma posição (limite de 5/dia); o admin vê disputas, excedentes, contestações e o top 10 em **Configurações › Auditoria do ranking**, abre o comprovante, valida/invalida vendas e tira do ranking quem fraudou.
+6. **Disputar é do plano Pro pago** (`20260925180000_ranking_so_pro.sql`): todo corretor **vê** o ranking; só assinante Pro ativo **aparece** nele. Teste gratuito fica de fora (conta grátis não pode virar fábrica de venda inventada). Quem sai do Pro some da lista sem perder a escolha e volta ao reassinar.
+7. **Contestação e auditoria**: qualquer corretor contesta uma posição (limite de 5/dia); o admin vê disputas, excedentes, contestações e o top 10 em **Configurações › Auditoria do ranking**, abre o comprovante, valida/invalida vendas e tira do ranking quem fraudou.
 
 O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária, cidade, vendas, VGV) — as vendas dos outros continuam protegidas pela RLS. A cidade do perfil vem da lista do IBGE (texto livre se o serviço não responder).
 
-**Para ativar**: rode `supabase/migrations/20260925150000_ranking.sql` no SQL Editor. Testes: `npm run testar:ranking` e `scripts/testar-ranking-db.sql` (regras, disputa, teto, participação, auditoria e permissões — num Postgres local/homologação).
+**Registrar venda realizada também é do Pro — no servidor.** Além da trava na tela (`canUse('vendas')`), a RLS de `sales` só aceita **inserir** venda de Pro pago, teste gratuito válido ou admin (`pode_registrar_venda()`); quem mudou para o Start continua lendo, editando e apagando as vendas que já tinha.
+
+**Para ativar**: rode, nesta ordem, `supabase/migrations/20260925150000_ranking.sql` e `supabase/migrations/20260925180000_ranking_so_pro.sql` no SQL Editor. Testes: `npm run testar:ranking`, `scripts/testar-ranking-db.sql` (regras, disputa, teto, participação, auditoria e permissões) e `scripts/testar-ranking-pro-db.sql` (venda e ranking só Pro) — num Postgres local/homologação.
 
 ---
 

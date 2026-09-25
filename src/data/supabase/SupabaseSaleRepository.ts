@@ -307,6 +307,10 @@ export class SupabaseSaleRepository implements SaleRepository {
       ) {
         return err('Esta simulação já foi registrada como venda.');
       }
+      // RLS de inserção (20260925180000): registrar venda é do plano Pro.
+      if (error && (error.code === '42501' || /row-level security/i.test(error.message))) {
+        return err('O registro de vendas está disponível no plano Pro.');
+      }
       return err(error?.message ?? 'Falha ao salvar a venda.');
     }
     return ok(mapSale(row as unknown as SaleRow));

@@ -7,6 +7,10 @@
  *
  * Sem a migration do ranking, o cartão simplesmente não aparece: a venda
  * continua funcionando como sempre.
+ *
+ * No teste gratuito (que registra venda mas não disputa o ranking) o cartão
+ * avisa que a disputa é do Pro pago — e o comprovante já pode ir: a venda
+ * pontua assim que ele assinar.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,6 +20,7 @@ import { Button } from '@/components/Button';
 import { db, type ComprovanteDaVenda } from '@/data';
 import { pickFiles } from '@/features/files/pick';
 import { textoDaSituacao, type SituacaoDaVenda } from '@/features/ranking/regras';
+import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -26,6 +31,7 @@ export function RankingDaVenda({ saleId }: { saleId: string }) {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
+  const pro = useFeatureAccess().canUse('ranking');
   const [ativo, setAtivo] = useState(false);
   const [comprovante, setComprovante] = useState<ComprovanteDaVenda | null>(null);
   const [situacao, setSituacao] = useState<SituacaoDaVenda | null>(null);
@@ -78,7 +84,7 @@ export function RankingDaVenda({ saleId }: { saleId: string }) {
   }
 
   if (!ativo) return null;
-  const t = situacao ? textoDaSituacao(situacao) : null;
+  const t = pro && situacao ? textoDaSituacao(situacao) : null;
 
   return (
     <View style={styles.card}>
@@ -91,7 +97,14 @@ export function RankingDaVenda({ saleId }: { saleId: string }) {
         ) : null}
       </View>
       {t?.acao ? <Text style={styles.texto}>{t.acao}</Text> : null}
-      {!t ? <Text style={styles.texto}>Esta venda é de uma temporada encerrada.</Text> : null}
+      {!pro ? (
+        <Text style={styles.texto}>
+          Disputar o ranking é para assinantes do plano Pro. Anexe o comprovante agora e esta venda já conta quando
+          você assinar.
+        </Text>
+      ) : !t ? (
+        <Text style={styles.texto}>Esta venda é de uma temporada encerrada.</Text>
+      ) : null}
 
       <Text style={styles.subtitulo}>Comprovante da venda</Text>
       {comprovante ? (

@@ -37,6 +37,7 @@ const MIGRACAO_PENDENTE =
   'O ranking ainda não foi ativado no servidor. Rode a migration 20260925150000_ranking.sql no SQL Editor do Supabase.';
 
 const MENSAGENS: Record<string, string> = {
+  plano_pro: 'Disputar o ranking é para assinantes do plano Pro.',
   perfil_incompleto: 'Complete o perfil (nome, CPF, CRECI, estado e cidade) para entrar no ranking.',
   alvo_invalido: 'Não é possível contestar esta posição.',
   motivo_invalido: 'Conte em poucas palavras o que parece errado (mínimo de 5 letras).',

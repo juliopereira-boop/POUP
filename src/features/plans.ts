@@ -20,6 +20,7 @@ export type PlanFeatureKey =
   | 'multiDispositivo'
   | 'vendas'
   | 'comissao'
+  | 'ranking'
   | 'lia';
 
 export interface PlanFeature {
@@ -53,6 +54,7 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
   { key: 'multiDispositivo', label: 'Acesso no celular e no computador', includedIn: TODOS },
   { key: 'vendas', label: 'Vendas realizadas', includedIn: SO_PRO },
   { key: 'comissao', label: 'Controle de comissão', includedIn: SO_PRO },
+  { key: 'ranking', label: 'Participar do Ranking de corretores', includedIn: SO_PRO },
   { key: 'lia', label: 'LIA: sua assistente pessoal de corretagem', includedIn: SO_PRO },
 ];
 
@@ -154,18 +156,27 @@ export function storageLimitFor(tier: PlanTier | null | undefined): number {
 }
 
 /**
+ * O que o teste gratuito NÃO libera. O mesmo vale no banco: o ranking só
+ * aceita Pro pago (`20260925180000_ranking_so_pro.sql`).
+ */
+export const SO_ASSINATURA_PAGA: readonly PlanFeatureKey[] = ['lia', 'ranking'];
+
+/**
  * Regra ÚNICA de liberação de funcionalidade por plano.
  *
  * `isTrial`: durante o período de teste gratuito o `plan_tier` gravado é
  * `'start'` (ver `supabase/migrations/0018_trial_campaign.sql`), mas
- * o teste libera os demais recursos, mas não a LIA: ela exige o plano Pro.
+ * o teste libera os demais recursos, menos a LIA e a participação no
+ * ranking: essas exigem o Pro pago.
  */
 export function canUse(
   feature: PlanFeatureKey,
   tier: PlanTier | null | undefined,
   isTrial = false,
 ): boolean {
-  if (feature === 'lia') return tier === 'pro' && !isTrial;
+  // Só assinatura paga: a LIA pelo custo, o ranking porque conta de teste é
+  // grátis — e ranking aberto a conta grátis é convite a inventar venda.
+  if (SO_ASSINATURA_PAGA.includes(feature)) return tier === 'pro' && !isTrial;
   if (isTrial) return true;
   if (!tier) return false;
   const config = PLAN_FEATURES.find((f) => f.key === feature);

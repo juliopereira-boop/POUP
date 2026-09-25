@@ -102,7 +102,7 @@ await test('somente Start/Pro, valores novos e vendas/comissões no Pro', () => 
   assert.deepEqual(Object.keys(plans.PLANS), ['start', 'pro']);
   assert.equal(plans.PLANS.start.priceLabel, 'R$ 29,90/mês');
   assert.equal(plans.PLANS.pro.priceLabel, 'R$ 59,90/mês');
-  for (const key of ['vendas', 'comissao', 'lia']) {
+  for (const key of ['vendas', 'comissao', 'ranking', 'lia']) {
     assert.deepEqual(plans.PLAN_FEATURES.find(f => f.key === key).includedIn, ['pro']);
     assert.equal(plans.planoMinimoPara(key).tier, 'pro');
   }
@@ -126,6 +126,25 @@ await test('acesso efetivo à LIA exige Pro ativo, inclusive após mudança de a
   }
   subscription = null;
   assert.equal(useFeatureAccess().canUse('lia'), false);
+});
+await test('ranking: todos veem, disputar só com Pro pago (o teste registra venda, mas não disputa)', () => {
+  for (const tier of ['start', null, undefined]) {
+    assert.equal(plans.canUse('ranking', tier), false);
+    assert.equal(plans.canUse('ranking', tier, true), false);
+  }
+  assert.equal(plans.canUse('ranking', 'pro'), true);
+  assert.equal(plans.canUse('ranking', 'pro', true), false);
+  for (const tier of ['start', 'pro', null]) {
+    for (const status of ['active', 'trialing', 'past_due', 'canceled']) {
+      subscription = { tier, status };
+      assert.equal(useFeatureAccess().canUse('ranking'), tier === 'pro' && status === 'active');
+    }
+  }
+  // O teste gratuito continua registrando venda (é o Pro completo, menos LIA e ranking).
+  subscription = { tier: 'start', status: 'trialing' };
+  assert.equal(useFeatureAccess().canUse('vendas'), true);
+  subscription = null;
+  assert.equal(useFeatureAccess().canUse('ranking'), false);
 });
 for (const [agency, cnpj] of [[null, null], ['Agência', null], [null, '12345678000190'], ['Agência', '12345678000190']]) {
   await test(`perfil completo e PDF: imobiliária=${Boolean(agency)}, CNPJ=${Boolean(cnpj)}`, () => {
