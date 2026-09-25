@@ -25,7 +25,7 @@ export default function PaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { isActive, refresh, trialExpired, tier: currentTier } = useSubscription();
+  const { isActive, refresh, trialExpired, tier: currentTier, subscription } = useSubscription();
   const { pending, upgrade } = useLocalSearchParams<{ pending?: string; upgrade?: string }>();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [checkingAgain, setCheckingAgain] = useState(false);
@@ -80,6 +80,10 @@ export default function PaywallScreen() {
   // "assinatura não está ativa", que seria simplesmente falso. Com o modo
   // desligado, ele volta para o app, que é o certo.
   const upgradeMode = upgrade === '1' && canShowBilling;
+  const temAssinaturaStripe =
+    upgradeMode &&
+    subscription?.billingProvider === 'stripe' &&
+    (subscription.status === 'active' || subscription.status === 'past_due');
 
   if (user && isActive && !upgradeMode) return <Redirect href="/(app)" />;
   if (!user) return <Redirect href="/(auth)/login" />;
@@ -109,8 +113,12 @@ export default function PaywallScreen() {
         return;
       }
 
-      // Na web, trocar de plano continua sendo feito no portal Stripe.
-      const result = upgradeMode ? await abrirPortalDeCobranca() : await abrirCheckout(plan.tier);
+      // Na web, TROCAR de plano é no portal Stripe — mas só existe o que
+      // trocar para quem já paga pelo Stripe. Conta em teste gratuito (ou
+      // sem assinatura) que chega por "upgrade" ainda não tem cliente no
+      // Stripe: o portal responderia "Nenhuma assinatura encontrada". Essa
+      // conta assina pelo checkout, como qualquer primeira compra.
+      const result = temAssinaturaStripe ? await abrirPortalDeCobranca() : await abrirCheckout(plan.tier);
       if (!result.ok) setError(result.error);
     } catch {
       setError('Não foi possível abrir a cobrança. Tente novamente.');
