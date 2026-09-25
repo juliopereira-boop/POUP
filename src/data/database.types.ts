@@ -109,6 +109,9 @@ export interface Database {
           avatar_url: string | null;
           creci: string | null;
           uf: string | null;
+          cidade?: string | null;
+          ranking_participa?: boolean;
+          ranking_desde?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -123,6 +126,7 @@ export interface Database {
           avatar_url?: string | null;
           creci?: string | null;
           uf?: string | null;
+          cidade?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -136,6 +140,7 @@ export interface Database {
           avatar_url?: string | null;
           creci?: string | null;
           uf?: string | null;
+          cidade?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -636,6 +641,9 @@ export interface Database {
           distrato_reason: string | null;
           origin_started_at: string | null;
           notes: string | null;
+          comprovante_path?: string | null;
+          comprovante_nome?: string | null;
+          comprovante_enviado_em?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -696,6 +704,9 @@ export interface Database {
           distrato_reason?: string | null;
           origin_started_at?: string | null;
           notes?: string | null;
+          comprovante_path?: string | null;
+          comprovante_nome?: string | null;
+          comprovante_enviado_em?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -1301,6 +1312,51 @@ export interface Database {
       /** Sincroniza todos os blocos de um empreendimento numa transação; preserva preços. */
       salvar_blocos_empreendimento: {
         Args: { p_development: string; p_blocos: Json };
+        Returns: undefined;
+      };
+      /** Ranking (20260925150000): o agregado público, nunca as vendas dos outros. */
+      ranking: {
+        Args: { p_escopo: string; p_periodo: string };
+        Returns: {
+          posicao: number;
+          participante: string;
+          nome: string;
+          foto_url: string | null;
+          imobiliaria: string | null;
+          cidade: string | null;
+          uf: string | null;
+          vendas: number;
+          vgv: number;
+          eu: boolean;
+        }[];
+      };
+      meu_ranking: {
+        Args: { p_periodo: string };
+        Returns: { sale_id: string; situacao: string }[];
+      };
+      participar_do_ranking: {
+        Args: { p_participar: boolean };
+        Returns: undefined;
+      };
+      denunciar_no_ranking: {
+        Args: { p_alvo: string; p_motivo: string };
+        Returns: undefined;
+      };
+      /** Só o admin. */
+      ranking_auditoria: {
+        Args: { p_periodo: string };
+        Returns: Record<string, unknown>[];
+      };
+      ranking_revisar_venda: {
+        Args: { p_sale: string; p_decisao: string | null; p_motivo: string | null };
+        Returns: undefined;
+      };
+      ranking_bloquear: {
+        Args: { p_user: string; p_motivo: string | null };
+        Returns: undefined;
+      };
+      ranking_arquivar_denuncias: {
+        Args: { p_user: string };
         Returns: undefined;
       };
       /** `p_tabela` nulo apaga a tabela. */

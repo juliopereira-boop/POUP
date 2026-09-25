@@ -1017,6 +1017,25 @@ Testes: `npm run testar:tabela-preco` (120 verificações, com o texto real do P
 
 ---
 
+## 🏆 Ranking de corretores (`app/(app)/ranking.tsx`)
+
+Aba **Ranking** na barra de baixo, ao lado de Leads. Quem vendeu mais na **cidade**, no **estado** e no **Brasil**, na temporada do **mês** e do **ano**: mais vendas comprovadas na frente, **VGV** desempata, e persistindo, quem chegou primeiro. Pódio animado, a posição do corretor sempre à vista e, logo abaixo, o que falta para subir ("2 sem comprovante").
+
+**O dilema — qualquer um pode dizer que vendeu.** Não existe regra que torne impossível fraudar um dado que o próprio usuário declara; as regras tornam a fraude **cara, visível e reversível**, e são calculadas **no banco** (`20260925150000_ranking.sql`), nunca no aparelho:
+
+1. **Só venda comprovada pontua**: contrato assinado ou comprovante da comissão anexado na venda (bucket privado `comprovantes-venda`, só o dono e a auditoria abrem).
+2. **Dados que se conferem**: CPF do comprador válido (dígitos verificadores), empreendimento e unidade, valor entre R$ 20 mil e R$ 20 mi, data não futura, venda ativa.
+3. **Uma unidade, um dono**: a mesma unidade (ou o mesmo comprador no mesmo empreendimento) em duas contas fica **em disputa** e não conta para ninguém até a auditoria decidir; repetida na mesma conta conta uma vez.
+4. **Teto de 20 vendas/mês**: as excedentes esperam a auditoria.
+5. **Participar é opcional e tem rosto** (LGPD): aparecer exige CPF, CRECI e cidade no perfil; conta única por CPF. O banco desliga a participação se o perfil ficar incompleto, mesmo editado direto.
+6. **Contestação e auditoria**: qualquer corretor contesta uma posição (limite de 5/dia); o admin vê disputas, excedentes, contestações e o top 10 em **Configurações › Auditoria do ranking**, abre o comprovante, valida/invalida vendas e tira do ranking quem fraudou.
+
+O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária, cidade, vendas, VGV) — as vendas dos outros continuam protegidas pela RLS. A cidade do perfil vem da lista do IBGE (texto livre se o serviço não responder).
+
+**Para ativar**: rode `supabase/migrations/20260925150000_ranking.sql` no SQL Editor. Testes: `npm run testar:ranking` e `scripts/testar-ranking-db.sql` (regras, disputa, teto, participação, auditoria e permissões — num Postgres local/homologação).
+
+---
+
 ## 🎧 LIA — a assistente que ouve a negociação
 
 > **Estado:** primeira funcionalidade entregue (*Simulação de poupança*), funcionando **na web**.

@@ -3,6 +3,7 @@ import { Alert, Platform, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
+import { CampoCidade } from '@/components/CampoCidade';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
@@ -27,6 +28,7 @@ export default function PerfilScreen() {
   const [phone, setPhone] = useState('');
   const [creci, setCreci] = useState('');
   const [uf, setUf] = useState<string | null>(null);
+  const [cidade, setCidade] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +42,7 @@ export default function PerfilScreen() {
     setPhone(formatPhone(profile.phone ?? ''));
     setCreci(profile.creci ?? '');
     setUf(profile.uf ?? null);
+    setCidade(profile.cidade ?? '');
   }, [profile]);
 
   async function save() {
@@ -62,6 +65,7 @@ export default function PerfilScreen() {
       phone: phone.trim(),
       creci: creci.trim() || null,
       uf,
+      cidade: cidade.trim() || null,
     });
     setSaving(false);
     if (!result.ok) {
@@ -95,12 +99,18 @@ export default function PerfilScreen() {
         placeholder="Selecione seu estado"
         value={uf}
         options={UF_OPTIONS}
-        onChange={setUf}
+        onChange={(v) => {
+          // Trocou de estado: a cidade do estado antigo não vale mais.
+          if (v !== uf) setCidade('');
+          setUf(v);
+        }}
         searchable
       />
       <Text style={styles.hint}>
         Define quais empreendimentos do catálogo do POUP aparecem para você.
       </Text>
+      <CampoCidade uf={uf} value={cidade} onChange={setCidade} />
+      <Text style={styles.hint}>É a cidade do seu ranking. CRECI, estado e cidade são exigidos para participar.</Text>
 
       <Button label="Salvar" onPress={save} loading={saving} style={styles.cta} />
     </Screen>

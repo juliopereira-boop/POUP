@@ -17,7 +17,8 @@ export type IconName =
   | 'building'
   | 'user'
   | 'chevronRight'
-  | 'calculator';
+  | 'calculator'
+  | 'trophy';
 
 interface IconProps {
   name: IconName;
@@ -133,6 +134,14 @@ export function Icon({ name, size = 24, color, strokeWidth = 1.7 }: IconProps) {
         <>
           <Path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" {...common} />
           <Path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01" {...common} />
+        </>
+      ) : null}
+
+      {name === 'trophy' ? (
+        <>
+          <Path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0V4Z" {...common} />
+          <Path d="M7.5 6H4.5a3 3 0 0 0 3 4.2M16.5 6h3a3 3 0 0 1-3 4.2" {...common} />
+          <Path d="M12 13.5v3.5M8.5 20.5h7M9.5 17h5v3.5h-5z" {...common} />
         </>
       ) : null}
     </Svg>

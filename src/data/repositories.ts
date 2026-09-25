@@ -1,4 +1,5 @@
 import type { PickedFile } from '@/features/files/pick';
+import type { Escopo, LinhaDoRanking, Periodo, SituacaoDaVenda } from '@/features/ranking/regras';
 import type {
   ArquivoDaTabela,
   TabelaDePreco,
@@ -254,6 +255,64 @@ export interface PriceTableRepository {
   lerPdf(path: string): Promise<Result<TextoDoPdf>>;
   /** Link temporário (1 hora) para abrir o PDF guardado. */
   linkDoPdf(path: string): Promise<string | null>;
+}
+
+export type RankingResultado =
+  | { ok: true; data: LinhaDoRanking[] }
+  | { ok: false; error: string; migracaoPendente: boolean };
+
+export interface ComprovanteDaVenda {
+  path: string;
+  nome: string;
+  enviadoEm: string | null;
+}
+
+/** Uma venda que precisa de olho humano na auditoria do ranking. */
+export interface ItemDaAuditoria {
+  saleId: string;
+  corretor: string;
+  corretorNome: string;
+  corretorCidade: string | null;
+  corretorUf: string | null;
+  cliente: string;
+  empreendimento: string | null;
+  bloco: number | null;
+  unidade: string | null;
+  valor: number;
+  dataVenda: string;
+  situacao: SituacaoDaVenda;
+  decisao: 'valida' | 'invalida' | null;
+  comprovantePath: string | null;
+  denuncias: number;
+  motivos: string | null;
+  bloqueado: boolean;
+}
+
+/**
+ * O ranking de corretores. As regras de quem pontua moram no banco
+ * (`20260925150000_ranking.sql`); daqui só sai o resultado.
+ */
+export interface RankingRepository {
+  listar(escopo: Escopo, periodo: Periodo): Promise<RankingResultado>;
+  /** A situação de cada venda DO PRÓPRIO corretor no período. */
+  minhasSituacoes(periodo: Periodo): Promise<Map<string, SituacaoDaVenda>>;
+  participar(participar: boolean): Promise<Result<void>>;
+  denunciar(alvo: string, motivo: string): Promise<Result<void>>;
+  comprovante(saleId: string): Promise<Result<ComprovanteDaVenda | null>>;
+  /** `anterior`: o arquivo que este substitui, apagado depois que o novo é registrado. */
+  anexarComprovante(
+    userId: string,
+    saleId: string,
+    arquivo: PickedFile,
+    anterior?: string,
+  ): Promise<Result<ComprovanteDaVenda>>;
+  removerComprovante(saleId: string, path: string): Promise<Result<void>>;
+  linkDoComprovante(path: string): Promise<string | null>;
+  /** Só o admin. */
+  auditoria(periodo: Periodo): Promise<Result<ItemDaAuditoria[]>>;
+  revisar(saleId: string, decisao: 'valida' | 'invalida' | null, motivo?: string): Promise<Result<void>>;
+  bloquear(userId: string, motivo: string | null): Promise<Result<void>>;
+  arquivarDenuncias(userId: string): Promise<Result<void>>;
 }
 
 export interface DevelopmentRepository {

@@ -90,6 +90,8 @@ export default function AppLayout() {
             <Stack.Screen name="comissao/[id]" options={{ title: 'Comissão' }} />
             <Stack.Screen name="vendas/index" options={{ title: 'Vendas Realizadas' }} />
             <Stack.Screen name="vendas/[id]" options={{ title: 'Venda' }} />
+            <Stack.Screen name="ranking" options={{ title: 'Ranking' }} />
+            <Stack.Screen name="admin/ranking" options={{ title: 'Auditoria do ranking' }} />
           </Stack>
         </ErrorBoundary>
         <BottomTabBar />

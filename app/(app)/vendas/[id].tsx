@@ -24,6 +24,7 @@ import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { ProFeatureLock } from '@/components/ProFeatureLock';
 import { SaleStatusPill } from '@/components/SaleStatusPill';
+import { RankingDaVenda } from '@/components/ranking/RankingDaVenda';
 import { Screen } from '@/components/Screen';
 import { db, type CommissionWithInstallments, type Sale, type SaleInput } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
@@ -364,6 +365,8 @@ function VendaContent() {
           />
         )}
       </View>
+
+      <RankingDaVenda saleId={sale.id} />
 
       <Text style={styles.band}>Cliente</Text>
       <View style={styles.card}>

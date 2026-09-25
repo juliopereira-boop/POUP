@@ -50,7 +50,7 @@ const CONTROLADOR = {
  * como revogar o acesso pelo Google e o que acontece com um pedido de exclusão
  * que travou seria descumprir a promessa na própria página que a faz.
  */
-const VIGENCIA = '16 de setembro de 2026';
+const VIGENCIA = '25 de setembro de 2026';
 
 export default function PrivacyPolicyScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -87,7 +87,8 @@ export default function PrivacyPolicyScreen() {
         <SubTitle>Do corretor, ao criar e usar a conta</SubTitle>
         <Bullet>Nome completo, e-mail e senha (ou login com sua conta Google ou Apple)</Bullet>
         <Bullet>Telefone, CNPJ e CPF, imobiliária e CRECI</Bullet>
-        <Bullet>Estado (UF) onde atua, usado só para filtrar quais empreendimentos aparecem</Bullet>
+        <Bullet>Estado (UF) onde atua, usado para filtrar quais empreendimentos aparecem</Bullet>
+        <Bullet>Cidade onde atua, usada para montar o ranking da sua cidade</Bullet>
         <Bullet>Foto de perfil, se você optar por enviar uma</Bullet>
 
         <SubTitle>Dos clientes do corretor, quando ele os cadastra</SubTitle>
@@ -102,7 +103,13 @@ export default function PrivacyPolicyScreen() {
         <SubTitle>Do uso do app</SubTitle>
         <Bullet>Simulações, propostas geradas em PDF, vendas e comissões registradas</Bullet>
         <Bullet>
-          Arquivos enviados (material de venda, fotos de empresas e empreendimentos cadastrados)
+          Arquivos enviados (material de venda, fotos de empresas e empreendimentos cadastrados,
+          tabelas de preço das construtoras)
+        </Bullet>
+        <Bullet>
+          <Bold>Comprovantes de venda</Bold> (contrato assinado ou comprovante da comissão) que você
+          anexa para a venda pontuar no ranking. Ficam privados: só você e a auditoria do POUP
+          acessam, e apenas para conferir a venda em caso de disputa ou contestação.
         </Bullet>
         <Bullet>
           <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app, criou uma
@@ -153,6 +160,10 @@ export default function PrivacyPolicyScreen() {
           essa opção, a foto é enviada para leitura e não fica guardada além do necessário para essa
           leitura
         </Bullet>
+        <Bullet>
+          Montar o ranking de corretores, se você escolher participar, e conferir comprovantes de
+          venda quando houver disputa ou contestação
+        </Bullet>
         <Bullet>Dar suporte quando você entra em contato</Bullet>
         <Bullet>
           Entender como o app é usado para melhorá-lo, e controlar o consumo dos recursos de
@@ -193,6 +204,12 @@ export default function PrivacyPolicyScreen() {
         </Bullet>
         <Bullet>
           <Bold>Vercel</Bold>, hospedagem do site e do aplicativo
+        </Bullet>
+        <Bullet>
+          <Bold>Outros corretores do POUP</Bold>, somente se você escolher participar do Ranking:
+          veem seu primeiro e último nome, foto, imobiliária, cidade e estado, o número de vendas
+          comprovadas e o VGV da temporada. Clientes, valores de cada venda e comprovantes nunca
+          aparecem. Você pode sair do ranking quando quiser, na própria tela do Ranking.
         </Bullet>
         <Paragraph>
           Exigimos de cada um desses prestadores proteção aos seus dados equivalente à descrita

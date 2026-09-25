@@ -18,6 +18,7 @@ const TABS: TabItem[] = [
   { key: 'inicio', label: 'Início', icon: 'home', route: '/(app)', match: '/' },
   { key: 'agenda', label: 'Agenda', icon: 'calendar', route: '/(app)/calendario', match: '/calendario' },
   { key: 'leads', label: 'Leads', icon: 'contacts', route: '/(app)/leads', match: '/leads' },
+  { key: 'ranking', label: 'Ranking', icon: 'trophy', route: '/(app)/ranking', match: '/ranking' },
   { key: 'mais', label: 'Mais', icon: 'menu', route: '/(app)/configuracoes', match: '/configuracoes' },
 ];
 
@@ -79,9 +80,10 @@ const makeStyles = (colors: AppColors) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-around',
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.sm,
     },
-    item: { alignItems: 'center', justifyContent: 'center', minWidth: 64, gap: 3 },
+    // Cinco abas: 58 de largura mínima cabe num celular de 320 px.
+    item: { alignItems: 'center', justifyContent: 'center', minWidth: 58, gap: 3 },
     iconBox: {
       width: 46,
       height: 42,

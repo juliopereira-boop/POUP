@@ -27,6 +27,13 @@ export interface UserProfile {
    * nada é filtrado.
    */
   uf: string | null;
+  /** Cidade onde atua (nome do IBGE). Com a UF, define o ranking da cidade. */
+  cidade: string | null;
+  /**
+   * Aceitou aparecer no ranking. Só muda pela função `participar_do_ranking`
+   * (que confere o perfil) — o `upsert` do perfil ignora este campo.
+   */
+  rankingParticipa: boolean;
   createdAt: string;
   updatedAt: string;
 }

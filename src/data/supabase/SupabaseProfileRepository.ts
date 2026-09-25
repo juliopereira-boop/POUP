@@ -17,6 +17,9 @@ function mapProfile(row: ProfileRow): UserProfile {
     avatarUrl: row.avatar_url,
     creci: row.creci,
     uf: row.uf,
+    // Colunas do ranking (20260925150000): ausentes antes da migration.
+    cidade: row.cidade ?? null,
+    rankingParticipa: row.ranking_participa ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -47,6 +50,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
       avatar_url: patch.avatarUrl,
       creci: patch.creci,
       uf: patch.uf,
+      cidade: patch.cidade === undefined ? undefined : patch.cidade?.trim() || null,
       updated_at: new Date().toISOString(),
     };
     // UPDATE preserva colunas omitidas; um UPSERT parcial pode aplicar defaults
@@ -60,6 +64,17 @@ export class SupabaseProfileRepository implements ProfileRepository {
       .eq('id', userId)
       .select('*')
       .maybeSingle();
+    // Sem a migration do ranking, a coluna `cidade` não existe: salva o resto
+    // em vez de recusar o perfil inteiro por causa dela.
+    if (error && changes.cidade !== undefined && /cidade/.test(error.message ?? '')) {
+      delete changes.cidade;
+      ({ data, error } = await supabase
+        .from('profiles')
+        .update(changes)
+        .eq('id', userId)
+        .select('*')
+        .maybeSingle());
+    }
     if (!error && !data) {
       const inserted = await supabase
         .from('profiles')
@@ -78,6 +93,9 @@ export class SupabaseProfileRepository implements ProfileRepository {
       }
       if (error && /profiles_uf_valida/i.test(error.message)) {
         return err('Selecione um estado válido.');
+      }
+      if (error && /profiles_cidade_tamanho/i.test(error.message)) {
+        return err('Informe o nome da cidade.');
       }
       return err(error?.message ?? 'Falha ao salvar perfil.');
     }

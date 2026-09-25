@@ -32,7 +32,8 @@
     "testar:simulador": "node scripts/testar-simulador.mjs",
     "testar:tabela-preco": "node scripts/testar-tabela-preco.mjs",
     "modelo:tabela": "node scripts/gerar-modelo-tabela.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco",
+    "testar:ranking": "node scripts/testar-ranking.mjs",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {

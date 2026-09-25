@@ -247,6 +247,12 @@ export default function ConfiguracoesScreen() {
               subtitle="Funil, consumo de IA e recados dos corretores"
               onPress={() => router.push('/(app)/admin/rastreabilidade')}
             />
+            <Divider />
+            <NavRow
+              label="Auditoria do ranking"
+              subtitle="Disputas, contestações e os primeiros colocados"
+              onPress={() => router.push('/(app)/admin/ranking')}
+            />
           </View>
         </>
       ) : null}

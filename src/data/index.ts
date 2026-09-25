@@ -13,6 +13,7 @@ import type {
   MaterialRepository,
   PriceTableRepository,
   ProfileRepository,
+  RankingRepository,
   SaleRepository,
   SettingsRepository,
   SimulationRepository,
@@ -36,6 +37,7 @@ import { SupabaseAnalyticsRepository } from './supabase/SupabaseAnalyticsReposit
 import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepository';
 import { SupabaseUnitRepository } from './supabase/SupabaseUnitRepository';
 import { SupabasePriceTableRepository } from './supabase/SupabasePriceTableRepository';
+import { SupabaseRankingRepository } from './supabase/SupabaseRankingRepository';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -47,6 +49,8 @@ export interface DataLayer {
   unidades: UnitRepository;
   /** A tabela de preço do empreendimento (regra, lista de vagas e o PDF). */
   tabelaPreco: PriceTableRepository;
+  /** O ranking de corretores, a participação e a auditoria. */
+  ranking: RankingRepository;
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;
   simulations: SimulationRepository;
@@ -79,6 +83,7 @@ function createDataLayer(provider: Provider): DataLayer {
         developments: new SupabaseDevelopmentRepository(),
         unidades: new SupabaseUnitRepository(),
         tabelaPreco: new SupabasePriceTableRepository(),
+        ranking: new SupabaseRankingRepository(),
         catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
         financing: new SupabaseFinancingRepository(),
@@ -115,8 +120,12 @@ export type {
   LinhaConsumoIA,
   LinhaEvento,
   MaterialRepository,
+  ComprovanteDaVenda,
+  ItemDaAuditoria,
   PriceTableRepository,
   ProfileRepository,
+  RankingRepository,
+  RankingResultado,
   RecadoDoCorretor,
   SaleRepository,
   SettingsRepository,
