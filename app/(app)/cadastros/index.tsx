@@ -14,7 +14,7 @@ export default function CadastrosScreen() {
     <Screen>
       <Text style={styles.intro}>
         Cadastre as construtoras e seus empreendimentos. Eles serão usados em vários módulos,
-        principalmente no Simulador de poupança.
+        principalmente no Simulador de vendas.
       </Text>
       {/* O catálogo é o caminho mais rápido, e ninguém acha o que não sabe que
           existe: o atalho precisa ser anunciado aqui, na porta de entrada. */}

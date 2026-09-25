@@ -19,7 +19,7 @@ export default function SimuladorLayout() {
       >
         {/* Dois blocos: primeiro os valores (a conta), depois a unidade e o cliente
             (a proposta). Ver o cabeçalho de `index.tsx`. */}
-        <Stack.Screen name="index" options={{ title: 'Simulação de poupança' }} />
+        <Stack.Screen name="index" options={{ title: 'Simulador de vendas' }} />
         <Stack.Screen name="dados" options={{ title: 'Unidade e cliente' }} />
       </Stack>
     </SimuladorProvider>

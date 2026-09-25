@@ -37,7 +37,7 @@ export const FEATURES: Feature[] = [
   },
   {
     key: 'simulador',
-    title: 'Simulador de poupança',
+    title: 'Simulador de vendas',
     emoji: '🏡',
     route: '/(app)/simulador',
     description: 'Ato, mensais e reforços à construtora, e a proposta em PDF no fim.',

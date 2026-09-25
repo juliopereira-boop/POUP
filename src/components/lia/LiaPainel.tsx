@@ -38,7 +38,7 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
           <View style={styles.cabecalho}>
             <Logo size={26} />
             <View style={styles.cabecalhoTextos}>
-              <Text style={styles.titulo}>LIA · Simulação de poupança</Text>
+              <Text style={styles.titulo}>LIA · Simulador de vendas</Text>
               <Text style={styles.subtitulo}>{legendaStatus(lia.status)}</Text>
             </View>
             <Pressable onPress={aoFechar} hitSlop={10} accessibilityLabel="Fechar">

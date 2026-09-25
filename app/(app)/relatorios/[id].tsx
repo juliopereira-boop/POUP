@@ -784,12 +784,16 @@ const makeStyles = (colors: AppColors) =>
       paddingVertical: spacing.lg,
     },
     rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-    rowLabel: { ...typography.body, color: colors.inkMuted, flexShrink: 0 },
+    // O rótulo cede espaço e quebra linha; o valor fica com a largura dele.
+    // Com o rótulo travado (`flexShrink: 0`), "Financiamento aprovado pelo
+    // banco" ocupava a linha toda e empurrava o valor para fora do cartão.
+    rowLabel: { ...typography.body, color: colors.inkMuted, flex: 1, flexShrink: 1 },
     rowValue: {
       ...typography.body,
       color: colors.ink,
       fontWeight: '600',
       flexShrink: 1,
+      maxWidth: '62%',
       textAlign: 'right',
     },
     badge: {

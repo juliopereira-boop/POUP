@@ -170,7 +170,7 @@ export default function ResultadoFinanciamento() {
       // de poupança por causa de uma falha que é nossa, não dele.
       Alert.alert(
         'Simulação não foi salva',
-        `Os dados foram levados para o simulador de poupança, mas não deu para salvar o histórico agora: ${res.erro}`,
+        `Os dados foram levados para o simulador de vendas, mas não deu para salvar o histórico agora: ${res.erro}`,
       );
     }
     router.push('/(app)/simulador');
@@ -559,7 +559,7 @@ export default function ResultadoFinanciamento() {
           disabled={salvando}
         />
         <Button
-          label="Levar para o simulador de poupança"
+          label="Levar para o simulador de vendas"
           variant="secondary"
           onPress={() => void aoLevarParaPoupanca()}
         />

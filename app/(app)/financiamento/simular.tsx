@@ -484,7 +484,7 @@ export default function SimularFinanciamento() {
           {/* ------------------------------------------------------ cliente */}
           <Secao
             titulo="O cliente"
-            nota="Ligar a simulação ao cliente é o que faz o simulador de poupança já abrir com esses números."
+            nota="Ligar a simulação ao cliente é o que faz o simulador de vendas já abrir com esses números."
           />
 
           <Select

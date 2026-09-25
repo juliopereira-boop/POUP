@@ -117,7 +117,7 @@ export default function RelatoriosScreen() {
           <Text style={styles.emptyEmoji}>📊</Text>
           <Text style={styles.emptyTitle}>Nenhuma simulação ainda</Text>
           <Text style={styles.emptyText}>
-            Conclua uma simulação no Simulador de poupança e ela aparecerá aqui.
+            Conclua uma simulação no Simulador de vendas e ela aparecerá aqui.
           </Text>
         </View>
       ) : (

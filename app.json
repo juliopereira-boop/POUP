@@ -26,7 +26,8 @@
         "CFBundleLocalizations": [
           "pt-BR"
         ],
-        "CFBundleDevelopmentRegion": "pt-BR"
+        "CFBundleDevelopmentRegion": "pt-BR",
+        "NSPhotoLibraryAddUsageDescription": "O POUP salva na sua galeria as imagens do material de vendas que você escolher salvar."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,

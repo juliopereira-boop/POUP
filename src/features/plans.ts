@@ -42,7 +42,7 @@ export const PLAN_FEATURES: readonly PlanFeature[] = [
   },
   {
     key: 'simulador',
-    label: 'Simulador de financiamento habitacional e de poupança',
+    label: 'Simulador de financiamento habitacional e de vendas',
     includedIn: TODOS,
   },
   { key: 'proposta', label: 'Proposta de compra e venda em PDF', includedIn: TODOS },

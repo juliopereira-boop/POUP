@@ -20,7 +20,7 @@ interface Funcionalidade {
 const FUNCIONALIDADES: Funcionalidade[] = [
   {
     chave: 'simulacao',
-    titulo: 'Simulação de poupança',
+    titulo: 'Simulador de vendas',
     descricao: 'Digite os dados da negociação e a LIA preenche a simulação.',
     emoji: '💬',
   },

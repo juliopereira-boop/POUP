@@ -40,7 +40,7 @@ interface Porta {
 
 const PORTAS: Porta[] = [
   { chave: 'financiamento', titulo: 'Simulador de financiamento', icone: 'chart', rota: '/(app)/financiamento' },
-  { chave: 'poupanca', titulo: 'Simulador de poupança', icone: 'house', rota: '/(app)/simulador' },
+  { chave: 'poupanca', titulo: 'Simulador de vendas', icone: 'house', rota: '/(app)/simulador' },
 ];
 
 export default function SimuladoresScreen() {

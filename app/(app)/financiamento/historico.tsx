@@ -171,7 +171,7 @@ export default function HistoricoFinanciamento() {
 
             <View style={styles.acoes}>
               <Button
-                label="Usar no simulador de poupança"
+                label="Usar no simulador de vendas"
                 variant="secondary"
                 onPress={() => void levarParaPoupanca(sim)}
                 style={styles.acaoLarga}

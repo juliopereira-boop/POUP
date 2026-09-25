@@ -88,14 +88,15 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
     setFile(null);
     const url = target?.url;
     const name = target?.name;
+    const kind = target?.kind;
     if (!url || !name) return undefined;
-    void prefetchFile(url, name).then((f) => {
+    void prefetchFile(url, name, kind === 'image' ? 'image' : kind === 'pdf' ? 'pdf' : 'other').then((f) => {
       if (alive) setFile(f);
     });
     return () => {
       alive = false;
     };
-  }, [target?.url, target?.name]);
+  }, [target?.url, target?.name, target?.kind]);
 
   if (!target) return null;
 
@@ -109,7 +110,7 @@ export function FilePreviewModal({ target, onClose }: FilePreviewModalProps) {
     setSaveMsg(null);
     const alvo = downloadUrl ?? url;
 
-    const resultado = saveFile(file, alvo, name);
+    const resultado = saveFile(file, alvo, name, kind === 'image' ? 'image' : kind === 'pdf' ? 'pdf' : 'other');
     // Na web a resposta é imediata (tem que ser, por causa do toque recente);
     // no celular é uma promessa, e aí vale mostrar que está trabalhando.
     if (resultado instanceof Promise) {
