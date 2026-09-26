@@ -6,10 +6,9 @@
  * ===========================================================================
  * O QUE ENTRA AQUI, E O QUE NÃO ENTRA
  * ===========================================================================
- * Só o que roda sem rede e sem modelo: o casamento de nome por voz
- * (`materialPorVoz.ts`, `catalogo.ts`) e o gatilho local do agendamento
- * (`agendamento.ts`). A extração de campos e a extração de agendamento em si
- * dependem da Anthropic API — isso é smoke-testado manualmente, não aqui.
+ * O casamento de nome (`materialPorVoz.ts`, `catalogo.ts`) e o gatilho local
+ * do agendamento (`agendamento.ts`). O cérebro da LIA (extração de campos e de
+ * agendamento, sem IA) tem a própria bateria: `testar-cerebro-lia.mjs`.
  *
  * Mesma técnica de `testar-financiamento.mjs`: os `.ts` são transpilados na
  * hora pelo TypeScript que já está em `node_modules`, sem passo de build.
@@ -71,7 +70,8 @@ function carregar(nome) {
   const arquivo = path.join(RAIZ, `${nome}.ts`);
   cache.set(nome, {});
   const exports = compilar(arquivo, (spec) => {
-    if (spec.startsWith('./')) return carregar(spec.slice(2));
+    // Relativo à pasta de QUEM importa: `cerebro/agenda.ts` importa './datas'.
+    if (spec.startsWith('./')) return carregar(path.posix.join(path.posix.dirname(nome), spec.slice(2)));
     if (spec === '@/lib/supabase') return SUPABASE_TOCO;
     if (spec === '@/lib/masks') return masks;
     if (spec === '@/data') return DB_TOCO;

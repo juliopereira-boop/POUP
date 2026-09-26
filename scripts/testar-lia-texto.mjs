@@ -16,9 +16,8 @@ let slots = [],
   effects = [],
   pending = [],
   context;
-let consent = true,
-  listener,
-  user = { id: 'owner' },
+let user = { id: 'owner' },
+  precos = [],
   requests = [],
   writes = [];
 let extract = async () => ({
@@ -79,7 +78,8 @@ vm.runInNewContext(source, {
       return {
         db: {
           companies: { list: async () => [], listCorrespondents: async () => [] },
-          developments: { list: async () => [] },
+          developments: { list: async () => [{ id: 'dev-1', name: 'Village das Estrelas', companyId: 'c1' }] },
+          leads: { list: async () => [{ id: 'l1', name: 'Maria Souza', cpf: null, phone: '98999990000', email: null, income: null }] },
         },
       };
     if (name === '@/lib/storage')
@@ -87,7 +87,13 @@ vm.runInNewContext(source, {
     if (name.includes('SimuladorProvider')) return { PREFILL_KEY: 'prefill' };
     if (name === './campos')
       return {
-        CAMPOS_POR_CHAVE: { renda: { tipo: 'numero' } },
+        CAMPOS_POR_CHAVE: {
+          renda: { tipo: 'numero' },
+          empreendimento: { tipo: 'empreendimento' },
+          bloco: { tipo: 'inteiro' },
+          unidade: { tipo: 'texto' },
+          valorUnidade: { tipo: 'dinheiro' },
+        },
         CHAVES_ESSENCIAIS: ['renda'],
         exibirValor: (_, v) => v,
         paraSimulador: (v) => v,
@@ -100,12 +106,12 @@ vm.runInNewContext(source, {
           return extract(p);
         },
       };
-    if (name === './consentimento')
+    if (name === './cerebro/campos') return { perguntaPara: (c) => `pergunta de ${c}` };
+    if (name === './precoDaTabela')
       return {
-        temConsentimentoLia: async () => consent,
-        aoRevogarConsentimentoLia: (fn) => {
-          listener = fn;
-          return () => {};
+        precoPelaTabela: async (...args) => {
+          precos.push(args);
+          return { venda: 241400, referencia: 'Setembro' };
         },
       };
     throw Error(name);
@@ -122,15 +128,14 @@ render();
 render();
 assert.equal(await context.enviarTexto('  '), false);
 assert.equal(requests.length, 0);
-consent = false;
-assert.equal(await context.enviarTexto('renda 3000'), false);
-assert.equal(requests.length, 0);
-consent = true;
+// Sem autorização de IA: o cérebro roda no aparelho, a LIA analisa direto.
 assert.equal(await context.enviarTexto('renda 3000'), true);
 render();
 assert.equal(context.capturados.renda.valor, '3000');
-assert.equal(requests[0].agora, 'renda 3000');
-assert.equal(requests[0].modo, 'final');
+assert.equal(requests[0].texto, 'renda 3000');
+assert.equal(requests[0].pendente, null);
+assert.equal(requests[0].clientes[0].nome, 'Maria Souza', 'a carteira vai para o cérebro');
+assert.equal(requests[0].clientes[0].telefone, '98999990000');
 extract = async () => ({
   campos: [{ chave: 'renda', valor: '4000', trecho: 'corrigir', confianca: 'alta' }],
   remover: [],
@@ -148,7 +153,7 @@ await context.enviarTexto('renda 4000');
 render();
 const before = requests.length;
 assert.equal(await context.levarParaSimulador(), true);
-assert.equal(requests.length, before, 'transferir não chama IA novamente');
+assert.equal(requests.length, before, 'transferir não analisa de novo');
 assert.equal(JSON.parse(writes[0][1]).estado.renda, '4000');
 render();
 assert.equal(Object.keys(context.capturados).length, 0);
@@ -171,16 +176,36 @@ release(response);
 assert.equal(await inflight, false);
 render();
 assert.equal(Object.keys(context.capturados).length, 0);
-release = null;
-const revoked = context.enviarTexto('renda 9000');
-while (!release) await new Promise((resolve) => setImmediate(resolve));
-consent = false;
-listener();
-release(response);
-assert.equal(await revoked, false);
+// Empreendimento + bloco + unidade sem valor: a LIA busca o preço na tabela.
+extract = async () => ({
+  campos: [
+    { chave: 'empreendimento', valor: 'dev-1', trecho: 'estrelas', confianca: 'alta' },
+    { chave: 'bloco', valor: '3', trecho: 'bloco 3', confianca: 'alta' },
+    { chave: 'unidade', valor: '204', trecho: 'apto 204', confianca: 'alta' },
+  ],
+  remover: [],
+  observacao: null,
+});
+assert.equal(await context.enviarTexto('estrelas bloco 3 apto 204'), true);
 render();
-assert.equal(Object.keys(context.capturados).length, 0);
-consent = true;
+assert.deepEqual(precos[0], ['dev-1', '3', '204']);
+assert.equal(context.capturados.valorUnidade.valor, '241400');
+assert.match(context.capturados.valorUnidade.trecho, /tabela de preço \(Setembro\)/);
+// Valor dito no texto: a tabela não é consultada.
+extract = async () => ({
+  campos: [
+    { chave: 'unidade', valor: '205', trecho: 'apto 205', confianca: 'alta' },
+    { chave: 'valorUnidade', valor: '250000', trecho: 'valor 250 mil', confianca: 'alta' },
+  ],
+  remover: [],
+  observacao: null,
+});
+await context.enviarTexto('apto 205 valor 250 mil');
+render();
+assert.equal(precos.length, 1);
+assert.equal(context.capturados.valorUnidade.valor, '250000');
+context.encerrar();
+render();
 extract = async () => {
   throw Error('offline');
 };
@@ -198,11 +223,14 @@ for (const dir of ['src/features/lia', 'src/components/lia']) {
       readFileSync(dir + '/' + file, 'utf8'),
       /getUserMedia|webkitSpeechRecognition|SpeechRecognition|criarEscuta/,
     );
+    // Nenhuma chamada a serviço de IA: a LIA pensa no aparelho.
+    const codigo = readFileSync(dir + '/' + file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    assert.doesNotMatch(codigo, /lia-extract|functions\.invoke|anthropic/i, file);
   }
 }
 for (const file of ['LiaPainel', 'LiaAgendaChat', 'LiaMaterialChat']) {
   assert.match(readFileSync('src/components/lia/' + file + '.tsx', 'utf8'), /<TextInput/);
 }
 console.log(
-  'LIA texto: envio, correção, descarte, transferência, consentimento, concorrência, encerramento e ausência de captura de áudio passaram.',
+  'LIA texto: envio, correção, descarte, transferência, carteira, preço pela tabela, concorrência, encerramento e ausência de captura de áudio passaram.',
 );

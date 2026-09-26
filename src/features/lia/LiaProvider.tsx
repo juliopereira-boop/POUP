@@ -1,4 +1,18 @@
-/** Sessão de simulação por texto: nenhum acesso ao microfone. */
+/**
+ * A SESSÃO DA LIA — texto digitado, entendido no próprio aparelho.
+ *
+ * O cérebro (`cerebro/campos.ts`) lê o texto; este provider junta o que já foi
+ * capturado, carrega o cadastro que o cérebro precisa (empreendimentos,
+ * correspondentes e a carteira de clientes) e acrescenta o que só dá para
+ * saber consultando o banco:
+ *
+ *   - o PREÇO da unidade, pela tabela de preço, quando o texto traz
+ *     empreendimento + bloco + unidade e não traz o valor (`precoDaTabela.ts`);
+ *   - a PRÓXIMA PERGUNTA: o primeiro campo essencial que falta vira pergunta,
+ *     e a resposta curta que vier em seguida ("3.500") vai para ele.
+ *
+ * Nenhum acesso ao microfone e nenhum envio a serviço de IA.
+ */
 import {
   createContext,
   useCallback,
@@ -22,13 +36,14 @@ import {
   type ContextoCatalogo,
 } from './campos';
 import { resolverDoCatalogo, type ItemCatalogo } from './catalogo';
+import { perguntaPara, type ClienteDoCadastro } from './cerebro/campos';
 import { extrair, type CampoOuvido } from './extrair';
-import { temConsentimentoLia, aoRevogarConsentimentoLia } from './consentimento';
+import { precoPelaTabela } from './precoDaTabela';
 
 export type StatusLia = 'desligada' | 'pronta' | 'entendendo' | 'erro';
 export interface CampoCapturado {
   chave: string;
-  /** O valor cru, como o modelo devolveu. É o que vai para o simulador. */
+  /** O valor cru. É o que vai para o simulador. */
   valor: string;
   /**
    * O mesmo valor, legível para o corretor.
@@ -51,6 +66,8 @@ interface LiaContextValue {
   capturados: Record<string, CampoCapturado>;
   faltando: string[];
   observacao: string | null;
+  /** O que a LIA está perguntando agora ("Qual a renda bruta do cliente?"). */
+  pergunta: string | null;
   erro: string | null;
   enviarTexto: (texto: string) => Promise<boolean>;
   encerrar: () => void;
@@ -58,13 +75,23 @@ interface LiaContextValue {
   levarParaSimulador: () => Promise<boolean | null>;
 }
 const LiaContext = createContext<LiaContextValue | undefined>(undefined);
+
+/** A ordem em que a LIA pergunta o que falta: do imóvel ao pagamento. */
+const ORDEM_DAS_PERGUNTAS = [
+  'clienteNome', 'empreendimento', 'bloco', 'unidade', 'valorUnidade', 'clienteRenda', 'financiamentoAprovado',
+  'ato', 'atoDataVencimento', 'mensaisQuantidade', 'mensalDiaVencimento', 'clienteCpf', 'clienteTelefone',
+  'correspondente',
+];
+
 export function LiaProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [status, setStatus] = useState<StatusLia>('desligada');
   const [capturados, setCapturados] = useState<Record<string, CampoCapturado>>({});
   const [observacao, setObservacao] = useState<string | null>(null);
+  const [pendente, setPendente] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const capturadosRef = useRef<Record<string, CampoCapturado>>({});
+  const pendenteRef = useRef<string | null>(null);
   const empreendimentosRef = useRef<ItemCatalogo[]>([]);
   const nomesRef = useRef<Record<string, string>>({});
   const contextoRef = useRef<ContextoCatalogo>({
@@ -80,11 +107,13 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     geracao.current += 1;
     ocupado.current = false;
     capturadosRef.current = {};
+    pendenteRef.current = null;
     empreendimentosRef.current = [];
     nomesRef.current = {};
     contextoRef.current = { empresaDoEmpreendimento: {}, correspondentes: [] };
     setCapturados({});
     setObservacao(null);
+    setPendente(null);
     setErro(null);
     setStatus('desligada');
   }, []);
@@ -92,33 +121,23 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     encerrar();
     return encerrar;
   }, [user?.id, encerrar]);
-  useEffect(() => aoRevogarConsentimentoLia(encerrar), [encerrar]);
+
+  /** Valores que ainda vierem como nome (e não id) são casados com o cadastro. */
   const resolverReferencias = useCallback(
     (campos: CampoOuvido[]): { campos: CampoOuvido[]; avisos: string[] } => {
       const avisos: string[] = [];
       const resolvidos: CampoOuvido[] = [];
-
       for (const c of campos) {
         const tipo = CAMPOS_POR_CHAVE[c.chave]?.tipo;
-        if (tipo !== 'empreendimento' && tipo !== 'correspondente') {
+        if ((tipo !== 'empreendimento' && tipo !== 'correspondente') || nomesRef.current[c.valor]) {
           resolvidos.push(c);
           continue;
         }
-        // Já é um id do catálogo? Acontece quando o valor veio do estado de uma
-        // rodada anterior; não faz sentido tentar casar o UUID por som.
-        if (nomesRef.current[c.valor]) {
-          resolvidos.push(c);
-          continue;
-        }
-        const itens =
-          tipo === 'empreendimento'
-            ? empreendimentosRef.current
-            : contextoRef.current.correspondentes;
+        const itens = tipo === 'empreendimento' ? empreendimentosRef.current : contextoRef.current.correspondentes;
         const { id, aviso } = resolverDoCatalogo(c.valor, itens);
         if (id) resolvidos.push({ ...c, valor: id });
         else if (aviso) avisos.push(aviso);
       }
-
       return { campos: resolvidos, avisos };
     },
     [],
@@ -133,17 +152,15 @@ export function LiaProvider({ children }: { children: ReactNode }) {
       const uid = user.id;
       const atual = () => sessao === geracao.current && owner.current === uid;
       try {
-        if (!(await temConsentimentoLia()) || !atual()) return false;
         setStatus('entendendo');
         setErro(null);
-        const [empresas, devs] = await Promise.all([
+        const [empresas, devs, leads] = await Promise.all([
           db.companies.list(uid),
           db.developments.list(uid),
+          db.leads.list(uid).catch(() => []),
         ]);
-        const listas = await Promise.all(
-          empresas.map((e) => db.companies.listCorrespondents(e.id)),
-        );
-        if (!atual() || !(await temConsentimentoLia())) return false;
+        const listas = await Promise.all(empresas.map((e) => db.companies.listCorrespondents(e.id)));
+        if (!atual()) return false;
         const correspondentes = listas.flat().map((c) => ({ id: c.id, nome: c.name }));
         empreendimentosRef.current = devs.map((d) => ({ id: d.id, nome: d.name }));
         contextoRef.current = {
@@ -154,40 +171,67 @@ export function LiaProvider({ children }: { children: ReactNode }) {
           ...devs.map((d) => [d.id, d.name]),
           ...correspondentes.map((c) => [c.id, c.nome]),
         ]);
-        const estado = Object.fromEntries(
-          Object.values(capturadosRef.current).map((c) => [
-            c.chave,
-            nomesRef.current[c.valor] ?? c.valor,
-          ]),
-        );
+        const clientes: ClienteDoCadastro[] = leads.map((l) => ({
+          id: l.id,
+          nome: l.name,
+          cpf: l.cpf,
+          telefone: l.phone,
+          email: l.email,
+          renda: l.income,
+        }));
+        const estado = Object.fromEntries(Object.values(capturadosRef.current).map((c) => [c.chave, c.valor]));
+
         const r = await extrair({
-          modo: 'final',
-          antes: '',
-          agora: mensagem,
+          texto: mensagem,
           estado,
-          empreendimentos: devs.map((d) => d.name),
-          correspondentes: correspondentes.map((c) => c.nome),
+          empreendimentos: empreendimentosRef.current,
+          correspondentes,
+          clientes,
+          pendente: pendenteRef.current,
         });
-        if (!atual() || !(await temConsentimentoLia())) return false;
+        if (!atual()) return false;
         if ('erro' in r) {
           setErro(r.erro);
           setStatus('erro');
           return false;
         }
+
         const { campos, avisos } = resolverReferencias(r.campos);
         const novo = { ...capturadosRef.current };
         for (const chave of r.remover) delete novo[chave];
-        for (const c of campos) {
-          if (!CAMPOS_POR_CHAVE[c.chave]) continue;
+        const gravar = (c: CampoOuvido) => {
+          if (!CAMPOS_POR_CHAVE[c.chave]) return;
           novo[c.chave] = {
             ...c,
             exibicao: exibirValor(c.chave, c.valor, nomesRef.current),
             corrigido: !!novo[c.chave] && novo[c.chave].valor !== c.valor,
             em: Date.now(),
           };
+        };
+        campos.forEach(gravar);
+
+        // Empreendimento + bloco + unidade sem valor: a tabela de preço sabe.
+        const mudouUnidade = campos.some((c) => ['empreendimento', 'bloco', 'unidade'].includes(c.chave));
+        if (mudouUnidade && novo.empreendimento && novo.bloco && novo.unidade && !campos.some((c) => c.chave === 'valorUnidade')) {
+          const preco = await precoPelaTabela(novo.empreendimento.valor, novo.bloco.valor, novo.unidade.valor);
+          if (!atual()) return false;
+          if (preco) {
+            gravar({
+              chave: 'valorUnidade',
+              valor: String(preco.venda),
+              trecho: `tabela de preço${preco.referencia ? ` (${preco.referencia})` : ''}`,
+              confianca: 'alta',
+            });
+          }
         }
+
         capturadosRef.current = novo;
         setCapturados(novo);
+
+        // A próxima pergunta: o primeiro essencial que ainda falta.
+        const proximo = ORDEM_DAS_PERGUNTAS.find((c) => CHAVES_ESSENCIAIS.includes(c) && !novo[c]) ?? null;
+        pendenteRef.current = proximo;
+        setPendente(proximo);
         setObservacao([r.observacao, ...avisos].filter(Boolean).join(' ') || null);
         setStatus('pronta');
         return true;
@@ -210,12 +254,10 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     setCapturados(novo);
   }, []);
   const levarParaSimulador = useCallback(async () => {
-    if (ocupado.current || !(await temConsentimentoLia()) || !owner.current) return null;
+    if (ocupado.current || !owner.current) return null;
     const atual = capturadosRef.current;
     if (!Object.keys(atual).length) return null;
-    const bruto: CapturaBruta = Object.fromEntries(
-      Object.values(atual).map((c) => [c.chave, c.valor]),
-    );
+    const bruto: CapturaBruta = Object.fromEntries(Object.values(atual).map((c) => [c.chave, c.valor]));
     const estado = paraSimulador(bruto, contextoRef.current);
     await sessionStorage.setItem(PREFILL_KEY, JSON.stringify({ estado }));
     const completo = CHAVES_ESSENCIAIS.every((c) => atual[c]);
@@ -223,6 +265,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
     return completo;
   }, [encerrar]);
   const faltando = useMemo(() => CHAVES_ESSENCIAIS.filter((c) => !capturados[c]), [capturados]);
+  const pergunta = pendente && Object.keys(capturados).length > 0 ? perguntaPara(pendente) : null;
   return (
     <LiaContext.Provider
       value={{
@@ -230,6 +273,7 @@ export function LiaProvider({ children }: { children: ReactNode }) {
         capturados,
         faltando,
         observacao,
+        pergunta,
         erro,
         enviarTexto,
         encerrar,

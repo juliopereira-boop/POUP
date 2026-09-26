@@ -12,12 +12,13 @@ async function test(name, fn) {
   console.log(`ok ${name}`);
 }
 const cache = new Map();
-const stored = new Map([['poup.lia.consentimento', '{"versao":2}']]);
+const stored = new Map();
 let profileRow = { id: 'owner', agency: 'Imobiliária existente', cnpj: '12345678000190', full_name: 'Teste' };
 let profileError = null;
 let lastChanges;
 let calls = 0;
 let createdAppointments = 0;
+let ultimoCompromisso = null;
 let subscription = { tier: 'pro', status: 'active' };
 let invoke = async () => { calls++; return { data: null, error: new Error('mock sem resposta') }; };
 function profileQuery() {
@@ -48,7 +49,7 @@ const mocks = {
   getItem: async k => stored.get(k), setItem: async (k, v) => stored.set(k, v),
   removeItem: async k => stored.delete(k),
 } },
-'@/data': { db: { appointments: { create: async () => { createdAppointments++; return { /* ... */ }; } } } },
+'@/data': { db: { appointments: { create: async (_owner, dados) => { createdAppointments++; ultimoCompromisso = dados; return { ok: true, data: dados }; } } } },
 
 'react-native': { Platform: { OS: 'web' } },
 'expo-print': {},
@@ -91,7 +92,6 @@ const plans = load('src/features/plans.ts');
 const { useFeatureAccess } = load('src/features/useFeatureAccess.ts');
 const proposal = load('src/features/simulador/proposal.ts');
 const { SupabaseProfileRepository } = load('src/data/supabase/SupabaseProfileRepository.ts');
-const consent = load('src/features/lia/consentimento.ts');
 const extraction = load('src/features/lia/extrair.ts');
 const agenda = load('src/features/lia/agendamento.ts');
 const scanConsent = load('src/features/scan/consent.ts');
@@ -186,42 +186,46 @@ await test('erro de atualização não tenta inserção', async () => {
   assert.equal((await repo.upsert('owner', { agency: 'Não gravar' })).ok, false);
   assert.equal(profileRow, before);
 });
-await test('aceite persistido não autoriza outra sessão nem envio de dados', async () => {
-  assert.equal(await consent.temConsentimentoLia(), false);
-  assert.ok('erro' in await extraction.extrair({}));
-  assert.ok('erro' in await agenda.extrairAgendamento({}));
+await test('LIA analisa no aparelho: nenhuma chamada de rede', async () => {
+  const r = await extraction.extrair({
+    texto: 'cliente Ana Lima, renda 3 mil, entrada 5 mil', estado: {},
+    empreendimentos: [], correspondentes: [], clientes: [], pendente: null,
+  });
+  assert.ok(!('erro' in r));
+  const campos = Object.fromEntries(r.campos.map((c) => [c.chave, c.valor]));
+  assert.equal(campos.clienteRenda, '3000');
+  assert.equal(campos.ato, '5000');
+  assert.equal(campos.clienteNome, 'Ana Lima');
   assert.equal(calls, 0);
 });
-await test('aceite permite envio e revogação bloqueia novas requisições', async () => {
-  await consent.darConsentimentoLia();
-  assert.equal(await consent.temConsentimentoLia(), true);
-  await extraction.extrair({});
-  await agenda.extrairAgendamento({});
-  assert.equal(calls, 2);
-  let stopped = 0;
-  const unsub = consent.aoRevogarConsentimentoLia(() => stopped++);
-  await consent.limparConsentimentoLia();
-  assert.equal(stopped, 1);
-  unsub();
-  assert.equal(stored.size, 0);
-  await extraction.extrair({});
-  await agenda.extrairAgendamento({});
-  assert.equal(calls, 2);
+await test('agendamento da LIA cria o compromisso com o tipo certo, sem rede', async () => {
+  const antes = createdAppointments;
+  const result = await agenda.agendarPorVoz('owner', 'ligar pra Ana amanhã às 10', {
+    empreendimentos: [], clientes: [{ id: 'lead-ana', nome: 'Ana Lima' }], empresaDoEmpreendimento: {},
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(createdAppointments, antes + 1);
+  assert.equal(ultimoCompromisso.typeId, 'ligacao');
+  assert.equal(ultimoCompromisso.leadId, 'lead-ana');
+  assert.equal(ultimoCompromisso.source, 'lia');
+  assert.equal(calls, 0);
 });
-await test('revogar enquanto IA responde impede salvar compromisso', async () => {
-  await consent.darConsentimentoLia();
-  invoke = async (_, { body }) => {
-    await consent.limparConsentimentoLia();
-    return { error: null, data: { versao: body.versao, agendamento: {
-      titulo: 'Visita de teste', data: '2026-10-01', hora: '10:00',
-    } } };
-  };
-  const result = await agenda.agendarPorVoz('owner', 'agenda amanhã às 10', {
+await test('LIA fechada antes de salvar não cria compromisso', async () => {
+  const antes = createdAppointments;
+  const result = await agenda.agendarPorVoz('owner', 'visita amanhã às 10', {
+    empreendimentos: [], clientes: [], empresaDoEmpreendimento: {},
+  }, () => false);
+  assert.equal(result.ok, false);
+  assert.equal(createdAppointments, antes);
+});
+await test('agendamento sem horário não cria compromisso', async () => {
+  const antes = createdAppointments;
+  const result = await agenda.agendarPorVoz('owner', 'visita amanhã', {
     empreendimentos: [], clientes: [], empresaDoEmpreendimento: {},
   });
   assert.equal(result.ok, false);
-  assert.match(result.motivo, /autorização/);
-  assert.equal(createdAppointments, 0);
+  assert.match(result.motivo, /horário/);
+  assert.equal(createdAppointments, antes);
 });
 await test('scan exige aviso e autorização do titular a cada chamada; revogação bloqueia envio', async () => {
   let uploads = 0;

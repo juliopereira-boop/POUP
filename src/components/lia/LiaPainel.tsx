@@ -68,6 +68,13 @@ export function LiaPainel({ visivel, aoFechar, aoLevarParaSimulador }: LiaPainel
                 </View>
               ) : null}
 
+              {lia.pergunta ? (
+                <View style={styles.pergunta}>
+                  <Text style={styles.perguntaQuem}>LIA</Text>
+                  <Text style={styles.perguntaTexto}>{lia.pergunta}</Text>
+                </View>
+              ) : null}
+
               {lia.observacao ? (
                 <View style={styles.observacao}>
                   <Text style={styles.observacaoTexto}>{lia.observacao}</Text>
@@ -177,8 +184,9 @@ function VazioInicial() {
     <View style={styles.vazio}>
       <Text style={styles.vazioTitulo}>Digite os dados da negociação</Text>
       <Text style={styles.vazioTexto}>
-        A LIA organiza o texto em campos da simulação. Você pode enviar correções e deve conferir os
-        valores antes de gerar a proposta.
+        Escreva do seu jeito ("cliente Maria, ganha 2.800, estrelas bloco 3 apto 204, entrada 5 mil
+        dia 10, 36 vezes"). A LIA organiza em campos, busca o preço na tabela e o cadastro do
+        cliente, e pergunta o que faltar. Confira os valores antes de gerar a proposta.
       </Text>
     </View>
   );
@@ -214,6 +222,17 @@ function legendaStatus(status: string): string {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    pergunta: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      alignItems: 'flex-start',
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    perguntaQuem: { ...typography.caption, fontWeight: '800', color: colors.primary },
+    perguntaTexto: { ...typography.label, color: colors.ink, flex: 1 },
     fundo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
     folha: {
       maxHeight: '88%',

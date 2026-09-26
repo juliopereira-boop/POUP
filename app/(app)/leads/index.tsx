@@ -477,7 +477,7 @@ function AtendimentoModal({
       setGenerating(false);
       if (!res.ok) {
         setMessage(defaultPitch(brokerName, dev.name));
-        setError('A IA não respondeu agora, deixamos uma mensagem padrão pra você ajustar.');
+        setError('Não foi possível montar a mensagem agora, deixamos uma mensagem padrão pra você ajustar.');
         return;
       }
       setMessage(res.data.mensagem);
@@ -565,7 +565,7 @@ function AtendimentoModal({
                   label="Mensagem"
                   value={message}
                   onChangeText={setMessage}
-                  placeholder={generating ? 'A IA está escrevendo…' : 'Escreva sua mensagem'}
+                  placeholder={generating ? 'Escrevendo a mensagem…' : 'Escreva sua mensagem'}
                   multiline
                   numberOfLines={8}
                   editable={!generating}
@@ -574,7 +574,7 @@ function AtendimentoModal({
                 {generating ? (
                   <View style={styles.generatingRow}>
                     <ActivityIndicator />
-                    <Text style={styles.caption}>Gerando mensagem com IA…</Text>
+                    <Text style={styles.caption}>Montando a mensagem…</Text>
                   </View>
                 ) : (
                   <Button
@@ -685,7 +685,7 @@ function CaptacaoCard({
     }
     setConvite(res.data.convite);
     setPageTitle(res.data.titulo);
-    setFeedback('Página criada pela IA! Já está no ar, é só divulgar.');
+    setFeedback('Página criada! Já está no ar, é só divulgar.');
     setTimeout(() => setFeedback(null), 5000);
   }
 
@@ -710,7 +710,7 @@ function CaptacaoCard({
     <View style={styles.card}>
       <Text style={styles.cardTitle}>📣 Crie sua página e receba leads</Text>
       <Text style={styles.cardText}>
-        Descreva o empreendimento e a IA cria pra você uma página de captação bonita + o convite
+        Descreva o empreendimento e o POUP cria pra você uma página de captação bonita + o convite
         pronto pra postar. Quem deixar nome e telefone vira lead automaticamente aqui na Gestão de
         Leads, sem configurar nada.
       </Text>
@@ -736,7 +736,7 @@ function CaptacaoCard({
       />
 
       <Button
-        label={generating ? 'Criando página…' : '✨ Criar página com IA'}
+        label={generating ? 'Criando página…' : '✨ Criar página'}
         onPress={onGerar}
         loading={generating}
         style={styles.primaryCta}

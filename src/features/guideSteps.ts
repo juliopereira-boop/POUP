@@ -30,7 +30,7 @@ export const GUIDE_STEPS: GuideStep[] = [
       'Do catálogo vêm prontos a regra de comissão, os empreendimentos e o material de venda',
       'Se ela não estiver no catálogo, cadastre você: risco máximo, número de parcelas, semestrais e anuais',
       'Depois cadastre os empreendimentos da empresa, com data de entrega e descrição',
-      'A descrição é o que a IA usa para escrever suas mensagens',
+      'A descrição é o que o POUP usa para escrever suas mensagens',
     ],
   },
   {
@@ -89,7 +89,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     where: 'Leads › botão de conversa',
     title: 'Atenda pelo WhatsApp',
     description:
-      'A IA escreve a mensagem do empreendimento para você. Você ajusta o que quiser e abre a conversa já no número do lead.',
+      'O POUP escreve a mensagem do empreendimento para você. Você ajusta o que quiser e abre a conversa já no número do lead.',
     bullets: [
       'Escolha a empresa e o empreendimento',
       'A mensagem é gerada a partir da descrição que você cadastrou',

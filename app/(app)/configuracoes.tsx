@@ -13,8 +13,7 @@ import { canPromptInstall, promptInstall } from '@/features/install/pwa';
 import { abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
 import { useIsAdmin } from '@/features/admin';
 import { consentimentoScanEm, revogarConsentimentoScan } from '@/features/scan/consent';
-import { canShowBilling, liaDisponivel } from '@/features/store';
-import { limparConsentimentoLia } from '@/features/lia/consentimento';
+import { canShowBilling } from '@/features/store';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
@@ -173,24 +172,13 @@ export default function ConfiguracoesScreen() {
         Consentimento que não se pode retirar não é consentimento, vale para a
         LGPD e para a regra 5.1.2(i) da App Store. A leitura de documento manda
         a foto do RG de um cliente para a Anthropic, e o corretor precisa poder
-        desligar isso sem falar com ninguém.
+        desligar isso sem falar com ninguém. (A LIA não aparece aqui: ela roda
+        no aparelho e não envia nada a serviço de IA.)
 
         A data fica à vista porque "você autorizou" sem dizer quando é uma
         afirmação que ninguém consegue conferir.
       */}
       <Text style={styles.sectionLabel}>Inteligência artificial</Text>
-      {liaDisponivel ? (
-        <View style={styles.aiConsentCard}>
-          <Button
-            label="Revogar autorização da LIA"
-            variant="secondary"
-            onPress={() => void limparConsentimentoLia()}
-          />
-          <Text style={styles.aiConsentHint}>
-            Você poderá autorizar novamente quando utilizar a LIA.
-          </Text>
-        </View>
-      ) : null}
       <View style={styles.card}>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Leitura inteligente de documentos</Text>
@@ -447,14 +435,6 @@ const makeStyles = (colors: AppColors) =>
     rowValue: { ...typography.body, color: colors.ink, flexShrink: 1, textAlign: 'right' },
     divider: { height: 1, backgroundColor: colors.border },
     cardAction: { paddingVertical: spacing.lg },
-    aiConsentCard: { marginBottom: spacing.sm },
-    aiConsentHint: {
-      ...typography.caption,
-      color: colors.inkMuted,
-      textAlign: 'center',
-      marginTop: spacing.sm,
-      marginBottom: spacing.md,
-    },
     billingError: {
       ...typography.caption,
       color: colors.danger,

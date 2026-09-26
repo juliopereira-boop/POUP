@@ -25,46 +25,58 @@
  *   * **indicação** e cadastro manual.
  *
  * `generateInvite` e `generatePitch` continuam: eles escrevem o texto do
- * convite e da abordagem para quem JÁ é lead. Escrever uma mensagem para um
+ * convite e da abordagem para quem JÁ é lead — hoje no próprio aparelho, sem
+ * IA (`textosDeCaptacao.ts`). Escrever uma mensagem para um
  * contato consentido é outra coisa, completamente diferente de montar uma
  * lista de estranhos.
  */
-import { mensagemDoErro } from './edgeError';
 import { supabase } from './supabase';
+import { escreverAbordagem, escreverConvite } from './textosDeCaptacao';
 import { type LeadCampaign, type Result, err, ok } from '@/data';
 
+/**
+ * Os textos da página de captação, escritos no aparelho (`textosDeCaptacao.ts`)
+ * e guardados na campanha do corretor — a mesma linha que a página pública lê.
+ */
 export async function generateInvite(input?: {
   developmentName?: string | null;
   detalhes?: string | null;
 }): Promise<Result<LeadCampaign>> {
-  const { data, error } = await supabase.functions.invoke('generate-invite', {
-    body: {
-      developmentName: input?.developmentName ?? undefined,
-      extra: input?.detalhes ?? undefined,
-    },
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user) return err('Entre na sua conta para criar a página.');
+  const { data: perfil } = await supabase.from('profiles').select('full_name, agency').eq('id', user.id).maybeSingle();
+  const p = perfil as { full_name?: string | null; agency?: string | null } | null;
+  const campanha = escreverConvite({
+    developmentName: input?.developmentName,
+    detalhes: input?.detalhes,
+    brokerName: p?.full_name ?? (user.user_metadata?.full_name as string | undefined) ?? null,
+    agency: p?.agency ?? null,
   });
-  if (error) return err(await mensagemDoErro(error, 'Não foi possível gerar os textos agora.'));
-  if (data?.error) return err(data.error as string);
-  return ok(data as LeadCampaign);
+  const { error } = await supabase.from('lead_campaigns').upsert(
+    {
+      user_id: user.id,
+      titulo: campanha.titulo,
+      subtitulo: campanha.subtitulo,
+      descricao: campanha.descricao,
+      beneficios: campanha.beneficios,
+      convite: campanha.convite,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' },
+  );
+  if (error) return err('Não foi possível salvar a página agora. Tente de novo.');
+  return ok(campanha);
 }
 
+/** A mensagem de abordagem para um lead, escrita no aparelho. */
 export async function generatePitch(input: {
   developmentName?: string | null;
   companyName?: string | null;
   descricao?: string | null;
   brokerName?: string | null;
 }): Promise<Result<{ mensagem: string }>> {
-  const { data, error } = await supabase.functions.invoke('generate-pitch', {
-    body: {
-      developmentName: input.developmentName ?? undefined,
-      companyName: input.companyName ?? undefined,
-      descricao: input.descricao ?? undefined,
-      brokerName: input.brokerName ?? undefined,
-    },
-  });
-  if (error) return err(await mensagemDoErro(error, 'Não foi possível gerar a mensagem agora.'));
-  if (data?.error) return err(data.error as string);
-  return ok(data as { mensagem: string });
+  return ok({ mensagem: escreverAbordagem(input) });
 }
 
 export interface LeadPageInfo {

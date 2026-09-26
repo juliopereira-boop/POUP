@@ -174,8 +174,8 @@ export function LiaAgendaChat({ visivel, aoFechar }: LiaAgendaChatProps) {
             {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
             <Text style={styles.aviso}>
-              O texto que você enviar é enviado a um serviço de inteligência artificial (Anthropic)
-              para interpretar o compromisso.
+              A LIA entende o compromisso aqui no aparelho. Nada do que você digita é enviado a
+              serviço de inteligência artificial.
             </Text>
           </ScrollView>
 

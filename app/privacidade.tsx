@@ -50,7 +50,7 @@ const CONTROLADOR = {
  * como revogar o acesso pelo Google e o que acontece com um pedido de exclusão
  * que travou seria descumprir a promessa na própria página que a faz.
  */
-const VIGENCIA = '25 de setembro de 2026';
+const VIGENCIA = '26 de setembro de 2026';
 
 export default function PrivacyPolicyScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -119,9 +119,8 @@ export default function PrivacyPolicyScreen() {
           guardá-los. Servem para descobrir onde o app está confuso ou quebrado.
         </Bullet>
         <Bullet>
-          <Bold>Contagem de uso dos recursos de inteligência artificial</Bold>: quantas leituras de
-          documento, quantas análises da LIA e quantos textos gerados você usou no mês. É só um
-          número por recurso, e existe para respeitar o limite do seu plano.
+          <Bold>Contagem de uso da leitura de documento</Bold>: quantas leituras de documento você
+          usou no mês. É só um número, e existe para respeitar o limite do seu plano.
         </Bullet>
         <Bullet>
           <Bold>O que você escreve em &quot;Reportar problema ou dar sugestão&quot;</Bold>, junto
@@ -191,12 +190,10 @@ export default function PrivacyPolicyScreen() {
           dessas opções
         </Bullet>
         <Bullet>
-          <Bold>Anthropic (Claude)</Bold>, recebe, e somente quando você aciona cada recurso:
-          {'\n'}• a <Bold>foto do documento</Bold>, no leitor de CNH/RG;
-          {'\n'}• o <Bold>texto digitado</Bold> da negociação, quando você envia uma análise à LIA;
-          {'\n'}• o <Bold>texto</Bold> do agendamento, junto de uma lista com os nomes dos seus
-          empreendimentos e clientes, para conseguir identificar quem e o quê você citou;
-          {'\n'}• o <Bold>texto de apoio</Bold> quando você pede um convite ou uma abordagem pronta.
+          <Bold>Anthropic (Claude)</Bold>, recebe somente a <Bold>foto do documento</Bold>, quando
+          você usa o leitor de CNH/RG. A LIA, os agendamentos por texto, o convite de captação e a
+          mensagem de abordagem são processados no próprio POUP, sem envio a serviço de
+          inteligência artificial.
           {'\n\n'}
           Segundo a política da Anthropic, o conteúdo enviado pela API pode ser mantido por{' '}
           <Bold>até 30 dias</Bold> para segurança e prevenção de abuso, e depois é descartado. Ele
@@ -246,16 +243,16 @@ export default function PrivacyPolicyScreen() {
           de seis meses, e apagadas junto com a conta se você excluí-la.
         </Paragraph>
         <Paragraph>
-          A assistente <Bold>LIA</Bold> funciona por texto e não acessa o microfone. O texto da
-          sessão é descartado ao encerrar, sem ser salvo como conversa nos servidores do POUP. Ficam
-          na sua conta as simulações e os agendamentos que você decidiu salvar.
+          A assistente <Bold>LIA</Bold> funciona por texto, não acessa o microfone e entende o que
+          você digita no próprio aparelho: nada é enviado a serviço de inteligência artificial. O
+          texto da sessão é descartado ao encerrar, sem ser salvo como conversa. Ficam na sua conta
+          as simulações e os agendamentos que você decidiu salvar.
         </Paragraph>
         <Paragraph>
-          O trecho de texto enviado para análise, porém, passa pela Anthropic, que tem retenção
-          padrão da API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo fornecedor,
-          incluindo obrigações legais e aplicação de sua política de uso. A mesma regra se aplica às
-          imagens enviadas para leitura de documento. Consulte a política em privacy.claude.com para
-          detalhes.
+          A foto enviada para leitura de documento passa pela Anthropic, que tem retenção padrão da
+          API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo fornecedor, incluindo
+          obrigações legais e aplicação de sua política de uso. Consulte a política em
+          privacy.claude.com para detalhes.
         </Paragraph>
       </Section>
 
@@ -268,9 +265,9 @@ export default function PrivacyPolicyScreen() {
         </Paragraph>
         <SubTitle>Revogar consentimentos já dados</SubTitle>
         <Bullet>
-          <Bold>LIA</Bold>: cada abertura pede uma nova autorização. Em Ajustes → Privacidade,
-          “Encerrar autorizações de IA da LIA” interrompe a sessão e bloqueia novos envios. Isso não
-          recolhe dados já enviados a fornecedores nem apaga simulações ou agendamentos salvos.
+          <Bold>LIA</Bold>: não há autorização a revogar, porque ela não envia o que você digita a
+          nenhum serviço de inteligência artificial. Fechar a LIA ou tocar em “Limpar sessão”
+          descarta o texto; simulações e agendamentos salvos continuam na sua conta.
         </Bullet>
         <Bullet>
           <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê

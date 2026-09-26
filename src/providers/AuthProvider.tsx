@@ -7,7 +7,6 @@ import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
 import { revogarConsentimentoScan } from '@/features/scan/consent';
-import { limparConsentimentoLia } from '@/features/lia/consentimento';
 import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/storageKeys';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
 import { sessionStorage } from '@/lib/storage';
@@ -40,11 +39,9 @@ interface AuthContextValue {
  */
 async function clearLocalUserData(): Promise<void> {
   await clearThumbCache();
-  // Os consentimentos de IA são de quem os deu, não do aparelho. Vale para a
-  // leitura de documento e para a LIA digitada: quem autorizou o envio dos
-  // dados foi uma pessoa, não este celular.
+  // O consentimento de IA é de quem o deu, não do aparelho: quem autorizou o
+  // envio da foto do documento foi uma pessoa, não este celular.
   await revogarConsentimentoScan();
-  await limparConsentimentoLia();
   /*
    * Os rascunhos dos DOIS simuladores guardam nome, CPF, telefone e renda de
    * um cliente — e as chaves não são separadas por usuário. Sem apagar na
@@ -105,11 +102,6 @@ function sameUser(a: AuthUser | null, b: AuthUser | null): boolean {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [initializing, setInitializing] = useState(true);
-
-  useEffect(() => {
-    // Troca de conta ou expiração da sessão também revoga o consentimento da LIA.
-    void limparConsentimentoLia();
-  }, [user?.id]);
 
   useEffect(() => {
     let mounted = true;

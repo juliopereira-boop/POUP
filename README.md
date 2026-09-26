@@ -314,8 +314,7 @@ LIA na tela de planos, com preço e descrição; repetir isso num botão que aco
 todas as telas seria propaganda perseguindo quem já disse não.
 
 A LIA exige **assinatura Pro ativa**: Start, teste gratuito e assinaturas inativas não a liberam.
-O bloqueio é aplicado na interface e na Edge Function `lia-extract`, consultando a assinatura
-do usuário autenticado antes de consumir cota ou chamar a IA. Os demais recursos mantêm a
+O bloqueio é aplicado na interface (a LIA roda no aparelho, sem Edge Function). Os demais recursos mantêm a
 regra anterior do teste gratuito. Validação: `npm run testar:acesso-lia` e `npm run testar:planos`.
 Essa regra precisa de deploy do app e da função; não exige migration ou alteração de tabelas.
 
@@ -1041,9 +1040,34 @@ O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária,
 
 ## 🎧 LIA — a assistente que ouve a negociação
 
-> **Estado:** primeira funcionalidade entregue (*Simulação de poupança*), funcionando **na web**.
-> A escuta ao vivo depende de transcrição de voz, que o app nativo ainda não traz — ver
-> "Onde funciona hoje" abaixo.
+> **Estado (setembro/2026): a LIA não usa mais IA.** O cérebro dela é um algoritmo que roda no
+> aparelho (`src/features/lia/cerebro/`). O texto abaixo desta caixa conta a história da versão
+> com modelo de linguagem e continua valendo para as regras de produto (não inventar, o que vem
+> depois manda, na dúvida perguntar).
+
+### O cérebro (sem IA)
+
+| Arquivo | O que faz |
+|---|---|
+| `cerebro/numeros.ts` | Números como se escreve: "210 mil", "duzentos e dez", "dois e oitocentos", "3,5", "três e meio", "mil e quinhentos", "um salário e meio". A escala final depende do campo (preço "210" = R$ 210 mil; parcela "850" = R$ 850). |
+| `cerebro/datas.ts` | "amanhã", "sexta (que vem)", "dia 10", "10 de março", "10/03", "daqui a 3 dias"; "às 10", "15h30", "3 da tarde", "meio-dia". Nunca chuta dia que não existe. |
+| `cerebro/catalogo.ts` | Acha empreendimento, correspondente e cliente citados no texto. Cada palavra do nome pesa pelo quanto é rara no catálogo ("Village" não diz nada; "Estrelas" diz tudo). Empate vira pergunta. |
+| `cerebro/campos.ts` | Os 29 campos da simulação: CPF (com dígito verificador), telefone, e-mail, bloco, unidade, datas do ato e da mensal, quantidades, reforços, cada valor pela palavra-chave mais perto, de quem é a renda (titular ou 2º proponente), nomes, correções ("na verdade 3.500", "não é 3 mil, é 3.500") e remoções ("esquece o segundo proponente", "sem FGTS"). |
+| `cerebro/agenda.ts` | Frase → compromisso, com o **tipo** certo (ligação, reunião, visita, assinatura, documentos, plantão). |
+
+O que a LIA faz a mais do que fazia com o modelo:
+
+- **Preço pela tabela:** empreendimento + bloco + unidade sem valor → busca na tabela de preço (`precoDaTabela.ts`).
+- **Cliente da carteira:** nome de lead cadastrado traz CPF, telefone, e-mail e renda.
+- **Pergunta o que falta** e aceita a resposta curta ("3.500" depois de "Qual a renda?").
+- Na hora, sem internet, sem cota e sem autorização de IA: nada do que se digita sai do aparelho.
+
+A mensagem de abordagem e o convite da página de captação também deixaram de usar IA
+(`src/lib/textosDeCaptacao.ts`). O único recurso que ainda usa IA é a **leitura de documento**
+(`scan-document`).
+
+Testes: `npm run testar:cerebro-lia` (frases reais de negociação e agenda), `testar:lia`,
+`testar:lia-texto` e `testar:planos`.
 
 A LIA é uma assistente de corretagem que **só escuta**. Ela não fala, não interrompe e não
 sugere: durante a negociação ela ouve o corretor e o cliente, entende o que foi dito e vai
