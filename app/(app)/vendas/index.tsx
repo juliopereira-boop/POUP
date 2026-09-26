@@ -595,7 +595,7 @@ const makeStyles = (colors: AppColors) =>
       letterSpacing: 1.4,
       opacity: 0.9,
     },
-    heroValue: { ...typography.title, color: colors.white, fontSize: 34, marginTop: spacing.xs },
+    heroValue: { ...typography.title, color: colors.white, fontSize: 34, lineHeight: 42, marginTop: spacing.xs },
     heroCaption: { ...typography.caption, color: colors.white, opacity: 0.9, marginTop: 2 },
 
     kpiGrid: {

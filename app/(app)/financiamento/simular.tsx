@@ -911,7 +911,7 @@ const makeStyles = (colors: AppColors) =>
     },
     painelLinha: { gap: 2 },
     painelRotulo: { ...typography.caption, color: colors.inkMuted },
-    painelValor: { ...typography.title, color: colors.primary, fontSize: 30 },
+    painelValor: { ...typography.title, color: colors.primary, fontSize: 30, lineHeight: 38 },
     painelNota: { ...typography.caption, color: colors.warning, fontSize: 11.5 },
     painelGrade: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     painelBotao: { marginTop: spacing.xs },
