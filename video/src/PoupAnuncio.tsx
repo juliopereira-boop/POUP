@@ -52,8 +52,8 @@ const DURACAO_SOM: Record<Som, number> = {
   'impacto-suave': 60,
   whoosh: 17,
   'clique-ui': 3,
-  pop: 4,
-  'ding-positivo': 27,
+  pop: 3,
+  'ding-positivo': 36,
 };
 
 const Efeito: React.FC<{ som: Som; em: number; volume?: number | ((f: number) => number) }> = ({ som, em, volume = 1 }) => (
@@ -177,7 +177,7 @@ export const PoupAnuncio: React.FC = () => (
     <Sequence from={Q.drop} durationInFrames={DURACAO - Q.drop} name="♫ drop">
       <Audio
         src={staticFile('audio/trilha-drop.wav')}
-        volume={(f) => interpolate(f + Q.drop, [Q.drop, DURACAO - 20, DURACAO], [0.7, 0.7, 0.25], { extrapolateRight: 'clamp' })}
+        volume={(f) => interpolate(f + Q.drop, [Q.drop, DURACAO - 20, DURACAO], [0.5, 0.5, 0.2], { extrapolateRight: 'clamp' })}
       />
     </Sequence>
     {EFEITOS.map((e, i) => (

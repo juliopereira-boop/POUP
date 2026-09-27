@@ -19,7 +19,8 @@ O briefing costuma vir de quem não conhece o app. Leia o código e readeque:
 - **Cores e marca**: `src/theme/colors.ts`; logo em `assets/` (redesenhe em SVG — ver
   `video/src/componentes/Logo.tsx` — para trocar a cor da letra conforme o fundo).
 - **Domínio/CTA**: procure no código (e-mail de suporte, links). Se não achar, use um
-  valor plausível numa constante única e **peça confirmação**.
+  valor plausível numa constante única e **peça confirmação**. POUP: **"Teste grátis" ·
+  poupcrm.online** (confirmado; o domínio do e-mail de suporte NÃO é o site).
 - Faça uma **tabela "briefing × no vídeo × por quê"** e mostre ao usuário.
 
 Regras que não se negociam:
@@ -74,8 +75,19 @@ eco) em WAV 44,1 kHz — determinístico (sem `Math.random`).
 - **120 BPM = uma batida a cada 15 quadros** a 30 fps: os cortes e o pulso do CTA caem
   no tempo. Conte as batidas a partir do drop.
 - Duas trilhas: `trilha-tensa` (drone dissonante, bumbo abafado, acelera no fim) e
-  `trilha-drop` (4/4, palmas, baixo, acordes, arpejo, variação no meio, rufo antes da
-  prova, acorde final com cauda). Para outra duração, ajuste `seg` e `fimMusica`.
+  `trilha-drop`. Para outra duração, ajuste `seg` e `fimMusica`.
+- **A trilha pós-drop NÃO pode soar infantil** (feedback do Julio). O que deixava
+  infantil: tom maior (C–G–Am–F), acordes de serra uma oitava acima, arpejo agudo
+  (videogame), "pop" com o tom caindo (desenho animado), ding em arpejo de sininho.
+  O que funciona: **deep house cinematográfico em lá menor** — sub grave, bumbo seco,
+  palma com sala, chimbal em semicolcheias com dinâmica, **piano elétrico FM** (Am9,
+  Fmaj9, Cmaj9, G6) + pad filtrado, **sidechain** (a música respira com o bumbo),
+  reverb de Schroeder, melodia só num trecho (pluck suave com eco), quebra com rufo
+  de caixa antes da prova. Efeitos de UI curtos e graves ("toc"), confirmação em duas
+  notas suaves. Sem ouvir, confira por medida: agudos > 3 kHz uns 4 dB abaixo da
+  versão brilhante, quebra ~12 dB abaixo do corpo, cauda final não mais alta que o corpo.
+- A trilha no vídeo deve ficar ~ -16 dB no uso do app (volume ~0,5 na `<Audio>`) para
+  não cobrir os toques e preenchimentos.
 - Efeitos: tique, papel, tecla, notificação, riser, reverso, impacto (3 pesos), whoosh,
   clique de UI, pop, ding positivo. Amarrados aos quadros em `PoupAnuncio.tsx`.
 - `volume` da `<Audio>` pode ser função: o quadro é **relativo ao início da Sequence**.

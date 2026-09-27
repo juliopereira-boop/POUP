@@ -28,7 +28,7 @@ O briefing veio de quem não conhece o POUP. O que mudou, e por quê:
 | "Enviar PDF" | **"Gerar PDF"** e "Resumo p/ cliente" | Botões do resultado |
 | Kanban de simulações | **Relatórios** ("Simulações concluídas.") com filtro por empreendimento | É assim que o app organiza as simulações |
 | "E se levasse 30 segundos?" · "Antes: 47 min / Agora: 30 s" · contador até 47:12 | **"E se levasse segundos?"** · **"Antes: horas / Agora: segundos"** · "De horas para segundos." · cronômetro dramatizado até 02:47:12 | O número real não foi informado: regra do briefing, nada de estatística inventada |
-| CTA "Teste grátis — site.com.br" | **"Teste grátis" · poupgestao.com** | O app tem período de teste; o domínio é o do e-mail de suporte. **Confirme** (`src/cenas/Cta.tsx`, constante `CTA`) |
+| CTA "Teste grátis — site.com.br" | **"Teste grátis" · poupcrm.online** | Confirmado pelo Julio (`src/cenas/Cta.tsx`, constante `CTA`) |
 
 Valores ilustrativos (aparece na tela): imóvel R$ 210.000, entrada R$ 12.000,
 FGTS R$ 10.000 + subsídio R$ 20.000, banco financia R$ 168.000, renda
@@ -61,7 +61,8 @@ R$ 3.200, parcela R$ 958,40 (dentro de 30% da renda). Sem taxa, sem nome de banc
 A regra de cor é o conceito: **nada da marca antes do 345, nada frio depois**
 (fora o lado "Antes" da prova). As cores estão em `src/tema.ts`.
 
-O áudio (`scripts/gerar-audio.mjs`) é a 120 BPM — uma batida a cada 15
+O áudio (`scripts/gerar-audio.mjs`) é a 120 BPM; depois do drop, deep house
+cinematográfico em lá menor (sub, piano elétrico, pad, sidechain) — — uma batida a cada 15
 quadros —, então os cortes da montagem e o pulso do CTA caem no tempo. Os
 efeitos estão amarrados aos quadros em `src/PoupAnuncio.tsx`. Para usar uma
 trilha licenciada no lugar da sintetizada, troque `public/audio/trilha-*.wav`

@@ -7,8 +7,8 @@ import { IconeApp } from '../componentes/Logo';
 import { BATIDA, FONTE, MARCA, Q } from '../tema';
 import { faixa } from '../util';
 
-/** O CTA (o briefing não trouxe: confirme o texto e o endereço). */
-export const CTA = { botao: 'Teste grátis', endereco: 'poupgestao.com' };
+/** O CTA, confirmado pelo Julio: "Teste grátis" · poupcrm.online. */
+export const CTA = { botao: 'Teste grátis', endereco: 'poupcrm.online' };
 /** Último pulso na batida do acorde final (30 quadros antes do fim); os últimos 15 ficam parados. */
 export const ULTIMO_PULSO = Q.fim - 30;
 

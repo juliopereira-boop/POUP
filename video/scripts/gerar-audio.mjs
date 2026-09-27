@@ -133,6 +133,90 @@ function seno(freq, seg, queda = 6, ataque = 0.002) {
   return x;
 }
 
+/** Piano elétrico (FM suave): quente, sem o brilho de serra. */
+function epiano(freq, seg, queda = 1.8) {
+  const x = buf(seg);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    const indice = 1.6 * Math.exp(-t * 7) + 0.25;
+    const env = Math.min(1, t / 0.004) * Math.exp(-t * queda);
+    x[i] =
+      (Math.sin(TAU * freq * t + indice * Math.sin(TAU * freq * t)) * 0.8 +
+        Math.sin(TAU * freq * 2.002 * t) * 0.12 * Math.exp(-t * 4)) *
+      env;
+  }
+  return passaBaixa(x, 3200);
+}
+/** Pad: serras desafinadas, bem filtradas, ataque lento — o "ar" da trilha. */
+function pad(notas, seg, corte = 900) {
+  const x = buf(seg);
+  for (const n of notas) misturar(x, serra(hz(n), seg, { ataque: 0.5, queda: 0.25, corte: 20000, vozes: 3, detune: 0.008 }), 0, 0.25);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    x[i] *= Math.min(1, (seg - t) / 0.3);
+  }
+  return passaBaixa(passaBaixa(x, corte), corte * 1.4);
+}
+/** Sub grave (seno + um pouco de 2º harmônico, levemente saturado). */
+function sub(freq, seg) {
+  const x = buf(seg);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    const env = Math.min(1, t / 0.006) * Math.min(1, (seg - t) / 0.03);
+    x[i] = (Math.sin(TAU * freq * t) + 0.25 * Math.sin(TAU * freq * 2 * t)) * env;
+  }
+  return saturar(x, 1.3);
+}
+/** Pluck suave para a melodia (triângulo com filtro fechando). */
+function pluck(freq, seg = 0.45) {
+  const x = buf(seg);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    const fase = (freq * t) % 1;
+    x[i] = (4 * Math.abs(fase - 0.5) - 1) * Math.min(1, t / 0.003) * Math.exp(-t * 7);
+  }
+  return passaBaixa(x, (t) => 600 + 3500 * Math.exp(-t * 10));
+}
+function caixa() {
+  const x = buf(0.3);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    x[i] = Math.sin(TAU * 185 * t) * Math.exp(-t * 30) * 0.6 + ruido() * Math.exp(-t * 16) * 0.7;
+  }
+  return passaAlta(passaBaixa(x, 7000), 150);
+}
+function palmaSeca() {
+  const x = buf(0.22);
+  for (let i = 0; i < x.length; i++) {
+    const t = i / SR;
+    const rajadas = [0, 0.008, 0.017].reduce((s, o) => s + (t >= o ? Math.exp(-(t - o) * 90) : 0), 0);
+    x[i] = ruido() * (rajadas * 0.5 + Math.exp(-t * 24) * 0.35);
+  }
+  return passaAlta(passaBaixa(x, 4200), 1100);
+}
+function prato(seg = 2.2) {
+  const x = buf(seg);
+  for (let i = 0; i < x.length; i++) x[i] = ruido() * Math.exp(-(i / SR) * 2.2);
+  return passaAlta(x, 6000);
+}
+/** Reverb de Schroeder (4 pentes + 2 passa-tudo): dá sala sem banco de sons. */
+function reverb(x, mistura = 0.25, tempo = 0.78) {
+  const molhado = new Float32Array(x.length);
+  for (const [d, g] of [[1557, tempo], [1617, tempo - 0.02], [1491, tempo + 0.01], [1422, tempo - 0.03]]) {
+    const y = new Float32Array(x.length);
+    for (let i = 0; i < x.length; i++) y[i] = x[i] + (i >= d ? g * y[i - d] : 0);
+    for (let i = 0; i < x.length; i++) molhado[i] += y[i] * 0.25;
+  }
+  let z = molhado;
+  for (const d of [225, 556]) {
+    const y = new Float32Array(z.length);
+    for (let i = 0; i < z.length; i++) y[i] = -0.5 * z[i] + (i >= d ? z[i - d] + 0.5 * y[i - d] : 0);
+    z = y;
+  }
+  const escuro = passaBaixa(z, 5000);
+  return x.map((v, i) => v * (1 - mistura) + escuro[i] * mistura);
+}
+
 // ============================================================ EFEITOS
 function tick() {
   const x = buf(0.06);
@@ -212,20 +296,21 @@ function cliqueUi() {
   }
   return x;
 }
+/** "Toc" de interface: curto, grave e abafado (sem o "bloop" de desenho animado). */
 function pop() {
-  const x = buf(0.12);
-  let fase = 0;
+  const x = buf(0.09);
   for (let i = 0; i < x.length; i++) {
     const t = i / SR;
-    fase += (TAU * (900 * Math.exp(-t * 30) + 220)) / SR;
-    x[i] = Math.sin(fase) * Math.exp(-t * 35);
+    x[i] = (Math.sin(TAU * 540 * t) * 0.8 + Math.sin(TAU * 1080 * t) * 0.15) * Math.exp(-t * 55) + ruido() * Math.exp(-t * 300) * 0.15;
   }
-  return x;
+  return passaBaixa(x, 2500);
 }
+/** Confirmação: duas notas suaves (quinta) com cauda, sem arpejo de sininho. */
 function dingPositivo() {
-  const x = buf(0.9);
-  [84, 88, 91, 96].forEach((n, k) => misturar(x, seno(hz(n), 0.8, 5), k * 0.06, 0.6));
-  return eco(x, 0.12, 0.25, 3);
+  const x = buf(1.2);
+  misturar(x, epiano(hz(76), 1.1, 2.2), 0, 0.5);
+  misturar(x, epiano(hz(83), 1.0, 2.4), 0.07, 0.4);
+  return reverb(x, 0.35);
 }
 
 salvar('tick.wav', tick());
@@ -263,56 +348,119 @@ const BATIDA = 0.5; // 120 BPM
   salvar('trilha-tensa.wav', x);
 }
 
-// ---------------- drop: quadro 345 → 1350 (33,5 s). Dó maior, energética.
+// ---------------- drop: quadro 345 → 1350 (33,5 s). Lá menor, deep house
+// cinematográfico: sub grave, bumbo seco, palma com sala, chimbal fino, piano
+// elétrico e pad respirando com o bumbo. Nada de acorde de serra agudo nem
+// arpejo de videogame.
+//
+//   compassos 0–3   (345–585)   entra tudo, sem melodia
+//   compassos 4–7   (585–825)   melodia suave (pluck com eco)
+//   compassos 8–11  (825–1065)  variação: Dm9 – Am9 – Fmaj9 – E7sus4/E7
+//   1065–1110                   quebra: bumbo sai, rufo de caixa → prova
+//   1110–1320                   volta cheio, com melodia; 1320: acorde final
 {
   const seg = 33.7;
-  const x = buf(seg);
   const compasso = BATIDA * 4;
-  // C – G – Am – F (acordes em MIDI)
-  const acordes = [
-    [60, 64, 67, 72],
-    [55, 59, 62, 67],
-    [57, 60, 64, 69],
-    [53, 57, 60, 65],
+  const fimMusica = 32.5;
+  const quebra = [24.0, 25.5]; // quadros 1065–1110
+  const bateria = buf(seg);
+  const musica = buf(seg);
+  const melodiaBus = buf(seg);
+
+  // [pad/piano, baixo]
+  const A = [
+    [[60, 64, 67, 71], 33], // Am9 (sem a fundamental em cima)
+    [[57, 60, 64, 67], 29], // Fmaj9
+    [[64, 67, 71, 74], 36], // Cmaj9 / E
+    [[62, 64, 67, 71], 31], // G6
   ];
-  const baixos = [36, 43, 45, 41];
-  const fimMusica = 32.5; // último acorde no quadro 1320; depois, cauda até o 1350
+  const B = [
+    [[53, 57, 60, 64], 38], // Dm9
+    [[60, 64, 67, 71], 33], // Am9
+    [[57, 60, 64, 67], 29], // Fmaj9
+    [[57, 59, 62, 64], 28], // E7sus4 (→ E7 no fim do compasso)
+  ];
+  const MELODIA = [
+    [0, 76], [0.75, 72], [1.5, 74], [3, 71],
+    [0, 72], [0.75, 69], [1.5, 71], [3, 67],
+  ];
+
+  const bumbos = [];
   for (let c = 0; c * compasso < fimMusica; c++) {
     const t0 = c * compasso;
-    // Compassos 8–11 trocam a ordem (Am F C G): variação no meio do uso do app.
-    const i = c >= 8 && c < 12 ? [2, 3, 0, 1][c % 4] : c % 4;
+    const [notas, baixo] = c >= 8 && c < 12 ? B[c % 4] : A[c % 4];
+    const naQuebra = (t) => t >= quebra[0] && t < quebra[1];
+
+    // Pad do compasso inteiro (abre o filtro na variação).
+    misturar(musica, pad(notas, compasso + 0.2, c >= 8 && c < 12 ? 1400 : 950), t0, 0.35);
+
     for (let b = 0; b < 4; b++) {
       const t = t0 + b * BATIDA;
       if (t >= fimMusica) break;
-      misturar(x, bumbo(0.45, 160, 48, 0.5), t, 1.0);
-      if (b % 2 === 1) misturar(x, palma(), t, 0.45);
-      misturar(x, chimbal(0.2, true), t + BATIDA / 2, 0.16);
-      misturar(x, chimbal(0.03), t + BATIDA / 4, 0.08);
-      misturar(x, chimbal(0.03), t + (3 * BATIDA) / 4, 0.08);
-      // Baixo em colcheias, "respirando" com o bumbo.
-      misturar(x, serra(hz(baixos[i]), BATIDA / 2 - 0.02, { queda: 6, corte: 700 }), t + BATIDA / 2, 0.55);
-      misturar(x, serra(hz(baixos[i] + 12), BATIDA / 4, { queda: 12, corte: 900 }), t + (3 * BATIDA) / 4, 0.25);
-    }
-    // Acorde brilhante em síncope.
-    for (const off of [0, 0.75, 1.5]) {
-      const acorde = buf(0.5);
-      for (const n of acordes[i]) misturar(acorde, serra(hz(n + 12), 0.5, { queda: 6, corte: 4200, vozes: 3 }), 0, 0.22);
-      misturar(x, acorde, t0 + off, 0.5);
-    }
-    // Arpejo a partir do 3º compasso (dá subida de energia).
-    if (c >= 2) {
-      for (let s = 0; s < 8; s++) {
-        const n = acordes[i][s % 4] + 24;
-        misturar(x, serra(hz(n), 0.18, { queda: 14, corte: 5000, vozes: 1 }), t0 + s * (BATIDA / 2), 0.14);
+      if (!naQuebra(t)) {
+        misturar(bateria, bumbo(0.42, 130, 46, 0.35), t, 1.0);
+        bumbos.push(t);
+      }
+      if (b % 2 === 1 && !naQuebra(t)) misturar(bateria, palmaSeca(), t, 0.5);
+      // Chimbal em semicolcheias com dinâmica; aberto no contratempo.
+      [0.35, 0.18, 0.6, 0.22].forEach((v, k) => misturar(bateria, chimbal(0.025), t + (k * BATIDA) / 4, v * 0.16));
+      misturar(bateria, chimbal(0.12, true), t + BATIDA / 2, 0.1);
+      // Baixo no contratempo + síncope no último tempo.
+      const notaBaixo = c % 4 === 3 && b >= 2 && c >= 8 && c < 12 ? baixo : baixo;
+      if (!naQuebra(t)) {
+        misturar(musica, sub(hz(notaBaixo), 0.2), t + BATIDA / 2, 0.55);
+        if (b === 3) misturar(musica, sub(hz(notaBaixo + 12), 0.1), t + BATIDA * 0.75, 0.25);
       }
     }
+    // Piano elétrico em síncope.
+    const notasPiano = c >= 8 && c < 12 && c % 4 === 3 ? [56, 59, 62, 64] : notas; // E7 no fim da variação
+    for (const [off, dur] of [[0.5, 0.5], [1.75, 0.4], [2.5, 0.5], [3.5, 0.45]]) {
+      const tt = t0 + off * BATIDA;
+      if (tt >= fimMusica) break;
+      const acorde = buf(dur + 0.6);
+      for (const n of notasPiano) misturar(acorde, epiano(hz(n), dur + 0.6, 2.4), 0, 0.2);
+      misturar(musica, acorde, tt, 0.6);
+    }
+    // Melodia suave nos compassos 4–7 e depois da prova.
+    if ((c >= 4 && c < 8) || t0 >= quebra[1]) {
+      for (let k = 0; k < 4; k++) {
+        const [off, n] = MELODIA[(c % 2) * 4 + k];
+        const tt = t0 + off * BATIDA;
+        if (tt < fimMusica) misturar(melodiaBus, pluck(hz(n)), tt, 0.3);
+      }
+    }
+    // Prato no começo de cada seção.
+    if (c === 0 || c === 4 || c === 8) misturar(bateria, prato(), t0, 0.12);
   }
-  // Rufo de caixa subindo para a prova (quadro 1080 → 1110).
-  for (let t = 24.5, k = 0; t < 25.5; t += BATIDA / 4, k++) misturar(x, palma(), t, 0.15 + k * 0.03);
-  // Final: acorde de Dó com cauda longa e um bumbo.
-  const final = buf(1.6);
-  for (const n of [48, 60, 64, 67, 72, 76]) misturar(final, serra(hz(n), 1.6, { queda: 1.6, corte: 3500, vozes: 3 }), 0, 0.2);
-  misturar(x, eco(final, 0.18, 0.35, 4), fimMusica, 0.9);
-  misturar(x, bumbo(0.6, 160, 45, 0.5), fimMusica, 1.0);
-  salvar('trilha-drop.wav', eco(x, 0.25, 0.12, 2));
+  // Quebra: rufo de caixa crescendo até a prova, e o prato na volta.
+  for (let t = quebra[0] + 0.5, k = 0; t < quebra[1]; t += BATIDA / 4, k++) misturar(bateria, caixa(), t, 0.12 + k * 0.035);
+  misturar(bateria, prato(2.6), quebra[1], 0.2);
+  misturar(bateria, bumbo(0.5, 140, 44, 0.4), quebra[1], 1.0);
+  bumbos.push(quebra[1]);
+
+  // Final: Am9 aberto com cauda longa + sub.
+  const final = buf(2.0);
+  for (const n of [45, 57, 60, 64, 67, 71]) misturar(final, epiano(hz(n), 2.0, 1.1), 0, 0.2);
+  misturar(final, pad([57, 60, 64, 71], 2.0, 1100), 0, 0.5);
+  misturar(musica, final, fimMusica, 0.55);
+  misturar(musica, sub(hz(33), 1.2), fimMusica, 0.4);
+  misturar(bateria, bumbo(0.6, 130, 44, 0.35), fimMusica, 0.8);
+  misturar(bateria, prato(2.4), fimMusica, 0.1);
+
+  // Sidechain: a música "respira" com o bumbo.
+  bumbos.sort((a, b) => a - b);
+  let k = 0;
+  for (let i = 0; i < musica.length; i++) {
+    const t = i / SR;
+    while (k + 1 < bumbos.length && bumbos[k + 1] <= t) k++;
+    const desde = bumbos[k] <= t ? t - bumbos[k] : 99;
+    musica[i] *= 1 - 0.55 * Math.exp(-desde * 9);
+  }
+
+  const x = buf(seg);
+  misturar(x, reverb(musica, 0.22), 0, 1);
+  misturar(x, eco(reverb(melodiaBus, 0.3), BATIDA * 0.75, 0.32, 4), 0, 1);
+  misturar(x, reverb(bateria, 0.08), 0, 1);
+  salvar('trilha-drop.wav', saturar(x, 1.15));
 }
+
