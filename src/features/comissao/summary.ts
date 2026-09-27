@@ -35,9 +35,14 @@ export function formatPct(value: number | null | undefined): string {
  * lista poder ler apenas essas colunas do banco.
  */
 export function describeCommissionRule(
-  rule: Pick<CommissionRule, 'defaultPct' | 'installmentsCount'> | null,
+  rule: (Pick<CommissionRule, 'defaultPct' | 'installmentsCount'> & { pctImob?: number | null }) | null,
 ): string {
   if (!rule) return 'Não informado';
   const parcelas = rule.installmentsCount <= 1 ? 'pagamento único' : `${rule.installmentsCount}x`;
+  const imob = rule.pctImob;
+  // House e Imob diferentes: mostra os dois.
+  if (typeof imob === 'number' && imob !== rule.defaultPct) {
+    return `House ${formatPct(rule.defaultPct)} · Imob ${formatPct(imob)} · ${parcelas}`;
+  }
   return `${formatPct(rule.defaultPct)} · ${parcelas}`;
 }

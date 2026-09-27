@@ -12,7 +12,7 @@
  * motivo com um botão para tentar de novo.
  */
 import { friendlyError } from '@/data/friendlyError';
-import { db, type Sale } from '@/data';
+import { db, type Sale, type TipoCorretor } from '@/data';
 import { buildCommissionForSale } from './engine';
 
 export type EnsureCommissionResult =
@@ -33,10 +33,13 @@ export type EnsureCommissionResult =
 export async function ensureCommissionForSale(
   userId: string,
   sale: Sale,
+  tipo?: TipoCorretor | null,
 ): Promise<EnsureCommissionResult> {
   try {
     const existing = await db.commissions.getBySale(sale.id);
     if (existing) return { status: 'ja_existia' };
+    // O percentual depende do tipo do corretor (House/Imob), que mora no perfil.
+    const tipoDoCorretor = tipo !== undefined ? tipo : ((await db.profiles.get(userId))?.tipoCorretor ?? null);
 
     const [rule, campaigns] = sale.companyId
       ? await Promise.all([
@@ -45,7 +48,7 @@ export async function ensureCommissionForSale(
         ])
       : [null, []];
 
-    const payload = buildCommissionForSale(sale, rule, campaigns);
+    const payload = buildCommissionForSale(sale, rule, campaigns, tipoDoCorretor);
     const res = await db.commissions.createForSale(userId, payload);
     if (res.ok) return { status: 'criada' };
     return { status: 'erro', message: describe(res.error) };

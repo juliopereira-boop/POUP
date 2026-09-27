@@ -110,6 +110,7 @@ export default function CatalogoAdminScreen() {
   const [coincide, setCoincide] = useState(true);
   const commission = useCommissionRuleForm();
   const [saving, setSaving] = useState(false);
+  const [mudandoAtiva, setMudandoAtiva] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -159,6 +160,33 @@ export default function CatalogoAdminScreen() {
     () => companies.find((c) => c.id === editingId) ?? null,
     [companies, editingId],
   );
+
+  async function mudarAtiva(c: Company) {
+    setMudandoAtiva(true);
+    setError(null);
+    const r = await db.catalog.setAtiva(c.id, !c.ativa);
+    setMudandoAtiva(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    setCompanies((prev) => prev.map((x) => (x.id === c.id ? { ...x, ativa: !c.ativa } : x)));
+    setFeedback(c.ativa ? `${c.name} inativada: só você vê.` : `${c.name} ativada: já aparece para todos os corretores.`);
+  }
+
+  /** Inativar tira do ar para todo mundo: pede confirmação. Ativar vai direto. */
+  function alternarAtiva(c: Company) {
+    if (!c.ativa) return void mudarAtiva(c);
+    const texto = `Inativar ${c.name}? Ela some do catálogo e das contas de quem já adotou, sem apagar nada. Você pode ativar de novo depois.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(texto)) void mudarAtiva(c);
+      return;
+    }
+    Alert.alert('Inativar construtora', texto, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Inativar', style: 'destructive', onPress: () => void mudarAtiva(c) },
+    ]);
+  }
 
   const editingDevelopments = useMemo(
     () => (editingId ? developments.filter((d) => d.companyId === editingId) : []),
@@ -294,7 +322,7 @@ export default function CatalogoAdminScreen() {
     setFeedback(
       editingId
         ? 'Alterações publicadas. Quem já adotou esta construtora está usando a nova regra.'
-        : 'Construtora publicada no catálogo. Falta a foto, os empreendimentos e o material.',
+        : 'Construtora criada INATIVA: só você vê. Complete foto, empreendimentos e material e toque em "Ativar para todos".',
     );
   }
 
@@ -488,7 +516,12 @@ export default function CatalogoAdminScreen() {
                 >
                   <EntityAvatar photoUrl={photoSrc(c.id, c.photoUrl)} name={c.name} size={48} />
                   <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{c.name}</Text>
+                    <View style={styles.nomeLinha}>
+                      <Text style={styles.itemName}>{c.name}</Text>
+                      <Text style={[styles.selo, c.ativa ? styles.seloAtiva : styles.seloInativa]}>
+                        {c.ativa ? 'Ativa' : 'Inativa'}
+                      </Text>
+                    </View>
                     <Text style={styles.itemMeta}>
                       Comissão: {describeCommissionRule(rules[c.id] ?? null)} · Risco:{' '}
                       {c.risk != null ? `${c.risk}%` : 'Não informado'}
@@ -514,6 +547,26 @@ export default function CatalogoAdminScreen() {
             <Text style={styles.formTitle}>
               {editing ? editing.name : 'Nova construtora no catálogo'}
             </Text>
+
+            {/* Nasce inativa: só o admin vê até ativar. */}
+            <View style={[styles.visibilidade, editing?.ativa ? styles.visibilidadeAtiva : styles.visibilidadeInativa]}>
+              <Text style={styles.visibilidadeTitulo}>
+                {editing ? (editing.ativa ? 'Ativa: todos os corretores veem' : 'Inativa: só você vê') : 'Vai nascer inativa: só você vê'}
+              </Text>
+              <Text style={styles.itemMeta}>
+                {editing?.ativa
+                  ? 'Inativar esconde a construtora, os empreendimentos e o material de todos os corretores (inclusive de quem já adotou), sem apagar nada.'
+                  : 'Complete foto, empreendimentos e material. Ao ativar, a construtora aparece no catálogo de todos os corretores.'}
+              </Text>
+              {editing ? (
+                <Button
+                  label={editing.ativa ? 'Inativar' : 'Ativar para todos'}
+                  variant={editing.ativa ? 'secondary' : 'primary'}
+                  onPress={() => alternarAtiva(editing)}
+                  loading={mudandoAtiva}
+                />
+              ) : null}
+            </View>
 
             <Text style={styles.sectionTitle}>Foto redonda</Text>
             {editingId ? (
@@ -818,6 +871,21 @@ export default function CatalogoAdminScreen() {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    nomeLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+    selo: {
+      ...typography.caption,
+      fontWeight: '700',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 1,
+      borderRadius: radius.pill,
+      overflow: 'hidden',
+    },
+    seloAtiva: { color: colors.success, backgroundColor: colors.successSoft },
+    seloInativa: { color: colors.warning, backgroundColor: colors.warningSoft },
+    visibilidade: { borderRadius: radius.md, padding: spacing.md, gap: spacing.sm, marginBottom: spacing.md, borderWidth: 1 },
+    visibilidadeAtiva: { backgroundColor: colors.successSoft, borderColor: colors.success },
+    visibilidadeInativa: { backgroundColor: colors.warningSoft, borderColor: colors.warning },
+    visibilidadeTitulo: { ...typography.label, color: colors.ink },
     warnCard: {
       backgroundColor: colors.warningSoft,
       borderRadius: radius.lg,

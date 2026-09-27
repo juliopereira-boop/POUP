@@ -378,6 +378,9 @@ export interface CatalogRepository {
 
   createCompany(userId: string, data: CompanyInput): Promise<Result<Company>>;
 
+  /** Ativa (todos os corretores veem) ou inativa (só o admin vê). */
+  setAtiva(companyId: string, ativa: boolean): Promise<Result<void>>;
+
   /**
    * Sobe a foto redonda e devolve a URL pública já gravada na linha.
    * Substituir a foto sobrescreve o arquivo anterior.

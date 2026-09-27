@@ -84,6 +84,9 @@ function ordinal(index: number): string {
 export interface CommissionRuleController {
   defaultPct: string;
   setDefaultPct: (v: string) => void;
+  /** % do corretor Imob. Vazio = o mesmo do House. */
+  pctImob: string;
+  setPctImob: (v: string) => void;
   installmentsCount: string;
   setInstallmentsCount: (v: string) => void;
   firstPaymentDays: string;
@@ -121,6 +124,7 @@ function fill(count: number, values: number[] | null): string[] {
 
 export function useCommissionRuleForm(): CommissionRuleController {
   const [defaultPct, setDefaultPct] = useState(formatDecimalBR(DEFAULT_COMMISSION_RULE.defaultPct));
+  const [pctImob, setPctImob] = useState('');
   const [installmentsCount, setInstallmentsCount] = useState(
     String(DEFAULT_COMMISSION_RULE.installmentsCount),
   );
@@ -159,8 +163,12 @@ export function useCommissionRuleForm(): CommissionRuleController {
 
   const validate = useCallback((): string | null => {
     const pct = parseDecimalBR(defaultPct);
-    if (pct == null) return 'Informe o percentual padrão de comissão.';
+    if (pct == null) return 'Informe o percentual de comissão do corretor House.';
     if (pct < 0 || pct > 100) return 'O percentual de comissão deve estar entre 0 e 100.';
+    if (pctImob.trim()) {
+      const imob = parseDecimalBR(pctImob);
+      if (imob == null || imob < 0 || imob > 100) return 'O percentual do corretor Imob deve estar entre 0 e 100.';
+    }
 
     if (parsedCount == null) {
       return `Em quantas parcelas a comissão é paga? Use um número inteiro de 1 a ${MAX_INSTALLMENTS}.`;
@@ -194,7 +202,7 @@ export function useCommissionRuleForm(): CommissionRuleController {
     }
 
     return null;
-  }, [defaultPct, firstPaymentDays, intervalDays, parsedCount, split, splitSum, useSplit]);
+  }, [defaultPct, pctImob, firstPaymentDays, intervalDays, parsedCount, split, splitSum, useSplit]);
 
   const build = useCallback((): CommissionRuleInput | null => {
     if (validate() != null) return null;
@@ -202,6 +210,7 @@ export function useCommissionRuleForm(): CommissionRuleController {
     const usarSplit = useSplit && count > 1;
     return {
       defaultPct: parseDecimalBR(defaultPct) ?? 0,
+      pctImob: pctImob.trim() ? (parseDecimalBR(pctImob) ?? null) : null,
       installmentsCount: count,
       installmentsSplit: usarSplit
         ? Array.from({ length: count }, (_, i) => parseDecimalBR(split[i] ?? '') ?? 0)
@@ -210,10 +219,11 @@ export function useCommissionRuleForm(): CommissionRuleController {
       intervalDays: count > 1 ? (parseDecimalBR(intervalDays) ?? 0) : 0,
       notes: notes.trim() ? notes.trim() : null,
     };
-  }, [defaultPct, firstPaymentDays, intervalDays, notes, parsedCount, split, useSplit, validate]);
+  }, [defaultPct, pctImob, firstPaymentDays, intervalDays, notes, parsedCount, split, useSplit, validate]);
 
   const apply = useCallback((input: CommissionRuleInput) => {
     setDefaultPct(formatDecimalBR(input.defaultPct));
+    setPctImob(input.pctImob == null ? '' : formatDecimalBR(input.pctImob));
     setInstallmentsCount(String(input.installmentsCount));
     setFirstPaymentDays(String(input.firstPaymentDays));
     setIntervalDays(String(input.intervalDays));
@@ -250,6 +260,8 @@ export function useCommissionRuleForm(): CommissionRuleController {
   return {
     defaultPct,
     setDefaultPct,
+    pctImob,
+    setPctImob,
     installmentsCount,
     setInstallmentsCount,
     firstPaymentDays,
@@ -454,14 +466,23 @@ export function CommissionRuleForm({ controller, companyId, userId }: Commission
       <Text style={styles.sectionTitle}>Regra de comissão</Text>
 
       <Input
-        label="Comissão padrão (%)"
+        label="Corretor House (%)"
         value={controller.defaultPct}
         onChangeText={controller.setDefaultPct}
         placeholder="Ex.: 2"
         keyboardType="decimal-pad"
       />
+      <Input
+        label="Corretor Imob (%)"
+        value={controller.pctImob}
+        onChangeText={controller.setPctImob}
+        placeholder={`Vazio = igual ao House (${controller.defaultPct || '0'}%)`}
+        keyboardType="decimal-pad"
+      />
       <Text style={styles.hint}>
-        Percentual sobre o valor da unidade. Vale sempre que nenhuma campanha estiver no prazo.
+        Percentual sobre o valor da unidade. House é o corretor da construtora; Imob, o de imobiliária parceira.
+        Cada corretor escolhe o tipo no perfil, e a venda dele usa o percentual do tipo. Vale sempre que nenhuma
+        campanha estiver no prazo.
       </Text>
 
       {vigente ? (

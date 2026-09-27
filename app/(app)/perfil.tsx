@@ -6,7 +6,9 @@ import { Button } from '@/components/Button';
 import { CampoCidade } from '@/components/CampoCidade';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { Segmento } from '@/components/Segmento';
 import { Select } from '@/components/Select';
+import type { TipoCorretor } from '@/data';
 import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { UF_OPTIONS } from '@/features/uf';
 import { useAuth } from '@/providers/AuthProvider';
@@ -30,6 +32,7 @@ export default function PerfilScreen() {
   const [creci, setCreci] = useState('');
   const [uf, setUf] = useState<string | null>(null);
   const [cidade, setCidade] = useState('');
+  const [tipoCorretor, setTipoCorretor] = useState<TipoCorretor | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +47,7 @@ export default function PerfilScreen() {
     setCreci(profile.creci ?? '');
     setUf(profile.uf ?? null);
     setCidade(profile.cidade ?? '');
+    setTipoCorretor(profile.tipoCorretor);
   }, [profile]);
 
   async function save() {
@@ -67,6 +71,7 @@ export default function PerfilScreen() {
       creci: creci.trim() || null,
       uf,
       cidade: cidade.trim() || null,
+      tipoCorretor,
     });
     setSaving(false);
     if (!result.ok) {
@@ -90,6 +95,22 @@ export default function PerfilScreen() {
         placeholder="000.000.000-00"
         keyboardType="numbers-and-punctuation"
       />
+      <Text style={styles.rotuloTipo}>Você é corretor</Text>
+      <Segmento
+        opcoes={[
+          { valor: 'house', rotulo: 'House' },
+          { valor: 'imob', rotulo: 'Imob' },
+        ]}
+        valor={tipoCorretor ?? ''}
+        onMudar={(v) => setTipoCorretor(v as TipoCorretor)}
+      />
+      <Text style={styles.dicaTipo}>
+        {tipoCorretor === 'imob'
+          ? 'Imob: corretor de imobiliária parceira. Suas vendas usam o percentual Imob da construtora.'
+          : tipoCorretor === 'house'
+            ? 'House: corretor da própria construtora. Suas vendas usam o percentual House.'
+            : 'Escolha o seu tipo: a comissão das vendas é calculada pela regra da construtora para ele.'}
+      </Text>
       <Input label="Imobiliária (opcional)" value={agency} onChangeText={setAgency} placeholder="Nome da imobiliária, se houver" />
       <Input label="Gerente imob" value={agencyManager} onChangeText={setAgencyManager} placeholder="Nome do gerente da imobiliária" autoCapitalize="words" />
       <Input label="CNPJ (opcional)" value={cnpj} onChangeText={(t) => setCnpj(formatCNPJ(t))} placeholder="00.000.000/0000-00" keyboardType="numbers-and-punctuation" />
@@ -120,6 +141,8 @@ export default function PerfilScreen() {
 
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
+    rotuloTipo: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
+    dicaTipo: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.xs, marginBottom: spacing.md },
     email: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
     hint: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.xs, marginBottom: spacing.md },
     cta: { marginTop: spacing.sm },

@@ -58,6 +58,10 @@ function toNumber(value: number | string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function colunaAtivaAusente(e: { code?: string; message?: string }): boolean {
+  return e.code === '42703' || e.code === 'PGRST204' || /ativa/.test(e.message ?? '');
+}
+
 export function mapCatalogCompanyRow(row: CompanyRow): Company {
   return {
     id: row.id,
@@ -69,6 +73,8 @@ export function mapCatalogCompanyRow(row: CompanyRow): Company {
     coincideInstallments: row.coincide_installments,
     photoUrl: row.photo_url,
     isCatalog: row.is_catalog,
+    // Sem a migration 20260927120000 a coluna não existe: tudo conta como ativa.
+    ativa: (row as { ativa?: boolean | null }).ativa !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -213,24 +219,41 @@ export class SupabaseCatalogRepository implements CatalogRepository {
   }
 
   async createCompany(userId: string, data: CompanyInput): Promise<Result<Company>> {
-    const { data: row, error } = await supabase
-      .from('companies')
-      .insert({
-        user_id: userId,
-        name: data.name,
-        risk: data.risk,
-        max_installments: data.maxInstallments,
-        max_semiannual: data.maxSemiannual,
-        max_annual: data.maxAnnual,
-        coincide_installments: data.coincideInstallments,
-        // O que faz a empresa ser do catálogo. Quem pode gravar `true` é
-        // decidido pelo RLS (`is_app_admin()`), não por esta linha.
-        is_catalog: true,
-      })
-      .select('*')
-      .single();
+    const linha = {
+      user_id: userId,
+      name: data.name,
+      risk: data.risk,
+      max_installments: data.maxInstallments,
+      max_semiannual: data.maxSemiannual,
+      max_annual: data.maxAnnual,
+      coincide_installments: data.coincideInstallments,
+      // O que faz a empresa ser do catálogo. Quem pode gravar `true` é
+      // decidido pelo RLS (`is_app_admin()`), não por esta linha.
+      is_catalog: true,
+      // Nasce INATIVA: só o admin vê até ativar (migration 20260927120000).
+      ativa: false,
+    };
+    let { data: row, error } = await supabase.from('companies').insert(linha).select('*').single();
+    if (error && colunaAtivaAusente(error)) {
+      // Migration ainda não rodou: cria como antes (visível para todos).
+      const { ativa: _semColuna, ...semAtiva } = linha;
+      void _semColuna;
+      ({ data: row, error } = await supabase.from('companies').insert(semAtiva).select('*').single());
+    }
     if (error || !row) return err(error?.message ?? 'Falha ao salvar empresa do catálogo.');
     return ok(mapCatalogCompanyRow(row));
+  }
+
+  /** Ativa (todos veem) ou inativa (só o admin vê) uma empresa do catálogo. */
+  async setAtiva(companyId: string, ativa: boolean): Promise<Result<void>> {
+    const { error } = await supabase.from('companies').update({ ativa }).eq('id', companyId).eq('is_catalog', true);
+    if (error) {
+      if (colunaAtivaAusente(error)) {
+        return err('Para ativar e inativar empresas, rode a migration 20260927120000_catalogo_ativo_e_comissao_por_tipo.sql no SQL Editor do Supabase.');
+      }
+      return err('Não foi possível mudar a empresa agora.');
+    }
+    return ok(undefined);
   }
 
   async uploadPhoto(

@@ -36,6 +36,7 @@ import {
   type CommissionRuleInput,
   type CommissionSource,
   type Sale,
+  type TipoCorretor,
 } from '@/data/types';
 
 /* ------------------------------------------------------------------------- *
@@ -225,12 +226,27 @@ function campaignIsUsable(c: CommissionCampaign | null | undefined): c is Commis
  * Data da venda ilegível => campanhas são ignoradas (não há como comparar) e
  * devolve-se o percentual padrão.
  */
+/**
+ * O percentual da regra para o TIPO do corretor: House usa o padrão; Imob usa o
+ * `pctImob` quando a construtora definiu um (vazio = o mesmo do House). Quem
+ * ainda não escolheu o tipo no perfil fica com o House.
+ */
+export function pctDoCorretor(rule: AnyRule | null, tipo: TipoCorretor | null | undefined): number {
+  const base = rule ? rule.defaultPct : DEFAULT_COMMISSION_RULE.defaultPct;
+  if (tipo === 'imob' && rule) {
+    const imob = (rule as { pctImob?: number | null }).pctImob;
+    if (typeof imob === 'number' && Number.isFinite(imob) && imob >= 0) return imob;
+  }
+  return base;
+}
+
 export function resolveRate(
   rule: AnyRule | null,
   campaigns: CommissionCampaign[],
   saleDateYmd: string,
+  tipo: TipoCorretor | null = null,
 ): ResolvedRate {
-  const rawPct = rule ? rule.defaultPct : DEFAULT_COMMISSION_RULE.defaultPct;
+  const rawPct = pctDoCorretor(rule, tipo);
   const basePct =
     typeof rawPct === 'number' && Number.isFinite(rawPct) && rawPct >= 0
       ? rawPct
@@ -385,6 +401,7 @@ export function buildCommissionForSale(
   sale: Sale,
   rule: CommissionRule | null,
   campaigns: CommissionCampaign[],
+  tipo: TipoCorretor | null = null,
 ): {
   commission: Omit<Commission, 'id' | 'createdAt' | 'updatedAt'>;
   installments: Omit<CommissionInstallment, 'id' | 'commissionId'>[];
@@ -393,8 +410,16 @@ export function buildCommissionForSale(
   const saleDate = typeof sale?.saleDate === 'string' ? sale.saleDate.trim() : '';
 
   const manualValue = sale?.commissionValue;
+  const resolvedRule = resolveRate(rule, campaigns, saleDate, tipo);
+  const pelaRegra = fromCents(toCents((saleValue * resolvedRule.pct) / 100));
+  // A venda chega com a comissão PRÉ-PREENCHIDA pela regra (formulário da
+  // venda). Se o valor bate com a regra, ela continua sendo "padrão"/"campanha"
+  // — só é manual quando o corretor mudou o número.
   const isManual =
-    typeof manualValue === 'number' && Number.isFinite(manualValue) && manualValue >= 0;
+    typeof manualValue === 'number' &&
+    Number.isFinite(manualValue) &&
+    manualValue >= 0 &&
+    Math.abs(toCents(manualValue) - toCents(pelaRegra)) > 1;
 
   let totalValue: number;
   let pct: number;
@@ -412,7 +437,7 @@ export function buildCommissionForSale(
       pct = typeof salePct === 'number' && Number.isFinite(salePct) && salePct >= 0 ? salePct : 0;
     }
   } else {
-    const resolved = resolveRate(rule, campaigns, saleDate);
+    const resolved = resolvedRule;
     pct = resolved.pct;
     source = resolved.source;
     campaignName = resolved.campaignName;

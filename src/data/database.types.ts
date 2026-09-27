@@ -110,6 +110,7 @@ export interface Database {
           creci: string | null;
           uf: string | null;
           cidade?: string | null;
+          tipo_corretor?: 'house' | 'imob' | null;
           ranking_participa?: boolean;
           ranking_desde?: string | null;
           created_at: string;
@@ -127,6 +128,7 @@ export interface Database {
           creci?: string | null;
           uf?: string | null;
           cidade?: string | null;
+          tipo_corretor?: 'house' | 'imob' | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -141,6 +143,7 @@ export interface Database {
           creci?: string | null;
           uf?: string | null;
           cidade?: string | null;
+          tipo_corretor?: 'house' | 'imob' | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -253,6 +256,7 @@ export interface Database {
           coincide_installments: boolean;
           /** Empresa do CATÁLOGO DO SISTEMA (cadastrada pelo admin do POUP). */
           is_catalog: boolean;
+          ativa: boolean;
           /** URL pública da foto redonda, no bucket `catalog`. */
           photo_url: string | null;
           created_at: string;
@@ -268,6 +272,7 @@ export interface Database {
           max_annual?: number | null;
           coincide_installments?: boolean;
           is_catalog?: boolean;
+          ativa?: boolean;
           photo_url?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -280,6 +285,7 @@ export interface Database {
           max_annual?: number | null;
           coincide_installments?: boolean;
           is_catalog?: boolean;
+          ativa?: boolean;
           photo_url?: string | null;
           updated_at?: string;
         };
@@ -717,6 +723,7 @@ export interface Database {
           user_id: string;
           company_id: string;
           default_pct: number;
+          pct_imob?: number | null;
           installments_count: number;
           /** Percentual de cada parcela, na ordem (ex.: `[60, 40]`). Nulo = divide igual. */
           installments_split: Json | null;
@@ -731,6 +738,7 @@ export interface Database {
           user_id: string;
           company_id: string;
           default_pct: number;
+          pct_imob?: number | null;
           installments_count?: number;
           installments_split?: Json | null;
           first_payment_days?: number;
@@ -742,6 +750,7 @@ export interface Database {
         Update: {
           company_id?: string;
           default_pct?: number;
+          pct_imob?: number | null;
           installments_count?: number;
           installments_split?: Json | null;
           first_payment_days?: number;

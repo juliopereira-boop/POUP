@@ -34,9 +34,17 @@ export interface UserProfile {
    * (que confere o perfil) — o `upsert` do perfil ignora este campo.
    */
   rankingParticipa: boolean;
+  /**
+   * House (corretor da casa/construtora) ou Imob (de imobiliária parceira).
+   * Decide qual percentual da regra de comissão da construtora vale na venda.
+   * `null` = ainda não escolheu: vale o percentual House.
+   */
+  tipoCorretor: TipoCorretor | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type TipoCorretor = 'house' | 'imob';
 
 export function isProfileComplete(p: UserProfile | null): boolean {
   if (!p) return false;
@@ -205,6 +213,11 @@ export interface Company {
    * Para deixar de usar, ele remove a adoção (`db.catalog.unadopt`).
    */
   isCatalog: boolean;
+  /**
+   * Só vale para o catálogo: inativa = só o admin vê. A empresa nova do
+   * catálogo nasce inativa; o admin ativa quando estiver pronta.
+   */
+  ativa: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -477,8 +490,13 @@ export interface FinancingShareLink {
  */
 export interface CommissionRule {
   companyId: string;
-  /** % sobre o valor da unidade. Ex.: 2 = 2%. */
+  /**
+   * % sobre o valor da unidade para o corretor HOUSE. Ex.: 2 = 2%. Vale
+   * também para quem ainda não escolheu o tipo no perfil.
+   */
   defaultPct: number;
+  /** % para o corretor IMOB. `null` = o mesmo do House. */
+  pctImob: number | null;
   /** Em quantas parcelas a comissão é paga. 1 = pagamento único. */
   installmentsCount: number;
   /**
@@ -513,6 +531,7 @@ export type CommissionCampaignInput = Omit<CommissionCampaign, 'id' | 'companyId
 
 export const DEFAULT_COMMISSION_RULE: CommissionRuleInput = {
   defaultPct: 2,
+  pctImob: null,
   installmentsCount: 1,
   installmentsSplit: null,
   firstPaymentDays: 30,

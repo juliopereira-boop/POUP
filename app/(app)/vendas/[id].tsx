@@ -367,7 +367,7 @@ function VendaContent() {
         )}
       </View>
 
-      <RankingDaVenda saleId={sale.id} />
+      <RankingDaVenda saleId={sale.id} venda={sale} />
 
       <Text style={styles.band}>Cliente</Text>
       <View style={styles.card}>

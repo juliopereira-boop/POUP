@@ -19,19 +19,28 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { db, type ComprovanteDaVenda } from '@/data';
 import { pickFiles } from '@/features/files/pick';
-import { textoDaSituacao, type SituacaoDaVenda } from '@/features/ranking/regras';
+import { requisitosDaVenda, textoDaSituacao, type SituacaoDaVenda, type VendaParaRanking } from '@/features/ranking/regras';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
+import { isValidCPF } from '@/lib/masks';
+import { useProfile } from '@/providers/ProfileProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
 const TIPOS = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/webp'];
 
-export function RankingDaVenda({ saleId }: { saleId: string }) {
+function hojeLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: VendaParaRanking }) {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const pro = useFeatureAccess().canUse('ranking');
+  const [verRequisitos, setVerRequisitos] = useState(false);
   const [ativo, setAtivo] = useState(false);
   const [comprovante, setComprovante] = useState<ComprovanteDaVenda | null>(null);
   const [situacao, setSituacao] = useState<SituacaoDaVenda | null>(null);
@@ -85,6 +94,15 @@ export function RankingDaVenda({ saleId }: { saleId: string }) {
 
   if (!ativo) return null;
   const t = pro && situacao ? textoDaSituacao(situacao) : null;
+  const requisitos = requisitosDaVenda(venda, {
+    pro,
+    participa: Boolean(profile?.rankingParticipa),
+    temComprovante: Boolean(comprovante),
+    situacao,
+    hoje: hojeLocal(),
+    cpfValido: isValidCPF,
+  });
+  const faltam = requisitos.filter((r) => !r.ok);
 
   return (
     <View style={styles.card}>
@@ -133,6 +151,33 @@ export function RankingDaVenda({ saleId }: { saleId: string }) {
         </>
       )}
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+
+      {/* O que falta, item por item — a mesma regra do banco, para o corretor ler. */}
+      <Pressable onPress={() => setVerRequisitos((v) => !v)} hitSlop={6} style={styles.requisitosTopo} accessibilityRole="button">
+        <Text style={styles.subtitulo}>
+          {faltam.length === 0 ? 'Todos os requisitos cumpridos ✓' : `Falta ${faltam.length} requisito${faltam.length === 1 ? '' : 's'} para pontuar`}
+        </Text>
+        <Text style={styles.link}>{verRequisitos || faltam.length > 0 ? '' : 'ver'}</Text>
+      </Pressable>
+      {verRequisitos || faltam.length > 0 ? (
+        <View style={styles.requisitos}>
+          {requisitos.map((r) => (
+            <View key={r.rotulo} style={styles.requisito}>
+              <Text style={[styles.marca, r.ok ? styles.marcaOk : styles.marcaFalta]}>{r.ok ? '✓' : '✕'}</Text>
+              <View style={styles.flex1}>
+                <Text style={[styles.requisitoTexto, !r.ok && styles.requisitoFalta]}>{r.rotulo}</Text>
+                {!r.ok ? <Text style={styles.texto}>{r.dica}</Text> : null}
+              </View>
+            </View>
+          ))}
+          <Text style={styles.nota}>
+            O app não lê o conteúdo do comprovante: ele confere que um arquivo foi anexado. Nome, CPF, valor e
+            assinatura dentro do arquivo são conferidos pela auditoria do POUP quando a venda é contestada ou entra em
+            disputa.
+          </Text>
+        </View>
+      ) : null}
+
       <Pressable onPress={() => router.push('/(app)/ranking')} hitSlop={6} style={styles.verRanking}>
         <Text style={styles.link}>Ver o ranking ›</Text>
       </Pressable>
@@ -174,4 +219,14 @@ const makeStyles = (colors: AppColors) =>
     linkPerigo: { ...typography.label, color: colors.danger },
     erro: { ...typography.caption, color: colors.danger },
     verRanking: { alignSelf: 'flex-start', marginTop: spacing.xs },
+    requisitosTopo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm },
+    requisitos: { gap: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md },
+    requisito: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+    marca: { ...typography.label, width: 18, textAlign: 'center' },
+    marcaOk: { color: colors.success },
+    marcaFalta: { color: colors.danger },
+    requisitoTexto: { ...typography.caption, color: colors.ink },
+    requisitoFalta: { fontWeight: '700' },
+    nota: { ...typography.caption, color: colors.inkMuted, fontStyle: 'italic', marginTop: spacing.xs },
+    flex1: { flex: 1 },
   });

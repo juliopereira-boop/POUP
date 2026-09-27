@@ -25,6 +25,7 @@ function mapCompany(row: CompanyRow): Company {
     coincideInstallments: row.coincide_installments,
     photoUrl: row.photo_url,
     isCatalog: row.is_catalog,
+    ativa: (row as { ativa?: boolean | null }).ativa !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

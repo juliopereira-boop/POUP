@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -15,12 +15,13 @@ import { Button } from '@/components/Button';
 import {
   CommissionFields,
   commissionFromPercent,
+  formatPercent,
   percentToNumber,
 } from '@/components/CommissionFields';
 import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
-import { db, type Sale, type SaleInput, type Simulation } from '@/data';
+import { db, type Sale, type SaleInput, type Simulation, type TipoCorretor } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
 import {
   buildFlow,
@@ -29,6 +30,7 @@ import {
   formatMonthYearBR,
   monthsBetween,
 } from '@/features/simulador/calc';
+import { resolveRate, type ResolvedRate } from '@/features/comissao/engine';
 import { ensureCommissionForSale } from '@/features/comissao/link';
 import { registrar } from '@/features/analytics/eventos';
 import { generateProposal } from '@/features/simulador/proposal';
@@ -250,7 +252,7 @@ export default function SimulationDetailScreen() {
     // regra da construtora. Adiantar aqui é só ganho de tempo: a tela da venda,
     // para onde o app navega em seguida, tenta de novo e MOSTRA o motivo se
     // falhar — o lançamento nunca fracassa em silêncio.
-    if (userId) void ensureCommissionForSale(userId, created);
+    if (userId) void ensureCommissionForSale(userId, created, profile?.tipoCorretor ?? null);
     // ORDEM: a venda já está gravada (o índice único do banco garante que não
     // existe outra para esta simulação). Só depois o status da simulação é
     // atualizado — e sem bloquear a navegação, porque é um espelho do que a
@@ -483,6 +485,7 @@ export default function SimulationDetailScreen() {
         <RegistrarVendaModal
           sim={sim}
           userId={userId}
+          tipoCorretor={profile?.tipoCorretor ?? null}
           onClose={() => setSaleModal(false)}
           onCreated={onSaleCreated}
           onDuplicate={() => void onSaleDuplicate()}
@@ -499,12 +502,14 @@ export default function SimulationDetailScreen() {
 function RegistrarVendaModal({
   sim,
   userId,
+  tipoCorretor,
   onClose,
   onCreated,
   onDuplicate,
 }: {
   sim: Simulation;
   userId: string | null;
+  tipoCorretor: TipoCorretor | null;
   onClose: () => void;
   onCreated: (sale: Sale) => void;
   onDuplicate: () => void;
@@ -537,6 +542,40 @@ function RegistrarVendaModal({
   const [error, setError] = useState<string | null>(null);
 
   const saleValueNumber = currencyToNumber(saleValue);
+
+  /*
+   * A COMISSÃO JÁ VEM PREENCHIDA PELA REGRA DA CONSTRUTORA.
+   *
+   * Percentual do tipo do corretor (House/Imob, do perfil) ou da campanha
+   * vigente na data da venda, sobre o valor da venda. O corretor confere e
+   * só mexe se o combinado foi outro. Enquanto ele não mexe, mudar a data ou o
+   * valor refaz a conta sozinho.
+   */
+  const [regra, setRegra] = useState<{ taxa: ResolvedRate; regraRaw: Parameters<typeof resolveRate>[0]; campanhas: Parameters<typeof resolveRate>[1] } | null>(null);
+  const [editouComissao, setEditouComissao] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    if (!sim.companyId) return;
+    void Promise.all([db.commissions.getRule(sim.companyId), db.commissions.listCampaigns(sim.companyId)]).then(
+      ([r, c]) => {
+        if (!vivo) return;
+        setRegra({ taxa: resolveRate(r, c, saleDate, tipoCorretor), regraRaw: r, campanhas: c });
+      },
+    );
+    return () => {
+      vivo = false;
+    };
+    // A data entra no efeito seguinte (recalcula sem ir ao banco de novo).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.companyId, tipoCorretor]);
+  const taxa = regra ? resolveRate(regra.regraRaw, regra.campanhas, saleDate, tipoCorretor) : null;
+  useEffect(() => {
+    if (!taxa || editouComissao) return;
+    const pctTexto = formatPercent(taxa.pct);
+    setPercent(pctTexto);
+    setCommission(commissionFromPercent(saleValueNumber, pctTexto));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taxa?.pct, saleValueNumber, editouComissao]);
 
   /**
    * Mudar o valor da venda mantém a % e recalcula a comissão em R$ — a % é a
@@ -646,6 +685,7 @@ function RegistrarVendaModal({
               percent={percent}
               commission={commission}
               onChange={(next) => {
+                setEditouComissao(true);
                 setPercent(next.percent);
                 setCommission(next.commission);
               }}
@@ -656,9 +696,13 @@ function RegistrarVendaModal({
               acharia que a campanha promocional simplesmente não funcionou.
             */}
             <Text style={styles.commissionHint}>
-              {commission.trim() || percent.trim()
-                ? 'Este valor manda: a comissão será lançada exatamente assim, ignorando o percentual e as campanhas da construtora.'
-                : 'Deixe em branco para o app aplicar sozinho a regra da construtora (percentual padrão, campanha vigente e o parcelamento cadastrado).'}
+              {taxa && !editouComissao
+                ? `Calculado pela regra ${sim.companyName ? `da ${sim.companyName} ` : ''}para corretor ${tipoCorretor === 'imob' ? 'Imob' : 'House'}: ${formatPercent(taxa.pct)}%${
+                    taxa.source === 'campanha' && taxa.campaignName ? ` (campanha "${taxa.campaignName}")` : ''
+                  } sobre o valor da venda. Mude só se o combinado foi outro.${tipoCorretor ? '' : ' Escolha House ou Imob no seu perfil.'}`
+                : commission.trim() || percent.trim()
+                  ? 'Valor alterado por você: a comissão será lançada exatamente assim, ignorando o percentual e as campanhas da construtora.'
+                  : 'Sem regra de comissão cadastrada para esta construtora: informe o percentual ou o valor.'}
             </Text>
             <Input
               label="Observações"

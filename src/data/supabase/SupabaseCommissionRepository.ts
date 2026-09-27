@@ -20,9 +20,16 @@ import {
   ok,
 } from '../types';
 
-const RULE_SELECT =
+const RULE_SELECT_BASE =
   'id, company_id, default_pct, installments_count, installments_split, ' +
   'first_payment_days, interval_days, notes, created_at, updated_at';
+/** Com o percentual Imob (migration 20260927120000). */
+const RULE_SELECT = `${RULE_SELECT_BASE}, pct_imob`;
+
+/** A migration do percentual Imob ainda não rodou: a coluna não existe. */
+function semColunaImob(e: { code?: string; message?: string } | null): boolean {
+  return !!e && (e.code === '42703' || e.code === 'PGRST204' || /pct_imob/.test(e.message ?? ''));
+}
 
 const CAMPAIGN_SELECT = 'id, company_id, name, pct, starts_on, ends_on, created_at';
 
@@ -154,6 +161,7 @@ function mapRule(row: RuleRow): CommissionRule {
   return {
     companyId: row.company_id,
     defaultPct: toNumber(row.default_pct) ?? 0,
+    pctImob: toNumber((row as { pct_imob?: number | string | null }).pct_imob ?? null),
     installmentsCount: toNumber(row.installments_count) ?? 1,
     installmentsSplit: toSplit(row.installments_split),
     firstPaymentDays: toNumber(row.first_payment_days) ?? 0,
@@ -350,11 +358,18 @@ export class SupabaseCommissionRepository implements CommissionRepository {
 
   /** `null` quando a construtora não tem regra: a UI cai no `DEFAULT_COMMISSION_RULE`. */
   async getRule(companyId: string): Promise<CommissionRule | null> {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('commission_rules')
       .select(RULE_SELECT)
       .eq('company_id', companyId)
       .maybeSingle();
+    if (semColunaImob(error)) {
+      ({ data, error } = await supabase
+        .from('commission_rules')
+        .select(RULE_SELECT_BASE)
+        .eq('company_id', companyId)
+        .maybeSingle());
+    }
     if (error || !data) return null;
     return mapRule(data as unknown as RuleRow);
   }
@@ -365,23 +380,29 @@ export class SupabaseCommissionRepository implements CommissionRepository {
     companyId: string,
     input: CommissionRuleInput,
   ): Promise<Result<CommissionRule>> {
-    const { data, error } = await supabase
+    const linha = {
+      user_id: userId,
+      company_id: companyId,
+      default_pct: input.defaultPct,
+      installments_count: input.installmentsCount,
+      installments_split: input.installmentsSplit,
+      first_payment_days: input.firstPaymentDays,
+      interval_days: input.intervalDays,
+      notes: input.notes,
+    };
+    let { data, error } = await supabase
       .from('commission_rules')
-      .upsert(
-        {
-          user_id: userId,
-          company_id: companyId,
-          default_pct: input.defaultPct,
-          installments_count: input.installmentsCount,
-          installments_split: input.installmentsSplit,
-          first_payment_days: input.firstPaymentDays,
-          interval_days: input.intervalDays,
-          notes: input.notes,
-        },
-        { onConflict: 'company_id' },
-      )
+      .upsert({ ...linha, pct_imob: input.pctImob }, { onConflict: 'company_id' })
       .select(RULE_SELECT)
       .single();
+    if (semColunaImob(error)) {
+      // Sem a migration: salva o resto; o percentual Imob fica igual ao House.
+      ({ data, error } = await supabase
+        .from('commission_rules')
+        .upsert(linha, { onConflict: 'company_id' })
+        .select(RULE_SELECT_BASE)
+        .single());
+    }
     if (error || !data) return err(error?.message ?? 'Falha ao salvar a regra de comissão.');
     return ok(mapRule(data as unknown as RuleRow));
   }

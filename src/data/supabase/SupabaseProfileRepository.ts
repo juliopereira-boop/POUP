@@ -20,6 +20,8 @@ function mapProfile(row: ProfileRow): UserProfile {
     // Colunas do ranking (20260925150000): ausentes antes da migration.
     cidade: row.cidade ?? null,
     rankingParticipa: row.ranking_participa ?? false,
+    // Coluna de 20260927120000: ausente antes da migration.
+    tipoCorretor: row.tipo_corretor === 'house' || row.tipo_corretor === 'imob' ? row.tipo_corretor : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -51,6 +53,7 @@ export class SupabaseProfileRepository implements ProfileRepository {
       creci: patch.creci,
       uf: patch.uf,
       cidade: patch.cidade === undefined ? undefined : patch.cidade?.trim() || null,
+      tipo_corretor: patch.tipoCorretor,
       updated_at: new Date().toISOString(),
     };
     // UPDATE preserva colunas omitidas; um UPSERT parcial pode aplicar defaults
@@ -66,6 +69,15 @@ export class SupabaseProfileRepository implements ProfileRepository {
       .maybeSingle();
     // Sem a migration do ranking, a coluna `cidade` não existe: salva o resto
     // em vez de recusar o perfil inteiro por causa dela.
+    if (error && changes.tipo_corretor !== undefined && /tipo_corretor/.test(error.message ?? '')) {
+      delete changes.tipo_corretor;
+      ({ data, error } = await supabase
+        .from('profiles')
+        .update(changes)
+        .eq('id', userId)
+        .select('*')
+        .maybeSingle());
+    }
     if (error && changes.cidade !== undefined && /cidade/.test(error.message ?? '')) {
       delete changes.cidade;
       ({ data, error } = await supabase

@@ -76,6 +76,24 @@ checar('cor estável por pessoa', R.corDoParticipante('x-1', paleta) === R.corDo
 checar('rótulo da cidade', R.rotuloDoEscopo('cidade', 'São Luís', 'MA') === 'São Luís/MA' && R.rotuloDoEscopo('brasil', null, null) === 'Brasil');
 checar('ordinal', R.ordinal(3) === '3º');
 
+// O checklist da venda: a mesma régua do banco, item por item.
+{
+  const venda = { clientCpf: '529.982.247-25', developmentName: 'Village das Estrelas', unit: '204', saleValue: 241400, saleDate: '2026-09-20', status: 'ativa' };
+  const ctx = { pro: true, participa: true, temComprovante: true, situacao: 'conta', hoje: '2026-09-27', cpfValido: M.isValidCPF };
+  const tudo = R.requisitosDaVenda(venda, ctx);
+  checar('checklist: venda completa cumpre tudo', tudo.every((r) => r.ok), JSON.stringify(tudo.filter((r) => !r.ok)));
+  const falta = (v, c) => R.requisitosDaVenda({ ...venda, ...v }, { ...ctx, ...c }).filter((r) => !r.ok).map((r) => r.rotulo);
+  checar('checklist: sem comprovante aponta o comprovante', falta({}, { temComprovante: false, situacao: 'sem_comprovante' }).join() === 'Comprovante anexado');
+  checar('checklist: CPF inválido aponta o CPF', falta({ clientCpf: '111.111.111-11' }, { situacao: 'dados_incompletos' }).join() === 'CPF do comprador válido');
+  checar('checklist: sem unidade', falta({ unit: '' }, {}).join() === 'Empreendimento e unidade preenchidos');
+  checar('checklist: valor fora da faixa', falta({ saleValue: 5000 }, {}).join() === 'Valor entre R$ 20 mil e R$ 20 milhões');
+  checar('checklist: data futura', falta({ saleDate: '2026-10-05' }, {}).join() === 'Data do fechamento até hoje');
+  checar('checklist: distratada', falta({ status: 'distratada' }, {}).join() === 'Venda ativa (sem distrato)');
+  checar('checklist: não participa / sem Pro', falta({}, { participa: false, pro: false }).length === 2);
+  checar('checklist: disputa vem do banco', falta({}, { situacao: 'em_disputa' }).join() === 'Unidade e comprador só nesta conta');
+  checar('checklist: cada falta tem o que fazer', R.requisitosDaVenda({ ...venda, unit: '' }, { ...ctx, temComprovante: false }).filter((r) => !r.ok).every((r) => r.dica.length > 10));
+}
+
 console.log(`${ok} verificações passaram.`);
 if (falhas.length) {
   console.error(`${falhas.length} FALHARAM:\n  ✗ ${falhas.join('\n  ✗ ')}`);

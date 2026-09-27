@@ -36,7 +36,8 @@
     "testar:cerebro-lia": "node scripts/testar-cerebro-lia.mjs",
     "testar:tipografia": "node scripts/testar-tipografia.mjs",
     "testar:navegacao": "node scripts/testar-navegacao.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao",
+    "testar:comissao": "node scripts/testar-comissao.mjs",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao && npm run testar:comissao",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {

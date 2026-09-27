@@ -113,6 +113,83 @@ export function faltaParaParticipar(p: PerfilParaRanking | null, cpfValido: (cpf
   return falta;
 }
 
+// ---------------------------------------------------------- o checklist da venda
+
+export interface VendaParaRanking {
+  clientCpf: string | null;
+  developmentName: string | null;
+  unit: string | null;
+  saleValue: number;
+  /** AAAA-MM-DD */
+  saleDate: string;
+  status: string;
+}
+
+export interface Requisito {
+  rotulo: string;
+  ok: boolean;
+  /** O que fazer quando não está ok. */
+  dica: string;
+}
+
+/**
+ * Tudo o que uma venda precisa para pontuar, item por item — a MESMA regra do
+ * banco (`ranking_situacao_das_vendas`), escrita para o corretor ler. Os três
+ * últimos (disputa, repetida, teto) só o banco sabe, porque dependem das
+ * vendas das outras contas: vêm da `situacao` que ele devolveu.
+ */
+export function requisitosDaVenda(
+  v: VendaParaRanking,
+  ctx: {
+    pro: boolean;
+    participa: boolean;
+    temComprovante: boolean;
+    situacao: SituacaoDaVenda | null;
+    hoje: string;
+    cpfValido: (cpf: string) => boolean;
+  },
+): Requisito[] {
+  const cpf = (v.clientCpf ?? '').replace(/\D/g, '');
+  return [
+    { rotulo: 'Assinatura Pro ativa', ok: ctx.pro, dica: 'Disputar o ranking é para assinantes do plano Pro.' },
+    {
+      rotulo: 'Você participa do ranking',
+      ok: ctx.participa,
+      dica: 'Na aba Ranking, toque em "Quero participar" (precisa de CPF, CRECI e cidade no perfil).',
+    },
+    { rotulo: 'Venda ativa (sem distrato)', ok: v.status === 'ativa', dica: 'Venda distratada não pontua.' },
+    { rotulo: 'Data do fechamento até hoje', ok: v.saleDate <= ctx.hoje, dica: 'A venda pontua a partir da data do fechamento.' },
+    { rotulo: 'CPF do comprador válido', ok: cpf.length === 11 && ctx.cpfValido(cpf), dica: 'Edite a venda e confira o CPF do comprador.' },
+    {
+      rotulo: 'Empreendimento e unidade preenchidos',
+      ok: !!v.developmentName?.trim() && !!v.unit?.trim(),
+      dica: 'Edite a venda e informe o empreendimento e a unidade.',
+    },
+    {
+      rotulo: 'Valor entre R$ 20 mil e R$ 20 milhões',
+      ok: v.saleValue >= 20_000 && v.saleValue <= 20_000_000,
+      dica: 'Edite a venda e confira o valor.',
+    },
+    {
+      rotulo: 'Comprovante anexado',
+      ok: ctx.temComprovante,
+      dica: 'Anexe o contrato assinado ou o comprovante da comissão (PDF ou foto).',
+    },
+    {
+      rotulo: 'Unidade e comprador só nesta conta',
+      ok: ctx.situacao !== 'em_disputa',
+      dica: 'Outra conta registrou a mesma unidade ou o mesmo comprador: a auditoria confere os comprovantes e decide.',
+    },
+    { rotulo: 'Venda não repetida', ok: ctx.situacao !== 'duplicada', dica: 'Esta unidade já está em outra venda sua.' },
+    {
+      rotulo: `Até ${TETO_MENSAL} vendas no mês`,
+      ok: ctx.situacao !== 'acima_do_teto',
+      dica: 'As excedentes contam depois que a auditoria confere.',
+    },
+    { rotulo: 'Não invalidada pela auditoria', ok: ctx.situacao !== 'invalidada', dica: 'A auditoria do POUP invalidou esta venda.' },
+  ];
+}
+
 // ---------------------------------------------------------------- a temporada
 
 const MESES = [
