@@ -154,33 +154,37 @@ export function buildFlow(sim: SimuladorState): FlowResult {
 }
 
 /**
- * O RISCO DA CONSTRUTORA.
+ * O RISCO DA CONSTRUTORA — a conta é uma só:
  *
- * O risco é a parte da poupança que o cliente ainda vai pagar DEPOIS do ato
- * (mensais, semestrais, anuais) — o dinheiro que a construtora "banca". O ato
- * entra na assinatura, então não é risco. Por isso a conta é
- * `(poupança − ato) ÷ valor da unidade`.
+ *   poupança  = valor da unidade − (financiamento aprovado + subsídio + FGTS)
+ *   risco (%) = poupança ÷ valor da unidade          (ex.: 0,328 = 32,8%)
  *
- * Quando passa do limite da construtora, a diferença em reais é a REGRA: esse
- * valor precisa ir para o ato do cliente. Com o ato somado, o fluxo volta a
- * ficar exatamente no limite.
+ * (`computePoupanca` também desconta o cupom, como sempre descontou.)
+ *
+ * Quando o risco passa do limite da construtora, o que passa em reais
+ * (`poupança − limite% × unidade`) é a REGRA: esse valor precisa entrar no ato
+ * do cliente. O ato mínimo é esse excedente; com o ato cobrindo o excedente, a
+ * simulação pode seguir.
  */
 export interface AnaliseDeRisco {
   /** false quando a construtora não tem limite de risco ou não há valor da unidade. */
   aplica: boolean;
   /** O limite da construtora (%). */
   riscoPct: number | null;
-  /** O risco desta simulação (%). */
+  /** O risco desta simulação (%): poupança ÷ valor da unidade. */
   pctAtual: number;
-  /** R$ que a construtora banca depois do ato. */
-  valorEmRisco: number;
+  /** Dentro do limite da construtora. */
   dentro: boolean;
   /** Quantos pontos percentuais passou do limite (0 quando dentro). */
   excessoPct: number;
-  /** Quantos reais passou do limite — o que precisa ir para o ato. */
+  /** Quantos reais passou do limite — o que precisa estar no ato. */
   excessoValor: number;
-  /** O ato mínimo para ficar dentro do risco. */
+  /** O ato mínimo pela regra do risco (= o excedente; 0 quando dentro). */
   atoMinimo: number;
+  /** Quanto falta somar ao ato digitado para cobrir o excedente. */
+  faltaNoAto: number;
+  /** Dentro do risco, ou acima com o ato cobrindo o excedente. */
+  atoCobre: boolean;
 }
 
 const centavos = (n: number) => Math.round(n * 100) / 100;
@@ -188,22 +192,24 @@ const centavos = (n: number) => Math.round(n * 100) / 100;
 export function analisarRisco(sim: SimuladorState, flow: FlowResult = buildFlow(sim)): AnaliseDeRisco {
   const venda = currencyToNumber(sim.unitValue);
   const risco = sim.companyRisk ?? null;
-  const valorEmRisco = centavos(Math.max(0, flow.poupanca - flow.ato));
-  const pctAtual = venda > 0 ? (valorEmRisco / venda) * 100 : 0;
+  const pctAtual = venda > 0 ? (flow.poupanca / venda) * 100 : 0;
+  const neutro = { excessoPct: 0, excessoValor: 0, atoMinimo: 0, faltaNoAto: 0, atoCobre: true };
   if (risco == null || !(risco >= 0) || venda <= 0) {
-    return { aplica: false, riscoPct: risco, pctAtual, valorEmRisco, dentro: true, excessoPct: 0, excessoValor: 0, atoMinimo: flow.ato };
+    return { aplica: false, riscoPct: risco, pctAtual, dentro: true, ...neutro };
   }
   const limite = centavos((venda * risco) / 100);
-  const excessoValor = Math.max(0, centavos(valorEmRisco - limite));
-  const dentro = excessoValor < 0.01;
+  const excessoValor = Math.max(0, centavos(flow.poupanca - limite));
+  if (excessoValor < 0.01) return { aplica: true, riscoPct: risco, pctAtual, dentro: true, ...neutro };
+  const faltaNoAto = Math.max(0, centavos(excessoValor - flow.ato));
   return {
     aplica: true,
     riscoPct: risco,
     pctAtual,
-    valorEmRisco,
-    dentro,
-    excessoPct: dentro ? 0 : pctAtual - risco,
-    excessoValor: dentro ? 0 : excessoValor,
-    atoMinimo: centavos(flow.ato + (dentro ? 0 : excessoValor)),
+    dentro: false,
+    excessoPct: pctAtual - risco,
+    excessoValor,
+    atoMinimo: excessoValor,
+    faltaNoAto,
+    atoCobre: faltaNoAto < 0.01,
   };
 }

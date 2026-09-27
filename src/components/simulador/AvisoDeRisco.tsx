@@ -3,7 +3,8 @@
  *
  * Não basta dizer "acima do risco": o corretor precisa saber QUANTO passou
  * (em % e em reais) e a regra de como resolver — a diferença vai para o ato do
- * cliente. O botão "Somar ao ato" faz a conta por ele. Ver `analisarRisco`.
+ * cliente (o ato mínimo é o excedente). O botão "Somar ao ato" completa o ato.
+ * Ver `analisarRisco`.
  */
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -30,19 +31,22 @@ export function AvisoDeRisco({ risco, onSomarAoAto }: Props) {
   const styles = useThemedStyles(makeStyles);
   if (!risco.aplica || risco.dentro) return null;
   return (
-    <View style={styles.caixa}>
-      <Text style={styles.titulo}>
+    <View style={[styles.caixa, risco.atoCobre && styles.caixaOk]}>
+      <Text style={[styles.titulo, risco.atoCobre && styles.tituloOk]}>
         Acima do risco da construtora ({pct1(risco.riscoPct ?? 0)}) em {pct1(risco.excessoPct)}
       </Text>
       <Text style={styles.linha}>
-        Risco desta simulação: {pct1(risco.pctAtual)} ({brl(risco.valorEmRisco)} pagos depois do ato).
+        Risco desta simulação: {pct1(risco.pctAtual)}. Passou{' '}
+        <Text style={styles.forte}>{brl(risco.excessoValor)}</Text> do limite.
       </Text>
       <Text style={styles.linha}>
-        Passou <Text style={styles.forte}>{brl(risco.excessoValor)}</Text> do limite. Essa diferença precisa
-        entrar no ato do cliente: ato mínimo de <Text style={styles.forte}>{brl(risco.atoMinimo)}</Text>.
+        Regra: o valor que passa do risco entra no ato do cliente. Ato mínimo:{' '}
+        <Text style={styles.forte}>{brl(risco.atoMinimo)}</Text>.
       </Text>
-      {onSomarAoAto ? (
-        <Button label={`Somar ${brl(risco.excessoValor)} ao ato`} variant="secondary" onPress={onSomarAoAto} />
+      {risco.atoCobre ? (
+        <Text style={[styles.linha, styles.ok]}>✓ O ato cobre o valor acima do risco.</Text>
+      ) : onSomarAoAto ? (
+        <Button label={`Somar ${brl(risco.faltaNoAto)} ao ato`} variant="secondary" onPress={onSomarAoAto} />
       ) : null}
     </View>
   );
@@ -57,7 +61,10 @@ const makeStyles = (colors: AppColors) =>
       gap: spacing.xs,
       marginBottom: spacing.lg,
     },
+    caixaOk: { backgroundColor: colors.successSoft },
     titulo: { ...typography.label, color: colors.danger },
+    tituloOk: { color: colors.success },
+    ok: { color: colors.success, fontWeight: '700' },
     linha: { ...typography.caption, color: colors.ink },
     forte: { fontWeight: '800' },
   });

@@ -20,7 +20,7 @@ import { registrar } from '@/features/analytics/eventos';
 import { currencyToNumber } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
-import { analisarRisco, buildFlow } from './calc';
+import { buildFlow } from './calc';
 import { generateProposal } from './proposal';
 import { useSimulador } from './SimuladorProvider';
 
@@ -93,8 +93,7 @@ export function useGerarProposta({ companies, developments }: Opcoes) {
       }
 
       const unitValue = currencyToNumber(sim.unitValue);
-      const risco = analisarRisco(sim, flow);
-      const riskPct = risco.pctAtual;
+      const riskPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
       const input: SimulationInput = {
         clientName: sim.proponent1.name.trim() || null,
         companyId: sim.companyId,
@@ -103,7 +102,7 @@ export function useGerarProposta({ companies, developments }: Opcoes) {
         developmentName,
         monthlyValue: flow.monthlyValue,
         riskPct,
-        withinRisk: risco.aplica ? risco.dentro : null,
+        withinRisk: sim.companyRisk != null && unitValue > 0 ? riskPct <= sim.companyRisk : null,
         unitValue,
         deliveryDate,
         managerName: gerente,

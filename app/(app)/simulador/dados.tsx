@@ -411,10 +411,10 @@ export default function SimuladorDados() {
         </View>
       ) : null}
 
-      {risco.aplica && risco.dentro ? (
-        <Text style={styles.okTabela}>
-          Risco em {risco.pctAtual.toFixed(1).replace('.', ',')}% do valor (poupança depois do ato) · risco da
-          construtora: {risco.riscoPct}% ✓
+      {risco.aplica ? (
+        <Text style={risco.atoCobre ? styles.okTabela : styles.foraRisco}>
+          Poupança em {risco.pctAtual.toFixed(1).replace('.', ',')}% do valor · risco da construtora:{' '}
+          {risco.riscoPct}%{risco.dentro ? ' ✓' : risco.atoCobre ? ' — excedente coberto pelo ato ✓' : ' — acima do permitido'}
         </Text>
       ) : null}
       <AvisoDeRisco
@@ -550,6 +550,12 @@ const makeStyles = (colors: AppColors) =>
     okTabela: {
       ...typography.caption,
       color: colors.success,
+      marginTop: -spacing.sm,
+      marginBottom: spacing.lg,
+    },
+    foraRisco: {
+      ...typography.caption,
+      color: colors.danger,
       marginTop: -spacing.sm,
       marginBottom: spacing.lg,
     },

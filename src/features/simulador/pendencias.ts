@@ -88,12 +88,12 @@ export function pendenciasDosValores(sim: SimuladorState): Pendencia[] {
     add('Ato, semestrais e anuais passam do valor da poupança: a parcela mensal ficaria negativa.');
   }
 
-  // REGRA DO RISCO: o que passa do risco da construtora vai para o ato.
+  // REGRA DO RISCO: o que passa do risco da construtora precisa estar no ato.
   const risco = analisarRisco(sim);
-  if (risco.aplica && !risco.dentro) {
+  if (!risco.atoCobre) {
     add(
-      `Acima do risco da construtora (${risco.riscoPct}%): some ${brl(risco.excessoValor)} ao ato ` +
-        `(ato mínimo de ${brl(risco.atoMinimo)}).`,
+      `Acima do risco da construtora (${risco.riscoPct}%) em ${brl(risco.excessoValor)}: esse valor precisa ` +
+        `estar no ato (ato mínimo de ${brl(risco.atoMinimo)}; faltam ${brl(risco.faltaNoAto)}).`,
     );
   }
 

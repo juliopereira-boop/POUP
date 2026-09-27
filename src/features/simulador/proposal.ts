@@ -5,7 +5,6 @@ import { Platform } from 'react-native';
 import type { UserProfile } from '@/data';
 import { currencyToNumber, formatCNPJ, formatPhone } from '@/lib/masks';
 import {
-  analisarRisco,
   buildFlow,
   computeFinancingSum,
   formatDateBR,
@@ -231,8 +230,9 @@ function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): 
     flow.ato + financingSum + flow.monthlyValue * flow.mensaisCount + flow.semestralTotal + flow.anualTotal;
   const saldo = contrato - totalDistribuido;
 
-  // Risco da construtora = o que o cliente paga DEPOIS do sinal (ver analisarRisco).
-  const risco = analisarRisco(sim, flow);
+  const risco = sim.companyRisk;
+  const riscoPoupancaPct = unitValue > 0 ? (flow.poupanca / unitValue) * 100 : 0;
+  const withinRisk = risco != null && riscoPoupancaPct <= risco;
 
   const mesesParaEntrega = monthsBetween(ctx.todayISO, ctx.deliveryDate);
   const mesesEntregaLabel =
@@ -414,20 +414,11 @@ function buildProposalParts(ctx: ProposalContext, photoDataUri: string | null): 
           <td class="r">${brl(financingSum)}</td>
           <td class="r" style="font-weight:700">${pctOf(financingSum, contrato)}</td>
         </tr>
-        <tr>
-          <td class="k" style="background:#f2f2f2;font-weight:700">POUPANÇA</td>
+        <tr class="${withinRisk ? 'green' : 'red'}">
+          <td class="k" style="font-weight:700">POUPANÇA${risco != null ? ` (risco máx. ${risco}%)` : ''}</td>
           <td class="r">${brl(flow.poupanca)}</td>
-          <td class="r" style="font-weight:700">${pctOf(flow.poupanca, contrato)}</td>
+          <td class="r" style="font-weight:700">${riscoPoupancaPct.toFixed(2)}%</td>
         </tr>
-        ${
-          risco.aplica
-            ? `<tr class="${risco.dentro ? 'green' : 'red'}">
-                <td class="k" style="font-weight:700">RISCO DA CONSTRUTORA (POUPANÇA APÓS O SINAL · MÁX. ${risco.riscoPct}%)</td>
-                <td class="r">${brl(risco.valorEmRisco)}</td>
-                <td class="r" style="font-weight:700">${risco.pctAtual.toFixed(2)}%</td>
-              </tr>`
-            : ''
-        }
         ${
           flow.semestralCount > 0
             ? `<tr>

@@ -81,10 +81,12 @@ export function ResumoPoupanca({ compacto = false, onEditar }: Props) {
           {temParcela ? `Parcela mensal · ${flow.mensaisCount}×` : 'Parcela mensal'}
         </Text>
         {risco.aplica ? (
-          <Text style={[styles.chip, risco.dentro ? styles.chipOk : styles.chipRuim]}>
+          <Text style={[styles.chip, risco.atoCobre ? styles.chipOk : styles.chipRuim]}>
             {risco.dentro
               ? `Dentro do risco (${risco.riscoPct}%)`
-              : `Risco +${risco.excessoPct.toFixed(1).replace('.', ',')}% · ${brl(risco.excessoValor)}`}
+              : risco.atoCobre
+                ? `Risco ${pct.toFixed(1).replace('.', ',')}% · excedente no ato ✓`
+                : `Risco +${risco.excessoPct.toFixed(1).replace('.', ',')}% · ${brl(risco.excessoValor)}`}
           </Text>
         ) : null}
       </View>
@@ -102,9 +104,9 @@ export function ResumoPoupanca({ compacto = false, onEditar }: Props) {
         </Text>
       </View>
 
-      {risco.aplica && !risco.dentro ? (
+      {risco.aplica && !risco.atoCobre ? (
         <Text style={[styles.chip, styles.chipRuim, styles.chipSolto]}>
-          Some {brl(risco.excessoValor)} ao ato (mínimo {brl(risco.atoMinimo)})
+          Ato mínimo {brl(risco.atoMinimo)}: some {brl(risco.faltaNoAto)} ao ato
         </Text>
       ) : null}
 
