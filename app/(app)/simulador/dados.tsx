@@ -36,7 +36,6 @@ import { useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { NumberPickerField } from '@/components/NumberPickerField';
-import { ScanDocumentButton } from '@/components/ScanDocumentButton';
 import { Select } from '@/components/Select';
 import { CascoSimulador } from '@/components/simulador/CascoSimulador';
 import { EtapasSimulador } from '@/components/simulador/EtapasSimulador';
@@ -55,14 +54,12 @@ import {
   SEM_UNIDADE,
   regrasDaConstrutora,
   useSimulador,
-  type Proponent,
 } from '@/features/simulador/SimuladorProvider';
 import { rotuloVaga, rotuloVentilacao } from '@/features/tabelaPreco/preco';
 import { detalheDe, useUnidadesComPreco } from '@/features/tabelaPreco/useUnidadesComPreco';
 import { rotuloDoPavimento } from '@/features/unidades/gerador';
 import { useGerarProposta } from '@/features/simulador/useGerarProposta';
-import type { ScannedDocument } from '@/lib/documentScan';
-import { currencyToNumber, formatCPF, formatCurrencyBRL } from '@/lib/masks';
+import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
@@ -233,10 +230,6 @@ export default function SimuladorDados() {
   function escolherCorrespondente(id: string) {
     sim.setField('correspondentId', id);
     sim.setField('correspondentName', correspondents.find((c) => c.id === id)?.name ?? null);
-  }
-
-  function aplicarLeitura(r: ScannedDocument, set: (patch: Partial<Proponent>) => void) {
-    set({ name: r.fullName || '', cpf: r.cpf ? formatCPF(r.cpf) : '' });
   }
 
   const irParaValores = () => router.dismissTo('/(app)/simulador');
@@ -444,7 +437,6 @@ export default function SimuladorDados() {
         <View style={styles.card}>
           <View style={styles.cardTopo}>
             <Text style={styles.cardTitulo}>1º proponente</Text>
-            <ScanDocumentButton onScanned={(r) => aplicarLeitura(r, sim.setProponent1)} />
           </View>
           <ProponenteCampos value={sim.proponent1} onChange={sim.setProponent1} />
         </View>
@@ -455,7 +447,6 @@ export default function SimuladorDados() {
           <View style={styles.cardTopo}>
             <Text style={styles.cardTitulo}>2º proponente</Text>
             <View style={styles.cardAcoes}>
-              <ScanDocumentButton onScanned={(r) => aplicarLeitura(r, sim.setProponent2)} />
               <Button label="Remover" variant="ghost" onPress={() => sim.setField('hasSecondProponent', false)} />
             </View>
           </View>

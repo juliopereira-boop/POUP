@@ -1063,8 +1063,10 @@ O que a LIA faz a mais do que fazia com o modelo:
 - Na hora, sem internet, sem cota e sem autorização de IA: nada do que se digita sai do aparelho.
 
 A mensagem de abordagem e o convite da página de captação também deixaram de usar IA
-(`src/lib/textosDeCaptacao.ts`). O único recurso que ainda usa IA é a **leitura de documento**
-(`scan-document`).
+(`src/lib/textosDeCaptacao.ts`). A leitura de documento por foto (`scan-document`) foi removida:
+**o app não usa mais nenhum serviço de IA**, e a chave `ANTHROPIC_API_KEY` pode ser apagada do
+Supabase. As Edge Functions `lia-extract`, `scan-document`, `generate-pitch` e `generate-invite`
+não são mais chamadas pelo app.
 
 Testes: `npm run testar:cerebro-lia` (frases reais de negociação e agenda), `testar:lia`,
 `testar:lia-texto` e `testar:planos`.

@@ -94,8 +94,6 @@ const proposal = load('src/features/simulador/proposal.ts');
 const { SupabaseProfileRepository } = load('src/data/supabase/SupabaseProfileRepository.ts');
 const extraction = load('src/features/lia/extrair.ts');
 const agenda = load('src/features/lia/agendamento.ts');
-const scanConsent = load('src/features/scan/consent.ts');
-const scan = load('src/lib/documentScan.ts');
 
 await test('somente Start/Pro, valores novos e vendas/comissões no Pro', () => {
   assert.deepEqual(plans.PLAN_ORDER, ['start', 'pro']);
@@ -227,18 +225,15 @@ await test('agendamento sem horário não cria compromisso', async () => {
   assert.match(result.motivo, /horário/);
   assert.equal(createdAppointments, antes);
 });
-await test('scan exige aviso e autorização do titular a cada chamada; revogação bloqueia envio', async () => {
-  let uploads = 0;
-  invoke = async () => { uploads++; return { data: { fullName: 'Teste' }, error: null }; };
-  assert.equal((await scan.scanDocument('fake-image', 'image/jpeg', true)).ok, false);
-  await scanConsent.darConsentimentoScan();
-  assert.equal((await scan.scanDocument('fake-image', 'image/jpeg')).ok, false);
-  assert.equal(uploads, 0);
-  assert.equal((await scan.scanDocument('fake-image', 'image/jpeg', true)).ok, true);
-  assert.equal(uploads, 1);
-  assert.equal((await scan.scanDocument('another-image', 'image/jpeg')).ok, false);
-  await scanConsent.revogarConsentimentoScan();
-  assert.equal((await scan.scanDocument('fake-image', 'image/jpeg', true)).ok, false);
-  assert.equal(uploads, 1);
+await test('nenhuma parte do app chama serviço de IA', async () => {
+  const { readdirSync, statSync } = await import('node:fs');
+  const arquivos = (dir) => readdirSync(dir).flatMap((n) => {
+    const p = `${dir}/${n}`;
+    return statSync(p).isDirectory() ? arquivos(p) : /\.tsx?$/.test(n) ? [p] : [];
+  });
+  for (const f of [...arquivos('app'), ...arquivos('src')]) {
+    const codigo = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    assert.doesNotMatch(codigo, /lia-extract|scan-document|generate-pitch|generate-invite|anthropic/i, f);
+  }
 });
 console.log(`\n${passed} cenários de planos/cadastro/privacidade passaram.`);

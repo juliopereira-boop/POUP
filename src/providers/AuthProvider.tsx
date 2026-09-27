@@ -6,7 +6,6 @@ import { Alert, Platform } from 'react-native';
 import { db } from '@/data';
 import type { AuthUser, Result } from '@/data';
 import { clearThumbCache } from '@/features/material/thumbCache';
-import { revogarConsentimentoScan } from '@/features/scan/consent';
 import { FINANCIAMENTO_LOCAL_KEYS } from '@/features/financiamento/storageKeys';
 import { SIMULADOR_LOCAL_KEYS } from '@/features/simulador/SimuladorProvider';
 import { sessionStorage } from '@/lib/storage';
@@ -39,9 +38,6 @@ interface AuthContextValue {
  */
 async function clearLocalUserData(): Promise<void> {
   await clearThumbCache();
-  // O consentimento de IA é de quem o deu, não do aparelho: quem autorizou o
-  // envio da foto do documento foi uma pessoa, não este celular.
-  await revogarConsentimentoScan();
   /*
    * Os rascunhos dos DOIS simuladores guardam nome, CPF, telefone e renda de
    * um cliente — e as chaves não são separadas por usuário. Sem apagar na

@@ -173,8 +173,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "O POUP usa a câmera para escanear documentos (CNH/RG) e preencher os dados do cliente automaticamente.",
-          "photosPermission": "O POUP permite selecionar fotos de documentos, empresas e imóveis que você deseja anexar ou usar no preenchimento de cadastros.",
+          "cameraPermission": false,
+          "photosPermission": "O POUP permite selecionar fotos de empresas, imóveis, material de venda e do seu perfil para anexar aos cadastros.",
           "microphonePermission": false
         }
       ]

@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------
  * Cada item listado aqui corresponde a uma coleta real no app hoje (ver
  * `src/data/types.ts` — `UserProfile`, `Lead` — e as Edge Functions de
- * pagamento e do scanner). Se um campo for removido ou um provedor mudar,
+ * pagamento). Se um campo for removido ou um provedor mudar,
  * esta página societário quica: ela descreve comportamento, não intenção.
  */
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -95,10 +95,6 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           Nome, telefone, e-mail, CPF, renda e data de nascimento informados no cadastro do lead
         </Bullet>
-        <Bullet>
-          Fotos de documentos de identidade (CNH/RG), quando o corretor usa o leitor automático para
-          preencher nome e CPF do cliente
-        </Bullet>
 
         <SubTitle>Do uso do app</SubTitle>
         <Bullet>Simulações, propostas geradas em PDF, vendas e comissões registradas</Bullet>
@@ -117,10 +113,6 @@ export default function PrivacyPolicyScreen() {
           deu certo. <Bold>Nenhum dado de cliente entra nessas medições</Bold>: não gravamos nome,
           CPF, telefone, renda nem valor de imóvel, e o próprio banco de dados não tem onde
           guardá-los. Servem para descobrir onde o app está confuso ou quebrado.
-        </Bullet>
-        <Bullet>
-          <Bold>Contagem de uso da leitura de documento</Bold>: quantas leituras de documento você
-          usou no mês. É só um número, e existe para respeitar o limite do seu plano.
         </Bullet>
         <Bullet>
           <Bold>O que você escreve em &quot;Reportar problema ou dar sugestão&quot;</Bold>, junto
@@ -155,18 +147,12 @@ export default function PrivacyPolicyScreen() {
         <Bullet>Gerar simulações, propostas e relatórios que você mesmo solicita</Bullet>
         <Bullet>Processar e conciliar a cobrança da assinatura mensal</Bullet>
         <Bullet>
-          Preencher automaticamente nome e CPF a partir da foto de um documento, quando você usa
-          essa opção, a foto é enviada para leitura e não fica guardada além do necessário para essa
-          leitura
-        </Bullet>
-        <Bullet>
           Montar o ranking de corretores, se você escolher participar, e conferir comprovantes de
           venda quando houver disputa ou contestação
         </Bullet>
         <Bullet>Dar suporte quando você entra em contato</Bullet>
         <Bullet>
-          Entender como o app é usado para melhorá-lo, e controlar o consumo dos recursos de
-          inteligência artificial dentro do limite do seu plano
+          Entender como o app é usado para melhorá-lo
         </Bullet>
       </Section>
 
@@ -188,16 +174,6 @@ export default function PrivacyPolicyScreen() {
         <Bullet>
           <Bold>Google</Bold> e <Bold>Apple</Bold>, login pela sua conta, quando você escolhe uma
           dessas opções
-        </Bullet>
-        <Bullet>
-          <Bold>Anthropic (Claude)</Bold>, recebe somente a <Bold>foto do documento</Bold>, quando
-          você usa o leitor de CNH/RG. A LIA, os agendamentos por texto, o convite de captação e a
-          mensagem de abordagem são processados no próprio POUP, sem envio a serviço de
-          inteligência artificial.
-          {'\n\n'}
-          Segundo a política da Anthropic, o conteúdo enviado pela API pode ser mantido por{' '}
-          <Bold>até 30 dias</Bold> para segurança e prevenção de abuso, e depois é descartado. Ele
-          não é usado para treinar modelos.
         </Bullet>
         <Bullet>
           <Bold>Vercel</Bold>, hospedagem do site e do aplicativo
@@ -233,11 +209,6 @@ export default function PrivacyPolicyScreen() {
           consultadas no dia a dia e servem apenas para recuperação de desastre.
         </Paragraph>
         <Paragraph>
-          O POUP não persiste a foto de documento usada no preenchimento automático em seu banco ou
-          Storage. Só os dados extraídos que você decide salvar ficam no cadastro. O envio à
-          Anthropic segue a retenção do fornecedor descrita abaixo.
-        </Paragraph>
-        <Paragraph>
           As <Bold>medições de uso do produto</Bold> seguem outro caminho, porque não são dados dos
           seus clientes, são eventos do aplicativo vinculados à sua conta. Elas são apagadas depois
           de seis meses, e apagadas junto com a conta se você excluí-la.
@@ -249,10 +220,9 @@ export default function PrivacyPolicyScreen() {
           as simulações e os agendamentos que você decidiu salvar.
         </Paragraph>
         <Paragraph>
-          A foto enviada para leitura de documento passa pela Anthropic, que tem retenção padrão da
-          API de <Bold>até 30 dias</Bold>. Existem exceções previstas pelo fornecedor, incluindo
-          obrigações legais e aplicação de sua política de uso. Consulte a política em
-          privacy.claude.com para detalhes.
+          O POUP <Bold>não usa serviços de inteligência artificial de terceiros</Bold>: a LIA, os
+          agendamentos por texto, o convite de captação e a mensagem de abordagem são processados
+          no próprio POUP.
         </Paragraph>
       </Section>
 
@@ -270,15 +240,9 @@ export default function PrivacyPolicyScreen() {
           descarta o texto; simulações e agendamentos salvos continuam na sua conta.
         </Bullet>
         <Bullet>
-          <Bold>Leitura de documento por IA</Bold>: em <Bold>Ajustes → Privacidade</Bold> você vê
-          quando autorizou e pode desligar com um toque. Além disso, a autorização do titular é
-          pedida <Bold>a cada documento</Bold>, nenhuma foto é enviada sem que você confirme, na
-          hora, que tem permissão daquela pessoa.
-        </Bullet>
-        <Bullet>
           <Bold>Câmera e fotos</Bold>: podem ser revogadas a qualquer momento nos ajustes do próprio
-          aparelho. O app continua funcionando; só o preenchimento automático deixa de estar
-          disponível.
+          aparelho. O app continua funcionando; só o envio de fotos (perfil e material de venda)
+          deixa de estar disponível.
         </Bullet>
         <Bullet>
           <Bold>Login com o Google</Bold>: quando você exclui a conta, o vínculo entre a sua conta
@@ -304,8 +268,8 @@ export default function PrivacyPolicyScreen() {
         <Paragraph>
           Essas regras valem no próprio banco de dados, e não apenas na tela: mesmo que alguém
           contorne o aplicativo e fale direto com o servidor, continua só alcançando os dados da
-          conta dele. As chaves dos serviços de pagamento e de inteligência artificial ficam no
-          servidor e nunca são enviadas para o aparelho.
+          conta dele. As chaves dos serviços de pagamento ficam no servidor e nunca são enviadas
+          para o aparelho.
         </Paragraph>
       </Section>
 
