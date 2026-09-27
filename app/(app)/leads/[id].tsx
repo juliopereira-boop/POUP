@@ -42,6 +42,7 @@ import {
   TIPOS_ACEITOS_ROTULO,
   separarEnviaveis,
 } from '@/features/material/limits';
+import { voltar } from '@/lib/navegacao';
 
 const PREFILL_KEY = 'simulador:prefill';
 
@@ -345,7 +346,7 @@ export default function LeadDetailScreen() {
     return (
       <Screen>
         <Text style={styles.muted}>Lead não encontrado.</Text>
-        <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+        <Button label="Voltar" variant="secondary" onPress={() => voltar(router, '/(app)/leads')} />
       </Screen>
     );
   }

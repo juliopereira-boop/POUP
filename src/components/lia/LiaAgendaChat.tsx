@@ -18,6 +18,7 @@ import { agendarPorVoz, type CatalogoAgendamento } from '@/features/lia/agendame
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 interface Fala {
   de: 'lia' | 'corretor';
@@ -204,7 +205,7 @@ export function LiaAgendaChat({ visivel, aoFechar }: LiaAgendaChatProps) {
               variant="ghost"
               onPress={() => {
                 aoFechar();
-                router.push('/(app)/calendario');
+                depoisDeFecharJanela(() => router.push('/(app)/calendario'));
               }}
             />
           </View>

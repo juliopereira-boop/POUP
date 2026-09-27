@@ -22,6 +22,18 @@ const TABS: TabItem[] = [
   { key: 'mais', label: 'Mais', icon: 'menu', route: '/(app)/configuracoes', match: '/configuracoes' },
 ];
 
+/**
+ * Troca de aba com dois cuidados, os dois vindos do teste no iPhone (idas e
+ * voltas rápidas):
+ *   - tocar na aba em que você JÁ está, na tela principal dela, não faz nada
+ *     (antes recriava a tela no meio de uma transição);
+ *   - dois toques de aba em menos de 400 ms contam como um só — trocar de
+ *     tela enquanto a anterior ainda está animando é o que deixa a pilha de
+ *     navegação num estado estranho.
+ */
+const INTERVALO_ENTRE_ABAS_MS = 400;
+let ultimaTroca = 0;
+
 export function BottomTabBar() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -34,6 +46,19 @@ export function BottomTabBar() {
     return pathname.startsWith(tab.match);
   }
 
+  function naRaizDaAba(tab: TabItem): boolean {
+    if (tab.match === '/') return pathname === '/' || pathname === '/(app)';
+    return pathname === tab.match;
+  }
+
+  function trocarPara(tab: TabItem) {
+    if (naRaizDaAba(tab)) return;
+    const agora = Date.now();
+    if (agora - ultimaTroca < INTERVALO_ENTRE_ABAS_MS) return;
+    ultimaTroca = agora;
+    router.replace(tab.route);
+  }
+
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       <View style={styles.inner}>
@@ -42,7 +67,7 @@ export function BottomTabBar() {
           return (
             <Pressable
               key={tab.key}
-              onPress={() => router.replace(tab.route)}
+              onPress={() => trocarPara(tab)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={tab.label}

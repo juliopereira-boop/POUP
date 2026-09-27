@@ -13,6 +13,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 export default function PerfilScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -72,8 +73,8 @@ export default function PerfilScreen() {
       setError(result.error);
       return;
     }
-    if (Platform.OS === 'web') router.back();
-    else Alert.alert('POUP', 'Perfil atualizado!', [{ text: 'OK', onPress: () => router.back() }]);
+    if (Platform.OS === 'web') voltar(router, '/(app)');
+    else Alert.alert('POUP', 'Perfil atualizado!', [{ text: 'OK', onPress: () => voltar(router, '/(app)') }]);
   }
 
   return (

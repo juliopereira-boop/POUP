@@ -54,6 +54,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 export default function ResultadoFinanciamento() {
   const { colors } = useTheme();
@@ -87,7 +88,7 @@ export default function ResultadoFinanciamento() {
         <Text style={styles.texto}>{erro ?? 'Volte e complete os dados da simulação.'}</Text>
         <Button
           label="Voltar para a simulação"
-          onPress={() => router.back()}
+          onPress={() => voltar(router, '/(app)/financiamento')}
           style={{ marginTop: spacing.lg }}
         />
       </Screen>

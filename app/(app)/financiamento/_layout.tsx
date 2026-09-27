@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { FinanciamentoProvider } from '@/features/financiamento/FinanciamentoProvider';
+import { cabecalhoComVoltar } from '@/components/navegacao/BotaoVoltar';
 import { useTheme } from '@/providers/ThemeProvider';
 
 /**
@@ -17,7 +18,7 @@ export default function FinanciamentoLayout() {
       <Stack
         screenOptions={{
           headerShown: true,
-          headerBackTitle: 'Voltar',
+          ...cabecalhoComVoltar(colors.primary),
           headerTintColor: colors.primary,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,

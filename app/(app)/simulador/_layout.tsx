@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { SimuladorProvider } from '@/features/simulador/SimuladorProvider';
+import { cabecalhoComVoltar } from '@/components/navegacao/BotaoVoltar';
 import { useTheme } from '@/providers/ThemeProvider';
 
 export default function SimuladorLayout() {
@@ -10,7 +11,7 @@ export default function SimuladorLayout() {
       <Stack
         screenOptions={{
           headerShown: true,
-          headerBackTitle: 'Voltar',
+          ...cabecalhoComVoltar(colors.ink),
           headerTintColor: colors.ink,
           headerStyle: { backgroundColor: colors.background },
           headerShadowVisible: false,

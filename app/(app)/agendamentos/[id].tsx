@@ -37,6 +37,7 @@ import {
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 const FALLBACK_COLOR = '#6B7280';
 
@@ -345,7 +346,7 @@ export default function AgendamentoDetailScreen() {
           setError(res.error);
           return;
         }
-        router.back();
+        voltar(router, '/(app)/calendario');
       })();
     });
   }
@@ -362,7 +363,7 @@ export default function AgendamentoDetailScreen() {
     return (
       <Screen>
         <Text style={styles.muted}>Agendamento não encontrado.</Text>
-        <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+        <Button label="Voltar" variant="secondary" onPress={() => voltar(router, '/(app)/calendario')} />
       </Screen>
     );
   }

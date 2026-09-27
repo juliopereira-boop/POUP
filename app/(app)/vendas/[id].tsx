@@ -39,6 +39,7 @@ import { currencyToNumber, formatCPF, formatCurrencyBRL, formatPhone } from '@/l
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 const feature = FEATURES.find((f) => f.key === 'vendas')!;
 
@@ -201,7 +202,7 @@ function VendaContent() {
         setError(res.error);
         return;
       }
-      router.back();
+      voltar(router, '/(app)/vendas');
     };
     const msg = `Excluir a venda de "${sale.clientName}"? Ela sai dos indicadores e do histórico.`;
     if (Platform.OS === 'web') {
@@ -227,7 +228,7 @@ function VendaContent() {
     return (
       <Screen>
         <Text style={styles.muted}>Venda não encontrada.</Text>
-        <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+        <Button label="Voltar" variant="secondary" onPress={() => voltar(router, '/(app)/vendas')} />
       </Screen>
     );
   }

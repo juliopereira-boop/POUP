@@ -27,6 +27,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 /** Precisa bater com a constante do Edge Function `delete-account`. */
 const CONFIRMACAO = 'EXCLUIR';
@@ -71,7 +72,7 @@ export function DeleteAccountButton() {
         return;
       }
       setAberto(false);
-      router.replace('/');
+      depoisDeFecharJanela(() => router.replace('/'));
     } catch {
       setErro('Não foi possível concluir a exclusão. Tente novamente ou fale com o suporte.');
     } finally {

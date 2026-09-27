@@ -18,6 +18,7 @@ import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+import { VoltarNoTopo } from '@/components/navegacao/BotaoVoltar';
 
 const SUPORTE_EMAIL = 'gestao@poupgestao.com';
 
@@ -57,6 +58,7 @@ export default function PrivacyPolicyScreen() {
 
   return (
     <Screen>
+      <VoltarNoTopo />
       <View style={styles.header}>
         <WordMark size={28} />
       </View>

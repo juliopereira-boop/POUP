@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import { DeleteAccountButton } from '@/components/DeleteAccountButton';
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme } from '@/providers/ThemeProvider';
+import { VoltarNoTopo } from '@/components/navegacao/BotaoVoltar';
 
 /** Pública, inclusive sem aplicativo instalado e sem assinatura. URL do Play Console. */
 export default function DeleteAccountPage() {
@@ -13,6 +14,7 @@ export default function DeleteAccountPage() {
   const { colors } = useTheme();
   return (
     <Screen>
+      <VoltarNoTopo />
       <View style={{ gap: 20, paddingVertical: 24 }}>
         <Text
           accessibilityRole="header"

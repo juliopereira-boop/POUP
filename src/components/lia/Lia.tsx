@@ -8,6 +8,7 @@ import { LiaPainel } from './LiaPainel';
 import { useLia } from '@/features/lia/LiaProvider';
 import { liaDisponivel } from '@/features/store';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 export function Lia() {
   const router = useRouter();
@@ -46,8 +47,8 @@ export function Lia() {
     setPainelAberto(false);
 
     // Completo = os valores já vieram todos da conversa; o que falta é a unidade
-    // e o cliente, que moram no bloco 2.
-    router.push(completo ? '/simulador/dados' : '/simulador');
+    // e o cliente, que moram no bloco 2. A tela abre depois de o painel sair.
+    depoisDeFecharJanela(() => router.push(completo ? '/simulador/dados' : '/simulador'));
   }, [lia, router]);
 
   if (!liaDisponivel) return null;

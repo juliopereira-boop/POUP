@@ -65,6 +65,7 @@ import { isValidCPF } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, shadow, spacing, typography, type AppColors } from '@/theme';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 const OURO = '#F5B301';
 const PRATA = '#A7B1C2';
@@ -339,7 +340,7 @@ export default function RankingScreen() {
         falta={faltaParaParticipar(profile, isValidCPF)}
         onCompletar={() => {
           setParticiparAberto(false);
-          router.push('/(app)/perfil');
+          depoisDeFecharJanela(() => router.push('/(app)/perfil'));
         }}
         onConfirmar={async () => {
           const r = await db.ranking.participar(true);

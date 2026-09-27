@@ -47,6 +47,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -272,7 +273,7 @@ export default function SimulationDetailScreen() {
     if (!sim) return;
     const doDelete = async () => {
       const result = await db.simulations.remove(sim.id);
-      if (result.ok) router.back();
+      if (result.ok) voltar(router, '/(app)/relatorios');
     };
     if (Platform.OS === 'web') {
       // eslint-disable-next-line no-alert
@@ -297,7 +298,7 @@ export default function SimulationDetailScreen() {
     return (
       <Screen>
         <Text style={styles.muted}>Simulação não encontrada.</Text>
-        <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+        <Button label="Voltar" variant="secondary" onPress={() => voltar(router, '/(app)/relatorios')} />
       </Screen>
     );
   }

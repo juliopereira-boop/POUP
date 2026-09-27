@@ -35,6 +35,7 @@ import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { voltar } from '@/lib/navegacao';
 
 const feature = FEATURES.find((f) => f.key === 'comissao')!;
 
@@ -248,7 +249,7 @@ function ComissaoContent() {
         setError(res.error);
         return;
       }
-      router.back();
+      voltar(router, '/(app)/comissao');
     };
     confirmAction(
       'Excluir comissão',
@@ -270,7 +271,7 @@ function ComissaoContent() {
     return (
       <Screen>
         <Text style={styles.muted}>Comissão não encontrada.</Text>
-        <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+        <Button label="Voltar" variant="secondary" onPress={() => voltar(router, '/(app)/comissao')} />
       </Screen>
     );
   }

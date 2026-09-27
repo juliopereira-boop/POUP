@@ -39,6 +39,7 @@ import { detalheDe, useUnidadesComPreco, type UnidadeComPreco } from '@/features
 import { useAuth } from '@/providers/AuthProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 interface Props {
   visivel: boolean;
@@ -231,7 +232,7 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
                   <Pressable
                     onPress={() => {
                       onFechar();
-                      router.push('/(app)/cadastros/empreendimentos');
+                      depoisDeFecharJanela(() => router.push('/(app)/cadastros/empreendimentos'));
                     }}
                     hitSlop={6}
                   >
@@ -267,7 +268,9 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
                     <Pressable
                       onPress={() => {
                         onFechar();
-                        router.push({ pathname: '/(app)/cadastros/unidades', params: { developmentId: dev.id } });
+                        depoisDeFecharJanela(() =>
+                          router.push({ pathname: '/(app)/cadastros/unidades', params: { developmentId: dev.id } }),
+                        );
                       }}
                       hitSlop={6}
                     >

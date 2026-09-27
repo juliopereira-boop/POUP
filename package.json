@@ -35,7 +35,8 @@
     "testar:ranking": "node scripts/testar-ranking.mjs",
     "testar:cerebro-lia": "node scripts/testar-cerebro-lia.mjs",
     "testar:tipografia": "node scripts/testar-tipografia.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia",
+    "testar:navegacao": "node scripts/testar-navegacao.mjs",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {
@@ -70,7 +71,7 @@
     "react-native-purchases": "10.10.0",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
+    "react-native-screens": "~4.19.0",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.21.0"
@@ -94,5 +95,12 @@
     "eslint-config-prettier": "^9.1.2",
     "prettier": "^3.3.3",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react-native-screens"
+      ]
+    }
   }
 }

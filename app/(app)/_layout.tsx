@@ -2,6 +2,7 @@ import { Redirect, Stack } from 'expo-router';
 import { View } from 'react-native';
 
 import { BottomTabBar } from '@/components/BottomTabBar';
+import { cabecalhoComVoltar } from '@/components/navegacao/BotaoVoltar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Lia } from '@/components/lia/Lia';
 import { LoadingScreen } from '@/components/Loading';
@@ -12,6 +13,10 @@ import { LiaProvider } from '@/features/lia/LiaProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme } from '@/providers/ThemeProvider';
+
+/** Uma tela de detalhe por registro: a mesma ficha não abre duas vezes na pilha. */
+const porId = ({ params }: { params?: Record<string, unknown> }) =>
+  params?.id != null ? String(params.id) : undefined;
 
 export default function AppLayout() {
   const { colors } = useTheme();
@@ -53,7 +58,8 @@ export default function AppLayout() {
           <Stack
             screenOptions={{
               headerShown: true,
-              headerBackTitle: 'Voltar',
+              // "Voltar" nosso, não o nativo do iOS 26 (que travava) — ver `lib/navegacao.ts`.
+              ...cabecalhoComVoltar(colors.primary),
               headerTintColor: colors.primary,
               headerStyle: { backgroundColor: colors.background },
               headerShadowVisible: false,
@@ -62,9 +68,11 @@ export default function AppLayout() {
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="leads/index" options={{ title: 'Leads' }} />
-            <Stack.Screen name="leads/[id]" options={{ title: 'Lead' }} />
+            {/* `getId`: tocar duas vezes na mesma ficha não empilha duas telas iguais
+                (o "voltar" pareceria não funcionar: voltaria para a cópia). */}
+            <Stack.Screen name="leads/[id]" options={{ title: 'Lead' }} getId={porId} />
             <Stack.Screen name="calendario" options={{ title: 'Calendário' }} />
-            <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} />
+            <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} getId={porId} />
             <Stack.Screen name="campanhas" options={{ title: 'Período de teste' }} />
             <Stack.Screen name="admin/catalogo" options={{ title: 'Catálogo do sistema' }} />
             <Stack.Screen name="admin/rastreabilidade" options={{ title: 'Rastreabilidade' }} />
@@ -73,7 +81,7 @@ export default function AppLayout() {
             <Stack.Screen name="financiamento" options={{ headerShown: false }} />
             <Stack.Screen name="admin/financiamento" options={{ title: 'Regras de financiamento' }} />
             <Stack.Screen name="relatorios/index" options={{ title: 'Relatórios' }} />
-            <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} />
+            <Stack.Screen name="relatorios/[id]" options={{ title: 'Simulação' }} getId={porId} />
             <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
             <Stack.Screen name="workflow" options={{ title: 'Workflow de Leads' }} />
             <Stack.Screen name="perfil" options={{ title: 'Meu Perfil' }} />
@@ -87,9 +95,9 @@ export default function AppLayout() {
             <Stack.Screen name="cadastros/tabela-preco" options={{ title: 'Tabela de preço' }} />
             <Stack.Screen name="material-venda" options={{ title: 'Material de Venda' }} />
             <Stack.Screen name="comissao/index" options={{ title: 'Controle de Comissão' }} />
-            <Stack.Screen name="comissao/[id]" options={{ title: 'Comissão' }} />
+            <Stack.Screen name="comissao/[id]" options={{ title: 'Comissão' }} getId={porId} />
             <Stack.Screen name="vendas/index" options={{ title: 'Vendas Realizadas' }} />
-            <Stack.Screen name="vendas/[id]" options={{ title: 'Venda' }} />
+            <Stack.Screen name="vendas/[id]" options={{ title: 'Venda' }} getId={porId} />
             <Stack.Screen name="ranking" options={{ title: 'Ranking' }} />
             <Stack.Screen name="admin/ranking" options={{ title: 'Auditoria do ranking' }} />
           </Stack>

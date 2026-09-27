@@ -21,6 +21,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
+import { depoisDeFecharJanela } from '@/lib/navegacao';
 
 const TOTAL = GUIDE_STEPS.length;
 
@@ -77,7 +78,7 @@ export function WelcomeGuide() {
   async function finish(goToSimulation: boolean) {
     if (user) await sessionStorage.setItem(guideSeenKey(user.id), '1');
     setVisible(false);
-    if (goToSimulation) router.push('/(app)/simuladores');
+    if (goToSimulation) depoisDeFecharJanela(() => router.push('/(app)/simuladores'));
   }
 
   const current = GUIDE_STEPS[step];

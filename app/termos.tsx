@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { WordMark } from '@/components/WordMark';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { spacing, typography, type AppColors } from '@/theme';
+import { VoltarNoTopo } from '@/components/navegacao/BotaoVoltar';
 
 const APPLE_EULA = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 const SUPPORT_EMAIL = 'gestao@poupgestao.com';
@@ -12,6 +13,7 @@ export default function TermsScreen() {
   const styles = useThemedStyles(makeStyles);
   return (
     <Screen>
+      <VoltarNoTopo />
       <View style={styles.header}>
         <WordMark size={28} />
       </View>
