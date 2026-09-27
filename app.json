@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Poup Gestão",
+    "name": "Poup",
     "slug": "poup",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,7 +20,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "br.com.poup.app",
       "usesAppleSignIn": true,
-      "buildNumber": "6",
+      "buildNumber": "8",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleLocalizations": [
