@@ -171,6 +171,18 @@ export class SupabaseRankingRepository implements RankingRepository {
     return ok(undefined);
   }
 
+  async conferirComprovante(saleId: string, textoDaFoto?: string | null): Promise<void> {
+    // Falhou (sem rede, função ainda não publicada)? A venda fica "em
+    // conferência" e a auditoria decide — nada quebra para o corretor.
+    try {
+      await supabase.functions.invoke('conferir-comprovante', {
+        body: textoDaFoto ? { saleId, texto: textoDaFoto } : { saleId },
+      });
+    } catch {
+      /* segue em conferência */
+    }
+  }
+
   async linkDoComprovante(path: string): Promise<string | null> {
     const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 10);
     if (error || !data?.signedUrl) return null;
@@ -201,6 +213,10 @@ export class SupabaseRankingRepository implements RankingRepository {
         denuncias: numero(r.denuncias),
         motivos: (r.motivos as string | null) ?? null,
         bloqueado: Boolean(r.bloqueado),
+        sinal: r.sinal == null ? null : numero(r.sinal),
+        lidoDatas: Array.isArray(r.lido_datas) ? (r.lido_datas as string[]) : null,
+        lidoValores: Array.isArray(r.lido_valores) ? (r.lido_valores as unknown[]).map(numero) : null,
+        lidoPareceComprovante: r.lido_parece_comprovante == null ? null : Boolean(r.lido_parece_comprovante),
       })),
     );
   }

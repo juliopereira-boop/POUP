@@ -2,8 +2,14 @@
  * A VENDA NO RANKING: se ela pontua, o que falta, e o comprovante.
  *
  * Fica na tela da venda porque é ali que o corretor resolve: o ranking diz
- * "2 vendas sem comprovante", ele toca, cai aqui e anexa o contrato. O
- * comprovante é sigiloso — só o corretor e a auditoria do POUP abrem.
+ * "2 vendas sem comprovante", ele toca, cai aqui e anexa o comprovante de
+ * pagamento do sinal. O comprovante é sigiloso — só o corretor e a auditoria
+ * do POUP abrem.
+ *
+ * A REGRA fica escrita aqui (o que o comprovante precisa mostrar: a data do
+ * pagamento e o valor do sinal). COMO ele é conferido não aparece na tela: a
+ * conferência é da Edge Function `conferir-comprovante` e do banco, e este
+ * cartão só recebe a situação da venda.
  *
  * Sem a migration do ranking, o cartão simplesmente não aparece: a venda
  * continua funcionando como sempre.
@@ -13,13 +19,21 @@
  * pontua assim que ele assinar.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { db, type ComprovanteDaVenda } from '@/data';
-import { pickFiles } from '@/features/files/pick';
-import { requisitosDaVenda, textoDaSituacao, type SituacaoDaVenda, type VendaParaRanking } from '@/features/ranking/regras';
+import { pickFiles, pickImageFrom, type PickedFile } from '@/features/files/pick';
+import {
+  regraDoComprovante,
+  requisitosDaVenda,
+  textoDaSituacao,
+  type SituacaoDaVenda,
+  type VendaParaRanking,
+} from '@/features/ranking/regras';
+import { ehFoto, textoDaFoto, textoDaFotoNoLink } from '@/features/ranking/textoDaFoto';
+import { currencyToNumber } from '@/lib/masks';
 import { useFeatureAccess } from '@/features/useFeatureAccess';
 import { isValidCPF } from '@/lib/masks';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -34,7 +48,30 @@ function hojeLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: VendaParaRanking }) {
+/** De onde vem o comprovante: galeria de fotos (print do Pix) ou arquivos (PDF do banco). */
+function escolherOrigem(): Promise<'galeria' | 'arquivos' | null> {
+  if (Platform.OS === 'web') return Promise.resolve('arquivos');
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Comprovante de pagamento do sinal',
+      'De onde vem o comprovante?',
+      [
+        { text: 'Galeria de fotos', onPress: () => resolve('galeria') },
+        { text: 'Arquivos (PDF)', onPress: () => resolve('arquivos') },
+        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) },
+    );
+  });
+}
+
+export function RankingDaVenda({
+  saleId,
+  venda,
+}: {
+  saleId: string;
+  venda: VendaParaRanking & { simulationId?: string | null };
+}) {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user } = useAuth();
@@ -46,6 +83,18 @@ export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: Venda
   const [situacao, setSituacao] = useState<SituacaoDaVenda | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [sinal, setSinal] = useState<number | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    if (!venda.simulationId) return;
+    void db.simulations.get(venda.simulationId).then((sim) => {
+      if (vivo && sim) setSinal(currencyToNumber(sim.state.ato ?? '') || null);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [venda.simulationId]);
 
   const carregar = useCallback(async () => {
     const [c, s] = await Promise.all([db.ranking.comprovante(saleId), db.ranking.minhasSituacoes('ano')]);
@@ -62,16 +111,49 @@ export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: Venda
     void carregar();
   }, [carregar]);
 
+  /**
+   * Manda o comprovante para a conferência. Foto: o celular tira o texto dela
+   * antes (do arquivo recém-escolhido ou, para conferir de novo, baixando).
+   */
+  async function conferir(path: string, local?: PickedFile) {
+    let texto: string | null = null;
+    if (ehFoto(local?.name ?? path) || local?.contentType.startsWith('image/')) {
+      if (local?.uri) texto = await textoDaFoto(local.uri);
+      else {
+        const url = await db.ranking.linkDoComprovante(path);
+        if (url) texto = await textoDaFotoNoLink(url);
+      }
+    }
+    await db.ranking.conferirComprovante(saleId, texto);
+  }
+
   async function anexar() {
     if (!user) return;
     setErro(null);
-    const [arquivo] = await pickFiles({ multiple: false, type: TIPOS });
+    const origem = await escolherOrigem();
+    if (!origem) return;
+    const arquivo =
+      origem === 'galeria'
+        ? await pickImageFrom('galeria')
+        : (await pickFiles({ multiple: false, type: TIPOS }))[0] ?? null;
     if (!arquivo) return;
     setOcupado(true);
     // Trocando: o arquivo antigo só sai depois que o novo está registrado.
     const r = await db.ranking.anexarComprovante(user.id, saleId, arquivo, comprovante?.path);
+    if (!r.ok) {
+      setOcupado(false);
+      return setErro(r.error);
+    }
+    await conferir(r.data.path, arquivo);
     setOcupado(false);
-    if (!r.ok) return setErro(r.error);
+    void carregar();
+  }
+
+  async function conferirDeNovo() {
+    if (!comprovante) return;
+    setOcupado(true);
+    await conferir(comprovante.path);
+    setOcupado(false);
     void carregar();
   }
 
@@ -124,7 +206,14 @@ export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: Venda
         <Text style={styles.texto}>Esta venda é de uma temporada encerrada.</Text>
       ) : null}
 
-      <Text style={styles.subtitulo}>Comprovante da venda</Text>
+      <Text style={styles.subtitulo}>Comprovante de pagamento do sinal</Text>
+      <View style={styles.regra}>
+        {regraDoComprovante(venda.saleDate, sinal).map((linha) => (
+          <Text key={linha} style={styles.regraLinha}>
+            • {linha}
+          </Text>
+        ))}
+      </View>
       {comprovante ? (
         <View style={styles.arquivo}>
           <Text style={styles.arquivoNome} numberOfLines={1}>
@@ -137,19 +226,25 @@ export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: Venda
             <Pressable onPress={() => void anexar()} hitSlop={6} disabled={ocupado}>
               <Text style={styles.link}>Trocar</Text>
             </Pressable>
+            {situacao === 'comprovante_em_analise' ? (
+              <Pressable onPress={() => void conferirDeNovo()} hitSlop={6} disabled={ocupado}>
+                <Text style={styles.link}>Conferir de novo</Text>
+              </Pressable>
+            ) : null}
             <Pressable onPress={() => void remover()} hitSlop={6} disabled={ocupado}>
               <Text style={styles.linkPerigo}>Remover</Text>
             </Pressable>
           </View>
         </View>
       ) : (
-        <>
-          <Text style={styles.texto}>
-            Contrato assinado ou comprovante da comissão, em PDF ou foto. Só você e a auditoria do POUP abrem.
-          </Text>
-          <Button label="Anexar comprovante" variant="secondary" onPress={() => void anexar()} loading={ocupado} />
-        </>
+        <Button
+          label="Anexar comprovante de pagamento"
+          variant="secondary"
+          onPress={() => void anexar()}
+          loading={ocupado}
+        />
       )}
+      <Text style={styles.texto}>Só você e a auditoria do POUP abrem o comprovante.</Text>
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
       {/* O que falta, item por item — a mesma regra do banco, para o corretor ler. */}
@@ -163,18 +258,15 @@ export function RankingDaVenda({ saleId, venda }: { saleId: string; venda: Venda
         <View style={styles.requisitos}>
           {requisitos.map((r) => (
             <View key={r.rotulo} style={styles.requisito}>
-              <Text style={[styles.marca, r.ok ? styles.marcaOk : styles.marcaFalta]}>{r.ok ? '✓' : '✕'}</Text>
+              <Text style={[styles.marca, r.ok ? styles.marcaOk : r.pendente ? styles.marcaPendente : styles.marcaFalta]}>
+                {r.ok ? '✓' : r.pendente ? '…' : '✕'}
+              </Text>
               <View style={styles.flex1}>
                 <Text style={[styles.requisitoTexto, !r.ok && styles.requisitoFalta]}>{r.rotulo}</Text>
                 {!r.ok ? <Text style={styles.texto}>{r.dica}</Text> : null}
               </View>
             </View>
           ))}
-          <Text style={styles.nota}>
-            O app não lê o conteúdo do comprovante: ele confere que um arquivo foi anexado. Nome, CPF, valor e
-            assinatura dentro do arquivo são conferidos pela auditoria do POUP quando a venda é contestada ou entra em
-            disputa.
-          </Text>
         </View>
       ) : null}
 
@@ -225,8 +317,10 @@ const makeStyles = (colors: AppColors) =>
     marca: { ...typography.label, width: 18, textAlign: 'center' },
     marcaOk: { color: colors.success },
     marcaFalta: { color: colors.danger },
+    marcaPendente: { color: colors.warning },
+    regra: { gap: 2 },
+    regraLinha: { ...typography.caption, color: colors.ink },
     requisitoTexto: { ...typography.caption, color: colors.ink },
     requisitoFalta: { fontWeight: '700' },
-    nota: { ...typography.caption, color: colors.inkMuted, fontStyle: 'italic', marginTop: spacing.xs },
     flex1: { flex: 1 },
   });

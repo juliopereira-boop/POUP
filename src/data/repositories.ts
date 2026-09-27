@@ -286,6 +286,12 @@ export interface ItemDaAuditoria {
   denuncias: number;
   motivos: string | null;
   bloqueado: boolean;
+  /** O sinal (ato) da simulação que gerou a venda. */
+  sinal: number | null;
+  /** O que foi lido do comprovante atual (null = ainda não conferido). */
+  lidoDatas: string[] | null;
+  lidoValores: number[] | null;
+  lidoPareceComprovante: boolean | null;
 }
 
 /**
@@ -307,6 +313,12 @@ export interface RankingRepository {
     anterior?: string,
   ): Promise<Result<ComprovanteDaVenda>>;
   removerComprovante(saleId: string, path: string): Promise<Result<void>>;
+  /**
+   * Manda o comprovante atual da venda para a conferência (Edge Function
+   * `conferir-comprovante`). `textoDaFoto`: o texto que o celular tirou da foto.
+   * Não devolve o resultado: ele aparece na situação da venda.
+   */
+  conferirComprovante(saleId: string, textoDaFoto?: string | null): Promise<void>;
   linkDoComprovante(path: string): Promise<string | null>;
   /** Só o admin. */
   auditoria(periodo: Periodo): Promise<Result<ItemDaAuditoria[]>>;

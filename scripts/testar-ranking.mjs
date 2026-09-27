@@ -83,7 +83,19 @@ checar('ordinal', R.ordinal(3) === '3º');
   const tudo = R.requisitosDaVenda(venda, ctx);
   checar('checklist: venda completa cumpre tudo', tudo.every((r) => r.ok), JSON.stringify(tudo.filter((r) => !r.ok)));
   const falta = (v, c) => R.requisitosDaVenda({ ...venda, ...v }, { ...ctx, ...c }).filter((r) => !r.ok).map((r) => r.rotulo);
-  checar('checklist: sem comprovante aponta o comprovante', falta({}, { temComprovante: false, situacao: 'sem_comprovante' }).join() === 'Comprovante anexado');
+  checar('checklist: sem comprovante aponta o comprovante de pagamento do sinal',
+    falta({}, { temComprovante: false, situacao: 'sem_comprovante' }).join('|') ===
+      'Comprovante de pagamento do sinal anexado|Comprovante confere com a venda (data do pagamento e valor do sinal)');
+  const emAnalise = R.requisitosDaVenda(venda, { ...ctx, situacao: 'comprovante_em_analise' }).find((r) => /confere/.test(r.rotulo));
+  checar('checklist: comprovante em conferência fica pendente (nem ✓ nem ✕)', emAnalise && !emAnalise.ok && emAnalise.pendente === true);
+  checar('checklist: comprovante que não confere aponta data do pagamento e valor do sinal',
+    falta({}, { situacao: 'comprovante_nao_confere' }).join() === 'Comprovante confere com a venda (data do pagamento e valor do sinal)');
+  checar('situações novas têm texto para o corretor',
+    R.textoDaSituacao('comprovante_nao_confere').rotulo === 'Comprovante não confere com a venda' &&
+      R.textoDaSituacao('comprovante_em_analise').tom === 'pendente');
+  const regra = R.regraDoComprovante('2026-09-27', 4000).join(' ');
+  checar('a regra do comprovante diz a data da venda e o valor do sinal',
+    regra.includes('27/09/2026') && regra.includes('R$\u00a04.000,00') && /3 dias/.test(regra), regra);
   checar('checklist: CPF inválido aponta o CPF', falta({ clientCpf: '111.111.111-11' }, { situacao: 'dados_incompletos' }).join() === 'CPF do comprador válido');
   checar('checklist: sem unidade', falta({ unit: '' }, {}).join() === 'Empreendimento e unidade preenchidos');
   checar('checklist: valor fora da faixa', falta({ saleValue: 5000 }, {}).join() === 'Valor entre R$ 20 mil e R$ 20 milhões');

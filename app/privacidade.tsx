@@ -105,9 +105,9 @@ export default function PrivacyPolicyScreen() {
           tabelas de preço das construtoras)
         </Bullet>
         <Bullet>
-          <Bold>Comprovantes de venda</Bold> (contrato assinado ou comprovante da comissão) que você
-          anexa para a venda pontuar no ranking. Ficam privados: só você e a auditoria do POUP
-          acessam, e apenas para conferir a venda em caso de disputa ou contestação.
+          <Bold>Comprovantes de pagamento do sinal</Bold> que você anexa para a venda pontuar no
+          ranking. São conferidos com a data da venda e o valor do sinal da simulação. Ficam
+          privados: só você e a auditoria do POUP acessam, e apenas para conferir a venda.
         </Bullet>
         <Bullet>
           <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app, criou uma

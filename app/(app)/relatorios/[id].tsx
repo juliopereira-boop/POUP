@@ -673,6 +673,10 @@ function RegistrarVendaModal({
             </Text>
 
             <DateField label="Data da venda" value={saleDate} onChange={setSaleDate} />
+            <Text style={styles.sheetHint}>
+              Use a data do pagamento do sinal. Para a venda entrar no ranking, o comprovante de
+              pagamento do sinal precisa mostrar essa data e o valor do sinal desta simulação.
+            </Text>
             <Input
               label="Valor da venda"
               value={saleValue}

@@ -161,6 +161,15 @@ export default function AuditoriaDoRanking() {
                       {v.cliente} · {brl(v.valor)} · {dataBR(v.dataVenda)}
                       {v.decisao ? ` · decisão: ${v.decisao === 'valida' ? 'válida' : 'inválida'}` : ''}
                     </Text>
+                    {/* Só a auditoria vê: o sinal da simulação e o que saiu do comprovante. */}
+                    <Text style={styles.meta}>
+                      Sinal da simulação: {v.sinal != null ? brl(v.sinal) : '—'}
+                      {v.lidoDatas == null
+                        ? ' · comprovante ainda não conferido'
+                        : ` · no comprovante: datas ${v.lidoDatas.length ? v.lidoDatas.map(dataBR).join(', ') : '—'}; valores ${
+                            v.lidoValores?.length ? v.lidoValores.map(brl).join(', ') : '—'
+                          }${v.lidoPareceComprovante ? '' : ' · não parece comprovante de pagamento'}`}
+                    </Text>
                     <View style={styles.acoes}>
                       {v.comprovantePath ? (
                         <Pressable onPress={() => void abrirComprovante(v.comprovantePath as string)} hitSlop={6}>

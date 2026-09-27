@@ -174,7 +174,7 @@
         "expo-image-picker",
         {
           "cameraPermission": false,
-          "photosPermission": "O POUP permite selecionar fotos de empresas, imóveis, material de venda e do seu perfil para anexar aos cadastros.",
+          "photosPermission": "O POUP permite selecionar fotos de empresas, imóveis, material de venda, do seu perfil e o comprovante de pagamento do sinal das suas vendas para anexar aos cadastros.",
           "microphonePermission": false
         }
       ],

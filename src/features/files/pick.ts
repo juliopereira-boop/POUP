@@ -42,6 +42,8 @@ export interface PickedFile {
   body: UploadBody;
   contentType: string;
   size: number;
+  /** O arquivo no aparelho (`file://`), só no celular. Web: ausente. */
+  uri?: string;
 }
 
 interface PickOptions {
@@ -136,6 +138,7 @@ export async function pickFiles({ multiple = true, type = '*/*' }: PickOptions =
       body,
       contentType,
       size: asset.size ?? bodySize(body),
+      uri: isWeb ? undefined : asset.uri,
     });
   }
   return out;
@@ -213,6 +216,7 @@ async function fromGallery(square: boolean): Promise<PickedFile | null> {
     body,
     contentType,
     size: body.byteLength,
+    uri: asset.uri,
   };
 }
 

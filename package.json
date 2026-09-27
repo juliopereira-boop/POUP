@@ -36,9 +36,10 @@
     "testar:cerebro-lia": "node scripts/testar-cerebro-lia.mjs",
     "testar:tipografia": "node scripts/testar-tipografia.mjs",
     "testar:navegacao": "node scripts/testar-navegacao.mjs",
+    "testar:comprovante": "node scripts/testar-comprovante.mjs",
     "testar:notificacoes": "node scripts/testar-notificacoes.mjs",
     "testar:comissao": "node scripts/testar-comissao.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao && npm run testar:comissao && npm run testar:notificacoes",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao && npm run testar:comissao && npm run testar:notificacoes && npm run testar:comprovante",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {
@@ -66,6 +67,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
+    "expo-text-extractor": "2.0.0",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",
     "react-dom": "19.1.0",

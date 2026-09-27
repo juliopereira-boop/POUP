@@ -19,6 +19,8 @@ export type SituacaoDaVenda =
   | 'futura'
   | 'dados_incompletos'
   | 'sem_comprovante'
+  | 'comprovante_em_analise'
+  | 'comprovante_nao_confere'
   | 'duplicada'
   | 'em_disputa'
   | 'acima_do_teto'
@@ -38,6 +40,8 @@ export interface LinhaDoRanking {
 }
 
 export const TETO_MENSAL = 20;
+/** Quantos dias a data do pagamento do sinal pode ficar da data da venda. */
+export const DIAS_DE_DIFERENCA_NO_PAGAMENTO = 3;
 
 interface TextoDaSituacao {
   rotulo: string;
@@ -51,9 +55,22 @@ interface TextoDaSituacao {
 export const SITUACOES: Record<SituacaoDaVenda, TextoDaSituacao> = {
   conta: { rotulo: 'Pontuando no ranking', curto: 'pontuando', acao: null, tom: 'ok' },
   sem_comprovante: {
-    rotulo: 'Falta o comprovante',
+    rotulo: 'Falta o comprovante de pagamento do sinal',
     curto: 'sem comprovante',
-    acao: 'Anexe o contrato assinado ou o comprovante da comissão.',
+    acao: 'Anexe o comprovante de pagamento do sinal (Pix, transferência, boleto pago ou recibo).',
+    tom: 'pendente',
+  },
+  comprovante_em_analise: {
+    rotulo: 'Comprovante em conferência',
+    curto: 'com comprovante em conferência',
+    acao: 'O comprovante de pagamento do sinal está sendo conferido com a data da venda e o valor do sinal.',
+    tom: 'pendente',
+  },
+  comprovante_nao_confere: {
+    rotulo: 'Comprovante não confere com a venda',
+    curto: 'com comprovante que não confere',
+    acao:
+      'O comprovante de pagamento do sinal precisa mostrar a data do pagamento (a mesma da venda) e o valor do sinal da simulação. Confira a data da venda ou envie o comprovante certo, inteiro e legível.',
     tom: 'pendente',
   },
   dados_incompletos: {
@@ -128,8 +145,35 @@ export interface VendaParaRanking {
 export interface Requisito {
   rotulo: string;
   ok: boolean;
+  /** Ainda não dá para dizer (ex.: comprovante em conferência). */
+  pendente?: boolean;
   /** O que fazer quando não está ok. */
   dica: string;
+}
+
+function brl(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** "27/09/2026" a partir de "2026-09-27". */
+function dataBR(ymd: string): string {
+  const [a, m, d] = ymd.split('-');
+  return a && m && d ? `${d}/${m}/${a}` : ymd;
+}
+
+/**
+ * A REGRA DO COMPROVANTE, para o corretor ler antes de anexar. Diz o que o
+ * arquivo precisa MOSTRAR — não como é conferido.
+ */
+export function regraDoComprovante(saleDate: string, sinal: number | null): string[] {
+  return [
+    'O arquivo é o comprovante de pagamento do sinal: Pix, transferência, boleto pago ou recibo — em PDF, print ou foto.',
+    `Ele precisa mostrar a data do pagamento: a mesma da venda (${dataBR(saleDate)}), com até ${DIAS_DE_DIFERENCA_NO_PAGAMENTO} dias de diferença.`,
+    sinal != null && sinal > 0
+      ? `E o valor pago: o valor do sinal da simulação, ${brl(sinal)}.`
+      : 'E o valor pago: o valor do sinal (ato) da simulação desta venda.',
+    'Com a data e o valor fechando com a venda, ela está comprovada e entra no ranking.',
+  ];
 }
 
 /**
@@ -171,9 +215,21 @@ export function requisitosDaVenda(
       dica: 'Edite a venda e confira o valor.',
     },
     {
-      rotulo: 'Comprovante anexado',
+      rotulo: 'Comprovante de pagamento do sinal anexado',
       ok: ctx.temComprovante,
-      dica: 'Anexe o contrato assinado ou o comprovante da comissão (PDF ou foto).',
+      dica: 'Anexe o comprovante de pagamento do sinal (PDF, print ou foto da galeria).',
+    },
+    {
+      rotulo: 'Comprovante confere com a venda (data do pagamento e valor do sinal)',
+      ok:
+        ctx.temComprovante &&
+        ctx.situacao !== 'comprovante_em_analise' &&
+        ctx.situacao !== 'comprovante_nao_confere' &&
+        ctx.situacao !== 'sem_comprovante',
+      pendente: ctx.temComprovante && ctx.situacao === 'comprovante_em_analise',
+      dica: ctx.temComprovante && ctx.situacao === 'comprovante_em_analise'
+        ? 'Em conferência.'
+        : `A data do pagamento precisa ser a da venda (até ${DIAS_DE_DIFERENCA_NO_PAGAMENTO} dias de diferença) e o valor pago, o do sinal da simulação.`,
     },
     {
       rotulo: 'Unidade e comprador só nesta conta',
