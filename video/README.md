@@ -1,13 +1,15 @@
 # Vídeo publicitário do POUP (Remotion)
 
-30 s · 1080×1920 (9:16, Reels/Stories/Status) · 30 fps · áudio sintetizado.
+45 s · 1080×1920 (9:16, Reels/Stories/Status) · 30 fps · áudio sintetizado.
+
+> O método completo virou skill: `.claude/skills/video-publicitario-remotion/`.
 
 ```bash
 cd video
 npm install
 npm run audio     # gera public/audio/*.wav (trilha e efeitos)
 npm run studio    # abre o editor do Remotion no navegador
-npm run render    # out/poup-anuncio.mp4
+npm run render    # out/poup-anuncio.mp4 (45 s)
 npm run stills -- 340 345 348 355   # quadros soltos em out/stills
 ```
 
@@ -37,12 +39,24 @@ R$ 3.200, parcela R$ 958,40 (dentro de 30% da renda). Sem taxa, sem nome de banc
 | Quadros | Cena | Arquivo |
 |---|---|---|
 | 0–75 | Hook: pergunta digitada, cursor, tique do relógio | `src/cenas/Hook.tsx` |
-| 75–300 | Sofrimento: papel, planilha travada, calculadora, cliente esfriando, relógio; cortes de 30 → 15 quadros na batida; frio e dessaturado; tremor crescendo | `src/cenas/Sofrimento.tsx` |
-| 300–345 | Congela no relógio, "E se levasse segundos?", música corta em 4 quadros, escurece | `src/cenas/Drop.tsx` |
-| **345** | **DROP**: clarão, onda de choque, o "antes" explode, o laranja invade, ícone com mola de overshoot | `src/cenas/Drop.tsx` |
-| 360–660 | Solução no celular 3D: simular → PDF no WhatsApp → Relatórios (papéis varridos) | `src/cenas/Solucao.tsx` |
-| 660–780 | Prova: Antes (cinza) × Agora (laranja), a direita empurra a esquerda | `src/cenas/Prova.tsx` |
-| 780–900 | CTA: ícone, "Simule rápido. Venda mais.", botão pulsando na batida, endereço; 885–900 parado | `src/cenas/Cta.tsx` |
+| 75–300 | Sofrimento: papel, planilha travada, calculadora, cliente esfriando, relógio | `src/cenas/Sofrimento.tsx` |
+| 300–345 | Congela, "E se levasse segundos?", música corta, escurece | `src/cenas/Drop.tsx` |
+| **345** | **DROP** | `src/cenas/Drop.tsx` |
+| 360–1110 | **Uso do app** — um celular só, o dia do corretor (quadros em `src/roteiro.ts`) | `src/cenas/UsoDoApp.tsx` + `src/telas/*` |
+| 1110–1230 | Prova: Antes (cinza) × Agora (laranja) | `src/cenas/Prova.tsx` |
+| 1230–1350 | CTA; 1335–1350 parado | `src/cenas/Cta.tsx` |
+
+### O uso do app (capítulos)
+
+| Quadros | Tela do app | O que acontece |
+|---|---|---|
+| 360–470 | Simular financiamento → Resultado | seis campos digitados, "Ver resultado completo", cartões, "✓ Cabe na renda", **"Levar para o simulador de vendas"** |
+| 470–620 | Simulador de vendas | **"Usar tabela de preço"** → Bloco 2 → unidade 301 (preço da tabela); a **LIA** recebe a frase da negociação e preenche financiamento, subsídio, FGTS, ato e mensais; parcela rola; "Dentro do risco (20%)" |
+| 620–720 | Unidade e cliente → WhatsApp | "Gerar proposta"; o PDF voa para a conversa; ✓✓ azul; "Perfeito! Vamos fechar 🙌" |
+| 720–810 | Calendário + LIA → tela bloqueada | "Agendar compromisso": "visita ao decorado com a Ana amanhã às 15h" → agendado; no dia, a notificação "Em 1 hora: Visita ao decorado" |
+| 810–910 | Registrar venda → Controle de Comissão | comissão já calculada pela regra (House 4%); TOTAL A RECEBER sobe |
+| 910–1000 | Ranking POUP | "Você" sobe de 5º para 2º (▲ 3) |
+| 1000–1110 | Relatórios | filtro por empreendimento; os papéis do "antes" voltam e são varridos — "Adeus, papel." |
 
 A regra de cor é o conceito: **nada da marca antes do 345, nada frio depois**
 (fora o lado "Antes" da prova). As cores estão em `src/tema.ts`.

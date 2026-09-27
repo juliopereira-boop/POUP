@@ -1,5 +1,5 @@
 /**
- * 6. CTA (780–900): fundo na cor da marca, ícone, "Simule rápido. Venda mais.",
+ * 6. CTA (1230–1350): fundo na cor da marca, ícone, "Simule rápido. Venda mais.",
  * botão pulsando na batida e o endereço. Os últimos 15 quadros ficam parados.
  */
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
@@ -9,8 +9,8 @@ import { faixa } from '../util';
 
 /** O CTA (o briefing não trouxe: confirme o texto e o endereço). */
 export const CTA = { botao: 'Teste grátis', endereco: 'poupgestao.com' };
-/** Último pulso na batida do acorde final (quadro 870); de 885 a 900, parado. */
-export const ULTIMO_PULSO = 870;
+/** Último pulso na batida do acorde final (30 quadros antes do fim); os últimos 15 ficam parados. */
+export const ULTIMO_PULSO = Q.fim - 30;
 
 export const Cta: React.FC = () => {
   const f = useCurrentFrame();

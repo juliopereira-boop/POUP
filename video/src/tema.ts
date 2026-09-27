@@ -6,7 +6,7 @@
 export const FPS = 30;
 export const LARGURA = 1080;
 export const ALTURA = 1920;
-export const DURACAO = 900;
+export const DURACAO = 1350; // 45 s
 
 /** Os quadros do roteiro. */
 export const Q = {
@@ -16,11 +16,9 @@ export const Q = {
   escuro: 330,
   drop: 345,
   solucao: 360,
-  whatsapp: 460,
-  relatorios: 560,
-  prova: 660,
-  cta: 780,
-  fim: 900,
+  prova: 1110,
+  cta: 1230,
+  fim: 1350,
 } as const;
 
 /** 120 BPM: uma batida a cada 15 quadros, contando do drop. */

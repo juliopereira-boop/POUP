@@ -263,9 +263,9 @@ const BATIDA = 0.5; // 120 BPM
   salvar('trilha-tensa.wav', x);
 }
 
-// ---------------- drop: quadro 345 → 900 (18,5 s). Dó maior, energética.
+// ---------------- drop: quadro 345 → 1350 (33,5 s). Dó maior, energética.
 {
-  const seg = 18.6;
+  const seg = 33.7;
   const x = buf(seg);
   const compasso = BATIDA * 4;
   // C – G – Am – F (acordes em MIDI)
@@ -276,10 +276,11 @@ const BATIDA = 0.5; // 120 BPM
     [53, 57, 60, 65],
   ];
   const baixos = [36, 43, 45, 41];
-  const fimMusica = 17.5; // último acorde no quadro 870; depois, cauda até o 900
+  const fimMusica = 32.5; // último acorde no quadro 1320; depois, cauda até o 1350
   for (let c = 0; c * compasso < fimMusica; c++) {
     const t0 = c * compasso;
-    const i = c % 4;
+    // Compassos 8–11 trocam a ordem (Am F C G): variação no meio do uso do app.
+    const i = c >= 8 && c < 12 ? [2, 3, 0, 1][c % 4] : c % 4;
     for (let b = 0; b < 4; b++) {
       const t = t0 + b * BATIDA;
       if (t >= fimMusica) break;
@@ -306,6 +307,8 @@ const BATIDA = 0.5; // 120 BPM
       }
     }
   }
+  // Rufo de caixa subindo para a prova (quadro 1080 → 1110).
+  for (let t = 24.5, k = 0; t < 25.5; t += BATIDA / 4, k++) misturar(x, palma(), t, 0.15 + k * 0.03);
   // Final: acorde de Dó com cauda longa e um bumbo.
   const final = buf(1.6);
   for (const n of [48, 60, 64, 67, 72, 76]) misturar(final, serra(hz(n), 1.6, { queda: 1.6, corte: 3500, vozes: 3 }), 0, 0.2);

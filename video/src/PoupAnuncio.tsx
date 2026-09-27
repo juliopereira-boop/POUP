@@ -1,13 +1,16 @@
 /**
- * O ANÚNCIO DO POUP — 30 s, 1080×1920, 30 fps.
+ * O ANÚNCIO DO POUP — 45 s, 1080×1920, 30 fps.
  *
  *   0–75     hook           tela preta, pergunta digitada, relógio
  *   75–300   sofrimento     papel, planilha, conta refeita, cliente esfriando
  *   300–345  silêncio       congela, "E se levasse segundos?", escurece
  *   345      DROP           clarão, explosão, a marca invade, ícone com mola
- *   360–660  solução        simular → PDF no WhatsApp → relatórios
- *   660–780  prova          antes: horas × agora: segundos
- *   780–900  CTA
+ *   360–1110 uso do app     financiamento → simulador de vendas + tabela +
+ *                           LIA → proposta no WhatsApp → LIA agenda +
+ *                           notificação → venda e comissão → ranking →
+ *                           relatórios (ver roteiro.ts)
+ *   1110–1230 prova         antes: horas × agora: segundos
+ *   1230–1350 CTA
  *
  * O áudio é todo sintetizado (`npm run audio`), a 120 BPM.
  */
@@ -17,20 +20,8 @@ import { Cta } from './cenas/Cta';
 import { Drop } from './cenas/Drop';
 import { Hook } from './cenas/Hook';
 import { EMPURRA, Prova } from './cenas/Prova';
-import {
-  CARTOES_EM,
-  INICIO_CAMPO,
-  ITENS_EM,
-  PAPEIS_VOLTAM,
-  PDF_VOA,
-  RESPOSTA_EM,
-  SELO_EM,
-  Solucao,
-  TOQUE_FILTRO,
-  TOQUE_PDF,
-  TOQUE_SIMULAR,
-  VARRE,
-} from './cenas/Solucao';
+import { UsoDoApp } from './cenas/UsoDoApp';
+import { C, T } from './roteiro';
 import { CORTES, fimDoCorte, Sofrimento, teclaDoQuadro } from './cenas/Sofrimento';
 import { DURACAO, Q } from './tema';
 
@@ -109,20 +100,34 @@ function efeitos(): Evento[] {
   });
   lista.push({ som: 'reverso', em: Q.drop - DURACAO_SOM.reverso, volume: 0.12 });
   lista.push({ som: 'impacto', em: Q.drop, volume: 1 });
-  // Solução.
+  // O uso do app: cada toque, cada campo preenchido, cada aviso.
   const S = Q.solucao;
-  for (let k = 0; k < 6; k++) for (const d of [0, 3, 6]) lista.push({ som: 'tecla', em: S + INICIO_CAMPO(k) + d, volume: 0.22 });
-  lista.push({ som: 'clique-ui', em: S + TOQUE_SIMULAR, volume: 0.9 });
-  for (const c of CARTOES_EM) lista.push({ som: 'pop', em: S + c, volume: 0.7 });
-  lista.push({ som: 'pop', em: S + SELO_EM, volume: 0.9 });
-  lista.push({ som: 'clique-ui', em: S + TOQUE_PDF, volume: 0.9 });
-  lista.push({ som: 'whoosh', em: S + PDF_VOA[0], volume: 0.9 });
-  lista.push({ som: 'pop', em: S + PDF_VOA[1], volume: 0.6 });
-  lista.push({ som: 'ding-positivo', em: S + RESPOSTA_EM, volume: 0.85 });
-  for (let k = 0; k < 7; k++) lista.push({ som: 'pop', em: S + ITENS_EM(k), volume: 0.4 });
-  lista.push({ som: 'clique-ui', em: S + TOQUE_FILTRO, volume: 0.9 });
-  lista.push({ som: 'papel', em: S + PAPEIS_VOLTAM[0], volume: 0.5 });
-  lista.push({ som: 'whoosh', em: S + VARRE[0], volume: 1 });
+  const em = (q: number) => S + q;
+  for (let k = 0; k < 6; k++) for (const d of [0, 3]) lista.push({ som: 'tecla', em: em(T.campo(k) + d), volume: 0.2 });
+  const toques = [T.simular, T.levarParaVendas, T.usarTabela, T.bloco, T.unidade, T.liaAbre, T.gerarProposta, T.liaAgenda, T.registrar, T.filtro];
+  for (const q of toques) lista.push({ som: 'clique-ui', em: em(q), volume: 0.9 });
+  for (const q of T.cartoes) lista.push({ som: 'pop', em: em(q), volume: 0.65 });
+  lista.push({ som: 'pop', em: em(T.selo), volume: 0.9 });
+  lista.push({ som: 'whoosh', em: em(T.usarTabela + 2), volume: 0.35 });
+  for (let k = 0; k < 12; k += 3) lista.push({ som: 'pop', em: em(T.bloco + 3 + k), volume: 0.3 });
+  lista.push({ som: 'pop', em: em(T.unidade + 4), volume: 0.8 });
+  for (let q = T.liaTexto; q < T.liaAnalisa - 2; q += 3) lista.push({ som: 'tecla', em: em(q), volume: 0.16 });
+  for (let k = 0; k < 5; k++) lista.push({ som: 'pop', em: em(T.preenche(k)), volume: 0.55 });
+  lista.push({ som: 'ding-positivo', em: em(T.riscoOk), volume: 0.6 });
+  lista.push({ som: 'whoosh', em: em(T.pdfVoa[0]), volume: 0.9 });
+  lista.push({ som: 'pop', em: em(T.pdfVoa[1]), volume: 0.6 });
+  lista.push({ som: 'ding-positivo', em: em(T.resposta), volume: 0.85 });
+  for (let q = T.agendaTexto; q < T.agendado - 4; q += 3) lista.push({ som: 'tecla', em: em(q), volume: 0.16 });
+  lista.push({ som: 'pop', em: em(T.agendado), volume: 0.8 });
+  lista.push({ som: 'notificacao', em: em(T.notificacao), volume: 0.9 });
+  lista.push({ som: 'pop', em: em(T.comissaoCalc[0]), volume: 0.7 });
+  for (let q = T.totalRola[0]; q < T.totalRola[1]; q += 4) lista.push({ som: 'tecla', em: em(q), volume: 0.18 });
+  lista.push({ som: 'ding-positivo', em: em(T.totalRola[1]), volume: 0.7 });
+  lista.push({ som: 'whoosh', em: em(T.sobe[0]), volume: 0.8 });
+  lista.push({ som: 'impacto-medio', em: em(T.sobe[1]), volume: 0.55 });
+  for (let k = 0; k < 7; k++) lista.push({ som: 'pop', em: em(T.itens(k)), volume: 0.4 });
+  lista.push({ som: 'papel', em: em(T.papeisVoltam[0]), volume: 0.5 });
+  lista.push({ som: 'whoosh', em: em(T.varre[0]), volume: 1 });
   // Prova.
   lista.push({ som: 'whoosh', em: Q.prova, volume: 0.8 });
   lista.push({ som: 'whoosh', em: Q.prova + EMPURRA[0], volume: 0.9 });
@@ -142,8 +147,8 @@ export const PoupAnuncio: React.FC = () => (
     <Sequence from={Q.sofrimento} durationInFrames={Q.congela - Q.sofrimento} name="2 Sofrimento">
       <Sofrimento />
     </Sequence>
-    <Sequence from={Q.solucao} durationInFrames={Q.prova - Q.solucao} name="4 Solução">
-      <Solucao />
+    <Sequence from={Q.solucao} durationInFrames={C.fim} name="4 Uso do app">
+      <UsoDoApp />
     </Sequence>
     {/* O drop por cima do começo da solução: o ícone sobe e revela o celular. */}
     <Sequence from={Q.congela} durationInFrames={368 - Q.congela} name="3 Silêncio + DROP">
@@ -172,7 +177,7 @@ export const PoupAnuncio: React.FC = () => (
     <Sequence from={Q.drop} durationInFrames={DURACAO - Q.drop} name="♫ drop">
       <Audio
         src={staticFile('audio/trilha-drop.wav')}
-        volume={(f) => interpolate(f + Q.drop, [Q.drop, 880, DURACAO], [0.7, 0.7, 0.25], { extrapolateRight: 'clamp' })}
+        volume={(f) => interpolate(f + Q.drop, [Q.drop, DURACAO - 20, DURACAO], [0.7, 0.7, 0.25], { extrapolateRight: 'clamp' })}
       />
     </Sequence>
     {EFEITOS.map((e, i) => (
