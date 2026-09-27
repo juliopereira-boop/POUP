@@ -236,6 +236,34 @@ secao('USAR TABELA DE PREÇO — a escolha vai inteira para a simulação');
   checar('regras de construtora ausente voltam ao padrão', E.regrasDaConstrutora(undefined).companyRisk === null && E.regrasDaConstrutora(undefined).companyCoincide === true);
 }
 
+secao('Risco da construtora: o que passa vira ato');
+{
+  // 250 mil − 180 − 20 − 10 = 40 mil de poupança; ato de 4 mil → 36 mil depois do ato = 14,4%.
+  const r = C.analisarRisco(completa({ companyRisk: 10 }));
+  checar('risco é a poupança depois do ato', Math.abs(r.pctAtual - 14.4) < 1e-9 && r.valorEmRisco === 36000, JSON.stringify(r));
+  checar('fora do risco mostra quantos pontos passou', !r.dentro && Math.abs(r.excessoPct - 4.4) < 1e-9, String(r.excessoPct));
+  checar('fora do risco mostra quantos reais passou', r.excessoValor === 11000, String(r.excessoValor));
+  checar('ato mínimo = ato + o excedente', r.atoMinimo === 15000, String(r.atoMinimo));
+  const bloqueio = P.pendenciasDosValores(completa({ companyRisk: 10 }));
+  checar('acima do risco vira pendência no bloco de valores',
+    bloqueio.some((p) => p.bloco === 1 && /risco/.test(p.mensagem) && /11\.000,00/.test(p.mensagem) && /15\.000,00/.test(p.mensagem)),
+    JSON.stringify(bloqueio));
+
+  const corrigido = completa({ companyRisk: 10, ato: brl(r.atoMinimo) });
+  const r2 = C.analisarRisco(corrigido);
+  checar('somando ao ato, fica exatamente no limite', r2.dentro && Math.abs(r2.pctAtual - 10) < 1e-9 && r2.excessoValor === 0, JSON.stringify(r2));
+  checar('somando ao ato, a pendência some', !P.pendenciasDosValores(corrigido).some((p) => /risco/.test(p.mensagem)));
+  checar('somando ao ato, a mensal cai', C.buildFlow(corrigido).monthlyValue < C.buildFlow(completa({ companyRisk: 10 })).monthlyValue);
+
+  const centavo = completa({ companyRisk: 10, ato: brl(r.atoMinimo - 0.01) });
+  checar('um centavo acima ainda é fora do risco', !C.analisarRisco(centavo).dentro && C.analisarRisco(centavo).excessoValor === 0.01);
+
+  const semLimite = C.analisarRisco(completa());
+  checar('construtora sem risco cadastrado: não se aplica', !semLimite.aplica && semLimite.dentro);
+  checar('sem valor de venda: não se aplica', !C.analisarRisco(completa({ companyRisk: 10, unitValue: '' })).aplica);
+  checar('dentro do risco: sem excedente', C.analisarRisco(completa({ companyRisk: 20 })).dentro && C.analisarRisco(completa({ companyRisk: 20 })).atoMinimo === 4000);
+}
+
 console.log(`\n${ok} passaram, ${falhas.length} falharam`);
 for (const f of falhas) console.log(`  FALHOU: ${f}`);
 process.exit(falhas.length ? 1 : 0);

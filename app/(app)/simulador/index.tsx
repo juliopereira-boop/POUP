@@ -45,7 +45,8 @@ import { CascoSimulador } from '@/components/simulador/CascoSimulador';
 import { EtapasSimulador } from '@/components/simulador/EtapasSimulador';
 import { EscolherUnidadeDaTabela } from '@/components/simulador/EscolherUnidadeDaTabela';
 import { ResumoPoupanca } from '@/components/simulador/ResumoPoupanca';
-import { buildFlow, formatDateBR } from '@/features/simulador/calc';
+import { AvisoDeRisco } from '@/components/simulador/AvisoDeRisco';
+import { analisarRisco, buildFlow, formatDateBR } from '@/features/simulador/calc';
 import {
   INITIAL_SIMULADOR_STATE,
   SEM_UNIDADE,
@@ -75,6 +76,7 @@ export default function SimuladorValores() {
   const router = useRouter();
   const sim = useSimulador();
   const flow = useMemo(() => buildFlow(sim), [sim]);
+  const risco = useMemo(() => analisarRisco(sim, flow), [sim, flow]);
 
   const [tabelaAberta, setTabelaAberta] = useState(false);
   const [avisoCupom, setAvisoCupom] = useState(false);
@@ -267,6 +269,10 @@ export default function SimuladorValores() {
           />
         </View>
       </View>
+      <AvisoDeRisco
+        risco={risco}
+        onSomarAoAto={() => sim.setField('ato', formatCurrencyBRL(String(Math.round(risco.atoMinimo * 100))))}
+      />
 
       <View style={styles.row}>
         <View style={styles.col}>

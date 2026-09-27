@@ -14,8 +14,9 @@
  * ===========================================================================
  * NENHUMA REGRA NOVA — COM UMA EXCEÇÃO
  * ===========================================================================
- * Tudo aqui já era exigido pelas cinco telas antigas. A única regra nova é a
- * parcela negativa: se ato, semestrais e anuais somam mais que a poupança, a
+ * Tudo aqui já era exigido pelas cinco telas antigas. As regras novas são o
+ * RISCO (o que passa do risco da construtora precisa ir para o ato — ver
+ * `analisarRisco`) e a parcela negativa: se ato, semestrais e anuais somam mais que a poupança, a
  * mensal sai negativa — e a proposta impressa mostraria "12 × −R$ 800,00" para
  * o cliente. Antes isso passava.
  *
@@ -24,7 +25,7 @@
  * ANTES da escolha da construtora, o corretor pode ter digitado 120 parcelas
  * para uma construtora que aceita 60 — e isso só aparece quando ele escolhe.
  */
-import { buildFlow } from './calc';
+import { analisarRisco, buildFlow } from './calc';
 import type { Proponent, SimuladorState } from './estado';
 import { currencyToNumber } from '@/lib/masks';
 
@@ -45,6 +46,10 @@ export function proponenteCompleto(p: Proponent): boolean {
   return Boolean(
     p.name.trim() && p.cpf.trim() && p.email.trim() && p.contact.trim() && p.rendaBruta.trim(),
   );
+}
+
+function brl(n: number): string {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function inteiro(texto: string): number {
@@ -81,6 +86,15 @@ export function pendenciasDosValores(sim: SimuladorState): Pendencia[] {
 
   if (mensais > 0 && buildFlow(sim).monthlyValue < 0) {
     add('Ato, semestrais e anuais passam do valor da poupança: a parcela mensal ficaria negativa.');
+  }
+
+  // REGRA DO RISCO: o que passa do risco da construtora vai para o ato.
+  const risco = analisarRisco(sim);
+  if (risco.aplica && !risco.dentro) {
+    add(
+      `Acima do risco da construtora (${risco.riscoPct}%): some ${brl(risco.excessoValor)} ao ato ` +
+        `(ato mínimo de ${brl(risco.atoMinimo)}).`,
+    );
   }
 
   return lista;

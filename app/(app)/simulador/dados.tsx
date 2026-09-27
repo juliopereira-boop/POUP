@@ -42,7 +42,8 @@ import { EtapasSimulador } from '@/components/simulador/EtapasSimulador';
 import { ProponenteCampos } from '@/components/simulador/ProponenteCampos';
 import { ResumoPoupanca } from '@/components/simulador/ResumoPoupanca';
 import { db, type Company, type Correspondent, type Development } from '@/data';
-import { computePoupanca } from '@/features/simulador/calc';
+import { AvisoDeRisco } from '@/components/simulador/AvisoDeRisco';
+import { analisarRisco } from '@/features/simulador/calc';
 import {
   pendencias,
   pendenciasDosValores,
@@ -164,8 +165,7 @@ export default function SimuladorDados() {
   const divergeDaTabela = precoTabela != null && Math.abs(precoTabela - valorInformado) >= 0.01;
 
   const faltaNosValores = pendenciasDosValores(sim);
-  const poupanca = computePoupanca(sim);
-  const pctPoupanca = valorInformado > 0 ? (poupanca / valorInformado) * 100 : 0;
+  const risco = analisarRisco(sim);
 
   // ------------------------------------------------------------ ações
 
@@ -411,12 +411,16 @@ export default function SimuladorDados() {
         </View>
       ) : null}
 
-      {sim.companyRisk != null && valorInformado > 0 ? (
-        <Text style={pctPoupanca <= sim.companyRisk ? styles.okTabela : styles.foraRisco}>
-          Poupança em {pctPoupanca.toFixed(1).replace('.', ',')}% do valor · risco da construtora:{' '}
-          {sim.companyRisk}%{pctPoupanca <= sim.companyRisk ? ' ✓' : ' — acima do permitido'}
+      {risco.aplica && risco.dentro ? (
+        <Text style={styles.okTabela}>
+          Risco em {risco.pctAtual.toFixed(1).replace('.', ',')}% do valor (poupança depois do ato) · risco da
+          construtora: {risco.riscoPct}% ✓
         </Text>
       ) : null}
+      <AvisoDeRisco
+        risco={risco}
+        onSomarAoAto={() => sim.setField('ato', paraCampo(risco.atoMinimo))}
+      />
 
       {/* ---------------------------------------------------------- cliente */}
       <Text style={styles.secao}>O cliente</Text>
@@ -546,12 +550,6 @@ const makeStyles = (colors: AppColors) =>
     okTabela: {
       ...typography.caption,
       color: colors.success,
-      marginTop: -spacing.sm,
-      marginBottom: spacing.lg,
-    },
-    foraRisco: {
-      ...typography.caption,
-      color: colors.danger,
       marginTop: -spacing.sm,
       marginBottom: spacing.lg,
     },

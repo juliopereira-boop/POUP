@@ -22,7 +22,7 @@ import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SlotNumber } from '@/components/SlotNumber';
-import { buildFlow, formatMonthYearBR } from '@/features/simulador/calc';
+import { analisarRisco, buildFlow, formatMonthYearBR } from '@/features/simulador/calc';
 import { useSimulador } from '@/features/simulador/SimuladorProvider';
 import { currencyToNumber } from '@/lib/masks';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
@@ -49,7 +49,7 @@ export function ResumoPoupanca({ compacto = false, onEditar }: Props) {
   const temConta = venda > 0;
   const temParcela = flow.mensaisCount > 0;
   const saldoFechado = Math.abs(flow.saldo) < 1;
-  const risco = sim.companyRisk;
+  const risco = useMemo(() => analisarRisco(sim, flow), [sim, flow]);
   const parcela = Math.max(0, flow.monthlyValue);
 
   if (compacto) {
@@ -80,9 +80,11 @@ export function ResumoPoupanca({ compacto = false, onEditar }: Props) {
         <Text style={styles.rotulo}>
           {temParcela ? `Parcela mensal · ${flow.mensaisCount}×` : 'Parcela mensal'}
         </Text>
-        {risco != null && temConta ? (
-          <Text style={[styles.chip, pct <= risco ? styles.chipOk : styles.chipRuim]}>
-            {pct <= risco ? `Dentro do risco (${risco}%)` : `Acima do risco (${risco}%)`}
+        {risco.aplica ? (
+          <Text style={[styles.chip, risco.dentro ? styles.chipOk : styles.chipRuim]}>
+            {risco.dentro
+              ? `Dentro do risco (${risco.riscoPct}%)`
+              : `Risco +${risco.excessoPct.toFixed(1).replace('.', ',')}% · ${brl(risco.excessoValor)}`}
           </Text>
         ) : null}
       </View>
@@ -99,6 +101,12 @@ export function ResumoPoupanca({ compacto = false, onEditar }: Props) {
           {temParcela && flow.mensalFirstDue ? ` · 1ª em ${formatMonthYearBR(flow.mensalFirstDue)}` : ''}
         </Text>
       </View>
+
+      {risco.aplica && !risco.dentro ? (
+        <Text style={[styles.chip, styles.chipRuim, styles.chipSolto]}>
+          Some {brl(risco.excessoValor)} ao ato (mínimo {brl(risco.atoMinimo)})
+        </Text>
+      ) : null}
 
       {temParcela && !saldoFechado ? (
         <Text style={[styles.chip, styles.chipRuim, styles.chipSolto]}>
