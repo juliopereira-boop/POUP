@@ -38,6 +38,7 @@ import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepositor
 import { SupabaseUnitRepository } from './supabase/SupabaseUnitRepository';
 import { SupabasePriceTableRepository } from './supabase/SupabasePriceTableRepository';
 import { SupabaseRankingRepository } from './supabase/SupabaseRankingRepository';
+import { comAvisoDeMudanca } from './mudancasDaAgenda';
 
 export interface DataLayer {
   auth: AuthRepository;
@@ -89,7 +90,8 @@ function createDataLayer(provider: Provider): DataLayer {
         financing: new SupabaseFinancingRepository(),
         material: new SupabaseMaterialRepository(),
         leads: new SupabaseLeadRepository(),
-        appointments: new SupabaseAppointmentRepository(),
+        // Toda mudança na agenda reagenda os lembretes do aparelho.
+        appointments: comAvisoDeMudanca(new SupabaseAppointmentRepository()),
         settings: new SupabaseSettingsRepository(),
         sales: new SupabaseSaleRepository(),
         commissions: new SupabaseCommissionRepository(),
@@ -102,6 +104,7 @@ function createDataLayer(provider: Provider): DataLayer {
 export const db: DataLayer = createDataLayer(ACTIVE_PROVIDER);
 
 export * from './types';
+export { ouvirMudancasDaAgenda } from './mudancasDaAgenda';
 export type {
   AnalyticsRepository,
   AppointmentRepository,

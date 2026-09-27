@@ -5,6 +5,7 @@ import { useRouter, type Href } from 'expo-router';
 import { openGuide } from '@/features/guide';
 
 import { Button } from '@/components/Button';
+import { ConfiguracoesDeNotificacao } from '@/components/ConfiguracoesDeNotificacao';
 import { DeleteAccountButton } from '@/components/DeleteAccountButton';
 import { InstallHowToModal, useInstallPrompt } from '@/components/InstallAppCard';
 import { ReportarProblema } from '@/components/ReportarProblema';
@@ -105,6 +106,9 @@ export default function ConfiguracoesScreen() {
           <ThemeToggle />
         </View>
       </View>
+
+      <Text style={styles.sectionLabel}>Notificações</Text>
+      <ConfiguracoesDeNotificacao />
 
       <Text style={styles.sectionLabel}>Ajuda</Text>
       <View style={styles.card}>

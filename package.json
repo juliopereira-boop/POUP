@@ -36,8 +36,9 @@
     "testar:cerebro-lia": "node scripts/testar-cerebro-lia.mjs",
     "testar:tipografia": "node scripts/testar-tipografia.mjs",
     "testar:navegacao": "node scripts/testar-navegacao.mjs",
+    "testar:notificacoes": "node scripts/testar-notificacoes.mjs",
     "testar:comissao": "node scripts/testar-comissao.mjs",
-    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao && npm run testar:comissao",
+    "test": "npm run testar:financiamento && npm run testar:lia && npm run testar:cerebro-lia && npm run testar:acesso-lia && npm run testar:limites && npm run testar:loja && npm run testar:planos && npm run testar:cobranca && npm run testar:nativo && npm run testar:seguranca && npm run testar:apple-web && npm run testar:release && npm run testar:unidades && npm run testar:simulador && npm run testar:tabela-preco && npm run testar:ranking && npm run testar:tipografia && npm run testar:navegacao && npm run testar:comissao && npm run testar:notificacoes",
     "validar:release": "npm run typecheck && npm run lint && npm run checar:funcoes && npm test"
   },
   "dependencies": {
@@ -57,6 +58,7 @@
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
+    "expo-notifications": "~0.32.17",
     "expo-print": "~15.0.8",
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",

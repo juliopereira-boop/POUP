@@ -10,6 +10,7 @@ import { OnboardingModal } from '@/components/OnboardingModal';
 import { WelcomeGuide } from '@/components/WelcomeGuide';
 import { useRastrearTela, useRegistrarRetorno } from '@/features/analytics/useRastreio';
 import { LiaProvider } from '@/features/lia/LiaProvider';
+import { useLembretesDaAgenda } from '@/features/notificacoes/useLembretesDaAgenda';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -32,6 +33,8 @@ export default function AppLayout() {
    */
   useRastrearTela();
   useRegistrarRetorno();
+  // Lembretes da agenda no celular (com som) — ver features/notificacoes.
+  useLembretesDaAgenda(user && isActive ? user.id : null);
 
   if (initializing || initialLoad) return <LoadingScreen />;
   if (!user) return <Redirect href="/(auth)/login" />;

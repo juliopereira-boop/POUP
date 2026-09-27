@@ -177,6 +177,12 @@
           "photosPermission": "O POUP permite selecionar fotos de empresas, imóveis, material de venda e do seu perfil para anexar aos cadastros.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF751F"
+        }
       ]
     ],
     "experiments": {
