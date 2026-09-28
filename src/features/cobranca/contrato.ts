@@ -37,3 +37,13 @@ export type AbrirCheckout = (plan: PlanTier) => Promise<Result<void>>;
 
 /** Leva o corretor ao portal onde ele mexe na assinatura já existente. */
 export type AbrirPortalDeCobranca = () => Promise<Result<void>>;
+
+/**
+ * Troca o plano de quem JÁ paga (Pro ↔ Start). Web: o portal abre direto na
+ * confirmação da troca. Loja: subir para o Pro é uma compra; descer para o
+ * Start é na página oficial de assinaturas da loja (vale na renovação).
+ */
+export type MudarDePlano = (para: PlanTier) => Promise<Result<void>>;
+
+/** Leva à confirmação do cancelamento (portal na web; página da loja no app). */
+export type CancelarAssinatura = () => Promise<Result<void>>;

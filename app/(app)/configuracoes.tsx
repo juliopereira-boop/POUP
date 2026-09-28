@@ -198,6 +198,12 @@ export default function ConfiguracoesScreen() {
 
       <Text style={styles.sectionLabel}>Assinatura</Text>
       <View style={styles.card}>
+        <NavRow
+          label="Planos"
+          subtitle="Ver os planos, assinar, fazer upgrade, mudar ou cancelar"
+          onPress={() => router.push('/(app)/planos')}
+        />
+        <Divider />
         <Row label="Plano" value={plan?.name ?? 'Não informado'} />
         <Divider />
         <Row label="Status" value={statusLabel} />

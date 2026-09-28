@@ -77,6 +77,7 @@ export default function AppLayout() {
             <Stack.Screen name="calendario" options={{ title: 'Calendário' }} />
             <Stack.Screen name="agendamentos/[id]" options={{ title: 'Agendamento' }} getId={porId} />
             <Stack.Screen name="campanhas" options={{ title: 'Período de teste' }} />
+            <Stack.Screen name="planos" options={{ title: 'Planos' }} />
             <Stack.Screen name="admin/catalogo" options={{ title: 'Catálogo do sistema' }} />
             <Stack.Screen name="admin/rastreabilidade" options={{ title: 'Rastreabilidade' }} />
             <Stack.Screen name="simuladores" options={{ title: 'Simulador' }} />

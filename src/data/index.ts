@@ -107,6 +107,7 @@ export * from './types';
 export { ouvirMudancasDaAgenda } from './mudancasDaAgenda';
 export type {
   AnalyticsRepository,
+  MudancaDePlanoInput,
   AppointmentRepository,
   AuthRepository,
   BillingRepository,

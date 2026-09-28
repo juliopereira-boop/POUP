@@ -136,10 +136,24 @@ export interface ProfileRepository {
  * A leitura continua igual nas duas: um app companion precisa saber se a
  * assinatura de quem abriu está ativa.
  */
+export interface MudancaDePlanoInput {
+  de: 'teste' | 'start' | 'pro' | 'nenhum';
+  para: 'start' | 'pro' | 'cancelar';
+  motivo: string;
+  comentario?: string | null;
+  plataforma: 'web' | 'ios' | 'android';
+}
+
 export interface BillingRepository {
   getSubscription(userId: string): Promise<Subscription | null>;
 
   getStorageUsedBytes(userId: string): Promise<number>;
+
+  /**
+   * Guarda o motivo de descer de plano ou cancelar (`mudancas_de_plano`).
+   * Falhar aqui não impede a mudança: é informação para o POUP, não trava.
+   */
+  registrarMudancaDePlano(input: MudancaDePlanoInput): Promise<Result<void>>;
 }
 
 /**

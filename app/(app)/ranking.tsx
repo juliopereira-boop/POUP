@@ -140,7 +140,7 @@ export default function RankingScreen() {
   const lugar = rotuloDoEscopo(escopo, profile?.cidade ?? null, profile?.uf ?? null);
 
   function conhecerOPro() {
-    if (canShowBilling) router.push({ pathname: '/paywall', params: { upgrade: '1' } });
+    if (canShowBilling) router.push('/(app)/planos');
     else setAviso('A participação no ranking está disponível para assinantes do plano Pro.');
   }
 

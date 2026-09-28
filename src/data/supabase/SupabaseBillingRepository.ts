@@ -10,8 +10,11 @@
  * O porquê completo está em `src/features/cobranca/abrirCobranca.native.ts`.
  */
 import { supabase } from '@/lib/supabase';
-import type { BillingRepository } from '../repositories';
+import type { BillingRepository, MudancaDePlanoInput } from '../repositories';
 import {
+  err,
+  ok,
+  type Result,
   type PlanTier,
   type BillingProvider,
   type Subscription,
@@ -69,5 +72,18 @@ export class SupabaseBillingRepository implements BillingRepository {
     const { data, error } = await supabase.rpc('user_storage_used', { uid: userId });
     if (error || data == null) return 0;
     return Number(data);
+  }
+
+  async registrarMudancaDePlano(input: MudancaDePlanoInput): Promise<Result<void>> {
+    const { error } = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<{ error: unknown }> } })
+      .from('mudancas_de_plano')
+      .insert({
+        de: input.de,
+        para: input.para,
+        motivo: input.motivo,
+        comentario: input.comentario?.trim() || null,
+        plataforma: input.plataforma,
+      });
+    return error ? err('Não foi possível registrar o motivo.') : ok(undefined);
   }
 }

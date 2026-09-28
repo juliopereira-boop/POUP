@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { err, ok } from '@/data/types';
 import { mensagemDoErro } from '@/lib/edgeError';
 
-import type { AbrirCheckout, AbrirPortalDeCobranca } from './contrato';
+import type { AbrirCheckout, AbrirPortalDeCobranca, CancelarAssinatura, MudarDePlano } from './contrato';
 
 /** A URL do Stripe é aberta AQUI, e não devolvida para a tela. Ver `contrato.ts`. */
 function irPara(url: string): void {
@@ -57,3 +57,21 @@ export const abrirPortalDeCobranca: AbrirPortalDeCobranca = async () => {
   irPara(url);
   return ok(undefined);
 };
+
+/** Portal já na confirmação: trocar de plano ou cancelar (ver a Edge Function). */
+async function portalCom(corpo: Record<string, string>, padrao: string) {
+  const { data, error } = await supabase.functions.invoke('create-billing-portal-session', {
+    body: { returnUrl: `${getAppUrl()}/planos`, ...corpo },
+  });
+  if (error) return err(await mensagemDoErro(error, padrao));
+  const url = (data as { url?: string })?.url;
+  if (!url) return err(padrao);
+  irPara(url);
+  return ok(undefined);
+}
+
+export const mudarDePlano: MudarDePlano = (para) =>
+  portalCom({ acao: 'trocar', plano: para }, 'Não foi possível abrir a troca de plano.');
+
+export const cancelarAssinatura: CancelarAssinatura = () =>
+  portalCom({ acao: 'cancelar' }, 'Não foi possível abrir o cancelamento.');

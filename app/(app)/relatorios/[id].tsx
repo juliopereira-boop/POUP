@@ -234,7 +234,7 @@ export default function SimulationDetailScreen() {
       // Fora das lojas, manda comparar os planos. Dentro delas isso seria
       // vender por fora, então sobra explicar — sem preço e sem link.
       if (canShowBilling) {
-        router.push({ pathname: '/paywall', params: { upgrade: '1' } });
+        router.push('/(app)/planos');
       } else {
         setNotice('O registro de vendas está disponível no plano Pro.');
       }

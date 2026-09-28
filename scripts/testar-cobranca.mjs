@@ -12,7 +12,7 @@ function fixture() {
     user: { id: 'owner', email: 'test@example.invalid', identities: [] },
     existing: null, dbError: null, rpcError: null, signatureError: false,
     sub: { id: 'sub_test', status: 'active', customer: 'cus_test', metadata: { supabase_user_id: 'owner' },
-      items: { data: [{ price: { id: 'price_pro' } }] }, current_period_end: 1800000000 },
+      items: { data: [{ id: 'si_test', price: { id: 'price_pro' } }] }, current_period_end: 1800000000 },
     event: { type: 'customer.subscription.updated', created: 100, data: { object: { id: 'sub_test', status: 'active' } } },
     price: { active: true, currency: 'brl', unit_amount: 5990, recurring: { interval: 'month', interval_count: 1 } },
     subscriptions: [], openSessions: [], calls: [], apple: null, storageCalls: 0,
@@ -31,6 +31,13 @@ function load(name, f) {
     checkout: { sessions: {
       list: async () => ({ data: f.openSessions }),
       create: async (data, options) => { f.calls.push(['checkout', data, options]); return { url: 'https://checkout.stripe.com/test' }; },
+    } },
+    billingPortal: { sessions: {
+      create: async (data) => {
+        f.calls.push(['portal', data]);
+        if (data.flow_data && f.portalFlowError) throw f.portalFlowError;
+        return { url: 'https://billing.stripe.com/test' };
+      },
     } },
     webhooks: { constructEventAsync: async () => { if (f.signatureError) throw new Error('signature'); return f.event; } },
   };
@@ -290,5 +297,49 @@ await test('Storage percorre subpastas antes de excluir usuário', async () => {
   assert.equal((await load('delete-account', f).call({ confirm: 'EXCLUIR' })).status, 200);
   const paths = f.calls.find(c => c[0] === 'remove')[1];
   assert.equal(paths.join(','), 'owner/arquivo.pdf,owner/pasta/foto.jpg');
+});
+// ---- Tela Planos: o portal já na troca de plano ou no cancelamento.
+const portal = (f) => JSON.parse(JSON.stringify(f.calls.filter(c => c[0] === 'portal').map(c => c[1])));
+await test('portal sem ação: o de sempre', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  const r = await load('create-billing-portal-session', f).call({ returnUrl: 'https://poup.example/planos' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(portal(f), [{ customer: 'cus_test', return_url: 'https://poup.example/planos' }]);
+});
+await test('trocar para o Start: portal já na confirmação, com o preço do Start', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  const r = await load('create-billing-portal-session', f).call({ returnUrl: 'https://poup.example/planos', acao: 'trocar', plano: 'start' });
+  assert.equal(r.status, 200);
+  const [s1] = portal(f);
+  assert.equal(s1.flow_data.type, 'subscription_update_confirm');
+  assert.deepEqual(s1.flow_data.subscription_update_confirm, { subscription: 'sub_test', items: [{ id: 'si_test', price: 'price_start', quantity: 1 }] });
+  assert.equal(s1.flow_data.after_completion.redirect.return_url, 'https://poup.example/planos');
+});
+await test('trocar para o plano em que já está: recusa', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  const r = await load('create-billing-portal-session', f).call({ acao: 'trocar', plano: 'pro' });
+  assert.equal(r.status, 409);
+  assert.equal(portal(f).length, 0);
+});
+await test('trocar para plano inválido: recusa', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  assert.equal((await load('create-billing-portal-session', f).call({ acao: 'trocar', plano: 'ouro' })).status, 400);
+});
+await test('cancelar: portal já na confirmação do cancelamento', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  await load('create-billing-portal-session', f).call({ acao: 'cancelar' });
+  assert.deepEqual(portal(f)[0].flow_data, { type: 'subscription_cancel', subscription_cancel: { subscription: 'sub_test' } });
+});
+await test('Stripe recusa o atalho: cai no portal de sempre (nunca fica sem caminho)', async () => {
+  const f = fixture(); f.existing = { stripe_customer_id: 'cus_test', stripe_subscription_id: 'sub_test' };
+  f.portalFlowError = new Error('flow not enabled');
+  const r = await load('create-billing-portal-session', f).call({ acao: 'cancelar' });
+  assert.equal(r.status, 200);
+  assert.equal(portal(f).length, 2);
+  assert.equal(portal(f)[1].flow_data, undefined);
+});
+await test('sem cliente no Stripe (teste gratuito): o portal responde que não há assinatura', async () => {
+  const f = fixture(); f.existing = null;
+  assert.equal((await load('create-billing-portal-session', f).call({ acao: 'cancelar' })).status, 404);
 });
 console.log(`\n${passed} cenários de cobrança/exclusão passaram (APIs simuladas).`);

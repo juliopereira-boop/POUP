@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, StyleSheet, Text } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
@@ -11,10 +11,12 @@ import { Select } from '@/components/Select';
 import type { TipoCorretor } from '@/data';
 import { formatCNPJ, formatCPF, formatPhone, isValidCPF } from '@/lib/masks';
 import { UF_OPTIONS } from '@/features/uf';
+import { estadoDaConta, resumoDaConta } from '@/features/planos/acoes';
+import { useSubscription } from '@/providers/SubscriptionProvider';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
-import { spacing, typography, type AppColors } from '@/theme';
+import { radius, spacing, typography, type AppColors } from '@/theme';
 import { voltar } from '@/lib/navegacao';
 
 export default function PerfilScreen() {
@@ -22,6 +24,8 @@ export default function PerfilScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
+  const { subscription, trialDaysLeft } = useSubscription();
+  const plano = resumoDaConta(estadoDaConta(subscription), trialDaysLeft);
 
   const [fullName, setFullName] = useState('');
   const [agency, setAgency] = useState('');
@@ -85,6 +89,22 @@ export default function PerfilScreen() {
   return (
     <Screen>
       <Text style={styles.email}>{user?.email}</Text>
+
+      {/* Meu plano: a tela Planos fica sempre a um toque, em qualquer situação. */}
+      <Pressable
+        onPress={() => router.push('/(app)/planos')}
+        style={({ pressed }) => [styles.plano, pressed && styles.planoPressionado]}
+        accessibilityRole="button"
+        accessibilityLabel={`Meu plano: ${plano.titulo}. Ver planos`}
+      >
+        <View style={styles.planoTextos}>
+          <Text style={styles.planoRotulo}>MEU PLANO</Text>
+          <Text style={styles.planoTitulo}>{plano.titulo}</Text>
+          <Text style={styles.planoDetalhe} numberOfLines={2}>{plano.detalhe}</Text>
+        </View>
+        <Text style={styles.planoAcao}>Ver planos ›</Text>
+      </Pressable>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Input label="Nome completo" value={fullName} onChangeText={setFullName} placeholder="Seu nome" autoCapitalize="words" />
@@ -144,6 +164,21 @@ const makeStyles = (colors: AppColors) =>
     rotuloTipo: { ...typography.label, color: colors.ink, marginBottom: spacing.xs },
     dicaTipo: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.xs, marginBottom: spacing.md },
     email: { ...typography.caption, color: colors.inkMuted, marginBottom: spacing.lg },
+    plano: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+    },
+    planoPressionado: { opacity: 0.7 },
+    planoTextos: { flex: 1, gap: 2 },
+    planoRotulo: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 1 },
+    planoTitulo: { ...typography.label, color: colors.ink },
+    planoDetalhe: { ...typography.caption, color: colors.inkMuted },
+    planoAcao: { ...typography.caption, color: colors.primary, fontWeight: '700' },
     hint: { ...typography.caption, color: colors.inkMuted, marginTop: -spacing.xs, marginBottom: spacing.md },
     cta: { marginTop: spacing.sm },
     error: {

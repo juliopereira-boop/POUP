@@ -236,6 +236,11 @@ function secao(t) {
     'src/data/repositories.ts',
     'app/paywall.tsx',
     'app/(app)/configuracoes.tsx',
+    'app/(app)/planos.tsx',
+    'app/(app)/perfil.tsx',
+    'src/components/planos/FluxoDeMudanca.tsx',
+    'src/components/planos/CartaoDePlano.tsx',
+    'src/features/planos/acoes.ts',
   ];
   for (const arquivo of COMPARTILHADOS) {
     const fonte = ler(arquivo);

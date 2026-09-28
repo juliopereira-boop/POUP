@@ -5,10 +5,12 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { AccountActions } from '@/components/AccountActions';
 import { InactiveAccountScreen } from '@/components/InactiveAccountScreen';
+import { LoadingScreen } from '@/components/Loading';
 import { Logo } from '@/components/Logo';
 import { Screen } from '@/components/Screen';
+import { CartaoDePlano } from '@/components/planos/CartaoDePlano';
 import { registrar } from '@/features/analytics/eventos';
-import { abrirCheckout, abrirPortalDeCobranca } from '@/features/cobranca/abrirCobranca';
+import { abrirCheckout } from '@/features/cobranca/abrirCobranca';
 import {
   loadStorePrices,
   purchaseStorePlan,
@@ -24,8 +26,8 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 export default function PaywallScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { user, signOut } = useAuth();
-  const { isActive, refresh, trialExpired, tier: currentTier, subscription } = useSubscription();
+  const { user, signOut, initializing } = useAuth();
+  const { isActive, refresh, trialExpired, initialLoad } = useSubscription();
   const { pending, upgrade } = useLocalSearchParams<{ pending?: string; upgrade?: string }>();
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [checkingAgain, setCheckingAgain] = useState(false);
@@ -42,18 +44,15 @@ export default function PaywallScreen() {
    * de passagem de quem já tem assinatura — e nesse caso ninguém olhou preço
    * nenhum, então não houve evento.
    */
-  const veriaOsPlanos = Boolean(user) && (!isActive || (upgrade === '1' && canShowBilling));
+  const veriaOsPlanos = Boolean(user) && !initialLoad && !isActive;
   useEffect(() => {
     if (veriaOsPlanos) {
       registrar('subscription_viewed', {
-        // Quem chegou por bloqueio de recurso é diferente de quem veio comparar
-        // planos por vontade própria — e a diferença muda o que fazer com o
-        // número.
-        etapa: upgrade === '1' ? 'upgrade' : trialExpired ? 'fim_do_teste' : 'sem_assinatura',
+        etapa: trialExpired ? 'fim_do_teste' : 'sem_assinatura',
         resultado: 'ok',
       });
     }
-  }, [veriaOsPlanos, upgrade, trialExpired]);
+  }, [veriaOsPlanos, trialExpired]);
 
   useEffect(() => {
     if (!usesNativeBilling || !veriaOsPlanos) return;
@@ -71,21 +70,13 @@ export default function PaywallScreen() {
     };
   }, [veriaOsPlanos]);
 
-  // `upgrade=1` deixa quem já tem assinatura ativa abrir a comparação de planos
-  // (é para onde os módulos exclusivos do Pro mandam o usuário do Start).
-  //
-  // No app das lojas esse modo não existe: comparar planos ali é vender. E
-  // desligá-lo aqui também conserta uma armadilha — sem isso, um assinante
-  // ATIVO do Start que tocasse em "fazer upgrade" cairia na tela de
-  // "assinatura não está ativa", que seria simplesmente falso. Com o modo
-  // desligado, ele volta para o app, que é o certo.
-  const upgradeMode = upgrade === '1' && canShowBilling;
-  const temAssinaturaStripe =
-    upgradeMode &&
-    subscription?.billingProvider === 'stripe' &&
-    (subscription.status === 'active' || subscription.status === 'past_due');
-
-  if (user && isActive && !upgradeMode) return <Redirect href="/(app)" />;
+  // O paywall é só para quem está SEM acesso. Quem tem acesso (teste, plano
+  // pago, acesso concedido) compara, assina, troca e cancela na tela Planos,
+  // dentro do app. `upgrade=1` é de links antigos: vai direto para lá.
+  // Aberto direto pelo endereço (link antigo, volta do checkout), a sessão
+  // ainda está carregando: sem esperar, mandaria quem está logado para o login.
+  if (initializing || (user && initialLoad)) return <LoadingScreen />;
+  if (user && isActive) return <Redirect href={upgrade === '1' ? '/(app)/planos' : '/(app)'} />;
   if (!user) return <Redirect href="/(auth)/login" />;
 
   async function checkAgain() {
@@ -113,12 +104,8 @@ export default function PaywallScreen() {
         return;
       }
 
-      // Na web, TROCAR de plano é no portal Stripe — mas só existe o que
-      // trocar para quem já paga pelo Stripe. Conta em teste gratuito (ou
-      // sem assinatura) que chega por "upgrade" ainda não tem cliente no
-      // Stripe: o portal responderia "Nenhuma assinatura encontrada". Essa
-      // conta assina pelo checkout, como qualquer primeira compra.
-      const result = temAssinaturaStripe ? await abrirPortalDeCobranca() : await abrirCheckout(plan.tier);
+      // Sem acesso, é sempre uma primeira compra (ou uma volta): checkout.
+      const result = await abrirCheckout(plan.tier);
       if (!result.ok) setError(result.error);
     } catch {
       setError('Não foi possível abrir a cobrança. Tente novamente.');
@@ -161,11 +148,7 @@ export default function PaywallScreen() {
     );
   }
 
-  const subtitle = trialExpired
-    ? 'Seu teste gratuito terminou'
-    : upgradeMode
-      ? 'Compare os planos e faça o upgrade'
-      : 'Escolha seu plano';
+  const subtitle = trialExpired ? 'Seu teste gratuito terminou' : 'Escolha seu plano';
 
   return (
     <Screen center>
@@ -206,9 +189,8 @@ export default function PaywallScreen() {
       <View style={styles.plans}>
         {PLAN_ORDER.map((tier) => {
           const plan = PLANS[tier];
-          const isCurrent = upgradeMode && isActive && currentTier === plan.tier;
           return (
-            <PlanCard
+            <CartaoDePlano
               key={plan.tier}
               plan={plan}
               priceLabel={
@@ -216,12 +198,13 @@ export default function PaywallScreen() {
                   ? (storePrices[plan.tier] ?? 'Preço indisponível')
                   : plan.priceLabel
               }
-              isCurrent={isCurrent}
+              rotulo={`Assinar o ${plan.name}`}
+              atual={false}
               loading={loadingTier === plan.tier}
               disabled={
                 loadingTier !== null || (usesNativeBilling && storePrices[plan.tier] === undefined)
               }
-              onSubscribe={() => subscribe(plan)}
+              onPress={() => subscribe(plan)}
             />
           );
         })}
@@ -238,20 +221,6 @@ export default function PaywallScreen() {
           variant="secondary"
           onPress={() => void restorePurchases()}
           loading={restoring}
-        />
-      ) : null}
-      {isActive ? (
-        <Button
-          label="Gerenciar assinatura"
-          variant="ghost"
-          onPress={async () => {
-            try {
-              const result = await abrirPortalDeCobranca();
-              if (!result.ok) setError(result.error);
-            } catch {
-              setError('Não foi possível abrir o portal de assinatura. Tente novamente.');
-            }
-          }}
         />
       ) : null}
       <View style={styles.footerActions}>
@@ -290,21 +259,12 @@ export default function PaywallScreen() {
         ) : null}
       </View>
 
-      {upgradeMode && isActive ? (
-        <Button
-          label="Voltar"
-          variant="ghost"
-          onPress={() => router.replace('/(app)')}
-          style={styles.signout}
-        />
-      ) : (
-        <Button
-          label="Sair"
-          variant="ghost"
-          onPress={() => setConfirmingSignOut(true)}
-          style={styles.signout}
-        />
-      )}
+      <Button
+        label="Sair"
+        variant="ghost"
+        onPress={() => setConfirmingSignOut(true)}
+        style={styles.signout}
+      />
 
       <Modal
         visible={confirmingSignOut}
@@ -331,67 +291,6 @@ export default function PaywallScreen() {
   );
 }
 
-function PlanCard({
-  plan,
-  priceLabel,
-  isCurrent,
-  loading,
-  disabled,
-  onSubscribe,
-}: {
-  plan: PlanConfig;
-  priceLabel: string;
-  isCurrent: boolean;
-  loading: boolean;
-  disabled: boolean;
-  onSubscribe: () => void;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  const missing = plan.features.filter((f) => !f.included);
-
-  return (
-    <View style={[styles.card, plan.highlighted && styles.cardHighlighted]}>
-      <View style={styles.cardHead}>
-        <View style={styles.cardHeadMain}>
-          <Text style={styles.planName}>{plan.name}</Text>
-          <Text style={styles.planTagline}>{plan.tagline}</Text>
-        </View>
-        {plan.highlighted ? (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Recomendado</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <Text style={styles.planPrice}>{priceLabel}</Text>
-
-      <View style={styles.features}>
-        {plan.features.map((f) => (
-          <View key={f.key} style={styles.feature}>
-            <Text style={f.included ? styles.check : styles.cross}>{f.included ? '✓' : '✕'}</Text>
-            <Text style={f.included ? styles.featureText : styles.featureTextOff}>{f.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      {missing.length > 0 ? (
-        <Text style={styles.missingNote}>
-          Não incluído no {plan.name}: {missing.map((f) => f.label).join(', ')}.
-        </Text>
-      ) : null}
-
-      <Button
-        label={isCurrent ? 'Seu plano atual' : 'Assinar'}
-        variant={plan.highlighted ? 'primary' : 'secondary'}
-        onPress={onSubscribe}
-        loading={loading}
-        disabled={isCurrent || (disabled && !loading)}
-        style={styles.cta}
-      />
-    </View>
-  );
-}
-
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     header: { alignItems: 'center', marginBottom: spacing.xl },
@@ -408,58 +307,6 @@ const makeStyles = (colors: AppColors) =>
       textAlign: 'center',
     },
     plans: { width: '100%', gap: spacing.lg },
-    card: {
-      width: '100%',
-      backgroundColor: colors.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.lg,
-    },
-    cardHighlighted: {
-      borderColor: colors.primary,
-      borderWidth: 2,
-    },
-    cardHead: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      gap: spacing.sm,
-    },
-    cardHeadMain: { flex: 1 },
-    badge: {
-      backgroundColor: colors.primarySoft,
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing.md,
-      paddingVertical: 4,
-    },
-    badgeText: { ...typography.caption, fontSize: 11, color: colors.primary, fontWeight: '700' },
-    planName: { ...typography.heading, color: colors.ink },
-    planTagline: { ...typography.caption, color: colors.inkMuted, marginTop: 2 },
-    planPrice: {
-      ...typography.title,
-      color: colors.primary,
-      marginTop: spacing.sm,
-      marginBottom: spacing.lg,
-    },
-    features: { gap: spacing.sm },
-    feature: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-    check: { color: colors.success, fontWeight: '700', fontSize: 13, lineHeight: 18 },
-    cross: { color: colors.inkSubtle, fontWeight: '700', fontSize: 13, lineHeight: 18 },
-    featureText: { ...typography.label, fontWeight: '400', color: colors.ink, flex: 1 },
-    featureTextOff: {
-      ...typography.label,
-      fontWeight: '400',
-      color: colors.inkSubtle,
-      textDecorationLine: 'line-through',
-      flex: 1,
-    },
-    missingNote: {
-      ...typography.caption,
-      color: colors.inkMuted,
-      marginTop: spacing.md,
-    },
-    cta: { marginTop: spacing.lg },
     fineprint: {
       ...typography.caption,
       color: colors.inkSubtle,

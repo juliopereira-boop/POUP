@@ -155,23 +155,23 @@ export default function HomeScreen() {
       <Screen>
         <Text style={styles.greeting}>Olá, {firstName}</Text>
 
-        {/* No app das lojas o aviso continua (o corretor precisa saber que o
-            teste está acabando), mas sem virar botão e sem "assinar": levar
-            para o paywall seria apontar o caminho da cobrança de fora. */}
+        {/* Leva à tela Planos (dentro do app). Antes ia para o paywall, que
+            devolvia quem ainda está no teste direto para cá: o toque parecia
+            não fazer nada. */}
         {trialDaysLeft != null ? (
           <Pressable
             style={styles.trialBanner}
-            onPress={canShowBilling ? () => router.push('/paywall') : undefined}
-            disabled={!canShowBilling}
+            onPress={() => router.push('/(app)/planos')}
+            accessibilityRole="button"
           >
             <Text style={styles.trialTitle}>
               {trialDaysLeft === 1
                 ? 'Último dia do seu teste gratuito'
                 : `Faltam ${trialDaysLeft} dias do seu teste gratuito`}
             </Text>
-            {canShowBilling ? (
-              <Text style={styles.trialText}>Toque para assinar e não perder o acesso.</Text>
-            ) : null}
+            <Text style={styles.trialText}>
+              {canShowBilling ? 'Toque para ver os planos e assinar.' : 'Toque para ver os planos.'}
+            </Text>
           </Pressable>
         ) : null}
 

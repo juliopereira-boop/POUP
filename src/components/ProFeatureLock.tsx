@@ -82,7 +82,7 @@ export function ProFeatureLock({ emoji, title, description, feature }: ProFeatur
         {canShowBilling ? (
           <Button
             label={`Assinar o plano ${alvo.name}`}
-            onPress={() => router.push({ pathname: '/paywall', params: { upgrade: '1' } })}
+            onPress={() => router.push('/(app)/planos')}
             style={styles.cta}
           />
         ) : null}
