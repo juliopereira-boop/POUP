@@ -116,67 +116,96 @@ export class SupabaseRankingRepository implements RankingRepository {
     return ok(undefined);
   }
 
-  // ---------------------------------------------------------------- comprovante
+  // ------------------------------------------ comprovante e documento do cliente
+  // Os dois anexos da venda moram no mesmo bucket sigiloso, em colunas próprias:
+  // `comprovante_*` (pagamento do sinal) e `documento_*` (documento do cliente).
 
-  async comprovante(saleId: string): Promise<Result<ComprovanteDaVenda | null>> {
+  private async lerAnexo(saleId: string, prefixo: 'comprovante' | 'documento'): Promise<Result<ComprovanteDaVenda | null>> {
     const { data, error } = await supabase
       .from('sales')
-      .select('comprovante_path, comprovante_nome, comprovante_enviado_em')
+      .select(`${prefixo}_path, ${prefixo}_nome, ${prefixo}_enviado_em`)
       .eq('id', saleId)
       .maybeSingle();
-    if (error) return err(migracaoAusente(error) ? MIGRACAO_PENDENTE : 'Não foi possível ler o comprovante.');
-    const r = data as { comprovante_path: string | null; comprovante_nome: string | null; comprovante_enviado_em: string | null } | null;
-    if (!r?.comprovante_path) return ok(null);
-    return ok({ path: r.comprovante_path, nome: r.comprovante_nome ?? 'comprovante', enviadoEm: r.comprovante_enviado_em });
+    if (error) return err(migracaoAusente(error) ? MIGRACAO_PENDENTE : 'Não foi possível ler o anexo.');
+    const r = data as Record<string, string | null> | null;
+    const path = r?.[`${prefixo}_path`];
+    if (!path) return ok(null);
+    return ok({ path, nome: r?.[`${prefixo}_nome`] ?? prefixo, enviadoEm: r?.[`${prefixo}_enviado_em`] ?? null });
   }
 
-  async anexarComprovante(
+  private async anexar(
     userId: string,
     saleId: string,
     arquivo: PickedFile,
-    anterior?: string,
+    anterior: string | undefined,
+    prefixo: 'comprovante' | 'documento',
   ): Promise<Result<ComprovanteDaVenda>> {
-    const path = `${userId}/${saleId}/${Date.now()}-${nomeSeguro(arquivo.name)}`;
+    const path = `${userId}/${saleId}/${prefixo === 'documento' ? 'doc-' : ''}${Date.now()}-${nomeSeguro(arquivo.name)}`;
     const { error: e1 } = await supabase.storage
       .from(BUCKET)
       .upload(path, arquivo.body, { contentType: arquivo.contentType || 'application/pdf', upsert: false });
     if (e1) {
       if (/bucket not found/i.test(e1.message)) return err(MIGRACAO_PENDENTE);
-      if (/mime|invalid.*type/i.test(e1.message)) return err('Envie o comprovante em PDF ou foto (JPG, PNG).');
+      if (/mime|invalid.*type/i.test(e1.message)) return err('Envie em PDF ou foto (JPG, PNG).');
       if (/exceeded|too large|maximum allowed size/i.test(e1.message)) return err('Arquivo grande demais. O limite é 15 MB.');
-      return err('Não foi possível enviar o comprovante. Tente de novo.');
+      return err('Não foi possível enviar o arquivo. Tente de novo.');
     }
     const enviadoEm = new Date().toISOString();
     const { error: e2 } = await supabase
       .from('sales')
-      .update({ comprovante_path: path, comprovante_nome: arquivo.name.slice(0, 200), comprovante_enviado_em: enviadoEm })
+      .update({ [`${prefixo}_path`]: path, [`${prefixo}_nome`]: arquivo.name.slice(0, 200), [`${prefixo}_enviado_em`]: enviadoEm } as never)
       .eq('id', saleId);
     if (e2) {
       // O arquivo subiu mas a venda não registrou: tira o arquivo órfão.
       void supabase.storage.from(BUCKET).remove([path]);
-      return err(migracaoAusente(e2) ? MIGRACAO_PENDENTE : 'Não foi possível registrar o comprovante na venda.');
+      return err(
+        migracaoAusente(e2)
+          ? prefixo === 'documento'
+            ? 'O documento do cliente ainda não foi ativado no servidor. Rode a migration 20260928150000_documento_do_cliente.sql.'
+            : MIGRACAO_PENDENTE
+          : 'Não foi possível registrar o anexo na venda.',
+      );
     }
-    // Trocou: o arquivo anterior já não é o comprovante de nada.
+    // Trocou: o arquivo anterior já não vale para nada.
     if (anterior && anterior !== path) void supabase.storage.from(BUCKET).remove([anterior]);
     return ok({ path, nome: arquivo.name, enviadoEm });
   }
 
-  async removerComprovante(saleId: string, path: string): Promise<Result<void>> {
+  private async removerAnexo(saleId: string, path: string, prefixo: 'comprovante' | 'documento'): Promise<Result<void>> {
     const { error } = await supabase
       .from('sales')
-      .update({ comprovante_path: null, comprovante_nome: null, comprovante_enviado_em: null })
+      .update({ [`${prefixo}_path`]: null, [`${prefixo}_nome`]: null, [`${prefixo}_enviado_em`]: null } as never)
       .eq('id', saleId);
-    if (error) return err('Não foi possível remover o comprovante.');
+    if (error) return err('Não foi possível remover o anexo.');
     void supabase.storage.from(BUCKET).remove([path]);
     return ok(undefined);
   }
 
-  async conferirComprovante(saleId: string, textoDaFoto?: string | null): Promise<void> {
+  comprovante(saleId: string) {
+    return this.lerAnexo(saleId, 'comprovante');
+  }
+  anexarComprovante(userId: string, saleId: string, arquivo: PickedFile, anterior?: string) {
+    return this.anexar(userId, saleId, arquivo, anterior, 'comprovante');
+  }
+  removerComprovante(saleId: string, path: string) {
+    return this.removerAnexo(saleId, path, 'comprovante');
+  }
+  documento(saleId: string) {
+    return this.lerAnexo(saleId, 'documento');
+  }
+  anexarDocumento(userId: string, saleId: string, arquivo: PickedFile, anterior?: string) {
+    return this.anexar(userId, saleId, arquivo, anterior, 'documento');
+  }
+  removerDocumento(saleId: string, path: string) {
+    return this.removerAnexo(saleId, path, 'documento');
+  }
+
+  async conferirComprovante(saleId: string, textoDaFoto?: string | null, tipo: 'comprovante' | 'documento' = 'comprovante'): Promise<void> {
     // Falhou (sem rede, função ainda não publicada)? A venda fica "em
     // conferência" e a auditoria decide — nada quebra para o corretor.
     try {
       await supabase.functions.invoke('conferir-comprovante', {
-        body: textoDaFoto ? { saleId, texto: textoDaFoto } : { saleId },
+        body: { saleId, tipo, ...(textoDaFoto ? { texto: textoDaFoto } : null) },
       });
     } catch {
       /* segue em conferência */
@@ -217,6 +246,10 @@ export class SupabaseRankingRepository implements RankingRepository {
         lidoDatas: Array.isArray(r.lido_datas) ? (r.lido_datas as string[]) : null,
         lidoValores: Array.isArray(r.lido_valores) ? (r.lido_valores as unknown[]).map(numero) : null,
         lidoPareceComprovante: r.lido_parece_comprovante == null ? null : Boolean(r.lido_parece_comprovante),
+        documentoPath: (r.documento_path as string | null) ?? null,
+        documentoConferencia: (r.documento_conferencia as 'confere' | 'nao_confere' | 'em_analise' | null) ?? null,
+        documentoParece: r.documento_parece == null ? null : Boolean(r.documento_parece),
+        documentoCpfs: r.documento_cpfs_encontrados == null ? null : numero(r.documento_cpfs_encontrados),
       })),
     );
   }

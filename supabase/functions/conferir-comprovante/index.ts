@@ -2,8 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { extractText, getDocumentProxy } from 'npm:unpdf@1.8.1';
 
 /* ===========================================================================
- * CONFERIR O COMPROVANTE DE PAGAMENTO DO SINAL
+ * CONFERIR O COMPROVANTE DE PAGAMENTO DO SINAL E O DOCUMENTO DO CLIENTE
  * ===========================================================================
+ * `tipo: 'documento'`: lê o documento do cliente (RG, CNH, CIN, comprovante do
+ * CPF) e grava o HASH dos CPFs válidos em `ranking_documentos` — o banco
+ * compara com o CPF da venda (migration 20260928150000).
+ *
  * O corretor anexa, na venda, o comprovante de pagamento do sinal. Esta função
  * tira do arquivo as DATAS e os VALORES que aparecem nele e grava em
  * `ranking_comprovacoes` — tabela que o corretor não lê nem escreve.
@@ -154,6 +158,63 @@ export function tipoDoArquivo(bytes: Uint8Array): 'pdf' | 'imagem' | null {
   if (ini.slice(4, 8) === 'ftyp') return 'imagem'; // HEIC
   return null;
 }
+// ---------------------------------------------------------------- documento
+// O DOCUMENTO DO CLIENTE: os CPFs que aparecem nele. Modelos conhecidos:
+//   - RG (carteira de identidade estadual): "CPF 000.000.000-00" no verso,
+//     perto de "REGISTRO GERAL", "FILIAÇÃO", "NATURALIDADE";
+//   - CNH antiga: campo "CPF" ao lado de "DOC. IDENTIDADE / ÓRG. EMISSOR";
+//   - CNH nova (2022): campo "4d CPF";
+//   - CIN (Carteira de Identidade Nacional): o número do documento É o CPF,
+//     e ele pode aparecer também na faixa MRZ do verso, colado em "<";
+//   - Comprovante de inscrição / situação cadastral no CPF (Receita).
+// O CPF sai com pontos e traço, com espaços, tudo junto, ou quebrado pela foto.
+// Só entra CPF com os DOIS dígitos verificadores certos: número de RG, de
+// registro da CNH ou de telefone não passa por CPF.
+
+export interface LeituraDoDocumento {
+  /** Os CPFs válidos encontrados, só os 11 dígitos. */
+  cpfs: string[];
+  /** O texto tem cara de documento de identificação. */
+  pareceDocumento: boolean;
+}
+
+const PALAVRAS_DE_DOCUMENTO =
+  /registro geral|carteira de identidade|cedula de identidade|carteira nacional de habilitacao|habilitacao|permissao para dirigir|\bcnh\b|driver license|cadastro de pessoas fisicas|comprovante de inscricao|situacao cadastral|republica federativa do brasil|secretaria (?:da|de) seguranca|instituto de identificacao|filiacao|data (?:de )?nascimento|naturalidade|orgao (?:expedidor|emissor)/;
+
+/** Os dígitos verificadores do CPF, como a Receita calcula. */
+export function cpfValido(d: string): boolean {
+  if (!/^\d{11}$/.test(d) || /^(\d)\1{10}$/.test(d)) return false;
+  const dv = (n: number) => {
+    let soma = 0;
+    for (let i = 0; i < n; i++) soma += Number(d[i]) * (n + 1 - i);
+    const r = (soma * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+}
+
+export function lerDocumento(textoOriginal: string): LeituraDoDocumento {
+  const texto = consertarNumeros(semAcento(textoOriginal ?? '').toLowerCase());
+  const achados: string[] = [];
+  const guardar = (d: string) => {
+    if (cpfValido(d) && !achados.includes(d)) achados.push(d);
+  };
+  // 000.000.000-00 · 000 000 000 00 · 00000000000 · 000.000.000/00 (foto)
+  for (const m of texto.matchAll(/(?<!\d)(\d{3})[\s.,·]{0,2}(\d{3})[\s.,·]{0,2}(\d{3})[\s\-–—.,/]{0,2}(\d{2})(?!\d)/g)) {
+    guardar(m[1] + m[2] + m[3] + m[4]);
+  }
+  // Faixa MRZ (CIN): o CPF pode vir colado em outros dígitos — testa as janelas.
+  for (const m of texto.matchAll(/\d{12,15}/g)) {
+    for (let i = 0; i + 11 <= m[0].length; i++) guardar(m[0].slice(i, i + 11));
+  }
+  return { cpfs: achados.slice(0, 10), pareceDocumento: PALAVRAS_DE_DOCUMENTO.test(texto) };
+}
+
+/** sha256 (hex) dos 11 dígitos — o banco calcula igual (`ranking_hash_cpf`). */
+export async function hashCpf(d: string): Promise<string> {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(d));
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 // ==== LEITURA DO COMPROVANTE (fim) =========================================
 
 Deno.serve(async (req) => {
@@ -177,15 +238,18 @@ Deno.serve(async (req) => {
     const corpo = await req.json().catch(() => null);
     const saleId = typeof corpo?.saleId === 'string' ? corpo.saleId : '';
     if (!UUID.test(saleId)) return json({ error: 'Venda inválida.' }, 400);
+    // 'comprovante' (padrão): o pagamento do sinal. 'documento': o documento do cliente.
+    const tipo = corpo?.tipo === 'documento' ? 'documento' : 'comprovante';
+    const coluna = tipo === 'documento' ? 'documento_path' : 'comprovante_path';
 
     // A RLS só devolve a venda se ela for de quem chamou.
     const { data: venda } = await comoCorretor
       .from('sales')
-      .select('id, comprovante_path')
+      .select(`id, ${coluna}`)
       .eq('id', saleId)
       .maybeSingle();
-    const path = (venda as { comprovante_path: string | null } | null)?.comprovante_path;
-    if (!path) return json({ error: 'Venda sem comprovante.' }, 404);
+    const path = (venda as Record<string, string | null> | null)?.[coluna];
+    if (!path) return json({ error: tipo === 'documento' ? 'Venda sem documento.' : 'Venda sem comprovante.' }, 404);
 
     const { data: arquivo, error } = await comoCorretor.storage.from(BUCKET).download(path);
     if (error || !arquivo) return json({ error: 'Comprovante não encontrado.' }, 404);
@@ -215,10 +279,28 @@ Deno.serve(async (req) => {
     // Foto sem o texto do celular: fica em conferência (auditoria).
     if (texto == null) return json({ ok: true });
 
-    const leitura = lerComprovante(texto.slice(0, MAX_TEXTO));
     const comoSistema = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    if (tipo === 'documento') {
+      const doc = lerDocumento(texto.slice(0, MAX_TEXTO));
+      // Só o hash de cada CPF vai para o banco; o número não é guardado.
+      const { error: e3 } = await comoSistema.from('ranking_documentos').upsert({
+        sale_id: saleId,
+        documento_path: path,
+        origem,
+        parece_documento: doc.pareceDocumento,
+        cpfs_hash: await Promise.all(doc.cpfs.map(hashCpf)),
+        lido_em: new Date().toISOString(),
+      });
+      if (e3) {
+        console.error('conferir-comprovante: gravação do documento', e3.code);
+        return json({ error: 'Não foi possível conferir agora.' }, 500);
+      }
+      return json({ ok: true });
+    }
+
+    const leitura = lerComprovante(texto.slice(0, MAX_TEXTO));
     const { error: e2 } = await comoSistema.from('ranking_comprovacoes').upsert({
       sale_id: saleId,
       comprovante_path: path,

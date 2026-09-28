@@ -1,5 +1,5 @@
 /**
- * O TEXTO DA FOTO DO COMPROVANTE — tirado pelo próprio celular.
+ * O TEXTO DA FOTO (comprovante ou documento do cliente) — tirado pelo próprio celular.
  *
  * iPhone: Apple Vision; Android: ML Kit (via `expo-text-extractor`). Tudo no
  * aparelho, sem IA generativa e sem serviço de fora. O texto vai para a Edge
@@ -16,14 +16,44 @@ import { Platform } from 'react-native';
 
 const MAX_TEXTO = 20_000;
 
+async function lerImagem(uri: string): Promise<string> {
+  const modulo = await import('expo-text-extractor');
+  if (!modulo.isSupported) return '';
+  const linhas = await modulo.extractTextFromImage(uri);
+  return linhas.join('\n').trim();
+}
+
+/**
+ * Foto da câmera costuma vir "deitada" nos metadados (EXIF) — o leitor do
+ * sistema recebe a imagem de lado e não acha o texto. Por isso: primeiro a
+ * foto é redesenhada em pé (e reduzida, que lê mais rápido); se ainda assim
+ * sair pouco texto, tenta virada 90° para cada lado e fica com a melhor.
+ */
 export async function textoDaFoto(uri: string): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   try {
-    const modulo = await import('expo-text-extractor');
-    if (!modulo.isSupported) return null;
-    const linhas = await modulo.extractTextFromImage(uri);
-    const texto = linhas.join('\n').trim();
-    return texto ? texto.slice(0, MAX_TEXTO) : null;
+    let base = uri;
+    try {
+      const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+      const emPe = await manipulateAsync(uri, [], { format: SaveFormat.JPEG, compress: 0.92 });
+      base = emPe.width > 2200 ? (await manipulateAsync(emPe.uri, [{ resize: { width: 2200 } }], { format: SaveFormat.JPEG, compress: 0.92 })).uri : emPe.uri;
+    } catch {
+      /* sem o manipulador, lê a original */
+    }
+    let melhor = await lerImagem(base);
+    if (melhor.replace(/\s/g, '').length < 40) {
+      try {
+        const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+        for (const graus of [90, -90]) {
+          const virada = await manipulateAsync(base, [{ rotate: graus }], { format: SaveFormat.JPEG, compress: 0.9 });
+          const texto = await lerImagem(virada.uri);
+          if (texto.length > melhor.length) melhor = texto;
+        }
+      } catch {
+        /* fica com o que leu */
+      }
+    }
+    return melhor ? melhor.slice(0, MAX_TEXTO) : null;
   } catch {
     return null;
   }

@@ -105,9 +105,11 @@ export default function PrivacyPolicyScreen() {
           tabelas de preço das construtoras)
         </Bullet>
         <Bullet>
-          <Bold>Comprovantes de pagamento do sinal</Bold> que você anexa para a venda pontuar no
-          ranking. São conferidos com a data da venda e o valor do sinal da simulação. Ficam
-          privados: só você e a auditoria do POUP acessam, e apenas para conferir a venda.
+          <Bold>Comprovantes de pagamento do sinal e documento do cliente</Bold> (RG, CNH, CIN ou
+          comprovante do CPF) que você anexa para a venda pontuar no ranking. O comprovante é
+          conferido com a data da venda e o valor do sinal; o documento, com o CPF do cliente
+          cadastrado na venda — do CPF do documento guardamos só um código (hash), não o número.
+          Ficam privados: só você e a auditoria do POUP acessam, e apenas para conferir a venda.
         </Bullet>
         <Bullet>
           <Bold>Medições de uso do produto</Bold>: registramos que ações acontecem no app, criou uma

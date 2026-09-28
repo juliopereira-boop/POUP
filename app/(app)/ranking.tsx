@@ -313,7 +313,7 @@ export default function RankingScreen() {
       {regrasAbertas ? (
         <View style={styles.regras}>
           {[
-            ['Só venda comprovada', 'Cada venda precisa do comprovante de pagamento do sinal (Pix, transferência, boleto pago ou recibo). Ele precisa mostrar a data do pagamento, a mesma da venda (até 3 dias de diferença), e o valor pago, igual ao sinal da simulação. Fechando as duas coisas, a venda está comprovada. Só você e a auditoria do POUP abrem o arquivo.'],
+            ['Só venda comprovada', 'Cada venda precisa do comprovante de pagamento do sinal (Pix, transferência, boleto pago ou recibo). Ele precisa mostrar a data do pagamento, a mesma da venda (até 3 dias de diferença), e o valor pago, igual ao sinal da simulação. E o documento do cliente (RG, CNH ou CIN) com o CPF, o mesmo cadastrado na venda. Fechando tudo, a venda está comprovada. Só você e a auditoria do POUP abrem os arquivos.'],
             ['Dados que se conferem', 'CPF do comprador válido, empreendimento, unidade e valor reais. Venda distratada sai na hora.'],
             ['Uma unidade, um dono', 'Se duas contas registram a mesma unidade (ou o mesmo comprador no mesmo empreendimento), a venda fica em disputa e não conta para ninguém até a auditoria decidir.'],
             ['Teto de 20 por mês', 'Acima de 20 vendas no mês, as excedentes contam depois de conferidas pela auditoria.'],

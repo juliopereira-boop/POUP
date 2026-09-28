@@ -19,14 +19,15 @@
  * pontua assim que ele assinar.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { db, type ComprovanteDaVenda } from '@/data';
-import { pickFiles, pickImageFrom, type PickedFile } from '@/features/files/pick';
+import { pickAnexo, type PickedFile } from '@/features/files/pick';
 import {
   regraDoComprovante,
+  regraDoDocumento,
   requisitosDaVenda,
   textoDaSituacao,
   type SituacaoDaVenda,
@@ -48,22 +49,20 @@ function hojeLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** De onde vem o comprovante: galeria de fotos (print do Pix) ou arquivos (PDF do banco). */
-function escolherOrigem(): Promise<'galeria' | 'arquivos' | null> {
-  if (Platform.OS === 'web') return Promise.resolve('arquivos');
-  return new Promise((resolve) => {
-    Alert.alert(
-      'Comprovante de pagamento do sinal',
-      'De onde vem o comprovante?',
-      [
-        { text: 'Galeria de fotos', onPress: () => resolve('galeria') },
-        { text: 'Arquivos (PDF)', onPress: () => resolve('arquivos') },
-        { text: 'Cancelar', style: 'cancel', onPress: () => resolve(null) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(null) },
-    );
-  });
-}
+type TipoDeAnexo = 'comprovante' | 'documento';
+
+const ANEXO = {
+  comprovante: {
+    titulo: 'Comprovante de pagamento do sinal',
+    botao: 'Anexar comprovante de pagamento',
+    emConferencia: 'comprovante_em_analise' as SituacaoDaVenda,
+  },
+  documento: {
+    titulo: 'Documento do cliente (com o CPF)',
+    botao: 'Anexar documento do cliente',
+    emConferencia: 'documento_em_analise' as SituacaoDaVenda,
+  },
+} as const;
 
 export function RankingDaVenda({
   saleId,
@@ -80,9 +79,10 @@ export function RankingDaVenda({
   const [verRequisitos, setVerRequisitos] = useState(false);
   const [ativo, setAtivo] = useState(false);
   const [comprovante, setComprovante] = useState<ComprovanteDaVenda | null>(null);
+  const [documento, setDocumento] = useState<ComprovanteDaVenda | null>(null);
   const [situacao, setSituacao] = useState<SituacaoDaVenda | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<TipoDeAnexo | null>(null);
+  const [erro, setErro] = useState<{ tipo: TipoDeAnexo; texto: string } | null>(null);
   const [sinal, setSinal] = useState<number | null>(null);
 
   useEffect(() => {
@@ -97,13 +97,19 @@ export function RankingDaVenda({
   }, [venda.simulationId]);
 
   const carregar = useCallback(async () => {
-    const [c, s] = await Promise.all([db.ranking.comprovante(saleId), db.ranking.minhasSituacoes('ano')]);
+    const [c, d, s] = await Promise.all([
+      db.ranking.comprovante(saleId),
+      db.ranking.documento(saleId),
+      db.ranking.minhasSituacoes('ano'),
+    ]);
     if (!c.ok) {
       setAtivo(false); // migration ainda não rodou: o cartão fica de fora
       return;
     }
     setAtivo(true);
     setComprovante(c.data);
+    // Sem a migration do documento, a seção dele só não aparece preenchida.
+    setDocumento(d.ok ? d.data : null);
     setSituacao(s.get(saleId) ?? null);
   }, [saleId]);
 
@@ -111,11 +117,13 @@ export function RankingDaVenda({
     void carregar();
   }, [carregar]);
 
+  const anexoDe = (tipo: TipoDeAnexo) => (tipo === 'comprovante' ? comprovante : documento);
+
   /**
-   * Manda o comprovante para a conferência. Foto: o celular tira o texto dela
-   * antes (do arquivo recém-escolhido ou, para conferir de novo, baixando).
+   * Manda o anexo para a conferência. Foto: o celular tira o texto dela antes
+   * (do arquivo recém-escolhido ou, para conferir de novo, baixando).
    */
-  async function conferir(path: string, local?: PickedFile) {
+  async function conferir(tipo: TipoDeAnexo, path: string, local?: PickedFile) {
     let texto: string | null = null;
     if (ehFoto(local?.name ?? path) || local?.contentType.startsWith('image/')) {
       if (local?.uri) texto = await textoDaFoto(local.uri);
@@ -124,54 +132,101 @@ export function RankingDaVenda({
         if (url) texto = await textoDaFotoNoLink(url);
       }
     }
-    await db.ranking.conferirComprovante(saleId, texto);
+    await db.ranking.conferirComprovante(saleId, texto, tipo);
   }
 
-  async function anexar() {
+  async function anexar(tipo: TipoDeAnexo) {
     if (!user) return;
     setErro(null);
-    const origem = await escolherOrigem();
-    if (!origem) return;
-    const arquivo =
-      origem === 'galeria'
-        ? await pickImageFrom('galeria')
-        : (await pickFiles({ multiple: false, type: TIPOS }))[0] ?? null;
+    const arquivo = await pickAnexo(ANEXO[tipo].titulo, TIPOS);
     if (!arquivo) return;
-    setOcupado(true);
+    setOcupado(tipo);
     // Trocando: o arquivo antigo só sai depois que o novo está registrado.
-    const r = await db.ranking.anexarComprovante(user.id, saleId, arquivo, comprovante?.path);
+    const anterior = anexoDe(tipo)?.path;
+    const r =
+      tipo === 'comprovante'
+        ? await db.ranking.anexarComprovante(user.id, saleId, arquivo, anterior)
+        : await db.ranking.anexarDocumento(user.id, saleId, arquivo, anterior);
     if (!r.ok) {
-      setOcupado(false);
-      return setErro(r.error);
+      setOcupado(null);
+      return setErro({ tipo, texto: r.error });
     }
-    await conferir(r.data.path, arquivo);
-    setOcupado(false);
+    await conferir(tipo, r.data.path, arquivo);
+    setOcupado(null);
     void carregar();
   }
 
-  async function conferirDeNovo() {
-    if (!comprovante) return;
-    setOcupado(true);
-    await conferir(comprovante.path);
-    setOcupado(false);
+  async function conferirDeNovo(tipo: TipoDeAnexo) {
+    const anexo = anexoDe(tipo);
+    if (!anexo) return;
+    setOcupado(tipo);
+    await conferir(tipo, anexo.path);
+    setOcupado(null);
     void carregar();
   }
 
-  async function remover() {
-    if (!comprovante) return;
-    setOcupado(true);
-    const r = await db.ranking.removerComprovante(saleId, comprovante.path);
-    setOcupado(false);
-    if (!r.ok) return setErro(r.error);
+  async function remover(tipo: TipoDeAnexo) {
+    const anexo = anexoDe(tipo);
+    if (!anexo) return;
+    setOcupado(tipo);
+    const r = tipo === 'comprovante' ? await db.ranking.removerComprovante(saleId, anexo.path) : await db.ranking.removerDocumento(saleId, anexo.path);
+    setOcupado(null);
+    if (!r.ok) return setErro({ tipo, texto: r.error });
     void carregar();
   }
 
-  async function abrir() {
-    if (!comprovante) return;
-    const url = await db.ranking.linkDoComprovante(comprovante.path);
-    if (!url) return setErro('Não foi possível abrir o comprovante agora.');
+  async function abrir(tipo: TipoDeAnexo) {
+    const anexo = anexoDe(tipo);
+    if (!anexo) return;
+    const url = await db.ranking.linkDoComprovante(anexo.path);
+    if (!url) return setErro({ tipo, texto: 'Não foi possível abrir o arquivo agora.' });
     if (Platform.OS === 'web') window.open(url, '_blank', 'noopener');
     else void Linking.openURL(url);
+  }
+
+  /** Um anexo da venda: a regra, o arquivo (abrir/trocar/conferir/remover) ou o botão. */
+  function blocoDoAnexo(tipo: TipoDeAnexo, regra: string[]) {
+    const anexo = anexoDe(tipo);
+    const cfg = ANEXO[tipo];
+    const trabalhando = ocupado === tipo;
+    return (
+      <>
+        <Text style={styles.subtitulo}>{cfg.titulo}</Text>
+        <View style={styles.regra}>
+          {regra.map((linha) => (
+            <Text key={linha} style={styles.regraLinha}>
+              • {linha}
+            </Text>
+          ))}
+        </View>
+        {anexo ? (
+          <View style={styles.arquivo}>
+            <Text style={styles.arquivoNome} numberOfLines={1}>
+              {anexo.nome}
+            </Text>
+            <View style={styles.acoes}>
+              <Pressable onPress={() => void abrir(tipo)} hitSlop={6}>
+                <Text style={styles.link}>Abrir</Text>
+              </Pressable>
+              <Pressable onPress={() => void anexar(tipo)} hitSlop={6} disabled={ocupado != null}>
+                <Text style={styles.link}>Trocar</Text>
+              </Pressable>
+              {situacao === cfg.emConferencia ? (
+                <Pressable onPress={() => void conferirDeNovo(tipo)} hitSlop={6} disabled={ocupado != null}>
+                  <Text style={styles.link}>{trabalhando ? 'Conferindo…' : 'Conferir de novo'}</Text>
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => void remover(tipo)} hitSlop={6} disabled={ocupado != null}>
+                <Text style={styles.linkPerigo}>Remover</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Button label={cfg.botao} variant="secondary" onPress={() => void anexar(tipo)} loading={trabalhando} disabled={ocupado != null && !trabalhando} />
+        )}
+        {erro?.tipo === tipo ? <Text style={styles.erro}>{erro.texto}</Text> : null}
+      </>
+    );
   }
 
   if (!ativo) return null;
@@ -180,6 +235,7 @@ export function RankingDaVenda({
     pro,
     participa: Boolean(profile?.rankingParticipa),
     temComprovante: Boolean(comprovante),
+    temDocumento: Boolean(documento),
     situacao,
     hoje: hojeLocal(),
     cpfValido: isValidCPF,
@@ -199,58 +255,21 @@ export function RankingDaVenda({
       {t?.acao ? <Text style={styles.texto}>{t.acao}</Text> : null}
       {!pro ? (
         <Text style={styles.texto}>
-          Disputar o ranking é para assinantes do plano Pro. Anexe o comprovante agora e esta venda já conta quando
-          você assinar.
+          Disputar o ranking é para assinantes do plano Pro. Anexe o comprovante e o documento agora e esta venda já
+          conta quando você assinar.
         </Text>
       ) : !t ? (
         <Text style={styles.texto}>Esta venda é de uma temporada encerrada.</Text>
       ) : null}
 
-      <Text style={styles.subtitulo}>Comprovante de pagamento do sinal</Text>
-      <View style={styles.regra}>
-        {regraDoComprovante(venda.saleDate, sinal).map((linha) => (
-          <Text key={linha} style={styles.regraLinha}>
-            • {linha}
-          </Text>
-        ))}
-      </View>
-      {comprovante ? (
-        <View style={styles.arquivo}>
-          <Text style={styles.arquivoNome} numberOfLines={1}>
-            {comprovante.nome}
-          </Text>
-          <View style={styles.acoes}>
-            <Pressable onPress={() => void abrir()} hitSlop={6}>
-              <Text style={styles.link}>Abrir</Text>
-            </Pressable>
-            <Pressable onPress={() => void anexar()} hitSlop={6} disabled={ocupado}>
-              <Text style={styles.link}>Trocar</Text>
-            </Pressable>
-            {situacao === 'comprovante_em_analise' ? (
-              <Pressable onPress={() => void conferirDeNovo()} hitSlop={6} disabled={ocupado}>
-                <Text style={styles.link}>Conferir de novo</Text>
-              </Pressable>
-            ) : null}
-            <Pressable onPress={() => void remover()} hitSlop={6} disabled={ocupado}>
-              <Text style={styles.linkPerigo}>Remover</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <Button
-          label="Anexar comprovante de pagamento"
-          variant="secondary"
-          onPress={() => void anexar()}
-          loading={ocupado}
-        />
-      )}
-      <Text style={styles.texto}>Só você e a auditoria do POUP abrem o comprovante.</Text>
-      {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+      {blocoDoAnexo('comprovante', regraDoComprovante(venda.saleDate, sinal))}
+      {blocoDoAnexo('documento', regraDoDocumento(venda.clientCpf))}
+      <Text style={styles.texto}>Só você e a auditoria do POUP abrem os arquivos.</Text>
 
       {/* O que falta, item por item — a mesma regra do banco, para o corretor ler. */}
       <Pressable onPress={() => setVerRequisitos((v) => !v)} hitSlop={6} style={styles.requisitosTopo} accessibilityRole="button">
         <Text style={styles.subtitulo}>
-          {faltam.length === 0 ? 'Todos os requisitos cumpridos ✓' : `Falta ${faltam.length} requisito${faltam.length === 1 ? '' : 's'} para pontuar`}
+          {faltam.length === 0 ? 'Todos os requisitos cumpridos ✓' : `${faltam.length === 1 ? 'Falta 1 requisito' : `Faltam ${faltam.length} requisitos`} para pontuar`}
         </Text>
         <Text style={styles.link}>{verRequisitos || faltam.length > 0 ? '' : 'ver'}</Text>
       </Pressable>

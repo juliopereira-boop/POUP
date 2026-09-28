@@ -292,6 +292,11 @@ export interface ItemDaAuditoria {
   lidoDatas: string[] | null;
   lidoValores: number[] | null;
   lidoPareceComprovante: boolean | null;
+  /** O documento do cliente: o arquivo e se o CPF dele é o da venda (o número lido não sai do banco). */
+  documentoPath: string | null;
+  documentoConferencia: 'confere' | 'nao_confere' | 'em_analise' | null;
+  documentoParece: boolean | null;
+  documentoCpfs: number | null;
 }
 
 /**
@@ -318,7 +323,11 @@ export interface RankingRepository {
    * `conferir-comprovante`). `textoDaFoto`: o texto que o celular tirou da foto.
    * Não devolve o resultado: ele aparece na situação da venda.
    */
-  conferirComprovante(saleId: string, textoDaFoto?: string | null): Promise<void>;
+  conferirComprovante(saleId: string, textoDaFoto?: string | null, tipo?: 'comprovante' | 'documento'): Promise<void>;
+  /** O documento do cliente com o CPF (RG, CNH, CIN ou comprovante do CPF). */
+  documento(saleId: string): Promise<Result<ComprovanteDaVenda | null>>;
+  anexarDocumento(userId: string, saleId: string, arquivo: PickedFile, anterior?: string): Promise<Result<ComprovanteDaVenda>>;
+  removerDocumento(saleId: string, path: string): Promise<Result<void>>;
   linkDoComprovante(path: string): Promise<string | null>;
   /** Só o admin. */
   auditoria(periodo: Periodo): Promise<Result<ItemDaAuditoria[]>>;

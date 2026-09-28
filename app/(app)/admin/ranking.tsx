@@ -170,6 +170,16 @@ export default function AuditoriaDoRanking() {
                             v.lidoValores?.length ? v.lidoValores.map(brl).join(', ') : '—'
                           }${v.lidoPareceComprovante ? '' : ' · não parece comprovante de pagamento'}`}
                     </Text>
+                    <Text style={styles.meta}>
+                      Documento do cliente:{' '}
+                      {!v.documentoPath
+                        ? 'não anexado'
+                        : v.documentoConferencia === 'confere'
+                          ? 'CPF confere com a venda ✓'
+                          : v.documentoConferencia === 'nao_confere'
+                            ? `CPF não confere (${v.documentoCpfs ?? 0} CPF válido(s) no arquivo${v.documentoParece === false ? ', não parece documento' : ''})`
+                            : 'ainda não conferido'}
+                    </Text>
                     <View style={styles.acoes}>
                       {v.comprovantePath ? (
                         <Pressable onPress={() => void abrirComprovante(v.comprovantePath as string)} hitSlop={6}>
@@ -177,6 +187,13 @@ export default function AuditoriaDoRanking() {
                         </Pressable>
                       ) : (
                         <Text style={styles.meta}>Sem comprovante</Text>
+                      )}
+                      {v.documentoPath ? (
+                        <Pressable onPress={() => void abrirComprovante(v.documentoPath as string)} hitSlop={6}>
+                          <Text style={styles.link}>Documento</Text>
+                        </Pressable>
+                      ) : (
+                        <Text style={styles.meta}>Sem documento</Text>
                       )}
                       <Pressable
                         disabled={ocupado != null}

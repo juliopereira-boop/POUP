@@ -24,9 +24,12 @@ const require = createRequire(path.join(process.cwd(), 'package.json'));
 const ts = require('typescript');
 let passou = 0;
 function teste(nome, fn) {
-  fn();
-  passou++;
-  console.log(`ok ${nome}`);
+  const fim = () => {
+    passou++;
+    console.log(`ok ${nome}`);
+  };
+  const r = fn();
+  return r && typeof r.then === 'function' ? r.then(fim) : fim();
 }
 
 const FUNCAO = 'supabase/functions/conferir-comprovante/index.ts';
@@ -116,6 +119,82 @@ teste('o tipo do arquivo é o dos bytes, não o nome', () => {
   assert.equal(L.tipoDoArquivo(new TextEncoder().encode('MZ executável')), null);
 });
 
+// ------------------------------------------------ 1a. o documento do cliente
+const CPF = '57117777427'; // o CPF do cliente cadastrado na venda (fictício, dígitos válidos)
+const HASH_CPF = '44961411458b988c648750acaaf17a12db4135b40480c8beaef753b30e5aedb7'; // o mesmo do teste SQL
+const doc = (t) => L.lerDocumento(t);
+
+teste('RG (verso): acha o CPF e ignora o número do RG', () => {
+  const r = doc(`REPÚBLICA FEDERATIVA DO BRASIL
+SECRETARIA DE SEGURANÇA PÚBLICA — INSTITUTO DE IDENTIFICAÇÃO
+REGISTRO GERAL 12.345.678-9   DATA DE EXPEDIÇÃO 10/05/2015
+NOME ANA SOUZA
+FILIAÇÃO JOÃO SOUZA / MARIA SOUZA
+NATURALIDADE SÃO LUÍS-MA   DATA DE NASCIMENTO 14/03/1992
+CPF 571.177.774-27`);
+  assert.deepEqual(r.cpfs, [CPF]);
+  assert.equal(r.pareceDocumento, true);
+});
+teste('CNH modelo antigo: campo "CPF" (o nº de registro não vira CPF)', () => {
+  const r = doc(`REPÚBLICA FEDERATIVA DO BRASIL MINISTÉRIO DAS CIDADES
+CARTEIRA NACIONAL DE HABILITAÇÃO
+NOME ANA SOUZA
+DOC. IDENTIDADE / ÓRG. EMISSOR / UF 123456789 SSP MA
+CPF 571.177.774-27   DATA NASCIMENTO 14/03/1992
+PERMISSÃO   ACC   CAT. HAB. B
+Nº REGISTRO 04837261590   VALIDADE 10/05/2031`);
+  assert.ok(r.cpfs.includes(CPF) && r.pareceDocumento, JSON.stringify(r));
+  assert.ok(!r.cpfs.includes('04837261590'), 'registro da CNH (dígitos que não fecham como CPF) não entra');
+});
+teste('CNH modelo novo (2022): campo "4d"', () => {
+  const r = doc(`CARTEIRA NACIONAL DE HABILITAÇÃO / DRIVER LICENSE
+1 SOUZA
+2 ANA
+3 14/03/1992, SÃO LUÍS, MA
+4a 10/05/2023  4b 10/05/2033  4c DETRAN MA
+4d 571.177.774-27
+5 04837261590
+9 B`);
+  assert.ok(r.cpfs.includes(CPF) && r.pareceDocumento, JSON.stringify(r));
+});
+teste('CIN (Carteira de Identidade Nacional): o número é o CPF', () => {
+  const r = doc(`REPÚBLICA FEDERATIVA DO BRASIL
+CARTEIRA DE IDENTIDADE
+Nome ANA SOUZA
+Registro Geral - CPF 571.177.774-27
+Data de Nascimento 14/03/1992`);
+  assert.deepEqual(r.cpfs, [CPF]);
+});
+teste('CIN: só a faixa MRZ do verso, com o CPF colado em outros dígitos', () => {
+  const r = doc(`CARTEIRA DE IDENTIDADE
+IDBRA571177774275<<<<<<<<<<<<<<
+9203142F3305104BRA<<<<<<<<<<<6
+SOUZA<<ANA<<<<<<<<<<<<<<<<<<<<`);
+  assert.ok(r.cpfs.includes(CPF), JSON.stringify(r));
+});
+teste('Comprovante de situação cadastral no CPF (Receita)', () => {
+  const r = doc('Ministério da Fazenda — Receita Federal\nComprovante de Situação Cadastral no CPF\nNº do CPF: 571.177.774-27\nNome: ANA SOUZA\nData de Nascimento: 14/03/1992\nSituação Cadastral: REGULAR');
+  assert.deepEqual(r.cpfs, [CPF]);
+  assert.equal(r.pareceDocumento, true);
+});
+teste('foto: CPF com espaços, tudo junto, ou com "I" no lugar de "1"', () => {
+  assert.deepEqual(doc('CARTEIRA DE IDENTIDADE  CPF: 571 177 774 27').cpfs, [CPF]);
+  assert.deepEqual(doc('CARTEIRA DE IDENTIDADE  CPF 57117777427').cpfs, [CPF]);
+  assert.deepEqual(doc('REGISTRO GERAL  CPF 57I.177.774-27').cpfs, [CPF]);
+});
+teste('não é CPF: dígito verificador errado, RG, telefone, sequência repetida', () => {
+  const r = doc('REGISTRO GERAL 12.345.678-9  CPF 571.177.774-28  FONE (98) 98888-7777  111.111.111-11');
+  assert.deepEqual(r.cpfs, []);
+});
+teste('comprovante de Pix (CPF mascarado) não passa por documento', () => {
+  const r = doc('Comprovante de transferência Pix\n27/09/2026\nValor R$ 4.000,00\nPagador ANA SOUZA\nCPF •••.177.774-••');
+  assert.deepEqual(r.cpfs, []);
+  assert.equal(r.pareceDocumento, false);
+});
+await teste('o hash da função é o mesmo do banco (sha256 dos 11 dígitos)', async () => {
+  assert.equal(await L.hashCpf(CPF), HASH_CPF);
+});
+
 // ------------------------------------------- 1b. a função, de ponta a ponta
 // O arquivo inteiro da Edge Function, com o Supabase e o pdf.js simulados.
 async function chamarFuncao({ venda, arquivo, corpo, pdfTexto = '' }) {
@@ -179,6 +258,21 @@ const PIX = 'Comprovante de transferência Pix\n27/09/2026 14:32\nValor R$ 4.000
     assert.equal(deOutro.status, 404);
     assert.equal(deOutro.gravado.length, 0);
   });
+  const rg = await chamarFuncao({
+    venda: { id: VENDA, documento_path: 'u1/v/1-rg.pdf', comprovante_path: 'u1/v/1-pix.pdf' },
+    arquivo: new TextEncoder().encode('%PDF-1.7 rg'),
+    corpo: { saleId: VENDA, tipo: 'documento' },
+    pdfTexto: 'REGISTRO GERAL 12.345.678-9\nFILIAÇÃO ...\nCPF 571.177.774-27',
+  });
+  teste('documento: grava só o hash dos CPFs, na tabela do documento', () => {
+    assert.equal(rg.status, 200);
+    assert.equal(rg.gravado.length, 1);
+    const { tabela, linha } = rg.gravado[0];
+    assert.equal(tabela, 'ranking_documentos');
+    assert.deepEqual([linha.documento_path, linha.parece_documento, linha.cpfs_hash], ['u1/v/1-rg.pdf', true, [HASH_CPF]]);
+    assert.ok(!JSON.stringify(linha).includes('57117777427') && !JSON.stringify(linha).includes('571.177.774-27'), 'o CPF em si não é gravado');
+    assert.deepEqual(rg.corpo, { ok: true }, 'a resposta não conta o que foi lido');
+  });
   const exe = await chamarFuncao({ venda: { id: VENDA, comprovante_path: 'u1/v/1-pix.jpg' }, arquivo: new TextEncoder().encode('MZ...'), corpo: { saleId: VENDA, texto: PIX } });
   teste('arquivo que não é PDF nem imagem: recusa', () => {
     assert.equal(exe.status, 415);
@@ -218,13 +312,33 @@ teste('a regra está clara para o corretor: comprovante de pagamento do sinal, d
 });
 
 // ---------------------------------------------- 3. galeria e texto da foto
-teste('anexar oferece galeria de fotos e arquivos, e manda o texto da foto', () => {
-  const s = readFileSync('src/components/ranking/RankingDaVenda.tsx', 'utf8');
-  assert.match(s, /Galeria de fotos/);
-  assert.match(s, /textoDaFoto\(/);
-  assert.match(s, /conferirComprovante\(/);
+teste('anexar oferece câmera, galeria e arquivos — no comprovante e no documento', () => {
+  const pick = readFileSync('src/features/files/pick.ts', 'utf8');
+  assert.match(pick, /'Câmera', 'Galeria de fotos', 'Arquivos \(PDF\)', 'Cancelar'/, 'iPhone: folha de ações com as três origens');
+  assert.match(pick, /text: 'Câmera'[\s\S]*text: 'Galeria de fotos'[\s\S]*text: 'Arquivos \(PDF\)'/, 'Android: três botões (o limite do Alert)');
+  assert.match(pick, /requestCameraPermissionsAsync/);
+  const cartao = readFileSync('src/components/ranking/RankingDaVenda.tsx', 'utf8');
+  assert.match(cartao, /pickAnexo\(ANEXO\[tipo\]\.titulo/);
+  assert.match(cartao, /blocoDoAnexo\('comprovante'/);
+  assert.match(cartao, /blocoDoAnexo\('documento'/);
+  assert.match(cartao, /textoDaFoto\(/);
+  assert.match(cartao, /conferirComprovante\(saleId, texto, tipo\)/);
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
   assert.ok(pkg.dependencies['expo-text-extractor'], 'reconhecimento de texto do aparelho instalado');
+  const plugins = JSON.parse(readFileSync('app.json', 'utf8')).expo.plugins;
+  const picker = plugins.find((p) => Array.isArray(p) && p[0] === 'expo-image-picker');
+  assert.match(String(picker?.[1]?.cameraPermission), /comprovante de pagamento e o documento do cliente/, 'permissão da câmera explica o uso');
+});
+teste('a foto é endireitada antes de ler (câmera vem "deitada" no EXIF)', () => {
+  const f = readFileSync('src/features/ranking/textoDaFoto.ts', 'utf8');
+  assert.match(f, /manipulateAsync\(uri, \[\]/);
+  assert.match(f, /for \(const graus of \[90, -90\]\)/);
+});
+teste('a regra do documento está clara: RG, CNH ou CIN, e o CPF da venda', () => {
+  const s = readFileSync('src/features/ranking/regras.ts', 'utf8');
+  assert.match(s, /RG, CNH \(física ou digital\), CIN/);
+  assert.match(s, /O CPF do documento precisa ser o mesmo cadastrado na venda/);
+  for (const sit of ['sem_documento', 'documento_em_analise', 'documento_nao_confere']) assert.match(s, new RegExp(sit));
 });
 
 console.log(`\n${passou} verificações do comprovante passaram.`);

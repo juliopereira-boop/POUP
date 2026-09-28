@@ -21,6 +21,9 @@ export type SituacaoDaVenda =
   | 'sem_comprovante'
   | 'comprovante_em_analise'
   | 'comprovante_nao_confere'
+  | 'sem_documento'
+  | 'documento_em_analise'
+  | 'documento_nao_confere'
   | 'duplicada'
   | 'em_disputa'
   | 'acima_do_teto'
@@ -71,6 +74,25 @@ export const SITUACOES: Record<SituacaoDaVenda, TextoDaSituacao> = {
     curto: 'com comprovante que não confere',
     acao:
       'O comprovante de pagamento do sinal precisa mostrar a data do pagamento (a mesma da venda) e o valor do sinal da simulação. Confira a data da venda ou envie o comprovante certo, inteiro e legível.',
+    tom: 'pendente',
+  },
+  sem_documento: {
+    rotulo: 'Falta o documento do cliente',
+    curto: 'sem documento do cliente',
+    acao: 'Anexe o documento do cliente com o CPF: RG, CNH, CIN ou o comprovante do CPF.',
+    tom: 'pendente',
+  },
+  documento_em_analise: {
+    rotulo: 'Documento em conferência',
+    curto: 'com documento em conferência',
+    acao: 'O documento do cliente está sendo conferido com o CPF cadastrado na venda.',
+    tom: 'pendente',
+  },
+  documento_nao_confere: {
+    rotulo: 'CPF do documento não confere',
+    curto: 'com documento que não confere',
+    acao:
+      'O documento precisa mostrar o CPF do cliente, o mesmo cadastrado na venda. Confira o CPF da venda ou envie o documento certo, inteiro, legível e com o CPF à vista.',
     tom: 'pendente',
   },
   dados_incompletos: {
@@ -172,7 +194,25 @@ export function regraDoComprovante(saleDate: string, sinal: number | null): stri
     sinal != null && sinal > 0
       ? `E o valor pago: o valor do sinal da simulação, ${brl(sinal)}.`
       : 'E o valor pago: o valor do sinal (ato) da simulação desta venda.',
-    'Com a data e o valor fechando com a venda, ela está comprovada e entra no ranking.',
+    'Com a data e o valor fechando com a venda, e o documento do cliente com o CPF certo, ela está comprovada e entra no ranking.',
+  ];
+}
+
+/** "571.177.774-27" a partir dos dígitos. */
+function cpfFormatado(cpf: string | null): string | null {
+  const d = (cpf ?? '').replace(/\D/g, '');
+  return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : null;
+}
+
+/** A REGRA DO DOCUMENTO: o que ele precisa mostrar (não como é conferido). */
+export function regraDoDocumento(cpfDaVenda: string | null): string[] {
+  const cpf = cpfFormatado(cpfDaVenda);
+  return [
+    'O documento do cliente com o CPF: RG, CNH (física ou digital), CIN — a nova carteira de identidade — ou o comprovante do CPF.',
+    cpf
+      ? `O CPF do documento precisa ser o mesmo cadastrado na venda: ${cpf}.`
+      : 'O CPF do documento precisa ser o mesmo cadastrado na venda.',
+    'Foto inteira, nítida e com o CPF à vista (no RG, ele fica no verso). Pode ser da câmera, da galeria ou em PDF.',
   ];
 }
 
@@ -188,6 +228,8 @@ export function requisitosDaVenda(
     pro: boolean;
     participa: boolean;
     temComprovante: boolean;
+    /** Tem o documento do cliente anexado. */
+    temDocumento?: boolean;
     situacao: SituacaoDaVenda | null;
     hoje: string;
     cpfValido: (cpf: string) => boolean;
@@ -230,6 +272,37 @@ export function requisitosDaVenda(
       dica: ctx.temComprovante && ctx.situacao === 'comprovante_em_analise'
         ? 'Em conferência.'
         : `A data do pagamento precisa ser a da venda (até ${DIAS_DE_DIFERENCA_NO_PAGAMENTO} dias de diferença) e o valor pago, o do sinal da simulação.`,
+    },
+    {
+      rotulo: 'Documento do cliente anexado (RG, CNH ou CIN)',
+      ok: Boolean(ctx.temDocumento),
+      dica: 'Anexe o documento do cliente com o CPF (câmera, galeria ou PDF).',
+    },
+    {
+      rotulo: 'CPF do documento confere com o CPF da venda',
+      ok:
+        Boolean(ctx.temDocumento) &&
+        ctx.situacao !== 'sem_documento' &&
+        ctx.situacao !== 'documento_em_analise' &&
+        ctx.situacao !== 'documento_nao_confere' &&
+        // Enquanto o comprovante não fecha, o banco nem chega no documento.
+        ctx.situacao !== 'sem_comprovante' &&
+        ctx.situacao !== 'comprovante_em_analise' &&
+        ctx.situacao !== 'comprovante_nao_confere',
+      pendente:
+        Boolean(ctx.temDocumento) &&
+        (ctx.situacao === 'documento_em_analise' ||
+          ctx.situacao === 'sem_comprovante' ||
+          ctx.situacao === 'comprovante_em_analise' ||
+          ctx.situacao === 'comprovante_nao_confere'),
+      dica:
+        ctx.temDocumento && ctx.situacao === 'documento_em_analise'
+          ? 'Em conferência.'
+          : ctx.temDocumento && ctx.situacao?.startsWith('comprovante')
+            ? 'Conferido depois do comprovante de pagamento.'
+            : ctx.temDocumento && ctx.situacao === 'sem_comprovante'
+              ? 'Conferido depois do comprovante de pagamento.'
+              : 'O documento precisa mostrar o CPF do cliente, o mesmo cadastrado na venda.',
     },
     {
       rotulo: 'Unidade e comprador só nesta conta',

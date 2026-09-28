@@ -26,7 +26,7 @@ import * as DocumentPicker from 'expo-document-picker';
 // `File` do expo-file-system tem o MESMO NOME do `File` do navegador.
 import { File as ArquivoLocal } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, Platform } from 'react-native';
+import { ActionSheetIOS, Alert, Platform } from 'react-native';
 
 import type { UploadBody } from '@/data';
 
@@ -259,4 +259,74 @@ export async function pickImage(options: PickImageOptions = {}): Promise<PickedF
 
   if (!origem) return null;
   return pickImageFrom(origem, options);
+}
+
+/* ===========================================================================
+ * CÂMERA E O ANEXO DA VENDA
+ * ===========================================================================
+ * O comprovante de pagamento e o documento do cliente podem vir da câmera (o
+ * corretor fotografa na hora, na mesa do cliente), da galeria (o print do Pix)
+ * ou dos arquivos (o PDF do banco, a CNH digital). Três botões: no Android o
+ * `Alert` só mostra três — cancelar é tocar fora. No iPhone, a folha de ações
+ * do sistema, com "Cancelar".
+ */
+
+export type OrigemDoAnexo = 'camera' | 'galeria' | 'arquivos';
+
+/** Tira a foto na hora. `null` se o corretor cancelar ou negar a câmera. */
+export async function fotografar(): Promise<PickedFile | null> {
+  if (isWeb) {
+    const files = await pickFiles({ multiple: false, type: 'image/*' });
+    return files[0] ?? null;
+  }
+  try {
+    const permissao = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissao.granted) {
+      Alert.alert(
+        'Câmera bloqueada',
+        'Para fotografar o comprovante ou o documento, libere a câmera do POUP nos Ajustes do celular. Você também pode escolher da galeria ou dos arquivos.',
+      );
+      return null;
+    }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85 });
+    const asset = result.canceled ? null : result.assets?.[0];
+    if (!asset) return null;
+    const body = await bytesFromUri(asset.uri);
+    if (!body || body.byteLength === 0) return null;
+    return { name: asset.fileName || `foto-${Date.now()}.jpg`, body, contentType: 'image/jpeg', size: body.byteLength, uri: asset.uri };
+  } catch {
+    return null;
+  }
+}
+
+export function escolherOrigemDoAnexo(titulo: string): Promise<OrigemDoAnexo | null> {
+  if (isWeb) return Promise.resolve('arquivos');
+  return new Promise((resolve) => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { title: titulo, options: ['Câmera', 'Galeria de fotos', 'Arquivos (PDF)', 'Cancelar'], cancelButtonIndex: 3 },
+        (i) => resolve((['camera', 'galeria', 'arquivos', null] as const)[i] ?? null),
+      );
+      return;
+    }
+    Alert.alert(
+      titulo,
+      'De onde vem o arquivo? (toque fora para cancelar)',
+      [
+        { text: 'Câmera', onPress: () => resolve('camera') },
+        { text: 'Galeria de fotos', onPress: () => resolve('galeria') },
+        { text: 'Arquivos (PDF)', onPress: () => resolve('arquivos') },
+      ],
+      { cancelable: true, onDismiss: () => resolve(null) },
+    );
+  });
+}
+
+/** Pergunta a origem e devolve o arquivo (câmera, galeria ou arquivos). */
+export async function pickAnexo(titulo: string, tipos: string[]): Promise<PickedFile | null> {
+  const origem = await escolherOrigemDoAnexo(titulo);
+  if (!origem) return null;
+  if (origem === 'camera') return fotografar();
+  if (origem === 'galeria') return pickImageFrom('galeria');
+  return (await pickFiles({ multiple: false, type: tipos }))[0] ?? null;
 }

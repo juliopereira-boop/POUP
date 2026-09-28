@@ -79,17 +79,28 @@ checar('ordinal', R.ordinal(3) === '3º');
 // O checklist da venda: a mesma régua do banco, item por item.
 {
   const venda = { clientCpf: '529.982.247-25', developmentName: 'Village das Estrelas', unit: '204', saleValue: 241400, saleDate: '2026-09-20', status: 'ativa' };
-  const ctx = { pro: true, participa: true, temComprovante: true, situacao: 'conta', hoje: '2026-09-27', cpfValido: M.isValidCPF };
+  const ctx = { pro: true, participa: true, temComprovante: true, temDocumento: true, situacao: 'conta', hoje: '2026-09-27', cpfValido: M.isValidCPF };
   const tudo = R.requisitosDaVenda(venda, ctx);
   checar('checklist: venda completa cumpre tudo', tudo.every((r) => r.ok), JSON.stringify(tudo.filter((r) => !r.ok)));
   const falta = (v, c) => R.requisitosDaVenda({ ...venda, ...v }, { ...ctx, ...c }).filter((r) => !r.ok).map((r) => r.rotulo);
   checar('checklist: sem comprovante aponta o comprovante de pagamento do sinal',
     falta({}, { temComprovante: false, situacao: 'sem_comprovante' }).join('|') ===
-      'Comprovante de pagamento do sinal anexado|Comprovante confere com a venda (data do pagamento e valor do sinal)');
+      'Comprovante de pagamento do sinal anexado|Comprovante confere com a venda (data do pagamento e valor do sinal)|CPF do documento confere com o CPF da venda');
+  checar('checklist: sem documento aponta o documento do cliente',
+    falta({}, { temDocumento: false, situacao: 'sem_documento' }).join('|') ===
+      'Documento do cliente anexado (RG, CNH ou CIN)|CPF do documento confere com o CPF da venda');
+  checar('checklist: CPF do documento que não confere',
+    falta({}, { situacao: 'documento_nao_confere' }).join() === 'CPF do documento confere com o CPF da venda');
+  const docEmAnalise = R.requisitosDaVenda(venda, { ...ctx, situacao: 'documento_em_analise' }).find((r) => /CPF do documento/.test(r.rotulo));
+  checar('checklist: documento em conferência fica pendente', docEmAnalise && !docEmAnalise.ok && docEmAnalise.pendente === true);
+  const regraDoc = R.regraDoDocumento('571.177.774-27').join(' ');
+  checar('a regra do documento mostra o CPF da venda formatado', regraDoc.includes('571.177.774-27') && /RG, CNH/.test(regraDoc), regraDoc);
   const emAnalise = R.requisitosDaVenda(venda, { ...ctx, situacao: 'comprovante_em_analise' }).find((r) => /confere/.test(r.rotulo));
   checar('checklist: comprovante em conferência fica pendente (nem ✓ nem ✕)', emAnalise && !emAnalise.ok && emAnalise.pendente === true);
   checar('checklist: comprovante que não confere aponta data do pagamento e valor do sinal',
-    falta({}, { situacao: 'comprovante_nao_confere' }).join() === 'Comprovante confere com a venda (data do pagamento e valor do sinal)');
+    falta({}, { situacao: 'comprovante_nao_confere' }).join('|') === 'Comprovante confere com a venda (data do pagamento e valor do sinal)|CPF do documento confere com o CPF da venda');
+  const docEspera = R.requisitosDaVenda(venda, { ...ctx, situacao: 'comprovante_nao_confere' }).find((r) => /CPF do documento/.test(r.rotulo));
+  checar('checklist: com o comprovante pendente, o documento espera (… e não ✕)', docEspera.pendente === true && /depois do comprovante/.test(docEspera.dica));
   checar('situações novas têm texto para o corretor',
     R.textoDaSituacao('comprovante_nao_confere').rotulo === 'Comprovante não confere com a venda' &&
       R.textoDaSituacao('comprovante_em_analise').tom === 'pendente');

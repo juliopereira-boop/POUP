@@ -173,7 +173,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": false,
+          "cameraPermission": "O POUP usa a câmera para fotografar o comprovante de pagamento e o documento do cliente que você anexa à venda.",
           "photosPermission": "O POUP permite selecionar fotos de empresas, imóveis, material de venda, do seu perfil e o comprovante de pagamento do sinal das suas vendas para anexar aos cadastros.",
           "microphonePermission": false
         }
