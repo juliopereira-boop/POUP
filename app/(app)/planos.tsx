@@ -26,9 +26,24 @@ import { FluxoDeMudanca } from '@/components/planos/FluxoDeMudanca';
 import { Screen } from '@/components/Screen';
 import { db } from '@/data';
 import { registrar } from '@/features/analytics/eventos';
-import { abrirCheckout, abrirPortalDeCobranca, cancelarAssinatura, mudarDePlano } from '@/features/cobranca/abrirCobranca';
-import { loadStorePrices, purchaseStorePlan, restoreStorePurchases } from '@/features/cobranca/comprasNaLoja';
-import { acaoDoPlano, estadoDaConta, resumoDaConta, type DestinoDaMudanca, type Motivo } from '@/features/planos/acoes';
+import {
+  abrirCheckout,
+  abrirPortalDeCobranca,
+  cancelarAssinatura,
+  mudarDePlano,
+} from '@/features/cobranca/abrirCobranca';
+import {
+  loadStorePrices,
+  purchaseStorePlan,
+  restoreStorePurchases,
+} from '@/features/cobranca/comprasNaLoja';
+import {
+  acaoDoPlano,
+  estadoDaConta,
+  resumoDaConta,
+  type DestinoDaMudanca,
+  type Motivo,
+} from '@/features/planos/acoes';
 import { PLANS, PLAN_ORDER } from '@/features/plans';
 import { canShowBilling, usesNativeBilling } from '@/features/store';
 import { depoisDeFecharJanela } from '@/lib/navegacao';
@@ -37,7 +52,8 @@ import { useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 import type { PlanTier } from '@/data/types';
 
-const plataforma = (): 'web' | 'ios' | 'android' => (Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web');
+const plataforma = (): 'web' | 'ios' | 'android' =>
+  Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';
 
 export default function PlanosScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -46,6 +62,8 @@ export default function PlanosScreen() {
   const [precosDaLoja, setPrecosDaLoja] = useState<Partial<Record<PlanTier, string>>>({});
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  /** Onde o erro aparece: embaixo do plano tocado (senão ficava só no topo, fora da vista). */
+  const [ondeErro, setOndeErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [fluxo, setFluxo] = useState<DestinoDaMudanca | null>(null);
 
@@ -62,12 +80,27 @@ export default function PlanosScreen() {
     if (!usesNativeBilling) return;
     let vivo = true;
     void loadStorePrices().then((r) => {
-      if (vivo && r.ok) setPrecosDaLoja(Object.fromEntries(r.data.map((p) => [p.tier, p.priceLabel])));
+      if (vivo && r.ok)
+        setPrecosDaLoja(Object.fromEntries(r.data.map((p) => [p.tier, p.priceLabel])));
     });
     return () => {
       vivo = false;
     };
   }, []);
+
+  // Voltando da Stripe pelo "voltar" do navegador, a página é restaurada como
+  // estava ao sair — com o botão ainda carregando. Solta o botão.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const aoVoltar = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        setOcupado(null);
+        void refresh();
+      }
+    };
+    window.addEventListener('pageshow', aoVoltar);
+    return () => window.removeEventListener('pageshow', aoVoltar);
+  }, [refresh]);
 
   // Voltando do portal de pagamento ou da loja, a assinatura pode ter mudado.
   useEffect(() => {
@@ -78,14 +111,26 @@ export default function PlanosScreen() {
   }, [refresh]);
 
   const executar = useCallback(
-    async (chave: string, acao: () => Promise<{ ok: boolean; error?: string }>, sucesso?: string) => {
+    async (
+      chave: string,
+      acao: () => Promise<{ ok: boolean; error?: string }>,
+      sucesso?: string,
+    ) => {
       setErro(null);
+      setOndeErro(chave);
       setAviso(null);
       setOcupado(chave);
+      let saindo = false;
       try {
         const r = await acao();
         if (!r.ok) {
           if (r.error) setErro(r.error);
+          return;
+        }
+        // Na web, dar certo = a página já está indo para a Stripe: o botão
+        // segue carregando até ela abrir (e o "voltar" solta, no pageshow).
+        if (!usesNativeBilling) {
+          saindo = true;
           return;
         }
         await refresh();
@@ -93,7 +138,7 @@ export default function PlanosScreen() {
       } catch {
         setErro('Não foi possível abrir a cobrança. Tente de novo.');
       } finally {
-        setOcupado(null);
+        if (!saindo) setOcupado(null);
       }
     },
     [refresh],
@@ -104,7 +149,11 @@ export default function PlanosScreen() {
     if (acao.tipo === 'atual') return;
     if (acao.tipo === 'downgrade') return setFluxo('start');
     if (acao.tipo === 'upgrade') {
-      return void executar(tier, () => mudarDePlano('pro'), usesNativeBilling ? 'Pronto: você já está no Pro.' : undefined);
+      return void executar(
+        tier,
+        () => mudarDePlano('pro'),
+        usesNativeBilling ? 'Pronto: você já está no Pro.' : undefined,
+      );
     }
     // Assinar (teste, sem plano ou acesso concedido).
     return void executar(
@@ -132,7 +181,9 @@ export default function PlanosScreen() {
     setFluxo(null);
     // A janela precisa sair antes de abrir o portal ou a página da loja.
     await new Promise<void>((r) => depoisDeFecharJanela(r));
-    await executar(destino, () => (destino === 'cancelar' ? cancelarAssinatura() : mudarDePlano('start')));
+    await executar(destino, () =>
+      destino === 'cancelar' ? cancelarAssinatura() : mudarDePlano('start'),
+    );
     return null;
   }
 
@@ -149,26 +200,35 @@ export default function PlanosScreen() {
         ) : null}
       </View>
 
-      {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+      {erro && !PLAN_ORDER.includes(ondeErro as PlanTier) ? (
+        <Text style={styles.erro}>{erro}</Text>
+      ) : null}
       {aviso ? <Text style={styles.aviso}>{aviso}</Text> : null}
 
       <View style={styles.planos}>
         {PLAN_ORDER.map((tier) => {
           const plano = PLANS[tier];
           const acao = acaoDoPlano(tier, estado);
-          const preco = usesNativeBilling ? (precosDaLoja[tier] ?? 'Preço indisponível') : plano.priceLabel;
+          const preco = usesNativeBilling
+            ? (precosDaLoja[tier] ?? 'Preço indisponível')
+            : plano.priceLabel;
           return (
-            <CartaoDePlano
-              key={tier}
-              plan={plano}
-              priceLabel={preco}
-              rotulo={canShowBilling ? acao.rotulo : null}
-              atual={acao.tipo === 'atual'}
-              perigo={acao.tipo === 'downgrade'}
-              loading={ocupado === tier}
-              disabled={ocupado !== null || (usesNativeBilling && acao.tipo !== 'downgrade' && !precosDaLoja[tier])}
-              onPress={() => tocarNoPlano(tier)}
-            />
+            <View key={tier} style={styles.plano}>
+              <CartaoDePlano
+                plan={plano}
+                priceLabel={preco}
+                rotulo={canShowBilling ? acao.rotulo : null}
+                atual={acao.tipo === 'atual'}
+                perigo={acao.tipo === 'downgrade'}
+                loading={ocupado === tier}
+                disabled={
+                  ocupado !== null ||
+                  (usesNativeBilling && acao.tipo !== 'downgrade' && !precosDaLoja[tier])
+                }
+                onPress={() => tocarNoPlano(tier)}
+              />
+              {erro && ondeErro === tier ? <Text style={styles.erro}>{erro}</Text> : null}
+            </View>
           );
         })}
       </View>
@@ -182,7 +242,11 @@ export default function PlanosScreen() {
             loading={ocupado === 'gerenciar'}
           />
           {!estado.cancelaNoFim ? (
-            <Button label="Cancelar assinatura" variant="ghost" onPress={() => setFluxo('cancelar')} />
+            <Button
+              label="Cancelar assinatura"
+              variant="ghost"
+              onPress={() => setFluxo('cancelar')}
+            />
           ) : null}
         </View>
       ) : null}
@@ -191,10 +255,14 @@ export default function PlanosScreen() {
           label="Restaurar compras"
           variant="ghost"
           onPress={() =>
-            void executar('restaurar', async () => {
-              const r = await restoreStorePurchases();
-              return r.ok ? { ok: true } : r;
-            }, 'Compras restauradas.')
+            void executar(
+              'restaurar',
+              async () => {
+                const r = await restoreStorePurchases();
+                return r.ok ? { ok: true } : r;
+              },
+              'Compras restauradas.',
+            )
           }
           loading={ocupado === 'restaurar'}
         />
@@ -235,10 +303,16 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
       gap: 4,
     },
-    situacaoRotulo: { ...typography.caption, color: colors.primary, fontWeight: '800', letterSpacing: 1 },
+    situacaoRotulo: {
+      ...typography.caption,
+      color: colors.primary,
+      fontWeight: '800',
+      letterSpacing: 1,
+    },
     situacaoTitulo: { ...typography.title, color: colors.ink },
     situacaoTexto: { ...typography.body, color: colors.inkMuted },
     planos: { gap: spacing.lg },
+    plano: { gap: spacing.sm },
     acoes: { gap: spacing.sm, marginTop: spacing.lg },
     erro: {
       ...typography.caption,
@@ -258,8 +332,19 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
       overflow: 'hidden',
     },
-    letraMiuda: { ...typography.caption, color: colors.inkSubtle, textAlign: 'center', marginTop: spacing.lg },
-    links: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.xl },
+    letraMiuda: {
+      ...typography.caption,
+      color: colors.inkSubtle,
+      textAlign: 'center',
+      marginTop: spacing.lg,
+    },
+    links: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      marginBottom: spacing.xl,
+    },
     link: { ...typography.caption, color: colors.primary, fontWeight: '600' },
     separador: { ...typography.caption, color: colors.inkSubtle },
   });

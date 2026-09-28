@@ -126,11 +126,23 @@ if (!priceId) {
     if (subscriptions.has_more || subscriptions.data.some((s) => s.status !== 'canceled' && s.status !== 'incomplete_expired')) {
       return json({ error: 'Você já possui uma assinatura. Use Gerenciar assinatura para alterá-la.' }, 409);
     }
-    const openSessions = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 1 });
-    if (openSessions.data.length > 0) {
-      const open = openSessions.data[0];
+    // Pagamento já aberto (o corretor foi à Stripe e voltou):
+    //   - do MESMO plano: reaproveita, é o mesmo link;
+    //   - de OUTRO plano: encerra na Stripe e abre o do plano novo. Antes a
+    //     troca era recusada ("pagamento em andamento") e, para quem tocou no
+    //     Start e depois no Pro, o botão parecia não fazer nada. Encerrada, a
+    //     sessão antiga não pode mais ser paga: nunca há duas cobranças.
+    const openSessions = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 10 });
+    const encerradas: string[] = [];
+    for (const open of openSessions.data) {
       if (open.metadata?.price_id === priceId && open.url) return json({ url: open.url });
-      return json({ error: 'Já existe um pagamento em andamento. Conclua ou aguarde sua expiração antes de trocar o plano.' }, 409);
+      try {
+        await stripe.checkout.sessions.expire(open.id);
+        encerradas.push(open.id);
+      } catch {
+        // Não deu para encerrar: é porque está sendo paga agora.
+        return json({ error: 'Já existe um pagamento em andamento. Conclua-o ou aguarde alguns minutos para trocar o plano.' }, 409);
+      }
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -143,8 +155,10 @@ if (!priceId) {
       subscription_data: { metadata: { supabase_user_id: user.id } },
       metadata: { supabase_user_id: user.id, price_id: priceId },
     }, {
-  idempotencyKey: `poup-checkout-${user.id}-${plan}-${Math.floor(Date.now() / 1_800_000)}`,
-});
+      // Com sessão encerrada no caminho, a chave muda: senão a Stripe devolveria
+      // a sessão antiga (já encerrada) guardada pela mesma chave.
+      idempotencyKey: `poup-checkout-${user.id}-${plan}-${Math.floor(Date.now() / 1_800_000)}${encerradas.length ? `-${encerradas.join('-')}` : ''}`,
+    });
 
     return json({ url: session.url });
   } catch (e) {

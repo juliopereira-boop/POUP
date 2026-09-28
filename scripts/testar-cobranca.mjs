@@ -30,6 +30,7 @@ function load(name, f) {
     },
     checkout: { sessions: {
       list: async () => ({ data: f.openSessions }),
+      expire: async id => { f.calls.push(['expire', id]); if (f.expireError) throw f.expireError; return { id, status: 'expired' }; },
       create: async (data, options) => { f.calls.push(['checkout', data, options]); return { url: 'https://checkout.stripe.com/test' }; },
     } },
     billingPortal: { sessions: {
@@ -205,8 +206,20 @@ await test('checkout aberto compatível é reutilizado', async () => {
   assert.equal((await response.json()).url, f.openSessions[0].url);
   assert.equal(has(f, 'checkout'), false);
 });
-await test('checkout aberto de outro plano não gera concorrência', async () => {
-  const f = fixture(); f.openSessions = [{ metadata: { price_id: 'price_start' } }];
+await test('checkout aberto de outro plano é encerrado e o novo abre', async () => {
+  const f = fixture(); f.openSessions = [{ id: 'cs_start', metadata: { price_id: 'price_start' }, url: 'https://checkout.stripe.com/start' }];
+  const response = await load('create-checkout-session', f).call(checkoutBody);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).url, 'https://checkout.stripe.com/test');
+  const expirou = f.calls.findIndex(c => c[0] === 'expire' && c[1] === 'cs_start');
+  const criou = f.calls.findIndex(c => c[0] === 'checkout');
+  assert.ok(expirou >= 0 && expirou < criou, 'encerra o antigo antes de criar o novo');
+  assert.equal(f.calls[criou][1].line_items[0].price, 'price_pro');
+  assert.match(f.calls[criou][2].idempotencyKey, /-cs_start$/);
+});
+await test('checkout de outro plano sendo pago agora não gera concorrência', async () => {
+  const f = fixture(); f.openSessions = [{ id: 'cs_start', metadata: { price_id: 'price_start' } }];
+  f.expireError = new Error('session is being paid');
   assert.equal((await load('create-checkout-session', f).call(checkoutBody)).status, 409);
   assert.equal(has(f, 'checkout'), false);
 });
