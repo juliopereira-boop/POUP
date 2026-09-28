@@ -13,5 +13,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", "supabase/functions", "dist", "video"]
+  "exclude": ["node_modules", "supabase/functions", "dist"]
 }

@@ -2,4 +2,3 @@ node_modules/
 dist/
 .expo/
 supabase/functions/
-video/
