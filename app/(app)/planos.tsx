@@ -125,6 +125,8 @@ export default function PlanosScreen() {
         const r = await acao();
         if (!r.ok) {
           if (r.error) setErro(r.error);
+          // No celular, a compra pode ter sido liberada pelo servidor mesmo assim.
+          if (usesNativeBilling && r.error) await refresh();
           return;
         }
         // Na web, dar certo = a página já está indo para a Stripe: o botão

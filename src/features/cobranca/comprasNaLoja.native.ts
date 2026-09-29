@@ -60,6 +60,25 @@ function entitlementIsActive(info: CustomerInfo, tier: PlanTier): boolean {
   return info.entitlements.active[ENTITLEMENT_BY_TIER[tier]] !== undefined;
 }
 
+/**
+ * A Apple confirma a compra um pouco antes de o RevenueCat terminar de ler o
+ * recibo. Em vez de desistir na primeira resposta, pergunta de novo algumas
+ * vezes (≈ 6 s no total) antes de dizer que o plano não foi liberado.
+ */
+async function esperarDireito(info: CustomerInfo, tier: PlanTier): Promise<boolean> {
+  if (entitlementIsActive(info, tier)) return true;
+  for (const espera of [1000, 2000, 3000]) {
+    await new Promise((r) => setTimeout(r, espera));
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      if (entitlementIsActive(await Purchases.getCustomerInfo(), tier)) return true;
+    } catch {
+      // Sem rede nessa tentativa: tenta a próxima.
+    }
+  }
+  return false;
+}
+
 async function currentPackages(): Promise<Record<PlanTier, PurchasesPackage>> {
   const offerings = await Purchases.getOfferings();
   const offering = offerings.current;
@@ -146,10 +165,15 @@ export const purchaseStorePlan: PurchaseStorePlan = async (
   try {
     const packages = await currentPackages();
     const { customerInfo } = await Purchases.purchasePackage(packages[tier]);
-    if (!entitlementIsActive(customerInfo, tier)) {
-      return err('A compra foi recebida, mas o plano ainda está sendo ativado.');
-    }
+    const liberado = await esperarDireito(customerInfo, tier);
+    // Avisa o servidor do POUP de qualquer jeito: é ele quem libera o acesso.
     const synced = await syncStoreSubscription();
+    if (!liberado) {
+      console.error('[revenuecat] Compra sem o direito ativo:', ENTITLEMENT_BY_TIER[tier]);
+      return err(
+        'A loja confirmou a compra, mas o plano ainda não foi liberado. Toque em "Restaurar compras" em alguns instantes. Se continuar assim, fale com o suporte: você não será cobrado de novo.',
+      );
+    }
     return synced.ok ? ok(undefined) : synced;
   } catch (error) {
     const purchaseError = error as Partial<PurchasesError> | undefined;

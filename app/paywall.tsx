@@ -96,7 +96,10 @@ export default function PaywallScreen() {
       if (usesNativeBilling) {
         const result = await purchaseStorePlan(plan.tier);
         if (!result.ok) {
-          if (!result.cancelled) setError(result.error);
+          if (result.cancelled) return;
+          setError(result.error);
+          // O servidor pode ter liberado mesmo assim: se liberou, o app abre.
+          await refresh();
           return;
         }
         await refresh();
