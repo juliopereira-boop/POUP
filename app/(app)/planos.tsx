@@ -210,7 +210,9 @@ export default function PlanosScreen() {
           const plano = PLANS[tier];
           const acao = acaoDoPlano(tier, estado);
           const preco = usesNativeBilling
-            ? (precosDaLoja[tier] ?? 'Preço indisponível')
+            ? precosDaLoja[tier]
+              ? `${precosDaLoja[tier]}/mês`
+              : 'Preço indisponível'
             : plano.priceLabel;
           return (
             <View key={tier} style={styles.plano}>

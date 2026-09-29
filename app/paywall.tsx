@@ -195,7 +195,9 @@ export default function PaywallScreen() {
               plan={plan}
               priceLabel={
                 usesNativeBilling
-                  ? (storePrices[plan.tier] ?? 'Preço indisponível')
+                  ? storePrices[plan.tier]
+                    ? `${storePrices[plan.tier]}/mês`
+                    : 'Preço indisponível'
                   : plan.priceLabel
               }
               rotulo={`Assinar o ${plan.name}`}

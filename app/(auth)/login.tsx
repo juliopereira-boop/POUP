@@ -116,8 +116,9 @@ export default function LoginScreen() {
       </View>
 
       {/*
-        Cadastro por formulário fica na web por decisão de produto. Login
-        social pode criar uma identidade; não oferece compra dentro do app.
+        Cadastro por formulário fica na web por decisão de produto. No app das
+        lojas, a conta nova nasce pelo "Continuar com a Apple/Google"; a
+        assinatura é comprada depois, dentro do app, pela loja.
       */}
       {podeCriarConta ? (
         <View style={styles.footer}>
@@ -129,7 +130,7 @@ export default function LoginScreen() {
       ) : (
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Acesse sua conta POUP. As funcionalidades dependem do acesso disponível na sua conta.
+            Novo no POUP? Toque em Continuar com a Apple ou com o Google: a sua conta é criada na hora.
           </Text>
         </View>
       )}

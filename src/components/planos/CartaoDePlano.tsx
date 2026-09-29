@@ -54,6 +54,8 @@ export function CartaoDePlano({
       </View>
 
       <Text style={styles.planPrice}>{priceLabel}</Text>
+      {/* Duração e renovação ao lado do preço: a Apple exige (3.1.2). */}
+      <Text style={styles.planPeriod}>Assinatura mensal · renovação automática</Text>
 
       <View style={styles.features}>
         {plan.features.map((f) => (
@@ -95,21 +97,43 @@ const makeStyles = (colors: AppColors) =>
       padding: spacing.lg,
     },
     cardHighlighted: { borderColor: colors.primary, borderWidth: 2 },
-    cardHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
+    cardHead: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
     cardHeadMain: { flex: 1 },
-    badge: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 4 },
+    badge: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 4,
+    },
     badgeAtual: { backgroundColor: colors.primary },
     badgeText: { ...typography.caption, fontSize: 11, color: colors.primary, fontWeight: '700' },
     badgeTextAtual: { color: colors.white },
     planName: { ...typography.heading, color: colors.ink },
     planTagline: { ...typography.caption, color: colors.inkMuted, marginTop: 2 },
-    planPrice: { ...typography.title, color: colors.primary, marginTop: spacing.sm, marginBottom: spacing.lg },
+    planPrice: { ...typography.title, color: colors.primary, marginTop: spacing.sm },
+    planPeriod: {
+      ...typography.caption,
+      color: colors.inkMuted,
+      marginTop: 2,
+      marginBottom: spacing.lg,
+    },
     features: { gap: spacing.sm },
     feature: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
     check: { color: colors.success, fontWeight: '700', fontSize: 13, lineHeight: 18 },
     cross: { color: colors.inkSubtle, fontWeight: '700', fontSize: 13, lineHeight: 18 },
     featureText: { ...typography.label, fontWeight: '400', color: colors.ink, flex: 1 },
-    featureTextOff: { ...typography.label, fontWeight: '400', color: colors.inkSubtle, textDecorationLine: 'line-through', flex: 1 },
+    featureTextOff: {
+      ...typography.label,
+      fontWeight: '400',
+      color: colors.inkSubtle,
+      textDecorationLine: 'line-through',
+      flex: 1,
+    },
     missingNote: { ...typography.caption, color: colors.inkMuted, marginTop: spacing.md },
     cta: { marginTop: spacing.lg },
   });
