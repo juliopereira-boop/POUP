@@ -19,9 +19,10 @@ export default function CadastrosScreen() {
       {/* O catálogo é o caminho mais rápido, e ninguém acha o que não sabe que
           existe: o atalho precisa ser anunciado aqui, na porta de entrada. */}
       <Text style={styles.intro}>
-        Em “Cadastro de empresas”, a aba <Text style={styles.strong}>Catálogo do sistema</Text> traz
-        construtoras que o POUP já configurou, com empreendimentos e regra de comissão prontos.
-        Você adota com um toque e as atualizações chegam sozinhas.
+        O jeito mais rápido é o botão <Text style={styles.strong}>Sincronizar empresas</Text>, na
+        tela inicial: ele traz as construtoras que o POUP já configurou, com empreendimentos e regra
+        de comissão prontos, e as atualizações chegam sozinhas. A mesma lista fica em “Cadastro de
+        empresas”, na aba Catálogo do sistema.
       </Text>
 
       <View style={styles.actions}>

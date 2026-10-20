@@ -282,6 +282,10 @@ export default function HomeScreen() {
             })}
           </View>
         ) : null}
+
+        {/* Espaço para o fim da tela rolar acima dos botões flutuantes
+            ("Sincronizar empresas" e LIA). */}
+        <View style={styles.folgaDosBotoes} />
       </Screen>
     </>
   );
@@ -441,4 +445,5 @@ const makeStyles = (colors: AppColors) =>
     todayMain: { flex: 1 },
     todayTitle: { ...typography.body, color: colors.ink, fontWeight: '600' },
     todayType: { ...typography.caption, color: colors.inkSubtle, marginTop: 1 },
+    folgaDosBotoes: { height: 72 },
   });

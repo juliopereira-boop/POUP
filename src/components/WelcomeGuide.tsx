@@ -15,7 +15,7 @@ import { Button } from './Button';
 import { Icon } from './Icon';
 import { Logo } from './Logo';
 import { GUIDE_STEPS } from '@/features/guideSteps';
-import { guideSeenKey, registerGuideOpener } from '@/features/guide';
+import { guideSeenKey, registerGuideOpener, terminarOGuia } from '@/features/guide';
 import { sessionStorage } from '@/lib/storage';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -78,7 +78,10 @@ export function WelcomeGuide() {
   async function finish(goToSimulation: boolean) {
     if (user) await sessionStorage.setItem(guideSeenKey(user.id), '1');
     setVisible(false);
-    if (goToSimulation) depoisDeFecharJanela(() => router.push('/(app)/simuladores'));
+    // Depois do guia, a janela de sincronizar empresas (se houver o que
+    // sincronizar); o simulador, se pedido, abre quando ela fechar.
+    const depois = goToSimulation ? () => router.push('/(app)/simuladores') : undefined;
+    depoisDeFecharJanela(() => terminarOGuia(depois));
   }
 
   const current = GUIDE_STEPS[step];

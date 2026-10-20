@@ -19,3 +19,20 @@ export function openGuide(): void {
 export function guideSeenKey(userId: string): string {
   return `poup.guide.seen.${userId}`;
 }
+
+/*
+ * Depois do guia vem a sincronização das empresas (`features/catalog/sincronizar`).
+ * O guia não sabe dela: ele só avisa que terminou e diz o que fazer depois
+ * (abrir o simulador, se o corretor pediu). Quem ouve decide se abre a janela
+ * antes; sem ninguém ouvindo, o "depois" acontece direto.
+ */
+let aoTerminar: ((depois?: () => void) => void) | null = null;
+
+export function registrarAoTerminarOGuia(fn: ((depois?: () => void) => void) | null): void {
+  aoTerminar = fn;
+}
+
+export function terminarOGuia(depois?: () => void): void {
+  if (aoTerminar) aoTerminar(depois);
+  else depois?.();
+}

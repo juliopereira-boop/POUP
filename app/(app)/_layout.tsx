@@ -2,6 +2,7 @@ import { Redirect, Stack } from 'expo-router';
 import { View } from 'react-native';
 
 import { BottomTabBar } from '@/components/BottomTabBar';
+import { SincronizarEmpresas } from '@/components/catalogo/SincronizarEmpresas';
 import { cabecalhoComVoltar } from '@/components/navegacao/BotaoVoltar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Lia } from '@/components/lia/Lia';
@@ -111,6 +112,8 @@ export default function AppLayout() {
         <BottomTabBar />
         <OnboardingModal />
         <WelcomeGuide />
+        {/* Depois do guia: o botão "Sincronizar empresas" da tela inicial e a janela dele. */}
+        <SincronizarEmpresas />
         <Lia />
       </View>
     </LiaProvider>

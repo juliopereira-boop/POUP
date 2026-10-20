@@ -22,23 +22,23 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     icon: 'building',
-    where: 'Início › Cadastros › Empresas',
-    title: 'Comece pelos cadastros, se houver o que cadastrar',
+    where: 'Início › botão “Sincronizar empresas”',
+    title: 'Comece sincronizando suas empresas',
     description:
-      'O simulador, a proposta e a comissão trabalham com as regras da construtora. Antes de digitar qualquer coisa, abra a aba “Catálogo do sistema”: se a sua construtora já estiver lá, é só aceitar e tudo entra pronto.',
+      'O simulador, a proposta e a comissão trabalham com as regras da construtora. Toque em “Sincronizar empresas”, no canto da tela inicial: as construtoras do seu estado já vêm marcadas, e com um toque tudo entra pronto.',
     bullets: [
       'Do catálogo vêm prontos a regra de comissão, os empreendimentos e o material de venda',
-      'Se ela não estiver no catálogo, cadastre você: risco máximo, número de parcelas, semestrais e anuais',
-      'Depois cadastre os empreendimentos da empresa, com data de entrega e descrição',
-      'A descrição é o que o POUP usa para escrever suas mensagens',
+      'Quando houver construtora para sincronizar, a janela já se abre ao terminar este guia',
+      'Se a sua construtora não estiver no catálogo, cadastre em Cadastros › Empresas: risco máximo, número de parcelas, semestrais e anuais',
+      'Nos empreendimentos que você cadastra, a descrição é o que o POUP usa para escrever suas mensagens',
     ],
   },
   {
     icon: 'handshake',
-    where: 'Início › Cadastros › Empresas › aba “Catálogo do sistema”',
-    title: 'Catálogo do sistema: aceitar e usar',
+    where: 'Início › “Sincronizar empresas” (ou Cadastros › Empresas › “Catálogo do sistema”)',
+    title: 'Sincronizar é usar o catálogo do POUP',
     description:
-      'São construtoras que o POUP já cadastrou, com regra de comissão, empreendimentos e material de venda. Toque na construtora, leia o aviso e aceite: na hora tudo passa a valer na sua conta.',
+      'São construtoras que o POUP já cadastrou, com regra de comissão, empreendimentos e material de venda. Ao sincronizar, tudo passa a valer na sua conta na hora.',
     bullets: [
       'As atualizações do POUP chegam sozinhas: regra ajustada ou empreendimento novo aparece na sua conta',
       'Por isso a empresa do catálogo é somente leitura, você não edita os dados dela',
@@ -166,7 +166,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     description: 'Se quiser um roteiro para hoje, é este:',
     bullets: [
       '1. Abra Simuladores e escolha a simulação que precisa fazer',
-      '2. Para uma proposta de empreendimento, aceite a construtora no catálogo ou cadastre-a',
+      '2. Para uma proposta de empreendimento, sincronize a construtora (botão na tela inicial) ou cadastre-a',
       '3. Confira os valores e gere o PDF para o cliente',
       '4. Depois organize seus materiais e publique seu QR Code de captação',
     ],

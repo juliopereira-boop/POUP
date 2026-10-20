@@ -405,6 +405,12 @@ Sempre vinculado a uma empresa (`companyId`). Campos de "Regras de Negócio":
 
 O admin do POUP pré-configura construtoras — regra de comissão, campanhas, empreendimentos, material de venda e foto redonda — e o corretor **adota** com um toque, em vez de cadastrar tudo do zero. Fica em **Cadastros → Empresas → aba "Catálogo do sistema"**; o painel do admin fica em **Configurações → Administração → Catálogo do sistema**.
 
+**Atalho "Sincronizar empresas" (tela inicial).** O caminho mais rápido.
+- O botão flutuante fica no canto esquerdo da tela inicial (a LIA fica no direito), com o número de construtoras ainda não sincronizadas.
+- A janela já vem marcada com as construtoras do estado do corretor; um toque adota todas. É o mesmo vínculo do aceite um a um.
+- A janela abre sozinha uma vez, ao fim do guia de boas-vindas, se houver o que sincronizar. Quem já tinha visto o guia a vê uma vez ao entrar.
+- Regras em `src/features/catalog/sincronizar.ts`, tela em `src/components/catalogo/SincronizarEmpresas.tsx`, teste em `npm run testar:sincronizar`.
+
 ### A decisão que sustenta tudo: vínculo, não cópia
 
 Adotar **não duplica dados** na conta do corretor. Cria uma linha em `company_adoptions` e a leitura dele passa a alcançar a **mesma** linha da empresa do admin.

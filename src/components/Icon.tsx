@@ -18,7 +18,9 @@ export type IconName =
   | 'user'
   | 'chevronRight'
   | 'calculator'
-  | 'trophy';
+  | 'trophy'
+  | 'sync'
+  | 'check';
 
 interface IconProps {
   name: IconName;
@@ -144,6 +146,17 @@ export function Icon({ name, size = 24, color, strokeWidth = 1.7 }: IconProps) {
           <Path d="M12 13.5v3.5M8.5 20.5h7M9.5 17h5v3.5h-5z" {...common} />
         </>
       ) : null}
+
+      {name === 'sync' ? (
+        <>
+          <Path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5" {...common} />
+          <Path d="M20 4v4.5h-4.5" {...common} />
+          <Path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5" {...common} />
+          <Path d="M4 20v-4.5h4.5" {...common} />
+        </>
+      ) : null}
+
+      {name === 'check' ? <Path d="m5 12.5 4.5 4.5L19 7.5" {...common} /> : null}
     </Svg>
   );
 }

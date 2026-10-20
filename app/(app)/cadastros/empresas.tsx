@@ -21,6 +21,7 @@ import {
   type Correspondent,
 } from '@/data';
 import { registrar } from '@/features/analytics/eventos';
+import { avisarQueAsEmpresasMudaram } from '@/features/catalog/sincronizar';
 import { useAuth } from '@/providers/AuthProvider';
 import { useThemedStyles } from '@/providers/ThemeProvider';
 import { layout, radius, spacing, typography, type AppColors } from '@/theme';
@@ -216,6 +217,7 @@ export default function EmpresasScreen() {
     setFlash(
       `${entry.company.name} agora é sua: os empreendimentos dela já aparecem no simulador e nos cadastros.`,
     );
+    avisarQueAsEmpresasMudaram();
     void load();
   }
 
@@ -240,6 +242,7 @@ export default function EmpresasScreen() {
       }
       setOpenCatalog(null);
       setFlash(`${company.name} saiu da sua lista. Seu histórico continua intacto.`);
+      avisarQueAsEmpresasMudaram();
       void load();
     };
 
