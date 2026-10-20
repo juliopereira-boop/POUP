@@ -15,12 +15,13 @@
 create extension if not exists pg_net;
 -- pg_cron já está ligado no POUP (retenção de telemetria).
 
--- 2. Vault — QUEM DIGITA É O DONO DO PROJETO, aqui no SQL Editor. O valor do
---    segredo é o MESMO cadastrado em Edge Functions → Secrets → UAU_SYNC_SECRET.
---    Não cole esse valor no chat.
+-- 2. Vault. O segredo do cron é GERADO no próprio banco: ninguém digita nem vê.
+--    A função `uau-disponibilidade-sync` confere o cabeçalho contra o Vault
+--    (`uau_confere_segredo_do_cron`); não há secret para cadastrar na função.
+--    No POUP isto já foi feito em 20/10/2026.
 --
 --    select vault.create_secret('https://<REF-DO-PROJETO>.supabase.co', 'uau_project_url');
---    select vault.create_secret('<O MESMO VALOR DE UAU_SYNC_SECRET>', 'uau_sync_secret');
+--    select vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'uau_sync_secret');
 --
 --    Conferir sem mostrar o valor:
 --    select name, length(decrypted_secret) from vault.decrypted_secrets where name like 'uau_%';

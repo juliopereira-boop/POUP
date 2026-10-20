@@ -4,7 +4,7 @@
 // Deploy: Dashboard → Edge Functions → Deploy a new function → cole este
 // arquivo (arquivo único, sem import relativo). **Verify JWT: DESLIGADO** —
 // quem chama é o pg_cron, que não tem sessão; a função exige o header
-// `x-sync-secret` antes de qualquer outra coisa.
+// `x-sync-secret` (o segredo do Vault) antes de qualquer outra coisa.
 //
 // O QUE FAZ: lê o Espelho de vendas do UAU das obras vinculadas
 // (`development_uau_obras`) e entrega a leitura ao banco
@@ -22,7 +22,8 @@
 // Secrets (Edge Functions → Secrets), cadastrados pelo DONO do projeto:
 //   UAU_INTEGRATION_TOKEN   header X-INTEGRATION-Authorization
 //   UAU_USER, UAU_PASS      login da API do UAU
-//   UAU_SYNC_SECRET         segredo do cron (o mesmo valor guardado no Vault)
+//   UAU_SYNC_SECRET         opcional: o segredo do cron já é conferido no Vault
+//                           do banco (`uau_confere_segredo_do_cron`)
 //   UAU_BASE_URL            opcional (default: API da Canopus)
 //   UAU_API_VERSION         opcional (default 1.0)
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY  injetados pelo Supabase
@@ -225,8 +226,16 @@ async function rpc<T>(fn: string, args: Row): Promise<T> {
 // Handler
 // ---------------------------------------------------------------------
 Deno.serve(async (req) => {
+  // O segredo do cron mora no Vault do banco (`uau_sync_secret`, gerado lá:
+  // ninguém digita nem vê). `UAU_SYNC_SECRET` nos secrets da função continua
+  // aceito, se alguém preferir cadastrar.
   try {
-    if (req.headers.get('x-sync-secret') !== env('UAU_SYNC_SECRET')) return json({ error: 'unauthorized' }, 401);
+    const segredo = req.headers.get('x-sync-secret') ?? '';
+    const doAmbiente = Deno.env.get('UAU_SYNC_SECRET');
+    const autorizado =
+      (Boolean(doAmbiente) && segredo === doAmbiente) ||
+      (await rpc<boolean>('uau_confere_segredo_do_cron', { p_segredo: segredo })) === true;
+    if (!autorizado) return json({ error: 'unauthorized' }, 401);
   } catch (e) {
     return json({ ok: false, error: String((e as Error).message ?? e) }, 500);
   }

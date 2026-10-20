@@ -419,6 +419,10 @@ create trigger uau_status_mudou
   after update on public.uau_status_situacao
   for each row execute function public.uau_trg_status_mudou();
 
+-- Funções de gatilho: só o próprio gatilho as chama (nada pela API).
+revoke all on function public.uau_trg_unidades_mudaram(), public.uau_trg_status_mudou()
+  from public, anon, authenticated;
+
 
 -- ---------------------------------------------------------------------------
 -- 9. A LEITURA DO UAU ENTRA AQUI (SÓ A EDGE FUNCTION)
@@ -673,6 +677,38 @@ begin
   return coalesce(v_ok, false);
 end;
 $$;
+
+-- O SEGREDO DO CRON mora só no Vault (`uau_sync_secret`), gerado no próprio
+-- banco: ninguém digita, ninguém vê. A função do cron confere o cabeçalho
+-- `x-sync-secret` contra ele por aqui (service role). Sem Vault ou sem o
+-- segredo, nada passa.
+create or replace function public.uau_confere_segredo_do_cron(p_segredo text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_segredo text;
+begin
+  if p_segredo is null or length(p_segredo) < 32 then
+    return false;
+  end if;
+  begin
+    select s.decrypted_secret into v_segredo
+      from vault.decrypted_secrets s
+     where s.name = 'uau_sync_secret'
+     limit 1;
+  exception when others then
+    return false;
+  end;
+  return v_segredo is not null and v_segredo = p_segredo;
+end;
+$$;
+
+revoke all on function public.uau_confere_segredo_do_cron(text) from public, anon, authenticated;
+grant execute on function public.uau_confere_segredo_do_cron(text) to service_role;
 
 create or replace function public.uau_sync_terminar(p_modo text)
 returns void

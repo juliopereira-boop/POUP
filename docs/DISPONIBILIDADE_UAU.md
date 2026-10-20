@@ -50,13 +50,25 @@ valores) em **Configurações → Administração → Disponibilidade do UAU**.
   - Edge Functions `uau-disponibilidade` e `uau-disponibilidade-sync`;
   - app: cores, simulador, admin e importação;
   - testes.
-- [ ] **Fase 1** (dono): cadastrar os secrets do UAU no Supabase, ligar o
-  `pg_net` e guardar `uau_project_url` / `uau_sync_secret` no Vault.
-- [ ] **Fase 2** (dono): rodar a migration no SQL Editor. Conferir com o bloco
-  CONFERÊNCIA do fim do arquivo.
-- [ ] **Fase 3** (dono): publicar as duas funções e fazer o `ping`.
-  - `uau-disponibilidade-sync`: Verify JWT **desligado**.
-  - `uau-disponibilidade`: Verify JWT **ligado**.
+- [x] **Fase 1, parte do banco** (20/10, pelo conector do Supabase):
+  - `pg_net` ligado;
+  - `uau_project_url` e `uau_sync_secret` no Vault. O segredo foi gerado no
+    banco: ninguém viu, e não há `UAU_SYNC_SECRET` para cadastrar.
+- [ ] **Fase 1, parte do dono**: cadastrar em Edge Functions → Secrets
+  `UAU_INTEGRATION_TOKEN`, `UAU_USER` e `UAU_PASS`.
+- [ ] **Fase 2**: a migration entrou em partes no dia 20/10 (tabelas, RLS,
+  Realtime, fonte do preço, painel e as RPCs do admin e do corretor). Faltam 3
+  funções: `uau_aplicar_leitura`, `uau_remover_obra` e `uau_salvar_vinculos`.
+  - Elas têm `delete` no corpo, e o conector exige a confirmação do dono para
+    isso.
+  - O dono aplica pelo SQL Editor (o trecho da migration com as 3) ou confirma
+    no conector.
+- [x] **Fase 3, publicação** (20/10): as duas funções publicadas e as travas
+  testadas pelo `pg_net`.
+  - `uau-disponibilidade-sync`: Verify JWT **desligado**. Sem o segredo, 401.
+    Com o segredo do Vault, passa e para em "Secret ausente: UAU_USER".
+  - `uau-disponibilidade`: Verify JWT **ligado**. Sem login, 401.
+- [ ] **Fase 3, `ping`**: depois dos 3 secrets do UAU.
 - [ ] **Fase 4**: importar o piloto (1/259V) pela tela do admin.
   - A prévia deve trazer 464 unidades.
   - Conferir os números por situação.

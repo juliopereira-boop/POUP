@@ -455,6 +455,39 @@ reset role;
 
 
 -- ===========================================================================
+-- 12b. O SEGREDO DO CRON (Vault)
+-- ===========================================================================
+set local role service_role;
+do $$
+begin
+  assert not public.uau_confere_segredo_do_cron(null), 'Segredo nulo passou';
+  assert not public.uau_confere_segredo_do_cron('curto'), 'Segredo curto passou';
+  assert not public.uau_confere_segredo_do_cron(repeat('x', 64)), 'Segredo qualquer passou (sem Vault ou sem o segredo guardado)';
+end $$;
+reset role;
+do $$
+begin
+  -- Com o segredo no Vault (no Supabase, `vault.create_secret`), só ele passa.
+  if to_regprocedure('vault.create_secret(text,text,text,uuid)') is not null
+     or to_regprocedure('vault.create_secret(text,text)') is not null then
+    perform vault.create_secret(repeat('s', 64), 'uau_sync_secret');
+    assert public.uau_confere_segredo_do_cron(repeat('s', 64)), 'O segredo certo não passou';
+    assert not public.uau_confere_segredo_do_cron(repeat('s', 63) || 't'), 'Segredo quase igual passou';
+  end if;
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.uau_confere_segredo_do_cron(repeat('s', 64));
+    raise exception 'Usuário do app consultou o segredo do cron';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- ===========================================================================
 -- 10. APAGAR A UNIDADE DO POUP LEVA VÍNCULO E DISPONIBILIDADE; TIRAR A OBRA
 --     DEIXA SEM COR
 -- ===========================================================================

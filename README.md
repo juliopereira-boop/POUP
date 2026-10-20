@@ -1078,13 +1078,15 @@ O banco grava **só o que mudou**, e o Realtime entrega na tela. Uma leitura vaz
    - `UAU_INTEGRATION_TOKEN`
    - `UAU_USER`
    - `UAU_PASS`
-   - `UAU_SYNC_SECRET`
 3. Publicar as funções:
    - `uau-disponibilidade-sync` com Verify JWT **desligado**;
    - `uau-disponibilidade` com Verify JWT **ligado**.
-4. Fazer o `ping` pelo SQL Editor.
-5. Importar o piloto pela tela do admin.
-6. Ligar o `pg_net`, guardar `uau_project_url` e `uau_sync_secret` no Vault e agendar os jobs `uau-disponibilidade-leve`, `uau-disponibilidade-completo` e `uau-disponibilidade-log-limpeza`.
+4. Ligar o `pg_net` e guardar no Vault:
+   - `uau_project_url`;
+   - `uau_sync_secret`, gerado no próprio banco. Ninguém digita: a função do cron confere o segredo direto no Vault.
+5. Fazer o `ping` pelo SQL Editor.
+6. Importar o piloto pela tela do admin.
+7. Agendar os jobs `uau-disponibilidade-leve`, `uau-disponibilidade-completo` e `uau-disponibilidade-log-limpeza` (`docs/uau-agendar-cron.sql`).
 
 **Testes:**
 - `npm run testar:disponibilidade`: vínculo, cores, preço, importação e as ligações no app.
