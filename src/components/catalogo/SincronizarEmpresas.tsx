@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -60,7 +52,6 @@ export function SincronizarEmpresas() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { user } = useAuth();
   const { profile, needsOnboarding, loading: carregandoPerfil } = useProfile();
   const uf = profile?.uf ?? null;
@@ -215,8 +206,6 @@ export function SincronizarEmpresas() {
     }
   }
 
-  const compacto = width < 360;
-
   return (
     <>
       {naInicial && user ? (
@@ -224,8 +213,11 @@ export function SincronizarEmpresas() {
           pointerEvents="box-none"
           style={[styles.ancora, { bottom: 74 + Math.max(insets.bottom, spacing.sm) }]}
         >
+          {/* Discreto de propósito: só o ícone, e o número quando há o que
+              sincronizar. O nome vai para o leitor de tela. */}
           <Pressable
             onPress={() => abrir()}
+            hitSlop={6}
             style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
             accessibilityRole="button"
             accessibilityLabel={
@@ -234,8 +226,7 @@ export function SincronizarEmpresas() {
                 : 'Sincronizar empresas'
             }
           >
-            <Icon name="sync" size={20} color={colors.white} strokeWidth={2} />
-            <Text style={styles.fabTexto}>{compacto ? 'Sincronizar' : 'Sincronizar empresas'}</Text>
+            <Icon name="sync" size={20} color={colors.primary} strokeWidth={1.9} />
             {contagem > 0 ? (
               <View style={styles.fabSelo}>
                 <Text style={styles.fabSeloTexto}>{contagem}</Text>
@@ -410,30 +401,35 @@ const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     // Mesma altura da LIA (`LiaBotao`), do lado oposto.
     ancora: { position: 'absolute', left: spacing.lg, zIndex: 40 },
+    // 44 px, centrado na altura dos 58 px da LIA: (58 - 44) / 2 = 7.
     fab: {
-      height: 52,
-      marginBottom: 3,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      paddingLeft: spacing.lg,
-      paddingRight: spacing.md,
+      width: 44,
+      height: 44,
+      marginBottom: 7,
       borderRadius: radius.pill,
-      backgroundColor: colors.navy,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
       ...shadow.card,
     },
-    fabPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
-    fabTexto: { ...typography.label, color: colors.white, fontSize: 14 },
+    fabPressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
     fabSelo: {
-      minWidth: 22,
-      height: 22,
-      borderRadius: 11,
-      paddingHorizontal: 6,
-      backgroundColor: colors.white,
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      backgroundColor: colors.primary,
+      borderWidth: 2,
+      borderColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    fabSeloTexto: { ...typography.caption, fontSize: 12, fontWeight: '700', color: colors.navy },
+    fabSeloTexto: { color: colors.white, fontSize: 10, lineHeight: 12, fontWeight: '700' },
 
     fundo: {
       flex: 1,
