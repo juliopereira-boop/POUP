@@ -922,3 +922,127 @@ export function ok<T>(data: T): Result<T> {
 export function err<T = never>(error: string): Result<T> {
   return { ok: false, error: friendlyError(error) };
 }
+
+// ------------------------------------------------------------ disponibilidade (UAU)
+
+/**
+ * A situação que pinta a célula da unidade, vinda do UAU (o ERP da Canopus).
+ * `sem_vinculo` = o POUP não sabe: a célula fica sem cor — nunca com a cor de
+ * outra unidade. Ver `supabase/migrations/20261020120000_disponibilidade_uau.sql`.
+ */
+export type SituacaoDaUnidade = 'disponivel' | 'negociacao' | 'vendida' | 'indisponivel' | 'sem_vinculo';
+
+/** De onde vem o valor de venda: a tabela enviada, o UAU, ou a tabela se houver (padrão). */
+export type FonteDoPreco = 'automatico' | 'tabela' | 'uau';
+
+export interface DisponibilidadeDaUnidade {
+  unitId: string;
+  situacao: SituacaoDaUnidade;
+  /** O nome do status no UAU ("Proposta", "Reservado"...). */
+  statusDescricao: string | null;
+  mudouEm: string;
+  /** O valor de venda no UAU (tabela do dia no ERP). Só chega pela foto, não pelo tempo real. */
+  valorUau: number | null;
+}
+
+export interface Disponibilidade {
+  /** O empreendimento tem obra do UAU vinculada. Sem isso, a grade fica como sempre. */
+  temUau: boolean;
+  /** Leitura mais antiga entre as obras ativas (ISO). Nulo = nunca lida. */
+  atualizadoEm: string | null;
+  fontePreco: FonteDoPreco;
+  unidades: Map<string, DisponibilidadeDaUnidade>;
+}
+
+/** Uma obra do UAU, como a consulta de obras devolve (para o admin importar). */
+export interface ObraDoUau {
+  empresa: number;
+  obra: string;
+  produto: number | null;
+  /** Um identificador de exemplo ("Bloco 01 Apto 001"). */
+  exemplo: string | null;
+}
+
+/** Uma unidade da prévia (leitura completa da obra, com valor). */
+export interface UnidadeDaPrevia {
+  produto: number;
+  numPer: number;
+  identificador: string | null;
+  status: number | null;
+  descricao: string | null;
+  valor: number | null;
+}
+
+export interface PreviaDaObra {
+  empresa: number;
+  obra: string;
+  unidades: number;
+  porStatus: Record<string, number>;
+  exemplos: (string | null)[];
+  valorMin: number | null;
+  valorMax: number | null;
+  /** AAAA-MM-DD, a entrega das chaves mais comum na obra. */
+  entregaChaves: string | null;
+  lista: UnidadeDaPrevia[];
+  aviso?: string;
+}
+
+/** O que a tela de conferência do admin recebe (`uau_conferencia`). */
+export interface ConferenciaUau {
+  obras: {
+    empresa: number;
+    obra: string;
+    ativo: boolean;
+    ultimoLeveEm: string | null;
+    ultimoCompletoEm: string | null;
+    ultimoErro: string | null;
+    ultimoErroEm: string | null;
+  }[];
+  poup: { id: string; bloco: string; codigo: string; pavimento: number }[];
+  uau: {
+    empresa: number;
+    produto: number;
+    numPer: number;
+    obra: string;
+    identificador: string | null;
+    statusCodigo: number | null;
+    statusDescricao: string | null;
+    ausente: boolean;
+  }[];
+  vinculos: {
+    unitId: string;
+    chave: string;
+    identificadorNoVinculo: string;
+    identificadorAtual: string | null;
+    origem: 'automatico' | 'manual' | 'criado_do_uau';
+    vinculadoEm: string;
+  }[];
+}
+
+export interface VinculoParaGravar {
+  unitId: string;
+  empresa: number;
+  produto: number;
+  numPer: number;
+  origem: 'automatico' | 'manual' | 'criado_do_uau';
+}
+
+/** O painel do admin (`uau_painel`). */
+export interface PainelUau {
+  obras: {
+    empresa: number;
+    obra: string;
+    ativo: boolean;
+    developmentId: string;
+    empreendimento: string;
+    fontePreco: FonteDoPreco;
+    ultimoLeveEm: string | null;
+    ultimoCompletoEm: string | null;
+    ultimoErro: string | null;
+    ultimoErroEm: string | null;
+    vinculadas: number;
+    noUau: number;
+  }[];
+  statusRevisar: { codigo: number; descricao: string; situacao: SituacaoDaUnidade }[];
+  status: { codigo: number; descricao: string; situacao: SituacaoDaUnidade; revisar: boolean }[];
+}

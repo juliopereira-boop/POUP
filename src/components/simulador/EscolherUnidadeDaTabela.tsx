@@ -8,6 +8,11 @@
  * é preenchido, e construtora, empreendimento, bloco e unidade já chegam
  * prontos no bloco 2.
  *
+ * COM O UAU (obra vinculada), as unidades vêm pintadas pela situação no ERP,
+ * ao vivo: vendida e fora de venda não podem ser escolhidas; em negociação
+ * (proposta, reservada) pode, depois de um aviso. E entra na lista também o
+ * empreendimento que só tem o valor do UAU, sem tabela enviada.
+ *
  * Unidade sem preço na tabela não pode ser escolhida aqui: o objetivo do botão
  * é preencher o valor pela tabela, e uma unidade sem preço não tem o que
  * preencher. Ela continua podendo ser escolhida no bloco 2, com o valor
@@ -40,6 +45,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 import { depoisDeFecharJanela } from '@/lib/navegacao';
+import { confirmar } from '@/lib/confirmar';
+import { podeEscolher } from '@/features/disponibilidade/aplicar';
 
 interface Props {
   visivel: boolean;
@@ -51,6 +58,9 @@ interface Props {
 }
 
 type Passo = 'empreendimento' | 'bloco' | 'unidade';
+
+/** "tabela de Setembro", ou "valor do UAU" quando o preço vem do ERP. */
+const rotuloDaReferencia = (r: string) => (r === 'valor do UAU' ? r : `tabela de ${r}`);
 const TODAS = 'todas';
 
 export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, developmentIdInicial, unitIdAtual }: Props) {
@@ -106,11 +116,24 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
       setCarregando(true);
     }
 
-    comPrazo(Promise.all([db.developments.list(user.id), db.tabelaPreco.referencias(), db.companies.list(user.id)]))
-      .then(([devs, refs, comps]) => {
+    comPrazo(
+      Promise.all([
+        db.developments.list(user.id),
+        db.tabelaPreco.referencias(),
+        db.companies.list(user.id),
+        db.disponibilidade.empreendimentosComPreco(),
+      ]),
+    )
+      .then(([devs, refs, comps, comUau]) => {
+        // Com tabela enviada, ou com o valor do UAU (fonte "uau", ou
+        // "automático" sem tabela).
         const comTabela = devs
-          .filter((d) => refs.has(d.id))
-          .map((d) => ({ ...d, referencia: refs.get(d.id) ?? '' }))
+          .filter((d) => refs.has(d.id) || comUau.has(d.id))
+          .map((d) => ({
+            ...d,
+            referencia:
+              refs.has(d.id) && comUau.get(d.id) !== 'uau' ? (refs.get(d.id) ?? '') : 'valor do UAU',
+          }))
           .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         guardarLista({ userId: user.id, empreendimentos: comTabela, construtoras: comps });
         if (!vivo) return;
@@ -151,10 +174,19 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
     setPasso('unidade');
   }
 
-  function escolherUnidade(u: UnidadeComPreco) {
+  async function escolherUnidade(u: UnidadeComPreco) {
     if (!dev || !bloco) return;
+    if (!podeEscolher(u.situacao)) return;
     const detalhe = detalheDe(u, dev.name, unidades.tabela);
     if (!detalhe) return;
+    if (u.situacao === 'negociacao') {
+      const seguir = await confirmar(
+        `Unidade ${u.codigo} em negociação`,
+        `No UAU, esta unidade está como "${u.statusDescricao ?? 'em negociação'}". Ela pode ser vendida para outro cliente. Quer simular mesmo assim?`,
+        'Simular mesmo assim',
+      );
+      if (!seguir) return;
+    }
     onEscolher(
       {
         companyId: dev.companyId,
@@ -195,7 +227,7 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
               {trilha && passo !== 'empreendimento' ? (
                 <Text style={styles.trilha} numberOfLines={2}>
                   {trilha}
-                  {dev?.referencia ? ` · tabela de ${dev.referencia}` : ''}
+                  {dev?.referencia ? ` · ${rotuloDaReferencia(dev.referencia)}` : ''}
                 </Text>
               ) : null}
             </View>
@@ -250,7 +282,7 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
                     <View style={styles.flex1}>
                       <Text style={styles.itemNome}>{d.name}</Text>
                       <Text style={styles.itemDetalhe}>
-                        {[d.companyName, d.referencia ? `tabela de ${d.referencia}` : null].filter(Boolean).join(' · ')}
+                        {[d.companyName, d.referencia ? rotuloDaReferencia(d.referencia) : null].filter(Boolean).join(' · ')}
                       </Text>
                     </View>
                     <Icon name="chevronRight" size={18} color={colors.inkSubtle} />
@@ -320,8 +352,17 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
                 <GradeDeUnidades
                   unidades={bloco.unidades}
                   selecionadaId={unitIdAtual}
-                  onEscolher={escolherUnidade}
+                  onEscolher={(u) => void escolherUnidade(u)}
                   filtroVaga={filtro === TODAS ? null : (filtro as Vaga)}
+                  aoVivo={
+                    unidades.disponibilidade?.temUau
+                      ? {
+                          atualizadoEm: unidades.disponibilidade.atualizadoEm,
+                          desatualizada: unidades.desatualizada,
+                          agora: unidades.agora,
+                        }
+                      : null
+                  }
                 />
               </>
             ) : null}

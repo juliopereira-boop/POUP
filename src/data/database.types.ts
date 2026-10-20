@@ -346,6 +346,8 @@ export interface Database {
           photo_url: string | null;
           uf: string | null;
           unit_value_from: number | null;
+          /** De onde vem o valor de venda (20261020120000). Escrita pela RPC `uau_definir_fonte_preco`. */
+          uau_fonte_preco?: string;
           created_at: string;
           updated_at: string;
         };
@@ -1180,6 +1182,38 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      /** Disponibilidade vinda do UAU (20261020120000). Escrita só pelo banco; o app lê e assina (Realtime). */
+      development_unit_disponibilidade: {
+        Row: {
+          unit_id: string;
+          development_id: string;
+          situacao: string;
+          status_descricao: string | null;
+          mudou_em: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      /** A obra do UAU de cada empreendimento. Escrita só pelas RPCs do admin. */
+      development_uau_obras: {
+        Row: {
+          id: string;
+          development_id: string;
+          uau_empresa: number;
+          uau_obra: string;
+          ativo: boolean;
+          ultimo_leve_em: string | null;
+          ultimo_completo_em: string | null;
+          ultimo_erro: string | null;
+          ultimo_erro_em: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       /** Unidades de um bloco. Escritas pela RPC `salvar_blocos_empreendimento`. */
       development_units: {
         Row: {
@@ -1366,6 +1400,48 @@ export interface Database {
       };
       ranking_arquivar_denuncias: {
         Args: { p_user: string };
+        Returns: undefined;
+      };
+      /** Disponibilidade do UAU (20261020120000). */
+      uau_disponibilidade: {
+        Args: { p_development: string };
+        Returns: Json;
+      };
+      uau_empreendimentos_com_preco: {
+        Args: Record<string, never>;
+        Returns: { development_id: string; fonte_preco: string }[];
+      };
+      /** Só o admin. */
+      uau_painel: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      uau_exigir_admin: {
+        Args: { p_development: string };
+        Returns: undefined;
+      };
+      uau_conferencia: {
+        Args: { p_development: string };
+        Returns: Json;
+      };
+      uau_salvar_obra: {
+        Args: { p_development: string; p_empresa: number; p_obra: string; p_ativo?: boolean };
+        Returns: string;
+      };
+      uau_remover_obra: {
+        Args: { p_development: string; p_empresa: number; p_obra: string };
+        Returns: number;
+      };
+      uau_salvar_vinculos: {
+        Args: { p_development: string; p_vinculos: Json; p_remover?: string[] };
+        Returns: Json;
+      };
+      uau_definir_fonte_preco: {
+        Args: { p_development: string; p_fonte: string };
+        Returns: undefined;
+      };
+      uau_classificar_status: {
+        Args: { p_codigo: number; p_situacao: string };
         Returns: undefined;
       };
       /** `p_tabela` nulo apaga a tabela. */

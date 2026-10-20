@@ -60,6 +60,8 @@ import { rotuloVaga, rotuloVentilacao } from '@/features/tabelaPreco/preco';
 import { detalheDe, useUnidadesComPreco } from '@/features/tabelaPreco/useUnidadesComPreco';
 import { rotuloDoPavimento } from '@/features/unidades/gerador';
 import { useGerarProposta } from '@/features/simulador/useGerarProposta';
+import { podeEscolher, rotuloDaSituacao } from '@/features/disponibilidade/aplicar';
+import { confirmar } from '@/lib/confirmar';
 import { currencyToNumber, formatCurrencyBRL } from '@/lib/masks';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/providers/ProfileProvider';
@@ -90,6 +92,7 @@ export default function SimuladorDados() {
   const [preenchidoPelaTabela, setPreenchidoPelaTabela] = useState(false);
   const [faltando, setFaltando] = useState<Pendencia[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [conferindo, setConferindo] = useState(false);
 
   const { gerar, gerando } = useGerarProposta({ companies, developments });
 
@@ -160,6 +163,8 @@ export default function SimuladorDados() {
   const unidadeEscolhida = blocoEscolhido?.unidades.find((u) => u.id === sim.unitId) ?? null;
 
   const precoTabela = unidadeEscolhida?.valorDeVenda ?? null;
+  // De onde veio o preço: a tabela enviada ou o UAU (fonte escolhida pelo admin).
+  const fonteDoValor = unidadeEscolhida?.preco.ok && unidadeEscolhida.preco.origem === 'uau' ? 'pelo UAU' : 'pela tabela';
   const detalhe = sim.unitId ? sim.unitDetails : null;
   const valorInformado = currencyToNumber(sim.unitValue);
   const divergeDaTabela = precoTabela != null && Math.abs(precoTabela - valorInformado) >= 0.01;
@@ -234,6 +239,43 @@ export default function SimuladorDados() {
 
   const irParaValores = () => router.dismissTo('/(app)/simulador');
 
+  /**
+   * O seguro contra o minuto de atraso da leitura automática: com UAU, a
+   * unidade é conferida no ERP AGORA, antes de virar proposta. Vendida ou fora
+   * de venda não segue; em negociação, o corretor confirma. Se o UAU não
+   * responder, vale a última leitura, com aviso.
+   */
+  async function unidadeLiberadaNoUau(): Promise<boolean> {
+    if (!sim.unitId || !unidades.disponibilidade?.temUau) return true;
+    setConferindo(true);
+    const r = await db.disponibilidade.conferir(sim.unitId);
+    setConferindo(false);
+    const situacao = r.ok ? r.data.situacao : (unidadeEscolhida?.situacao ?? null);
+    const descricao = r.ok ? r.data.statusDescricao : (unidadeEscolhida?.statusDescricao ?? null);
+    const nome = `A unidade ${sim.unit || unidadeEscolhida?.codigo || ''}`.trim();
+    if (situacao === 'vendida' || situacao === 'indisponivel') {
+      setErro(
+        `${nome} ${situacao === 'vendida' ? 'foi vendida' : 'está fora de venda'} no UAU. Escolha outra unidade para gerar a proposta.`,
+      );
+      return false;
+    }
+    if (!r.ok) {
+      return confirmar(
+        'Não deu para conferir no UAU agora',
+        `${r.error} A última leitura diz: ${rotuloDaSituacao(situacao, descricao) ?? 'sem informação'}. Gerar a proposta mesmo assim?`,
+        'Gerar mesmo assim',
+      );
+    }
+    if (situacao === 'negociacao') {
+      return confirmar(
+        `${nome} está em negociação`,
+        `No UAU ela está como "${descricao ?? 'em negociação'}" e pode ser vendida para outro cliente. Gerar a proposta mesmo assim?`,
+        'Gerar mesmo assim',
+      );
+    }
+    return true;
+  }
+
   async function gerarProposta() {
     setErro(null);
     const lista = pendencias(sim, { exigeCorrespondente: correspondents.length > 0 });
@@ -243,6 +285,7 @@ export default function SimuladorDados() {
       return;
     }
     setFaltando(null);
+    if (!(await unidadeLiberadaNoUau())) return;
     const e = await gerar();
     if (e) setErro(e);
   }
@@ -310,18 +353,39 @@ export default function SimuladorDados() {
                   label="Unidade"
                   placeholder={blocoEscolhido ? 'Escolha' : 'Bloco primeiro'}
                   value={sim.unitId}
-                  options={(blocoEscolhido?.unidades ?? []).map((u) => ({
-                    value: u.id,
-                    label: [u.codigo, u.valorDeVenda != null ? brl(u.valorDeVenda) : null, u.vaga]
-                      .filter(Boolean)
-                      .join(' · '),
-                  }))}
+                  options={(blocoEscolhido?.unidades ?? [])
+                    // Vendida e fora de venda (UAU) não entram numa proposta nova.
+                    .filter((u) => podeEscolher(u.situacao) || u.id === sim.unitId)
+                    .map((u) => ({
+                      value: u.id,
+                      label: [
+                        u.codigo,
+                        u.valorDeVenda != null ? brl(u.valorDeVenda) : null,
+                        u.vaga,
+                        u.situacao ? rotuloDaSituacao(u.situacao, u.statusDescricao) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · '),
+                    }))}
                   onChange={escolherUnidade}
                   searchable={(blocoEscolhido?.unidades.length ?? 0) > 12}
                   emptyHint="Escolha o bloco primeiro."
                 />
               </View>
             </View>
+            {unidadeEscolhida && !podeEscolher(unidadeEscolhida.situacao) ? (
+              <View style={styles.vendida}>
+                <Text style={styles.vendidaTexto}>
+                  A unidade {unidadeEscolhida.codigo}{' '}
+                  {unidadeEscolhida.situacao === 'vendida' ? 'foi vendida' : 'saiu de venda'} no UAU. Escolha outra.
+                </Text>
+              </View>
+            ) : unidadeEscolhida?.situacao === 'negociacao' ? (
+              <Text style={styles.emNegociacao}>
+                No UAU: {rotuloDaSituacao('negociacao', unidadeEscolhida.statusDescricao)}. Ela pode ser vendida para
+                outro cliente.
+              </Text>
+            ) : null}
             {detalhe ? (
               <Text style={styles.detalhe}>
                 {[
@@ -389,7 +453,9 @@ export default function SimuladorDados() {
 
       {/* O preço da tabela conferindo o valor que veio do bloco 1. */}
       {precoTabela != null && preenchidoPelaTabela && !divergeDaTabela ? (
-        <Text style={styles.okTabela}>Valor de venda preenchido pela tabela: {brl(precoTabela)}.</Text>
+        <Text style={styles.okTabela}>
+          Valor de venda preenchido {fonteDoValor}: {brl(precoTabela)}.
+        </Text>
       ) : null}
       {precoTabela != null && !preenchidoPelaTabela && !divergeDaTabela ? (
         <Text style={styles.okTabela}>Confere com a tabela de preços.</Text>
@@ -515,7 +581,12 @@ export default function SimuladorDados() {
       ) : null}
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
-      <Button label="Gerar proposta" onPress={() => void gerarProposta()} loading={gerando} style={styles.cta} />
+      <Button
+        label={conferindo ? 'Conferindo no UAU...' : 'Gerar proposta'}
+        onPress={() => void gerarProposta()}
+        loading={gerando || conferindo}
+        style={styles.cta}
+      />
     </CascoSimulador>
   );
 }
@@ -567,6 +638,16 @@ const makeStyles = (colors: AppColors) =>
       marginBottom: spacing.lg,
     },
     divergeTexto: { ...typography.caption, color: colors.ink },
+    vendida: {
+      backgroundColor: colors.dangerSoft,
+      borderColor: colors.danger,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    vendidaTexto: { ...typography.caption, color: colors.danger, fontWeight: '600' },
+    emNegociacao: { ...typography.caption, color: colors.warning, marginBottom: spacing.sm },
 
     resumo: {
       flexDirection: 'row',

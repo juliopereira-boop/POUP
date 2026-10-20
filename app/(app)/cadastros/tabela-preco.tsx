@@ -44,6 +44,8 @@ import { Screen } from '@/components/Screen';
 import { Segmento } from '@/components/Segmento';
 import { Select } from '@/components/Select';
 import { GradeDeUnidades } from '@/components/tabelaPreco/GradeDeUnidades';
+import { aplicarNosBlocos } from '@/features/disponibilidade/aplicar';
+import { useDisponibilidade } from '@/features/disponibilidade/useDisponibilidade';
 import {
   db,
   type ArquivoDaTabela,
@@ -298,6 +300,18 @@ export default function TabelaPrecoScreen() {
 
   const tabelaDoRascunho = useMemo(() => comoTabela(rascunho), [rascunho]);
   const precificados = useMemo(() => precificarBlocos(blocos, tabelaDoRascunho), [blocos, tabelaDoRascunho]);
+  // A disponibilidade do UAU pinta a conferência; o preço continua o da tabela
+  // em edição (é ela que está sendo conferida aqui).
+  const uau = useDisponibilidade(developmentId ?? null);
+  const comCores = useMemo(
+    () =>
+      aplicarNosBlocos(
+        precificados,
+        uau.disponibilidade ? { ...uau.disponibilidade, fontePreco: 'tabela' } : null,
+        true,
+      ),
+    [precificados, uau.disponibilidade],
+  );
   const cobertura = useMemo(() => coberturaDaTabela(precificados), [precificados]);
   const conferencia = useMemo(() => conferirListaDeVagas(blocos, rascunho.vagas), [blocos, rascunho.vagas]);
   const conferenciaUnidades = useMemo(
@@ -317,7 +331,7 @@ export default function TabelaPrecoScreen() {
   ];
 
   const pendente = podeEditar && assinatura(rascunho) !== assinaturaSalva;
-  const blocoEmConferencia = precificados.find((b) => b.id === blocoConferido) ?? precificados[0] ?? null;
+  const blocoEmConferencia = comCores.find((b) => b.id === blocoConferido) ?? comCores[0] ?? null;
 
   // ------------------------------------------------------------ sair sem salvar
 
@@ -871,7 +885,14 @@ export default function TabelaPrecoScreen() {
                 ? `mais ventilados: finais ${blocoEmConferencia.terminacoesMaisVentiladas.join(', ') || 'nenhum'}`
                 : 'sem regra de ventilação'}
             </Text>
-            <GradeDeUnidades unidades={blocoEmConferencia.unidades} />
+            <GradeDeUnidades
+              unidades={blocoEmConferencia.unidades}
+              aoVivo={
+                uau.disponibilidade?.temUau
+                  ? { atualizadoEm: uau.disponibilidade.atualizadoEm, desatualizada: uau.desatualizada, agora: uau.agora }
+                  : null
+              }
+            />
             {(() => {
               const semPreco = blocoEmConferencia.unidades.find((u) => !u.preco.ok);
               return semPreco && !semPreco.preco.ok ? (

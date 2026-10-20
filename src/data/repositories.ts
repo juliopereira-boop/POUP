@@ -2,6 +2,15 @@ import type { PickedFile } from '@/features/files/pick';
 import type { Escopo, LinhaDoRanking, Periodo, SituacaoDaVenda } from '@/features/ranking/regras';
 import type {
   ArquivoDaTabela,
+  ConferenciaUau,
+  Disponibilidade,
+  DisponibilidadeDaUnidade,
+  FonteDoPreco,
+  ObraDoUau,
+  PainelUau,
+  PreviaDaObra,
+  SituacaoDaUnidade,
+  VinculoParaGravar,
   TabelaDePreco,
   Appointment,
   AppointmentInput,
@@ -235,6 +244,45 @@ export interface UnitRepository {
     developmentId: string,
     blocos: BlocoParaSalvar[],
   ): Promise<Result<DevelopmentBlock[]>>;
+}
+
+/**
+ * A disponibilidade das unidades vinda do UAU (o ERP da Canopus), e a
+ * administração do vínculo. O POUP só LÊ o UAU: quem fala com ele são as Edge
+ * Functions `uau-disponibilidade*`, com uma lista fechada de rotas de consulta.
+ */
+export interface DisponibilidadeRepository {
+  /** A foto inicial (uma RPC). Depois, `assinar` traz o que muda. */
+  carregar(developmentId: string): Promise<Result<Disponibilidade>>;
+  /**
+   * O que muda depois da foto, pelo Realtime. `aoReconectar` roda a cada
+   * conexão (inclusive depois de uma queda), para recarregar a foto.
+   */
+  assinar(
+    developmentId: string,
+    aoMudar: (u: Omit<DisponibilidadeDaUnidade, 'valorUau'>) => void,
+    aoReconectar: () => void,
+  ): () => void;
+  /** Confere UMA unidade no UAU agora — antes de fechar a proposta. */
+  conferir(unitId: string): Promise<Result<{ situacao: SituacaoDaUnidade; statusDescricao: string | null }>>;
+  /** Os empreendimentos que o corretor lê e que têm valor do UAU para oferecer. */
+  empreendimentosComPreco(): Promise<Map<string, FonteDoPreco>>;
+
+  // ---- admin
+  obrasDoUau(): Promise<Result<ObraDoUau[]>>;
+  previa(empresa: number, obra: string): Promise<Result<PreviaDaObra>>;
+  atualizarAgora(developmentId: string): Promise<Result<void>>;
+  painel(): Promise<Result<PainelUau>>;
+  conferencia(developmentId: string): Promise<Result<ConferenciaUau>>;
+  salvarObra(developmentId: string, empresa: number, obra: string, ativo?: boolean): Promise<Result<void>>;
+  removerObra(developmentId: string, empresa: number, obra: string): Promise<Result<void>>;
+  salvarVinculos(
+    developmentId: string,
+    vinculos: VinculoParaGravar[],
+    remover?: string[],
+  ): Promise<Result<{ gravados: number; removidos: number }>>;
+  definirFontePreco(developmentId: string, fonte: FonteDoPreco): Promise<Result<void>>;
+  classificarStatus(codigo: number, situacao: Exclude<SituacaoDaUnidade, 'sem_vinculo'>): Promise<Result<void>>;
 }
 
 /** Igual a `BlocosResultado`: "deu erro" é diferente de "a migration não rodou". */

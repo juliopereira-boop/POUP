@@ -21,18 +21,19 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
 10. [Simulador de financiamento habitacional](#🏦-simulador-de-financiamento-habitacional)
 11. [Simulador de poupança (dois blocos)](#🧮-simulador-de-poupança-dois-blocos-valores-depois-unidade-e-cliente)
-12. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
-13. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
-14. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
-15. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
-16. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
-17. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
-18. [Deploy na Vercel](#▲-deploy-na-vercel)
-19. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
-20. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
-21. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
-22. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
-23. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
+12. [Disponibilidade do UAU (verde, amarelo, vermelho)](#🟢-disponibilidade-do-uau-verde-amarelo-vermelho)
+13. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
+14. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
+15. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
+16. [Schema do banco (Supabase / Postgres)](#🗄️-schema-do-banco-supabase--postgres)
+17. [Menu principal e áreas ainda não implementadas](#🧭-menu-principal-e-áreas-ainda-não-implementadas)
+18. [Variáveis de ambiente](#🔑-variáveis-de-ambiente-referência)
+19. [Deploy na Vercel](#▲-deploy-na-vercel)
+20. [Instalar na tela de início (PWA)](#📲-instalar-na-tela-de-início-pwa)
+21. [Arquivos: escolher, salvar e visualizar](#📎-arquivos-escolher-salvar-e-visualizar)
+22. [Caminho para App Store / Play Store](#📱-caminho-para-app-store--play-store)
+23. [Conformidade com a App Review da Apple](#🍏-conformidade-com-a-app-review-da-apple)
+24. [Utilitários (máscaras, storage, tema)](#🛠️-utilitários)
 
 ---
 
@@ -1035,6 +1036,60 @@ O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária,
 **Registrar venda realizada também é do Pro — no servidor.** Além da trava na tela (`canUse('vendas')`), a RLS de `sales` só aceita **inserir** venda de Pro pago, teste gratuito válido ou admin (`pode_registrar_venda()`); quem mudou para o Start continua lendo, editando e apagando as vendas que já tinha.
 
 **Para ativar**: rode, nesta ordem, `supabase/migrations/20260925150000_ranking.sql` e `supabase/migrations/20260925180000_ranking_so_pro.sql` no SQL Editor. Testes: `npm run testar:ranking`, `scripts/testar-ranking-db.sql` (regras, disputa, teto, participação, auditoria e permissões) e `scripts/testar-ranking-pro-db.sql` (venda e ranking só Pro) — num Postgres local/homologação.
+
+---
+
+## 🟢 Disponibilidade do UAU (verde, amarelo, vermelho)
+
+A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade pintada conforme o **UAU** (o ERP da Canopus), ao vivo: **verde** disponível, **amarelo** em negociação (proposta, reservada), **vermelho** vendida, **cinza** fora de venda. A situação também vai por escrito na célula e no leitor de tela. Sem obra do UAU no empreendimento, a grade fica como sempre foi. A bolinha de "mais ventilado" é **azul**.
+
+- **Vendida e fora de venda não entram numa proposta**: a grade não deixa tocar e a lista do passo 2 não oferece.
+- **Em negociação**: pode, depois de um aviso.
+- **Ao gerar a proposta**, a unidade é conferida no UAU **naquele momento**. Isso cobre o até ~1 minuto de atraso da leitura automática.
+- **Vale para Start e Pro.**
+
+**O POUP só LÊ o UAU — nenhuma edição, nunca.** O app nunca fala com o ERP: quem fala são duas Edge Functions, com uma lista fechada de 3 rotas de consulta e uma segunda trava que recusa rota com nome de escrita (`AlterarStatusUnidade` e afins) mesmo se alguém a puser na lista. `npm run testar:uau-leitura` prova as duas travas. Nenhum dado do UAU vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
+
+**Unidade X com unidade X.** O vínculo é gravado pela chave do UAU (empresa, produto, número da personalização), uma vez, e só quando a chave da tabela de preço ("Bloco 01 Apto 001" = "Bloco 1"/"001") é igual e única dos dois lados. Na dúvida (unidade renumerada no UAU, status desconhecido) a célula fica **sem cor** — nunca com a cor de outra.
+
+**O admin** (Configurações › Administração › **Disponibilidade do UAU**):
+- **Importar uma obra.**
+  1. Busca as obras do UAU.
+  2. Abre a prévia: unidades, status, valores, blocos.
+  3. Cria o empreendimento ou usa um que já existe.
+  4. Completa blocos e unidades: nunca apaga nem renomeia.
+  5. Vincula as unidades que casaram exatamente.
+- **Conferir cada obra:** bloco a bloco (POUP × UAU × vinculadas). Ali ele grava os pares exatos que faltam, cadastra o que só existe no UAU, desfaz vínculo de unidade renumerada e vincula à mão.
+- **Classificar status novos do UAU:** até isso acontecer, eles ficam cinza.
+- **Escolher de onde vem o valor de venda:**
+  - **automático**: a tabela enviada, se houver; senão o UAU;
+  - **tabela**;
+  - **UAU**.
+
+**Ao vivo, com honestidade.** O UAU não avisa quando muda. O cron lê:
+- as não vendidas a cada minuto;
+- tudo, com preço, às :07 e :37.
+
+O banco grava **só o que mudou**, e o Realtime entrega na tela. Uma leitura vazia ou quebrada não vira "tudo vendido": ela fica marcada como `suspeita`.
+
+**Para ativar**, nesta ordem (passo a passo e andamento em `docs/DISPONIBILIDADE_UAU.md`):
+1. Rodar `supabase/migrations/20261020120000_disponibilidade_uau.sql` no SQL Editor.
+2. Em Edge Functions → Secrets, cadastrar:
+   - `UAU_INTEGRATION_TOKEN`
+   - `UAU_USER`
+   - `UAU_PASS`
+   - `UAU_SYNC_SECRET`
+3. Publicar as funções:
+   - `uau-disponibilidade-sync` com Verify JWT **desligado**;
+   - `uau-disponibilidade` com Verify JWT **ligado**.
+4. Fazer o `ping` pelo SQL Editor.
+5. Importar o piloto pela tela do admin.
+6. Ligar o `pg_net`, guardar `uau_project_url` e `uau_sync_secret` no Vault e agendar os jobs `uau-disponibilidade-leve`, `uau-disponibilidade-completo` e `uau-disponibilidade-log-limpeza`.
+
+**Testes:**
+- `npm run testar:disponibilidade`: vínculo, cores, preço, importação e as ligações no app.
+- `npm run testar:uau-leitura`: somente leitura.
+- `scripts/testar-disponibilidade-db.sql`: cores por status, leitura repetida sem regravar, leitura vazia sem marcar nada, renumerada sem cor, vínculo 1 para 1, permissões e fonte do preço. Roda num Postgres local ou de homologação.
 
 ---
 

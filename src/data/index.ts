@@ -7,6 +7,7 @@ import type {
   CommissionRepository,
   CompanyRepository,
   DevelopmentRepository,
+  DisponibilidadeRepository,
   FeedbackRepository,
   FinancingRepository,
   LeadRepository,
@@ -38,6 +39,7 @@ import { SupabaseFeedbackRepository } from './supabase/SupabaseFeedbackRepositor
 import { SupabaseUnitRepository } from './supabase/SupabaseUnitRepository';
 import { SupabasePriceTableRepository } from './supabase/SupabasePriceTableRepository';
 import { SupabaseRankingRepository } from './supabase/SupabaseRankingRepository';
+import { SupabaseDisponibilidadeRepository } from './supabase/SupabaseDisponibilidadeRepository';
 import { comAvisoDeMudanca } from './mudancasDaAgenda';
 
 export interface DataLayer {
@@ -52,6 +54,8 @@ export interface DataLayer {
   tabelaPreco: PriceTableRepository;
   /** O ranking de corretores, a participação e a auditoria. */
   ranking: RankingRepository;
+  /** Disponibilidade das unidades vinda do UAU (só leitura do ERP) e o vínculo do admin. */
+  disponibilidade: DisponibilidadeRepository;
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;
   simulations: SimulationRepository;
@@ -85,6 +89,7 @@ function createDataLayer(provider: Provider): DataLayer {
         unidades: new SupabaseUnitRepository(),
         tabelaPreco: new SupabasePriceTableRepository(),
         ranking: new SupabaseRankingRepository(),
+        disponibilidade: new SupabaseDisponibilidadeRepository(),
         catalog: new SupabaseCatalogRepository(),
         simulations: new SupabaseSimulationRepository(),
         financing: new SupabaseFinancingRepository(),
@@ -107,6 +112,7 @@ export * from './types';
 export { ouvirMudancasDaAgenda } from './mudancasDaAgenda';
 export type {
   AnalyticsRepository,
+  DisponibilidadeRepository,
   MudancaDePlanoInput,
   AppointmentRepository,
   AuthRepository,

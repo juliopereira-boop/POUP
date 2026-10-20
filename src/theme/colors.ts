@@ -23,6 +23,9 @@ export const lightColors = {
   dangerSoft: '#FEF2F2',
   warning: '#D97706',
   warningSoft: '#FFFBEB',
+  /** Azul: a bolinha de "mais ventilado" (o verde é de "disponível", na disponibilidade do UAU). */
+  info: '#2563EB',
+  infoSoft: '#EFF6FF',
 
   white: '#FFFFFF',
   black: '#000000',
@@ -55,6 +58,8 @@ export const darkColors: AppColors = {
   dangerSoft: '#2A1517',
   warning: '#FBBF24',
   warningSoft: '#2A2211',
+  info: '#60A5FA',
+  infoSoft: '#172554',
 
   white: '#FFFFFF',
   black: '#000000',
