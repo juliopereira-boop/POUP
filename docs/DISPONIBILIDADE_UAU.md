@@ -54,21 +54,22 @@ valores) em **Configurações → Administração → Disponibilidade do UAU**.
   - `pg_net` ligado;
   - `uau_project_url` e `uau_sync_secret` no Vault. O segredo foi gerado no
     banco: ninguém viu, e não há `UAU_SYNC_SECRET` para cadastrar.
-- [ ] **Fase 1, parte do dono**: cadastrar em Edge Functions → Secrets
-  `UAU_INTEGRATION_TOKEN`, `UAU_USER` e `UAU_PASS`.
-- [ ] **Fase 2**: a migration entrou em partes no dia 20/10 (tabelas, RLS,
-  Realtime, fonte do preço, painel e as RPCs do admin e do corretor). Faltam 3
-  funções: `uau_aplicar_leitura`, `uau_remover_obra` e `uau_salvar_vinculos`.
-  - Elas têm `delete` no corpo, e o conector exige a confirmação do dono para
-    isso.
-  - O dono aplica pelo SQL Editor (o trecho da migration com as 3) ou confirma
-    no conector.
+- [x] **Fase 1, parte do dono** (20/10): `UAU_INTEGRATION_TOKEN`, `UAU_USER`
+  e `UAU_PASS` cadastrados em Edge Functions → Secrets.
+- [x] **Fase 2** (20/10): a migration entrou em partes, pelo conector:
+  tabelas, RLS, Realtime, fonte do preço, painel e as RPCs do admin e do
+  corretor.
+  - As 3 funções com `delete` no corpo (`uau_aplicar_leitura`,
+    `uau_remover_obra` e `uau_salvar_vinculos`) o dono aplicou pelo SQL
+    Editor: o conector exige a confirmação dele para `delete`.
 - [x] **Fase 3, publicação** (20/10): as duas funções publicadas e as travas
   testadas pelo `pg_net`.
   - `uau-disponibilidade-sync`: Verify JWT **desligado**. Sem o segredo, 401.
     Com o segredo do Vault, passa e para em "Secret ausente: UAU_USER".
   - `uau-disponibilidade`: Verify JWT **ligado**. Sem login, 401.
-- [ ] **Fase 3, `ping`**: depois dos 3 secrets do UAU.
+- [x] **Fase 3, `ping`** (20/10): login no UAU ok (`{"ok":true,"token":true}`).
+  Uma leitura `leve` sem obra vinculada também rodou de ponta a ponta:
+  registro em `uau_sync_log` com `ok`, e a trava liberada no fim.
 - [ ] **Fase 4**: importar o piloto (1/259V) pela tela do admin.
   - A prévia deve trazer 464 unidades.
   - Conferir os números por situação.
