@@ -1,44 +1,47 @@
 /**
- * IMPORTAR UMA OBRA DO UAU: EMPREENDIMENTO, BLOCOS, UNIDADES, VÍNCULO E PREÇO.
+ * IMPORTAR UM EMPREENDIMENTO DO CV: EMPREENDIMENTO, BLOCOS, UNIDADES E VÍNCULO.
  *
- * O admin escolhe a obra na lista do UAU, confere a prévia e toca em
+ * O admin escolhe o empreendimento na lista do CV (e a etapa, quando o CV
+ * junta módulos num empreendimento só), confere a prévia e toca em
  * "Importar". A partir daí, numa sequência só:
  *
  *   1. o empreendimento: cria um novo no catálogo, ou usa um que já existe;
- *   2. vincula a obra do UAU a ele (`uau_salvar_obra`);
- *   3. COMPLETA o cadastro de blocos e unidades com o que o UAU tem — nunca
+ *   2. vincula o empreendimento (e a etapa) do CV a ele
+ *      (`cvcrm_salvar_empreendimento`);
+ *   3. COMPLETA o cadastro de blocos e unidades com o que o CV tem — nunca
  *      apaga nem renomeia o que já existe (`mesclarBlocos`);
  *   4. grava os vínculos que casaram EXATAMENTE (mesma chave, única dos dois
- *      lados). O resto fica para a conferência, à mão — nunca por "parecido";
- *   5. grava a fonte do preço escolhida (automático / tabela / UAU).
+ *      lados). O resto fica para a conferência, à mão — nunca por "parecido".
  *
  * A disponibilidade passa a aparecer na hora: o banco pinta cada unidade ao
- * gravar o vínculo. Sem tela aqui: as dependências entram por parâmetro, e o
- * teste (`scripts/testar-disponibilidade.mjs`) roda a sequência com o banco
- * simulado.
+ * gravar o vínculo. O preço continua o da tabela de preço enviada (o CV não
+ * tem valor de venda por unidade). Sem tela aqui: as dependências entram por
+ * parâmetro, e o teste (`scripts/testar-disponibilidade.mjs`) roda a
+ * sequência com o banco simulado.
  */
 import type {
   BlocoParaSalvar,
-  ConferenciaUau,
+  ConferenciaCv,
   Development,
   DevelopmentBlock,
   DevelopmentInput,
-  FonteDoPreco,
-  PreviaDaObra,
+  PreviaDoCv,
   Result,
   VinculoParaGravar,
 } from '@/data/types';
-import { blocosDoUau, mesclarBlocos, sugerirVinculos, type Sugestao, type UnidadeUau } from './chaveUau';
+import { blocosDoCv, mesclarBlocos, sugerirVinculos, type Sugestao, type UnidadeCv } from './vinculo';
 
 /** O pedaço do `db` que a importação usa. */
 export interface DependenciasDaImportacao {
   criarEmpreendimento(userId: string, dados: DevelopmentInput): Promise<Result<Development>>;
-  salvarObra(developmentId: string, empresa: number, obra: string): Promise<Result<void>>;
+  salvarEmpreendimento(
+    developmentId: string,
+    cv: { empreendimento: number; etapa: number | null; nome: string | null; etapaNome: string | null },
+  ): Promise<Result<void>>;
   listarBlocos(developmentId: string): Promise<{ ok: true; data: DevelopmentBlock[] } | { ok: false; error: string }>;
   salvarBlocos(developmentId: string, blocos: BlocoParaSalvar[]): Promise<Result<unknown>>;
-  conferencia(developmentId: string): Promise<Result<ConferenciaUau>>;
+  conferencia(developmentId: string): Promise<Result<ConferenciaCv>>;
   salvarVinculos(developmentId: string, vinculos: VinculoParaGravar[]): Promise<Result<{ gravados: number }>>;
-  definirFontePreco(developmentId: string, fonte: FonteDoPreco): Promise<Result<void>>;
 }
 
 export type DestinoDaImportacao =
@@ -53,55 +56,52 @@ export interface ResultadoDaImportacao {
   vinculadas: number;
   jaVinculadas: number;
   /** O que ficou para a conferência à mão. */
-  pendentes: Pick<Sugestao, 'divergentes' | 'conflitos' | 'soNoPoup' | 'soNoUau' | 'naoReconhecidas'>;
-  /** Unidades do UAU sem bloco/quadra legível: não viram cadastro sozinhas. */
+  pendentes: Pick<Sugestao, 'divergentes' | 'conflitos' | 'soNoPoup' | 'soNoCv' | 'naoReconhecidas'>;
+  /** Unidades do CV sem bloco/quadra legível: não viram cadastro sozinhas. */
   recusadas: number;
 }
 
-/** A unidade da prévia no formato do vínculo. */
-export function unidadesDaPrevia(p: PreviaDaObra): UnidadeUau[] {
-  return p.lista.map((u) => ({
-    empresa: p.empresa,
-    produto: u.produto,
-    numPer: u.numPer,
-    obra: p.obra,
-    identificador: u.identificador,
-    statusCodigo: u.status,
-  }));
-}
-
-/** O que a conferência do banco tem, no formato do vínculo. */
-export function sugestaoDaConferencia(c: ConferenciaUau): Sugestao {
-  const existentes = new Map(c.vinculos.map((v) => [v.unitId, v.chave]));
-  return sugerirVinculos(
-    c.poup.map((p) => ({ id: p.id, bloco: p.bloco, codigo: p.codigo })),
-    c.uau
-      .filter((u) => !u.ausente)
-      .map((u) => ({
-        empresa: u.empresa,
-        produto: u.produto,
-        numPer: u.numPer,
-        obra: u.obra,
-        identificador: u.identificador,
-        statusCodigo: u.statusCodigo,
-      })),
-    existentes,
-  );
+/** As unidades da prévia que entram (a etapa escolhida, ou todas). */
+export function unidadesDaPrevia(p: PreviaDoCv, etapa: number | null): UnidadeCv[] {
+  return p.lista
+    .filter((u) => etapa == null || u.etapa === etapa)
+    .map((u) => ({ cvUnidade: u.cvUnidade, identificador: u.identificador, situacao: u.situacao }));
 }
 
 /** "2028-09-28" → "2028-09-01" (o cadastro guarda mês/ano). */
-function mesDaEntrega(iso: string | null): string | null {
+function mesDaEntrega(iso: string | null | undefined): string | null {
   const m = /^(\d{4})-(\d{2})/.exec(iso ?? '');
   return m ? `${m[1]}-${m[2]}-01` : null;
 }
 
-export async function importarObra(
-  args: { userId: string; previa: PreviaDaObra; destino: DestinoDaImportacao; fonte: FonteDoPreco },
+/** O que a conferência do banco tem, no formato do vínculo. */
+export function sugestaoDaConferencia(c: ConferenciaCv): Sugestao {
+  const existentes = new Map(c.vinculos.map((v) => [v.unitId, v.cvUnidade]));
+  return sugerirVinculos(
+    c.poup.map((p) => ({ id: p.id, bloco: p.bloco, codigo: p.codigo })),
+    c.cv
+      .filter((u) => !u.ausente)
+      .map((u) => ({ cvUnidade: u.cvUnidade, identificador: u.identificador, situacao: u.situacao })),
+    existentes,
+  );
+}
+
+export async function importarDoCv(
+  args: {
+    userId: string;
+    previa: PreviaDoCv;
+    /** A etapa (módulo) do CV que vai para este empreendimento; nula = todas. */
+    etapa: number | null;
+    destino: DestinoDaImportacao;
+    /** AAAA-MM-DD, a entrega que a lista do CV informa (preenche o cadastro novo). */
+    dataEntrega?: string | null;
+  },
   deps: DependenciasDaImportacao,
   aoPasso: (texto: string) => void = () => {},
 ): Promise<Result<ResultadoDaImportacao>> {
-  const { previa, destino } = args;
-  if (previa.lista.length === 0) return { ok: false, error: 'O UAU não devolveu nenhuma unidade para esta obra.' };
+  const { previa, destino, etapa } = args;
+  const unidades = unidadesDaPrevia(previa, etapa);
+  if (unidades.length === 0) return { ok: false, error: 'O CV não devolveu nenhuma unidade para este empreendimento.' };
 
   // 1. O empreendimento.
   let developmentId: string;
@@ -113,10 +113,10 @@ export async function importarObra(
       companyId: destino.companyId,
       name: destino.nome.trim(),
       description: null,
-      deliveryDate: mesDaEntrega(previa.entregaChaves),
+      deliveryDate: mesDaEntrega(args.dataEntrega),
       managerName: null,
       uf: destino.uf,
-      unitValueFrom: previa.valorMin,
+      unitValueFrom: null,
     });
     if (!r.ok) return r;
     developmentId = r.data.id;
@@ -124,19 +124,24 @@ export async function importarObra(
     developmentId = destino.developmentId;
   }
 
-  // 2. A obra.
-  aoPasso('Vinculando a obra do UAU...');
-  const obra = await deps.salvarObra(developmentId, previa.empresa, previa.obra);
-  if (!obra.ok) return obra;
+  // 2. O empreendimento (e a etapa) do CV.
+  aoPasso('Vinculando o empreendimento do CV...');
+  const vinculo = await deps.salvarEmpreendimento(developmentId, {
+    empreendimento: previa.cvEmpreendimento,
+    etapa,
+    nome: previa.nome,
+    etapaNome: etapa == null ? null : (previa.etapas.find((e) => e.id === etapa)?.nome ?? null),
+  });
+  if (!vinculo.ok) return vinculo;
 
   // 3. Blocos e unidades: completar, nunca apagar.
   aoPasso('Conferindo blocos e unidades...');
   const lidos = await deps.listarBlocos(developmentId);
   if (!lidos.ok) return { ok: false, error: lidos.error };
-  const doUau = blocosDoUau(unidadesDaPrevia(previa));
+  const doCv = blocosDoCv(unidades);
   const mescla = mesclarBlocos(
     lidos.data.map((b) => ({ id: b.id, nome: b.nome, unidades: b.unidades })),
-    doUau.blocos,
+    doCv.blocos,
   );
   if (mescla.unidadesNovas > 0) {
     aoPasso(`Cadastrando ${mescla.unidadesNovas} unidades...`);
@@ -149,19 +154,13 @@ export async function importarObra(
   const conf = await deps.conferencia(developmentId);
   if (!conf.ok) return conf;
   const s = sugestaoDaConferencia(conf.data);
-  const origem: VinculoParaGravar['origem'] = criou || mescla.unidadesNovas > 0 ? 'criado_do_uau' : 'automatico';
+  const origem: VinculoParaGravar['origem'] = criou || mescla.unidadesNovas > 0 ? 'criado_do_cv' : 'automatico';
   if (s.casadas.length > 0) {
     const g = await deps.salvarVinculos(
       developmentId,
-      s.casadas.map((p) => ({ unitId: p.unitId, empresa: p.uau.empresa, produto: p.uau.produto, numPer: p.uau.numPer, origem })),
+      s.casadas.map((p) => ({ unitId: p.unitId, cvUnidade: p.cv.cvUnidade, origem })),
     );
     if (!g.ok) return g;
-  }
-
-  // 5. A fonte do preço.
-  if (args.fonte !== 'automatico') {
-    const f = await deps.definirFontePreco(developmentId, args.fonte);
-    if (!f.ok) return f;
   }
 
   return {
@@ -177,11 +176,10 @@ export async function importarObra(
         divergentes: s.divergentes,
         conflitos: s.conflitos,
         soNoPoup: s.soNoPoup,
-        soNoUau: s.soNoUau,
+        soNoCv: s.soNoCv,
         naoReconhecidas: s.naoReconhecidas,
       },
-      recusadas: doUau.recusadas.length,
+      recusadas: doCv.recusadas.length,
     },
   };
 }
-

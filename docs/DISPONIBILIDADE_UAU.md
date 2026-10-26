@@ -1,5 +1,7 @@
 # Disponibilidade do UAU na tabela de preço — andamento
 
+> **Substituído pelo CV CRM em 26/10/2026** (`docs/DISPONIBILIDADE_CVCRM.md`). O UAU não pinta mais nada; o que resta dele no Supabase e aqui aguarda a confirmação do dono do POUP para ser removido.
+
 > Registro curto para quem continuar (pessoa ou sessão do Claude). A explicação
 > completa está no README, seção **🟢 Disponibilidade do UAU**.
 

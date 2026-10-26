@@ -1,20 +1,20 @@
 /**
- * UMA OBRA DO UAU VINCULADA — CONFERÊNCIA, PREÇO E SAÚDE.
+ * UM EMPREENDIMENTO VINCULADO AO CV — CONFERÊNCIA E SAÚDE.
  *
  * A regra que não pode quebrar: UNIDADE X COM UNIDADE X. O vínculo é gravado
- * pela chave do UAU (empresa/produto/número), e só quando o par é exato dos
- * dois lados (`features/disponibilidade/chaveUau.ts`). O que não casou fica
- * listado para resolver à mão — nunca por "parecido".
+ * pelo id da unidade no CV, e só quando o par é exato dos dois lados
+ * (`features/disponibilidade/vinculo.ts`). O que não casou fica listado para
+ * resolver à mão — nunca por "parecido".
  *
  * Aqui o admin:
- *   • vê, bloco a bloco, quantas unidades há no POUP, no UAU e vinculadas;
+ *   • vê, bloco a bloco, quantas unidades há no POUP, no CV e vinculadas;
  *   • grava os pares exatos que ainda faltam;
- *   • cadastra no POUP as unidades que só existem no UAU (sem apagar nada);
- *   • desfaz vínculo de unidade renumerada no UAU (ela volta a casar pelo
- *     número novo) e vincula à mão o que sobrar;
- *   • escolhe de onde vem o valor de venda, e pede uma leitura agora.
+ *   • cadastra no POUP as unidades que só existem no CV (sem apagar nada);
+ *   • desfaz vínculo de unidade renomeada no CV (ela volta a casar pelo nome
+ *     novo) e vincula à mão o que sobrar;
+ *   • pede uma leitura agora, ou tira o empreendimento do CV.
  *
- * O POUP só LÊ o UAU: nada aqui altera o ERP.
+ * O POUP só LÊ o CV: nada aqui altera o CV.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -23,79 +23,75 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { LoadingScreen } from '@/components/Loading';
 import { Screen } from '@/components/Screen';
-import { Segmento } from '@/components/Segmento';
 import { Select } from '@/components/Select';
-import { OPCOES_DA_FONTE, TEXTO_DA_FONTE } from '@/components/uau/ImportarObra';
-import { db, type ConferenciaUau, type FonteDoPreco, type PainelUau } from '@/data';
+import { db, type ConferenciaCv, type PainelCv } from '@/data';
 import { useIsAdmin } from '@/features/admin';
 import { haQuanto } from '@/features/disponibilidade/aplicar';
-import {
-  blocosDoUau,
-  identificadorMudou,
-  lerIdentificador,
-  mesclarBlocos,
-} from '@/features/disponibilidade/chaveUau';
-import { sugestaoDaConferencia } from '@/features/disponibilidade/importarObra';
+import { sugestaoDaConferencia } from '@/features/disponibilidade/importarDoCv';
+import { blocosDoCv, identificadorMudou, lerIdentificador, mesclarBlocos } from '@/features/disponibilidade/vinculo';
 import { chaveDoBloco } from '@/features/tabelaPreco/chaves';
 import { confirmar } from '@/lib/confirmar';
 import { voltar } from '@/lib/navegacao';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
 
-export default function AdminUauObraScreen() {
+export default function AdminCvcrmEmpreendimentoScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const router = useRouter();
   const { isAdmin, loading: carregandoAdmin } = useIsAdmin();
-  const params = useLocalSearchParams<{ developmentId?: string; empresa?: string; obra?: string }>();
+  const params = useLocalSearchParams<{ developmentId?: string }>();
   const developmentId = params.developmentId ?? '';
-  const empresa = Number(params.empresa);
-  const obra = String(params.obra ?? '');
 
-  const [conf, setConf] = useState<ConferenciaUau | null>(null);
-  const [painel, setPainel] = useState<PainelUau['obras'][number] | null>(null);
+  const [conf, setConf] = useState<ConferenciaCv | null>(null);
+  const [painel, setPainel] = useState<PainelCv['empreendimentos']>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [manualPoup, setManualPoup] = useState<string | null>(null);
-  const [manualUau, setManualUau] = useState<string | null>(null);
+  const [manualCv, setManualCv] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     if (!developmentId) return;
     const [c, p] = await Promise.all([db.disponibilidade.conferencia(developmentId), db.disponibilidade.painel()]);
     if (c.ok) setConf(c.data);
     else setErro(c.error);
-    if (p.ok) setPainel(p.data.obras.find((o) => o.developmentId === developmentId && o.obra === obra) ?? null);
-  }, [developmentId, obra]);
+    if (p.ok) setPainel(p.data.empreendimentos.filter((e) => e.developmentId === developmentId));
+  }, [developmentId]);
 
   useEffect(() => {
     if (isAdmin) void carregar();
   }, [isAdmin, carregar]);
 
   const s = useMemo(() => (conf ? sugestaoDaConferencia(conf) : null), [conf]);
-  const renumeradas = useMemo(
+  const renomeadas = useMemo(
     () => (conf ? conf.vinculos.filter((v) => identificadorMudou(v.identificadorNoVinculo, v.identificadorAtual)) : []),
     [conf],
   );
 
-  // Bloco a bloco: POUP × UAU × vinculadas.
+  // Bloco a bloco: POUP × CV × vinculadas.
   const porBloco = useMemo(() => {
     if (!conf) return [];
     const vinculadas = new Set(conf.vinculos.map((v) => v.unitId));
-    const linhas = new Map<string, { nome: string; poup: number; uau: number; vinculadas: number }>();
+    const linhas = new Map<string, { nome: string; poup: number; cv: number; vinculadas: number }>();
     for (const p of conf.poup) {
       const k = chaveDoBloco(p.bloco);
-      const l = linhas.get(k) ?? { nome: p.bloco, poup: 0, uau: 0, vinculadas: 0 };
+      const l = linhas.get(k) ?? { nome: p.bloco, poup: 0, cv: 0, vinculadas: 0 };
       l.poup++;
       if (vinculadas.has(p.id)) l.vinculadas++;
       linhas.set(k, l);
     }
-    for (const u of conf.uau) {
+    for (const u of conf.cv) {
       if (u.ausente) continue;
       const lido = lerIdentificador(u.identificador);
       const k = lido?.bloco != null ? chaveDoBloco(lido.bloco) : '?';
-      const l = linhas.get(k) ?? { nome: lido?.bloco != null ? `Bloco ${lido.bloco} (só no UAU)` : 'Sem bloco legível', poup: 0, uau: 0, vinculadas: 0 };
-      l.uau++;
+      const l = linhas.get(k) ?? {
+        nome: lido?.bloco != null ? `${u.bloco ?? `Bloco ${lido.bloco}`} (só no CV)` : 'Sem bloco legível',
+        poup: 0,
+        cv: 0,
+        vinculadas: 0,
+      };
+      l.cv++;
       linhas.set(k, l);
     }
     return [...linhas.values()];
@@ -116,7 +112,7 @@ export default function AdminUauObraScreen() {
     void executar('casadas', async () => {
       const r = await db.disponibilidade.salvarVinculos(
         developmentId,
-        s.casadas.map((p) => ({ unitId: p.unitId, empresa: p.uau.empresa, produto: p.uau.produto, numPer: p.uau.numPer, origem: 'automatico' })),
+        s.casadas.map((p) => ({ unitId: p.unitId, cvUnidade: p.cv.cvUnidade, origem: 'automatico' })),
       );
       if (!r.ok) return r.error;
       setAviso(`${r.data.gravados} unidades vinculadas.`);
@@ -125,18 +121,18 @@ export default function AdminUauObraScreen() {
   }
 
   async function completarCadastro() {
-    if (!s || s.soNoUau.length === 0) return;
+    if (!s || s.soNoCv.length === 0) return;
     const seguir = await confirmar(
-      'Cadastrar o que só existe no UAU',
-      `${s.soNoUau.length} unidades do UAU não existem no cadastro do POUP. Elas serão acrescentadas aos blocos (blocos novos, se precisar). Nada do que já existe é apagado ou renomeado.`,
+      'Cadastrar o que só existe no CV',
+      `${s.soNoCv.length} unidades do CV não existem no cadastro do POUP. Elas serão acrescentadas aos blocos (blocos novos, se precisar). Nada do que já existe é apagado ou renomeado.`,
       'Cadastrar',
     );
     if (!seguir) return;
     void executar('completar', async () => {
       const lidos = await db.unidades.listarBlocos(developmentId);
       if (!lidos.ok) return lidos.error;
-      const doUau = blocosDoUau(s.soNoUau);
-      const m = mesclarBlocos(lidos.data.map((b) => ({ id: b.id, nome: b.nome, unidades: b.unidades })), doUau.blocos);
+      const doCv = blocosDoCv(s.soNoCv);
+      const m = mesclarBlocos(lidos.data.map((b) => ({ id: b.id, nome: b.nome, unidades: b.unidades })), doCv.blocos);
       if (m.unidadesNovas === 0) return 'Nenhuma unidade nova para cadastrar.';
       const r = await db.unidades.salvarBlocos(developmentId, m.blocos);
       if (!r.ok) return r.error;
@@ -145,11 +141,11 @@ export default function AdminUauObraScreen() {
     });
   }
 
-  function desfazerRenumeradas() {
-    void executar('renumeradas', async () => {
-      const r = await db.disponibilidade.salvarVinculos(developmentId, [], renumeradas.map((v) => v.unitId));
+  function desfazerRenomeadas() {
+    void executar('renomeadas', async () => {
+      const r = await db.disponibilidade.salvarVinculos(developmentId, [], renomeadas.map((v) => v.unitId));
       if (!r.ok) return r.error;
-      setAviso('Vínculos desfeitos. Se o número novo casar com uma unidade do POUP, ela aparece em "Gravar".');
+      setAviso('Vínculos desfeitos. Se o nome novo casar com uma unidade do POUP, ela aparece em "Vincular".');
       return null;
     });
   }
@@ -159,31 +155,23 @@ export default function AdminUauObraScreen() {
     if (!d) return;
     void executar(`div-${unitId}`, async () => {
       const r = await db.disponibilidade.salvarVinculos(developmentId, [
-        { unitId, empresa: d.sugerida.empresa, produto: d.sugerida.produto, numPer: d.sugerida.numPer, origem: 'manual' },
+        { unitId, cvUnidade: d.sugerida.cvUnidade, origem: 'manual' },
       ]);
       return r.ok ? null : r.error;
     });
   }
 
   function vincularManual() {
-    if (!manualPoup || !manualUau) return;
-    const [e, p, n] = manualUau.split('/').map(Number);
+    if (!manualPoup || !manualCv) return;
     void executar('manual', async () => {
       const r = await db.disponibilidade.salvarVinculos(developmentId, [
-        { unitId: manualPoup, empresa: e, produto: p, numPer: n, origem: 'manual' },
+        { unitId: manualPoup, cvUnidade: Number(manualCv), origem: 'manual' },
       ]);
       if (!r.ok) return r.error;
       setManualPoup(null);
-      setManualUau(null);
+      setManualCv(null);
       setAviso('Vínculo gravado.');
       return null;
-    });
-  }
-
-  function mudarFonte(f: FonteDoPreco) {
-    void executar('fonte', async () => {
-      const r = await db.disponibilidade.definirFontePreco(developmentId, f);
-      return r.ok ? null : r.error;
     });
   }
 
@@ -191,26 +179,26 @@ export default function AdminUauObraScreen() {
     void executar('atualizar', async () => {
       const r = await db.disponibilidade.atualizarAgora(developmentId);
       if (!r.ok) return r.error;
-      setAviso('Lido no UAU agora.');
+      setAviso('Lido no CV agora.');
       return null;
     });
   }
 
-  async function desvincularObra() {
+  async function desvincular(cvEmpreendimento: number, cvEtapa: number | null, nome: string) {
     const seguir = await confirmar(
-      'Desvincular a obra',
-      `A obra ${empresa}/${obra} sai deste empreendimento: as unidades perdem a cor do UAU e o valor do UAU. Blocos, unidades e a tabela de preço continuam. Nada muda no UAU.`,
+      'Desvincular do CV',
+      `O ${nome} sai deste empreendimento: as unidades perdem a cor do CV. Blocos, unidades e a tabela de preço continuam. Nada muda no CV.`,
       'Desvincular',
     );
     if (!seguir) return;
     setOcupado('remover');
-    const r = await db.disponibilidade.removerObra(developmentId, empresa, obra);
+    const r = await db.disponibilidade.removerEmpreendimento(developmentId, cvEmpreendimento, cvEtapa);
     setOcupado(null);
     if (!r.ok) {
       setErro(r.error);
       return;
     }
-    voltar(router, '/(app)/admin/uau');
+    voltar(router, '/(app)/admin/cvcrm');
   }
 
   if (carregandoAdmin) return <LoadingScreen />;
@@ -229,38 +217,36 @@ export default function AdminUauObraScreen() {
   const opcoesPoup = s
     ? [...s.soNoPoup.map((p) => p.id), ...s.conflitos.flatMap((c) => c.poup)].map((id) => ({ value: id, label: nomeDoPoup(id) }))
     : [];
-  const opcoesUau = s
-    ? [...s.soNoUau, ...s.naoReconhecidas, ...s.conflitos.flatMap((c) => c.uau)].map((u) => ({
-        value: `${u.empresa}/${u.produto}/${u.numPer}`,
-        label: `${u.identificador ?? 'sem identificador'} (${u.empresa}/${u.produto}/${u.numPer})`,
+  const opcoesCv = s
+    ? [...s.soNoCv, ...s.naoReconhecidas, ...s.conflitos.flatMap((c) => c.cv)].map((u) => ({
+        value: String(u.cvUnidade),
+        label: `${u.identificador ?? 'sem nome'} (CV ${u.cvUnidade})`,
       }))
     : [];
-  const leitura = painel
-    ? haQuanto([painel.ultimoLeveEm, painel.ultimoCompletoEm].filter(Boolean).sort().pop() ?? null, Date.now())
-    : null;
+  const nomeDoCv = (cvUnidade: number) => conf?.cv.find((u) => u.cvUnidade === cvUnidade)?.identificador ?? `CV ${cvUnidade}`;
+  const titulo = painel[0]?.empreendimento ?? 'Empreendimento do CV';
 
   return (
     <Screen>
       <View style={styles.cabeca}>
-        <Text style={styles.titulo}>{painel?.empreendimento ?? 'Obra do UAU'}</Text>
-        <Text style={styles.meta}>
-          UAU {empresa}/{obra} · {leitura ? `última leitura ${leitura}` : 'leitura automática ainda não rodou'}
-        </Text>
-        {painel?.ultimoErro ? <Text style={styles.itemErro}>Erro na última leitura: {painel.ultimoErro.slice(0, 200)}</Text> : null}
-        <Button label="Ler no UAU agora" variant="secondary" onPress={atualizarAgora} loading={ocupado === 'atualizar'} />
+        <Text style={styles.titulo}>{titulo}</Text>
+        {(conf?.empreendimentos ?? []).map((e) => {
+          const leitura = haQuanto([e.ultimoLeveEm, e.ultimoCompletoEm].filter(Boolean).sort().pop() ?? null, Date.now());
+          return (
+            <View key={`${e.cvEmpreendimento}/${e.cvEtapa ?? ''}`}>
+              <Text style={styles.meta}>
+                CV {e.cvEmpreendimento} · {e.nomeNoCv ?? ''}
+                {e.etapaNoCv ? ` · ${e.etapaNoCv}` : ''} · {leitura ? `última leitura ${leitura}` : 'leitura automática ainda não rodou'}
+              </Text>
+              {e.ultimoErro ? <Text style={styles.itemErro}>Erro na última leitura: {e.ultimoErro.slice(0, 200)}</Text> : null}
+            </View>
+          );
+        })}
+        <Button label="Ler no CV agora" variant="secondary" onPress={atualizarAgora} loading={ocupado === 'atualizar'} />
       </View>
 
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
       {aviso ? <Text style={styles.ok}>{aviso}</Text> : null}
-
-      <Text style={styles.secao}>Valor de venda</Text>
-      <Segmento
-        opcoes={OPCOES_DA_FONTE}
-        valor={painel?.fontePreco ?? 'automatico'}
-        onMudar={mudarFonte}
-        desabilitado={ocupado === 'fonte'}
-      />
-      <Text style={styles.hint}>{TEXTO_DA_FONTE[painel?.fontePreco ?? 'automatico']}</Text>
 
       <Text style={styles.secao}>Unidade a unidade</Text>
       {!conf || !s ? (
@@ -270,15 +256,15 @@ export default function AdminUauObraScreen() {
           <View style={styles.card}>
             <Text style={styles.texto}>
               {conf.vinculos.length} vinculadas · {s.casadas.length} prontas para vincular · {s.soNoPoup.length} só no POUP ·{' '}
-              {s.soNoUau.length} só no UAU
+              {s.soNoCv.length} só no CV
               {s.conflitos.length ? ` · ${s.conflitos.length} conflitos` : ''}
               {s.naoReconhecidas.length ? ` · ${s.naoReconhecidas.length} não reconhecidas` : ''}
               {s.divergentes.length ? ` · ${s.divergentes.length} divergentes` : ''}
-              {renumeradas.length ? ` · ${renumeradas.length} renumeradas no UAU` : ''}
+              {renomeadas.length ? ` · ${renomeadas.length} renomeadas no CV` : ''}
             </Text>
             {porBloco.map((b) => (
-              <Text key={b.nome} style={[styles.linhaBloco, b.poup !== b.uau || b.vinculadas !== b.poup ? styles.linhaBlocoAtencao : null]}>
-                {b.nome}: {b.poup} no POUP · {b.uau} no UAU · {b.vinculadas} vinculadas
+              <Text key={b.nome} style={[styles.linhaBloco, b.poup !== b.cv || b.vinculadas !== b.poup ? styles.linhaBlocoAtencao : null]}>
+                {b.nome}: {b.poup} no POUP · {b.cv} no CV · {b.vinculadas} vinculadas
               </Text>
             ))}
           </View>
@@ -290,10 +276,10 @@ export default function AdminUauObraScreen() {
               loading={ocupado === 'casadas'}
             />
           ) : null}
-          {s.soNoUau.length > 0 ? (
+          {s.soNoCv.length > 0 ? (
             <View style={styles.espaco}>
               <Button
-                label={`Cadastrar no POUP ${s.soNoUau.length} unidades que só existem no UAU`}
+                label={`Cadastrar no POUP ${s.soNoCv.length} unidades que só existem no CV`}
                 variant="secondary"
                 onPress={() => void completarCadastro()}
                 loading={ocupado === 'completar'}
@@ -301,25 +287,25 @@ export default function AdminUauObraScreen() {
             </View>
           ) : null}
 
-          {renumeradas.length > 0 ? (
+          {renomeadas.length > 0 ? (
             <View style={styles.card}>
-              <Text style={styles.itemNome}>Renumeradas no UAU (estão sem cor)</Text>
-              {renumeradas.slice(0, 20).map((v) => (
+              <Text style={styles.itemNome}>Renomeadas no CV (estão sem cor)</Text>
+              {renomeadas.slice(0, 20).map((v) => (
                 <Text key={v.unitId} style={styles.meta}>
                   {nomeDoPoup(v.unitId)}: era "{v.identificadorNoVinculo}", agora "{v.identificadorAtual ?? 'sumiu'}"
                 </Text>
               ))}
-              <Button label="Desfazer esses vínculos" variant="secondary" onPress={desfazerRenumeradas} loading={ocupado === 'renumeradas'} />
+              <Button label="Desfazer esses vínculos" variant="secondary" onPress={desfazerRenomeadas} loading={ocupado === 'renomeadas'} />
             </View>
           ) : null}
 
           {s.divergentes.length > 0 ? (
             <View style={styles.card}>
-              <Text style={styles.itemNome}>Divergentes: vinculadas a outra unidade do UAU</Text>
+              <Text style={styles.itemNome}>Divergentes: vinculadas a outra unidade do CV</Text>
               {s.divergentes.slice(0, 20).map((d) => (
                 <View key={d.unitId} style={styles.linhaAcao}>
                   <Text style={[styles.meta, styles.flex1]}>
-                    {nomeDoPoup(d.unitId)}: hoje {d.atual}; o par exato seria "{d.sugerida.identificador}"
+                    {nomeDoPoup(d.unitId)}: hoje "{nomeDoCv(d.atual)}"; o par exato seria "{d.sugerida.identificador}"
                   </Text>
                   <Button label="Usar o par exato" variant="ghost" onPress={() => trocarDivergente(d.unitId)} loading={ocupado === `div-${d.unitId}`} />
                 </View>
@@ -332,31 +318,43 @@ export default function AdminUauObraScreen() {
               <Text style={styles.itemNome}>Sem par automático</Text>
               {s.conflitos.slice(0, 10).map((c) => (
                 <Text key={c.chave} style={styles.meta}>
-                  Conflito {c.chave}: {c.poup.length} no POUP, {c.uau.length} no UAU com a mesma chave
+                  Conflito {c.chave}: {c.poup.length} no POUP, {c.cv.length} no CV com a mesma chave
                 </Text>
               ))}
               {s.naoReconhecidas.slice(0, 10).map((u) => (
-                <Text key={`${u.produto}/${u.numPer}`} style={styles.meta}>
-                  Não reconhecida: "{u.identificador ?? 'sem identificador'}"
+                <Text key={u.cvUnidade} style={styles.meta}>
+                  Não reconhecida: "{u.identificador ?? 'sem nome'}"
                 </Text>
               ))}
             </View>
           ) : null}
 
-          {opcoesPoup.length > 0 && opcoesUau.length > 0 ? (
+          {opcoesPoup.length > 0 && opcoesCv.length > 0 ? (
             <View style={styles.card}>
               <Text style={styles.itemNome}>Vincular à mão</Text>
-              <Text style={styles.hint}>Confira no UAU antes: o vínculo pinta a unidade do POUP com a situação da unidade do UAU.</Text>
+              <Text style={styles.hint}>Confira no CV antes: o vínculo pinta a unidade do POUP com a situação da unidade do CV.</Text>
               <Select label="Unidade do POUP" placeholder="Escolha" value={manualPoup} options={opcoesPoup} onChange={setManualPoup} searchable />
-              <Select label="Unidade do UAU" placeholder="Escolha" value={manualUau} options={opcoesUau} onChange={setManualUau} searchable />
-              <Button label="Vincular" onPress={vincularManual} loading={ocupado === 'manual'} disabled={!manualPoup || !manualUau} />
+              <Select label="Unidade do CV" placeholder="Escolha" value={manualCv} options={opcoesCv} onChange={setManualCv} searchable />
+              <Button label="Vincular" onPress={vincularManual} loading={ocupado === 'manual'} disabled={!manualPoup || !manualCv} />
             </View>
           ) : null}
         </>
       )}
 
       <Text style={styles.secao}>Desvincular</Text>
-      <Button label="Desvincular esta obra do empreendimento" variant="danger" onPress={() => void desvincularObra()} loading={ocupado === 'remover'} />
+      {(conf?.empreendimentos ?? []).map((e) => {
+        const nome = `CV ${e.cvEmpreendimento}${e.etapaNoCv ? ` (${e.etapaNoCv})` : ''}`;
+        return (
+          <View key={`d-${e.cvEmpreendimento}/${e.cvEtapa ?? ''}`} style={styles.espaco}>
+            <Button
+              label={`Desvincular o ${nome}`}
+              variant="danger"
+              onPress={() => void desvincular(e.cvEmpreendimento, e.cvEtapa, nome)}
+              loading={ocupado === 'remover'}
+            />
+          </View>
+        );
+      })}
     </Screen>
   );
 }

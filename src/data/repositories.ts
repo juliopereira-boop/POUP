@@ -2,13 +2,12 @@ import type { PickedFile } from '@/features/files/pick';
 import type { Escopo, LinhaDoRanking, Periodo, SituacaoDaVenda } from '@/features/ranking/regras';
 import type {
   ArquivoDaTabela,
-  ConferenciaUau,
+  ConferenciaCv,
   Disponibilidade,
   DisponibilidadeDaUnidade,
-  FonteDoPreco,
-  ObraDoUau,
-  PainelUau,
-  PreviaDaObra,
+  EmpreendimentoDoCv,
+  PainelCv,
+  PreviaDoCv,
   SituacaoDaUnidade,
   VinculoParaGravar,
   TabelaDePreco,
@@ -247,9 +246,9 @@ export interface UnitRepository {
 }
 
 /**
- * A disponibilidade das unidades vinda do UAU (o ERP da Canopus), e a
- * administração do vínculo. O POUP só LÊ o UAU: quem fala com ele são as Edge
- * Functions `uau-disponibilidade*`, com uma lista fechada de rotas de consulta.
+ * A disponibilidade das unidades vinda do CV CRM, e a administração do
+ * vínculo. O POUP só LÊ o CV: quem fala com ele são as Edge Functions
+ * `cvcrm-disponibilidade*`, só com GET numa lista fechada de caminhos.
  */
 export interface DisponibilidadeRepository {
   /** A foto inicial (uma RPC). Depois, `assinar` traz o que muda. */
@@ -260,29 +259,29 @@ export interface DisponibilidadeRepository {
    */
   assinar(
     developmentId: string,
-    aoMudar: (u: Omit<DisponibilidadeDaUnidade, 'valorUau'>) => void,
+    aoMudar: (u: DisponibilidadeDaUnidade) => void,
     aoReconectar: () => void,
   ): () => void;
-  /** Confere UMA unidade no UAU agora — antes de fechar a proposta. */
+  /** Confere UMA unidade no CV agora — antes de fechar a proposta. */
   conferir(unitId: string): Promise<Result<{ situacao: SituacaoDaUnidade; statusDescricao: string | null }>>;
-  /** Os empreendimentos que o corretor lê e que têm valor do UAU para oferecer. */
-  empreendimentosComPreco(): Promise<Map<string, FonteDoPreco>>;
 
   // ---- admin
-  obrasDoUau(): Promise<Result<ObraDoUau[]>>;
-  previa(empresa: number, obra: string): Promise<Result<PreviaDaObra>>;
+  empreendimentosDoCv(): Promise<Result<EmpreendimentoDoCv[]>>;
+  previa(cvEmpreendimento: number): Promise<Result<PreviaDoCv>>;
   atualizarAgora(developmentId: string): Promise<Result<void>>;
-  painel(): Promise<Result<PainelUau>>;
-  conferencia(developmentId: string): Promise<Result<ConferenciaUau>>;
-  salvarObra(developmentId: string, empresa: number, obra: string, ativo?: boolean): Promise<Result<void>>;
-  removerObra(developmentId: string, empresa: number, obra: string): Promise<Result<void>>;
+  painel(): Promise<Result<PainelCv>>;
+  conferencia(developmentId: string): Promise<Result<ConferenciaCv>>;
+  salvarEmpreendimento(
+    developmentId: string,
+    cv: { empreendimento: number; etapa: number | null; nome: string | null; etapaNome: string | null },
+  ): Promise<Result<void>>;
+  removerEmpreendimento(developmentId: string, cvEmpreendimento: number, cvEtapa: number | null): Promise<Result<void>>;
   salvarVinculos(
     developmentId: string,
     vinculos: VinculoParaGravar[],
     remover?: string[],
   ): Promise<Result<{ gravados: number; removidos: number }>>;
-  definirFontePreco(developmentId: string, fonte: FonteDoPreco): Promise<Result<void>>;
-  classificarStatus(codigo: number, situacao: Exclude<SituacaoDaUnidade, 'sem_vinculo'>): Promise<Result<void>>;
+  classificarSituacao(chave: string, situacao: Exclude<SituacaoDaUnidade, 'sem_vinculo'>): Promise<Result<void>>;
 }
 
 /** Igual a `BlocosResultado`: "deu erro" é diferente de "a migration não rodou". */

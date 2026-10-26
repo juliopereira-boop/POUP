@@ -22,7 +22,7 @@ export const supabase = createClient<Database>(env.supabaseUrl, env.supabaseAnon
 
 /*
  * No celular, o temporizador que renova o login para quando o app vai para o
- * segundo plano — e o canal de tempo real (disponibilidade do UAU) para de
+ * segundo plano — e o canal de tempo real (disponibilidade do CV) para de
  * receber eventos, sem erro visível, quando o login vence com o app aberto. O
  * Supabase recomenda ligar e desligar a renovação com o AppState. No
  * navegador, a própria aba cuida disso.

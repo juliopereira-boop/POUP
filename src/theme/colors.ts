@@ -23,7 +23,7 @@ export const lightColors = {
   dangerSoft: '#FEF2F2',
   warning: '#D97706',
   warningSoft: '#FFFBEB',
-  /** Azul: a bolinha de "mais ventilado" (o verde é de "disponível", na disponibilidade do UAU). */
+  /** Azul: a bolinha de "mais ventilado" (o verde é de "disponível", na disponibilidade do CV). */
   info: '#2563EB',
   infoSoft: '#EFF6FF',
 

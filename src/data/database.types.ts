@@ -346,8 +346,6 @@ export interface Database {
           photo_url: string | null;
           uf: string | null;
           unit_value_from: number | null;
-          /** De onde vem o valor de venda (20261020120000). Escrita pela RPC `uau_definir_fonte_preco`. */
-          uau_fonte_preco?: string;
           created_at: string;
           updated_at: string;
         };
@@ -1182,7 +1180,7 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
-      /** Disponibilidade vinda do UAU (20261020120000). Escrita só pelo banco; o app lê e assina (Realtime). */
+      /** Disponibilidade vinda do CV CRM (20261026120000). Escrita só pelo banco; o app lê e assina (Realtime). */
       development_unit_disponibilidade: {
         Row: {
           unit_id: string;
@@ -1195,13 +1193,15 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
-      /** A obra do UAU de cada empreendimento. Escrita só pelas RPCs do admin. */
-      development_uau_obras: {
+      /** O empreendimento (e etapa) do CV de cada empreendimento do POUP. Escrita só pelas RPCs do admin. */
+      development_cvcrm_empreendimentos: {
         Row: {
           id: string;
           development_id: string;
-          uau_empresa: number;
-          uau_obra: string;
+          cv_empreendimento: number;
+          cv_etapa: number | null;
+          nome_no_cv: string | null;
+          etapa_no_cv: string | null;
           ativo: boolean;
           ultimo_leve_em: string | null;
           ultimo_completo_em: string | null;
@@ -1402,46 +1402,45 @@ export interface Database {
         Args: { p_user: string };
         Returns: undefined;
       };
-      /** Disponibilidade do UAU (20261020120000). */
-      uau_disponibilidade: {
+      /** Disponibilidade do CV CRM (20261026120000). */
+      disponibilidade_do_empreendimento: {
         Args: { p_development: string };
         Returns: Json;
       };
-      uau_empreendimentos_com_preco: {
-        Args: Record<string, never>;
-        Returns: { development_id: string; fonte_preco: string }[];
-      };
       /** Só o admin. */
-      uau_painel: {
+      cvcrm_painel: {
         Args: Record<string, never>;
         Returns: Json;
       };
-      uau_exigir_admin: {
+      disponibilidade_exigir_admin: {
         Args: { p_development: string };
         Returns: undefined;
       };
-      uau_conferencia: {
+      cvcrm_conferencia: {
         Args: { p_development: string };
         Returns: Json;
       };
-      uau_salvar_obra: {
-        Args: { p_development: string; p_empresa: number; p_obra: string; p_ativo?: boolean };
+      cvcrm_salvar_empreendimento: {
+        Args: {
+          p_development: string;
+          p_cv_empreendimento: number;
+          p_cv_etapa?: number | null;
+          p_nome?: string | null;
+          p_etapa_nome?: string | null;
+          p_ativo?: boolean;
+        };
         Returns: string;
       };
-      uau_remover_obra: {
-        Args: { p_development: string; p_empresa: number; p_obra: string };
+      cvcrm_remover_empreendimento: {
+        Args: { p_development: string; p_cv_empreendimento: number; p_cv_etapa?: number | null };
         Returns: number;
       };
-      uau_salvar_vinculos: {
+      cvcrm_salvar_vinculos: {
         Args: { p_development: string; p_vinculos: Json; p_remover?: string[] };
         Returns: Json;
       };
-      uau_definir_fonte_preco: {
-        Args: { p_development: string; p_fonte: string };
-        Returns: undefined;
-      };
-      uau_classificar_status: {
-        Args: { p_codigo: number; p_situacao: string };
+      cvcrm_classificar_situacao: {
+        Args: { p_chave: string; p_situacao: string };
         Returns: undefined;
       };
       /** `p_tabela` nulo apaga a tabela. */

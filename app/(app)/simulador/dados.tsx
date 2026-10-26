@@ -163,8 +163,6 @@ export default function SimuladorDados() {
   const unidadeEscolhida = blocoEscolhido?.unidades.find((u) => u.id === sim.unitId) ?? null;
 
   const precoTabela = unidadeEscolhida?.valorDeVenda ?? null;
-  // De onde veio o preço: a tabela enviada ou o UAU (fonte escolhida pelo admin).
-  const fonteDoValor = unidadeEscolhida?.preco.ok && unidadeEscolhida.preco.origem === 'uau' ? 'pelo UAU' : 'pela tabela';
   const detalhe = sim.unitId ? sim.unitDetails : null;
   const valorInformado = currencyToNumber(sim.unitValue);
   const divergeDaTabela = precoTabela != null && Math.abs(precoTabela - valorInformado) >= 0.01;
@@ -240,13 +238,13 @@ export default function SimuladorDados() {
   const irParaValores = () => router.dismissTo('/(app)/simulador');
 
   /**
-   * O seguro contra o minuto de atraso da leitura automática: com UAU, a
-   * unidade é conferida no ERP AGORA, antes de virar proposta. Vendida ou fora
-   * de venda não segue; em negociação, o corretor confirma. Se o UAU não
+   * O seguro contra o minuto de atraso da leitura automática: com o CV, a
+   * unidade é conferida no CV AGORA, antes de virar proposta. Vendida ou fora
+   * de venda não segue; em negociação, o corretor confirma. Se o CV não
    * responder, vale a última leitura, com aviso.
    */
-  async function unidadeLiberadaNoUau(): Promise<boolean> {
-    if (!sim.unitId || !unidades.disponibilidade?.temUau) return true;
+  async function unidadeLiberadaNoCv(): Promise<boolean> {
+    if (!sim.unitId || !unidades.disponibilidade?.ativa) return true;
     setConferindo(true);
     const r = await db.disponibilidade.conferir(sim.unitId);
     setConferindo(false);
@@ -255,13 +253,13 @@ export default function SimuladorDados() {
     const nome = `A unidade ${sim.unit || unidadeEscolhida?.codigo || ''}`.trim();
     if (situacao === 'vendida' || situacao === 'indisponivel') {
       setErro(
-        `${nome} ${situacao === 'vendida' ? 'foi vendida' : 'está fora de venda'} no UAU. Escolha outra unidade para gerar a proposta.`,
+        `${nome} ${situacao === 'vendida' ? 'foi vendida' : 'está fora de venda'} no CV. Escolha outra unidade para gerar a proposta.`,
       );
       return false;
     }
     if (!r.ok) {
       return confirmar(
-        'Não deu para conferir no UAU agora',
+        'Não deu para conferir no CV agora',
         `${r.error} A última leitura diz: ${rotuloDaSituacao(situacao, descricao) ?? 'sem informação'}. Gerar a proposta mesmo assim?`,
         'Gerar mesmo assim',
       );
@@ -269,7 +267,7 @@ export default function SimuladorDados() {
     if (situacao === 'negociacao') {
       return confirmar(
         `${nome} está em negociação`,
-        `No UAU ela está como "${descricao ?? 'em negociação'}" e pode ser vendida para outro cliente. Gerar a proposta mesmo assim?`,
+        `No CV ela está como "${descricao ?? 'em negociação'}" e pode ser vendida para outro cliente. Gerar a proposta mesmo assim?`,
         'Gerar mesmo assim',
       );
     }
@@ -285,7 +283,7 @@ export default function SimuladorDados() {
       return;
     }
     setFaltando(null);
-    if (!(await unidadeLiberadaNoUau())) return;
+    if (!(await unidadeLiberadaNoCv())) return;
     const e = await gerar();
     if (e) setErro(e);
   }
@@ -354,7 +352,7 @@ export default function SimuladorDados() {
                   placeholder={blocoEscolhido ? 'Escolha' : 'Bloco primeiro'}
                   value={sim.unitId}
                   options={(blocoEscolhido?.unidades ?? [])
-                    // Vendida e fora de venda (UAU) não entram numa proposta nova.
+                    // Vendida e fora de venda (CV) não entram numa proposta nova.
                     .filter((u) => podeEscolher(u.situacao) || u.id === sim.unitId)
                     .map((u) => ({
                       value: u.id,
@@ -377,12 +375,12 @@ export default function SimuladorDados() {
               <View style={styles.vendida}>
                 <Text style={styles.vendidaTexto}>
                   A unidade {unidadeEscolhida.codigo}{' '}
-                  {unidadeEscolhida.situacao === 'vendida' ? 'foi vendida' : 'saiu de venda'} no UAU. Escolha outra.
+                  {unidadeEscolhida.situacao === 'vendida' ? 'foi vendida' : 'saiu de venda'} no CV. Escolha outra.
                 </Text>
               </View>
             ) : unidadeEscolhida?.situacao === 'negociacao' ? (
               <Text style={styles.emNegociacao}>
-                No UAU: {rotuloDaSituacao('negociacao', unidadeEscolhida.statusDescricao)}. Ela pode ser vendida para
+                No CV: {rotuloDaSituacao('negociacao', unidadeEscolhida.statusDescricao)}. Ela pode ser vendida para
                 outro cliente.
               </Text>
             ) : null}
@@ -453,9 +451,7 @@ export default function SimuladorDados() {
 
       {/* O preço da tabela conferindo o valor que veio do bloco 1. */}
       {precoTabela != null && preenchidoPelaTabela && !divergeDaTabela ? (
-        <Text style={styles.okTabela}>
-          Valor de venda preenchido {fonteDoValor}: {brl(precoTabela)}.
-        </Text>
+        <Text style={styles.okTabela}>Valor de venda preenchido pela tabela: {brl(precoTabela)}.</Text>
       ) : null}
       {precoTabela != null && !preenchidoPelaTabela && !divergeDaTabela ? (
         <Text style={styles.okTabela}>Confere com a tabela de preços.</Text>
@@ -582,7 +578,7 @@ export default function SimuladorDados() {
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
       <Button
-        label={conferindo ? 'Conferindo no UAU...' : 'Gerar proposta'}
+        label={conferindo ? 'Conferindo no CV...' : 'Gerar proposta'}
         onPress={() => void gerarProposta()}
         loading={gerando || conferindo}
         style={styles.cta}

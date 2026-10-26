@@ -923,75 +923,79 @@ export function err<T = never>(error: string): Result<T> {
   return { ok: false, error: friendlyError(error) };
 }
 
-// ------------------------------------------------------------ disponibilidade (UAU)
+// ------------------------------------------------------------ disponibilidade (CV CRM)
 
 /**
- * A situação que pinta a célula da unidade, vinda do UAU (o ERP da Canopus).
- * `sem_vinculo` = o POUP não sabe: a célula fica sem cor — nunca com a cor de
- * outra unidade. Ver `supabase/migrations/20261020120000_disponibilidade_uau.sql`.
+ * A situação que pinta a célula da unidade, vinda do CV CRM (o CRM de vendas
+ * da Canopus). `sem_vinculo` = o POUP não sabe: a célula fica sem cor — nunca
+ * com a cor de outra unidade. Ver
+ * `supabase/migrations/20261026120000_disponibilidade_cvcrm.sql`.
  */
 export type SituacaoDaUnidade = 'disponivel' | 'negociacao' | 'vendida' | 'indisponivel' | 'sem_vinculo';
-
-/** De onde vem o valor de venda: a tabela enviada, o UAU, ou a tabela se houver (padrão). */
-export type FonteDoPreco = 'automatico' | 'tabela' | 'uau';
 
 export interface DisponibilidadeDaUnidade {
   unitId: string;
   situacao: SituacaoDaUnidade;
-  /** O nome do status no UAU ("Proposta", "Reservado"...). */
+  /** A situação como o CV escreve ("Reservada", "Bloqueada"...). */
   statusDescricao: string | null;
   mudouEm: string;
-  /** O valor de venda no UAU (tabela do dia no ERP). Só chega pela foto, não pelo tempo real. */
-  valorUau: number | null;
 }
 
 export interface Disponibilidade {
-  /** O empreendimento tem obra do UAU vinculada. Sem isso, a grade fica como sempre. */
-  temUau: boolean;
-  /** Leitura mais antiga entre as obras ativas (ISO). Nulo = nunca lida. */
+  /** O empreendimento tem empreendimento do CV vinculado. Sem isso, a grade fica como sempre. */
+  ativa: boolean;
+  /** Leitura mais antiga entre os vínculos ativos (ISO). Nulo = nunca lida. */
   atualizadoEm: string | null;
-  fontePreco: FonteDoPreco;
   unidades: Map<string, DisponibilidadeDaUnidade>;
 }
 
-/** Uma obra do UAU, como a consulta de obras devolve (para o admin importar). */
-export interface ObraDoUau {
-  empresa: number;
-  obra: string;
-  produto: number | null;
-  /** Um identificador de exemplo ("Bloco 01 Apto 001"). */
-  exemplo: string | null;
+/** Um empreendimento do CV, como a lista do CV devolve (para o admin importar). */
+export interface EmpreendimentoDoCv {
+  id: number;
+  nome: string | null;
+  cidade: string | null;
+  estado: string | null;
+  /** AAAA-MM-DD. */
+  dataEntrega: string | null;
+  unidadesDisponiveis: number | null;
 }
 
-/** Uma unidade da prévia (leitura completa da obra, com valor). */
-export interface UnidadeDaPrevia {
-  produto: number;
-  numPer: number;
+/** Uma unidade do CV (prévia e conferência). Só o que identifica e a situação. */
+export interface UnidadeDoCv {
+  cvUnidade: number;
+  etapa: number | null;
+  bloco: string | null;
+  nome: string | null;
+  /** "Bloco 29 Apto 304" — montado pelo banco (`cvcrm_identificador`). */
   identificador: string | null;
-  status: number | null;
-  descricao: string | null;
-  valor: number | null;
+  /** A situação como o CV escreve. */
+  situacao: string | null;
 }
 
-export interface PreviaDaObra {
-  empresa: number;
-  obra: string;
+/** Uma etapa (módulo) de um empreendimento do CV. */
+export interface EtapaDoCv {
+  id: number;
+  nome: string;
   unidades: number;
-  porStatus: Record<string, number>;
-  exemplos: (string | null)[];
-  valorMin: number | null;
-  valorMax: number | null;
-  /** AAAA-MM-DD, a entrega das chaves mais comum na obra. */
-  entregaChaves: string | null;
-  lista: UnidadeDaPrevia[];
+}
+
+export interface PreviaDoCv {
+  cvEmpreendimento: number;
+  nome: string | null;
+  unidades: number;
+  etapas: EtapaDoCv[];
+  porSituacao: Record<string, number>;
+  lista: UnidadeDoCv[];
   aviso?: string;
 }
 
-/** O que a tela de conferência do admin recebe (`uau_conferencia`). */
-export interface ConferenciaUau {
-  obras: {
-    empresa: number;
-    obra: string;
+/** O que a tela de conferência do admin recebe (`cvcrm_conferencia`). */
+export interface ConferenciaCv {
+  empreendimentos: {
+    cvEmpreendimento: number;
+    cvEtapa: number | null;
+    nomeNoCv: string | null;
+    etapaNoCv: string | null;
     ativo: boolean;
     ultimoLeveEm: string | null;
     ultimoCompletoEm: string | null;
@@ -999,50 +1003,51 @@ export interface ConferenciaUau {
     ultimoErroEm: string | null;
   }[];
   poup: { id: string; bloco: string; codigo: string; pavimento: number }[];
-  uau: {
-    empresa: number;
-    produto: number;
-    numPer: number;
-    obra: string;
-    identificador: string | null;
-    statusCodigo: number | null;
-    statusDescricao: string | null;
-    ausente: boolean;
-  }[];
+  cv: (UnidadeDoCv & { empreendimento: number; ausente: boolean })[];
   vinculos: {
     unitId: string;
-    chave: string;
+    cvUnidade: number;
     identificadorNoVinculo: string;
     identificadorAtual: string | null;
-    origem: 'automatico' | 'manual' | 'criado_do_uau';
+    origem: 'automatico' | 'manual' | 'criado_do_cv';
     vinculadoEm: string;
   }[];
 }
 
 export interface VinculoParaGravar {
   unitId: string;
-  empresa: number;
-  produto: number;
-  numPer: number;
-  origem: 'automatico' | 'manual' | 'criado_do_uau';
+  cvUnidade: number;
+  origem: 'automatico' | 'manual' | 'criado_do_cv';
 }
 
-/** O painel do admin (`uau_painel`). */
-export interface PainelUau {
-  obras: {
-    empresa: number;
-    obra: string;
+/** O estado de uma das leituras automáticas (leve ou completa). */
+export interface LeituraDoCv {
+  iniciadoEm: string | null;
+  terminadoEm: string | null;
+  ok: boolean | null;
+  lidas: number | null;
+  mudaram: number | null;
+  erro: string | null;
+}
+
+/** O painel do admin (`cvcrm_painel`). */
+export interface PainelCv {
+  empreendimentos: {
+    cvEmpreendimento: number;
+    cvEtapa: number | null;
+    nomeNoCv: string | null;
+    etapaNoCv: string | null;
     ativo: boolean;
     developmentId: string;
     empreendimento: string;
-    fontePreco: FonteDoPreco;
     ultimoLeveEm: string | null;
     ultimoCompletoEm: string | null;
     ultimoErro: string | null;
     ultimoErroEm: string | null;
     vinculadas: number;
-    noUau: number;
+    noCv: number;
   }[];
-  statusRevisar: { codigo: number; descricao: string; situacao: SituacaoDaUnidade }[];
-  status: { codigo: number; descricao: string; situacao: SituacaoDaUnidade; revisar: boolean }[];
+  situacoesRevisar: { chave: string; descricao: string; situacao: SituacaoDaUnidade }[];
+  situacoes: { chave: string; descricao: string; situacao: SituacaoDaUnidade; revisar: boolean }[];
+  leituras: { leve?: LeituraDoCv; completo?: LeituraDoCv };
 }

@@ -1,3 +1,7 @@
+-- OBSOLETO desde 20261026120000_disponibilidade_cvcrm.sql: o UAU não pinta mais
+-- (as verificações de cor abaixo falham por isso). O teste que vale agora é
+-- scripts/testar-disponibilidade-cvcrm-db.sql. Sai junto com o UAU.
+--
 -- Somente PostgreSQL local/homologação. Toda alteração é revertida ao final.
 -- psql <URL_LOCAL> -X -v ON_ERROR_STOP=1 -f scripts/testar-disponibilidade-db.sql
 --

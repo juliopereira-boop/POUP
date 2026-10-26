@@ -1,30 +1,30 @@
 /**
- * DISPONIBILIDADE DAS UNIDADES, VINDA DO UAU — E O VÍNCULO DO ADMIN.
+ * DISPONIBILIDADE DAS UNIDADES, VINDA DO CV CRM — E O VÍNCULO DO ADMIN.
  *
- * O POUP só LÊ o UAU. Quem fala com o ERP são as Edge Functions
- * `uau-disponibilidade` (o app: obras, prévia, atualizar, conferir) e
- * `uau-disponibilidade-sync` (o cron), com uma lista fechada de rotas de
- * consulta (`scripts/testar-uau-somente-leitura.mjs`). Daqui saem só RPCs do
- * banco e chamadas a essas funções.
+ * O POUP só LÊ o CV. Quem fala com ele são as Edge Functions
+ * `cvcrm-disponibilidade` (o app: empreendimentos, prévia, atualizar,
+ * conferir) e `cvcrm-disponibilidade-sync` (o cron), só com GET numa lista
+ * fechada de caminhos (`scripts/testar-cvcrm-somente-leitura.mjs`). Daqui
+ * saem só RPCs do banco e chamadas a essas funções.
  *
- * Sem a migration `20261020120000_disponibilidade_uau.sql`, a leitura do
- * corretor devolve "sem UAU" em silêncio: a grade fica exatamente como era, e
- * o simulador segue funcionando.
+ * Sem a migration `20261026120000_disponibilidade_cvcrm.sql`, a leitura do
+ * corretor devolve "sem disponibilidade" em silêncio: a grade fica exatamente
+ * como era, e o simulador segue funcionando.
  */
 import { supabase } from '@/lib/supabase';
 import { mensagemDoErro as mensagemDaFuncao } from '@/lib/edgeError';
 import type { Json } from '../database.types';
 import type { DisponibilidadeRepository } from '../repositories';
 import {
-  type ConferenciaUau,
+  type ConferenciaCv,
   type Disponibilidade,
   type DisponibilidadeDaUnidade,
-  type FonteDoPreco,
-  type ObraDoUau,
-  type PainelUau,
-  type PreviaDaObra,
+  type EmpreendimentoDoCv,
+  type PainelCv,
+  type PreviaDoCv,
   type Result,
   type SituacaoDaUnidade,
+  type UnidadeDoCv,
   type VinculoParaGravar,
   err,
   ok,
@@ -42,20 +42,19 @@ function migracaoAusente(erro: ErroPostgrest | null): boolean {
 }
 
 const MIGRACAO_PENDENTE =
-  'A disponibilidade do UAU ainda não foi ativada no servidor. Rode a migration ' +
-  '20261020120000_disponibilidade_uau.sql no SQL Editor do Supabase.';
+  'A disponibilidade do CV ainda não foi ativada no servidor. Rode a migration ' +
+  '20261026120000_disponibilidade_cvcrm.sql no SQL Editor do Supabase.';
 
 /** As RPCs falam por código; a frase pertence ao aplicativo. */
 const MENSAGENS: Record<string, string> = {
-  sem_permissao: 'Só o administrador do POUP vincula o UAU.',
-  obra_invalida: 'Empresa ou obra do UAU inválida (ex.: empresa 1, obra 259V).',
-  obra_de_outro_empreendimento: 'Esta obra do UAU já está vinculada a outro empreendimento.',
-  vinculo_invalido: 'Alguma unidade não é deste empreendimento ou não é desta obra do UAU. Atualize a conferência.',
+  sem_permissao: 'Só o administrador do POUP vincula o CV.',
+  empreendimento_invalido: 'Empreendimento do CV inválido.',
+  empreendimento_de_outro: 'Este empreendimento (ou etapa) do CV já está vinculado a outro empreendimento do POUP.',
+  vinculo_invalido: 'Alguma unidade não é deste empreendimento ou não é do CV vinculado a ele. Atualize a conferência.',
   vinculo_repetido: 'A mesma unidade apareceu duas vezes. Revise os pares.',
-  unidade_uau_ja_vinculada: 'Uma dessas unidades do UAU já está vinculada a outra unidade do POUP.',
-  situacao_invalida: 'Classificação de status inválida.',
-  status_desconhecido: 'Classificação de status inválida.',
-  fonte_invalida: 'Escolha de onde vem o preço: automático, tabela ou UAU.',
+  unidade_cv_ja_vinculada: 'Uma dessas unidades do CV já está vinculada a outra unidade do POUP.',
+  situacao_invalida: 'Classificação de situação inválida.',
+  situacao_desconhecida: 'Classificação de situação inválida.',
   formato_invalido: 'Os dados chegaram num formato inesperado. Tente de novo.',
 };
 
@@ -73,18 +72,29 @@ function traduzir(erro: ErroPostgrest | null, padrao: string): string {
 const SITUACOES: SituacaoDaUnidade[] = ['disponivel', 'negociacao', 'vendida', 'indisponivel', 'sem_vinculo'];
 const situacao = (v: unknown): SituacaoDaUnidade =>
   SITUACOES.includes(v as SituacaoDaUnidade) ? (v as SituacaoDaUnidade) : 'sem_vinculo';
-const fonte = (v: unknown): FonteDoPreco => (v === 'tabela' || v === 'uau' ? v : 'automatico');
 const numero = (v: unknown): number | null => {
   if (v == null || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+
+function unidadeDoCv(u: Record<string, unknown>): UnidadeDoCv {
+  return {
+    cvUnidade: Number(u.cvUnidade),
+    etapa: numero(u.etapa),
+    bloco: texto(u.bloco),
+    nome: texto(u.nome),
+    identificador: texto(u.identificador),
+    situacao: texto(u.situacao),
+  };
+}
 
 /** Um canal por tela: dois ganchos no mesmo empreendimento não brigam pelo mesmo nome. */
 let canais = 0;
 
 async function invocar<T>(corpo: Record<string, unknown>, padrao: string): Promise<Result<T>> {
-  const { data, error } = await supabase.functions.invoke('uau-disponibilidade', { body: corpo });
+  const { data, error } = await supabase.functions.invoke('cvcrm-disponibilidade', { body: corpo });
   if (error) return err(await mensagemDaFuncao(error, padrao));
   const d = data as { error?: string } | null;
   if (d && typeof d === 'object' && typeof d.error === 'string') return err(d.error);
@@ -93,18 +103,15 @@ async function invocar<T>(corpo: Record<string, unknown>, padrao: string): Promi
 
 export class SupabaseDisponibilidadeRepository implements DisponibilidadeRepository {
   async carregar(developmentId: string): Promise<Result<Disponibilidade>> {
-    const { data, error } = await supabase.rpc('uau_disponibilidade', { p_development: developmentId });
+    const { data, error } = await supabase.rpc('disponibilidade_do_empreendimento', { p_development: developmentId });
     if (error) {
-      // Sem a migration: "sem UAU", e a grade fica como sempre foi.
-      if (migracaoAusente(error)) {
-        return ok({ temUau: false, atualizadoEm: null, fontePreco: 'automatico', unidades: new Map() });
-      }
+      // Sem a migration: "sem disponibilidade", e a grade fica como sempre foi.
+      if (migracaoAusente(error)) return ok({ ativa: false, atualizadoEm: null, unidades: new Map() });
       return err(traduzir(error, 'Não foi possível ler a disponibilidade.'));
     }
     const r = (data ?? {}) as {
-      temUau?: boolean;
+      ativa?: boolean;
       atualizadoEm?: string | null;
-      fontePreco?: string;
       unidades?: Record<string, unknown>[];
     };
     const unidades = new Map<string, DisponibilidadeDaUnidade>();
@@ -116,20 +123,14 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
         situacao: situacao(u.situacao),
         statusDescricao: (u.statusDescricao as string | null) ?? null,
         mudouEm: String(u.mudouEm ?? ''),
-        valorUau: numero(u.valorUau),
       });
     }
-    return ok({
-      temUau: Boolean(r.temUau),
-      atualizadoEm: r.atualizadoEm ?? null,
-      fontePreco: fonte(r.fontePreco),
-      unidades,
-    });
+    return ok({ ativa: Boolean(r.ativa), atualizadoEm: r.atualizadoEm ?? null, unidades });
   }
 
   assinar(
     developmentId: string,
-    aoMudar: (u: Omit<DisponibilidadeDaUnidade, 'valorUau'>) => void,
+    aoMudar: (u: DisponibilidadeDaUnidade) => void,
     aoReconectar: () => void,
   ): () => void {
     const canal = supabase
@@ -164,96 +165,102 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
   async conferir(unitId: string): Promise<Result<{ situacao: SituacaoDaUnidade; statusDescricao: string | null }>> {
     const r = await invocar<{ situacao?: string; status_descricao?: string | null }>(
       { acao: 'conferir', unitId },
-      'Não foi possível conferir a unidade no UAU agora.',
+      'Não foi possível conferir a unidade no CV agora.',
     );
     if (!r.ok) return r;
     return ok({ situacao: situacao(r.data?.situacao), statusDescricao: r.data?.status_descricao ?? null });
   }
 
-  async empreendimentosComPreco(): Promise<Map<string, FonteDoPreco>> {
-    const { data, error } = await supabase.rpc('uau_empreendimentos_com_preco');
-    if (error || !data) return new Map();
-    return new Map(data.map((d) => [d.development_id, fonte(d.fonte_preco)]));
-  }
-
   // ------------------------------------------------------------ admin
 
-  async obrasDoUau(): Promise<Result<ObraDoUau[]>> {
-    const r = await invocar<{ obras?: Record<string, unknown>[] }>({ acao: 'obras' }, 'Não foi possível consultar o UAU.');
+  async empreendimentosDoCv(): Promise<Result<EmpreendimentoDoCv[]>> {
+    const r = await invocar<{ empreendimentos?: Record<string, unknown>[] }>(
+      { acao: 'empreendimentos' },
+      'Não foi possível consultar o CV.',
+    );
     if (!r.ok) return r;
     return ok(
-      (r.data?.obras ?? []).map((o) => ({
-        empresa: Number(o.empresa),
-        obra: String(o.obra),
-        produto: numero(o.produto),
-        exemplo: (o.exemplo as string | null) ?? null,
+      (r.data?.empreendimentos ?? []).map((e) => ({
+        id: Number(e.id),
+        nome: texto(e.nome),
+        cidade: texto(e.cidade),
+        estado: texto(e.estado),
+        dataEntrega: texto(e.dataEntrega),
+        unidadesDisponiveis: numero(e.unidadesDisponiveis),
       })),
     );
   }
 
-  async previa(empresa: number, obra: string): Promise<Result<PreviaDaObra>> {
-    const r = await invocar<{ obras?: Record<string, unknown>[] }>(
-      { acao: 'previa', empresa, obra },
-      'Não foi possível ler a obra no UAU.',
+  async previa(cvEmpreendimento: number): Promise<Result<PreviaDoCv>> {
+    const r = await invocar<Record<string, unknown>>(
+      { acao: 'previa', cvEmpreendimento },
+      'Não foi possível ler o empreendimento no CV.',
     );
     if (!r.ok) return r;
-    const o = r.data?.obras?.[0];
-    if (!o) return err('O UAU não devolveu esta obra.');
+    const o = r.data ?? {};
     return ok({
-      empresa: Number(o.empresa),
-      obra: String(o.obra),
+      cvEmpreendimento: Number(o.cvEmpreendimento ?? cvEmpreendimento),
+      nome: texto(o.nome),
       unidades: Number(o.unidades ?? 0),
-      porStatus: (o.porStatus as Record<string, number>) ?? {},
-      exemplos: (o.exemplos as (string | null)[]) ?? [],
-      valorMin: numero(o.valorMin),
-      valorMax: numero(o.valorMax),
-      entregaChaves: (o.entregaChaves as string | null) ?? null,
-      lista: ((o.lista as Record<string, unknown>[]) ?? []).map((u) => ({
-        produto: Number(u.produto),
-        numPer: Number(u.numPer),
-        identificador: (u.identificador as string | null) ?? null,
-        status: numero(u.status),
-        descricao: (u.descricao as string | null) ?? null,
-        valor: numero(u.valor),
+      etapas: ((o.etapas as Record<string, unknown>[]) ?? []).map((e) => ({
+        id: Number(e.id),
+        nome: String(e.nome ?? ''),
+        unidades: Number(e.unidades ?? 0),
       })),
+      porSituacao: (o.porSituacao as Record<string, number>) ?? {},
+      lista: ((o.lista as Record<string, unknown>[]) ?? []).map(unidadeDoCv),
       aviso: typeof o.aviso === 'string' ? o.aviso : undefined,
     });
   }
 
   async atualizarAgora(developmentId: string): Promise<Result<void>> {
-    const r = await invocar({ acao: 'atualizar', developmentId }, 'Não foi possível ler o UAU agora.');
+    const r = await invocar({ acao: 'atualizar', developmentId }, 'Não foi possível ler o CV agora.');
     return r.ok ? ok(undefined) : r;
   }
 
-  async painel(): Promise<Result<PainelUau>> {
-    const { data, error } = await supabase.rpc('uau_painel');
-    if (error) return err(traduzir(error, 'Não foi possível abrir o painel do UAU.'));
-    return ok(data as unknown as PainelUau);
+  async painel(): Promise<Result<PainelCv>> {
+    const { data, error } = await supabase.rpc('cvcrm_painel');
+    if (error) return err(traduzir(error, 'Não foi possível abrir o painel do CV.'));
+    return ok(data as unknown as PainelCv);
   }
 
-  async conferencia(developmentId: string): Promise<Result<ConferenciaUau>> {
-    const { data, error } = await supabase.rpc('uau_conferencia', { p_development: developmentId });
+  async conferencia(developmentId: string): Promise<Result<ConferenciaCv>> {
+    const { data, error } = await supabase.rpc('cvcrm_conferencia', { p_development: developmentId });
     if (error) return err(traduzir(error, 'Não foi possível montar a conferência.'));
-    return ok(data as unknown as ConferenciaUau);
+    const c = (data ?? {}) as Record<string, unknown>;
+    return ok({
+      empreendimentos: (c.empreendimentos as ConferenciaCv['empreendimentos']) ?? [],
+      poup: (c.poup as ConferenciaCv['poup']) ?? [],
+      cv: ((c.cv as Record<string, unknown>[]) ?? []).map((u) => ({
+        ...unidadeDoCv(u),
+        empreendimento: Number(u.empreendimento),
+        ausente: Boolean(u.ausente),
+      })),
+      vinculos: (c.vinculos as ConferenciaCv['vinculos']) ?? [],
+    });
   }
 
-  async salvarObra(developmentId: string, empresa: number, obra: string, ativo = true): Promise<Result<void>> {
-    const { error } = await supabase.rpc('uau_salvar_obra', {
+  async salvarEmpreendimento(
+    developmentId: string,
+    cv: { empreendimento: number; etapa: number | null; nome: string | null; etapaNome: string | null },
+  ): Promise<Result<void>> {
+    const { error } = await supabase.rpc('cvcrm_salvar_empreendimento', {
       p_development: developmentId,
-      p_empresa: empresa,
-      p_obra: obra,
-      p_ativo: ativo,
+      p_cv_empreendimento: cv.empreendimento,
+      p_cv_etapa: cv.etapa,
+      p_nome: cv.nome,
+      p_etapa_nome: cv.etapaNome,
     });
-    return error ? err(traduzir(error, 'Não foi possível vincular a obra.')) : ok(undefined);
+    return error ? err(traduzir(error, 'Não foi possível vincular o empreendimento do CV.')) : ok(undefined);
   }
 
-  async removerObra(developmentId: string, empresa: number, obra: string): Promise<Result<void>> {
-    const { error } = await supabase.rpc('uau_remover_obra', {
+  async removerEmpreendimento(developmentId: string, cvEmpreendimento: number, cvEtapa: number | null): Promise<Result<void>> {
+    const { error } = await supabase.rpc('cvcrm_remover_empreendimento', {
       p_development: developmentId,
-      p_empresa: empresa,
-      p_obra: obra,
+      p_cv_empreendimento: cvEmpreendimento,
+      p_cv_etapa: cvEtapa,
     });
-    return error ? err(traduzir(error, 'Não foi possível desvincular a obra.')) : ok(undefined);
+    return error ? err(traduzir(error, 'Não foi possível desvincular o empreendimento do CV.')) : ok(undefined);
   }
 
   async salvarVinculos(
@@ -261,7 +268,7 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     vinculos: VinculoParaGravar[],
     remover: string[] = [],
   ): Promise<Result<{ gravados: number; removidos: number }>> {
-    const { data, error } = await supabase.rpc('uau_salvar_vinculos', {
+    const { data, error } = await supabase.rpc('cvcrm_salvar_vinculos', {
       p_development: developmentId,
       p_vinculos: vinculos as unknown as Json,
       p_remover: remover,
@@ -271,13 +278,8 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     return ok({ gravados: Number(r.gravados ?? 0), removidos: Number(r.removidos ?? 0) });
   }
 
-  async definirFontePreco(developmentId: string, f: FonteDoPreco): Promise<Result<void>> {
-    const { error } = await supabase.rpc('uau_definir_fonte_preco', { p_development: developmentId, p_fonte: f });
-    return error ? err(traduzir(error, 'Não foi possível mudar a fonte do preço.')) : ok(undefined);
-  }
-
-  async classificarStatus(codigo: number, s: Exclude<SituacaoDaUnidade, 'sem_vinculo'>): Promise<Result<void>> {
-    const { error } = await supabase.rpc('uau_classificar_status', { p_codigo: codigo, p_situacao: s });
-    return error ? err(traduzir(error, 'Não foi possível classificar o status.')) : ok(undefined);
+  async classificarSituacao(chave: string, s: Exclude<SituacaoDaUnidade, 'sem_vinculo'>): Promise<Result<void>> {
+    const { error } = await supabase.rpc('cvcrm_classificar_situacao', { p_chave: chave, p_situacao: s });
+    return error ? err(traduzir(error, 'Não foi possível classificar a situação.')) : ok(undefined);
   }
 }

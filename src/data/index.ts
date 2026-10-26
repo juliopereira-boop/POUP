@@ -54,7 +54,7 @@ export interface DataLayer {
   tabelaPreco: PriceTableRepository;
   /** O ranking de corretores, a participação e a auditoria. */
   ranking: RankingRepository;
-  /** Disponibilidade das unidades vinda do UAU (só leitura do ERP) e o vínculo do admin. */
+  /** Disponibilidade das unidades vinda do CV CRM (só leitura) e o vínculo do admin. */
   disponibilidade: DisponibilidadeRepository;
   /** Catálogo do sistema: as empresas prontas do POUP e as adoções do corretor. */
   catalog: CatalogRepository;

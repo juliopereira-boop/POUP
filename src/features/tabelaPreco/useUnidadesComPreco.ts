@@ -5,9 +5,9 @@
  * `precificarBlocos`. Sem a migration de alguma das duas, devolve o que dá: o
  * simulador segue com a unidade digitada, como sempre funcionou.
  *
- * Com obra do UAU vinculada, cada unidade ganha também a situação (verde,
- * amarelo, vermelho, cinza) ao vivo, e o valor de venda pode vir do UAU — ver
- * `features/disponibilidade/aplicar.ts`.
+ * Com empreendimento do CV vinculado, cada unidade ganha também a situação
+ * (verde, amarelo, vermelho, cinza) ao vivo — ver
+ * `features/disponibilidade/aplicar.ts`. O preço é sempre o da tabela.
  *
  * O que já foi lido fica em memória (`cache.ts`): voltar ao mesmo
  * empreendimento mostra as unidades na hora e atualiza por trás. E a espera
@@ -20,10 +20,10 @@ import type { DetalheDaUnidade } from '@/features/simulador/estado';
 import { aplicarNosBlocos, type ComDisponibilidade } from '@/features/disponibilidade/aplicar';
 import { useDisponibilidade } from '@/features/disponibilidade/useDisponibilidade';
 import { MENSAGEM_SEM_CONEXAO, comPrazo, guardarUnidades, unidadesEmCache } from './cache';
-import { precificarBlocos, temPrecos, type BlocoPrecificado } from './preco';
+import { precificarBlocos, type BlocoPrecificado } from './preco';
 
 type BlocoBase = BlocoPrecificado<DevelopmentBlock>;
-/** A unidade com o preço (tabela ou UAU) e a situação do UAU (verde/amarelo/vermelho/cinza). */
+/** A unidade com o preço da tabela e a situação do CV (verde/amarelo/vermelho/cinza). */
 export type UnidadeComPreco = ComDisponibilidade<BlocoBase['unidades'][number]>;
 export type BlocoComPreco = Omit<BlocoBase, 'unidades'> & { unidades: UnidadeComPreco[] };
 
@@ -77,7 +77,7 @@ export function useUnidadesComPreco(developmentId: string | null) {
 
   const { disponibilidade, desatualizada, agora } = useDisponibilidade(developmentId);
   const blocos: BlocoComPreco[] = useMemo(
-    () => aplicarNosBlocos(precificarBlocos(estado.blocos, estado.tabela), disponibilidade, temPrecos(estado.tabela)),
+    () => aplicarNosBlocos(precificarBlocos(estado.blocos, estado.tabela), disponibilidade),
     [estado.blocos, estado.tabela, disponibilidade],
   );
   const recarregar = useCallback(() => setVersao((v) => v + 1), []);
@@ -88,9 +88,9 @@ export function useUnidadesComPreco(developmentId: string | null) {
     blocos,
     tabela: estado.tabela,
     recarregar,
-    /** `null` enquanto carrega; `temUau: false` quando o empreendimento não tem UAU. */
+    /** `null` enquanto carrega; `ativa: false` quando o empreendimento não tem CV vinculado. */
     disponibilidade,
-    /** A última leitura do UAU passou do prazo: confira antes de fechar. */
+    /** A última leitura do CV passou do prazo: confira antes de fechar. */
     desatualizada,
     agora,
   };
@@ -105,7 +105,7 @@ export function detalheDe(
   if (!u.preco.ok) return null;
   return {
     empreendimento,
-    referencia: u.preco.origem === 'uau' ? 'valor do UAU' : (tabela?.referencia ?? ''),
+    referencia: tabela?.referencia ?? '',
     pavimento: u.pavimento,
     vendaTabela: u.preco.venda,
     avaliacao: u.preco.avaliacao,

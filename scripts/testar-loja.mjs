@@ -241,9 +241,9 @@ function secao(t) {
     'src/components/planos/FluxoDeMudanca.tsx',
     'src/components/planos/CartaoDePlano.tsx',
     'src/features/planos/acoes.ts',
-    'app/(app)/admin/uau.tsx',
-    'app/(app)/admin/uau-obra.tsx',
-    'src/components/uau/ImportarObra.tsx',
+    'app/(app)/admin/cvcrm.tsx',
+    'app/(app)/admin/cvcrm-empreendimento.tsx',
+    'src/components/cvcrm/ImportarDoCv.tsx',
     'src/data/supabase/SupabaseDisponibilidadeRepository.ts',
   ];
   for (const arquivo of COMPARTILHADOS) {

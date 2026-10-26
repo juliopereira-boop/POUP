@@ -8,10 +8,9 @@
  * é preenchido, e construtora, empreendimento, bloco e unidade já chegam
  * prontos no bloco 2.
  *
- * COM O UAU (obra vinculada), as unidades vêm pintadas pela situação no ERP,
- * ao vivo: vendida e fora de venda não podem ser escolhidas; em negociação
- * (proposta, reservada) pode, depois de um aviso. E entra na lista também o
- * empreendimento que só tem o valor do UAU, sem tabela enviada.
+ * COM O CV (empreendimento vinculado), as unidades vêm pintadas pela situação
+ * no CV CRM, ao vivo: vendida e fora de venda (bloqueada) não podem ser
+ * escolhidas; em negociação (reservada) pode, depois de um aviso.
  *
  * Unidade sem preço na tabela não pode ser escolhida aqui: o objetivo do botão
  * é preencher o valor pela tabela, e uma unidade sem preço não tem o que
@@ -59,8 +58,8 @@ interface Props {
 
 type Passo = 'empreendimento' | 'bloco' | 'unidade';
 
-/** "tabela de Setembro", ou "valor do UAU" quando o preço vem do ERP. */
-const rotuloDaReferencia = (r: string) => (r === 'valor do UAU' ? r : `tabela de ${r}`);
+/** "tabela de Setembro". */
+const rotuloDaReferencia = (r: string) => `tabela de ${r}`;
 const TODAS = 'todas';
 
 export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, developmentIdInicial, unitIdAtual }: Props) {
@@ -121,19 +120,13 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
         db.developments.list(user.id),
         db.tabelaPreco.referencias(),
         db.companies.list(user.id),
-        db.disponibilidade.empreendimentosComPreco(),
       ]),
     )
-      .then(([devs, refs, comps, comUau]) => {
-        // Com tabela enviada, ou com o valor do UAU (fonte "uau", ou
-        // "automático" sem tabela).
+      .then(([devs, refs, comps]) => {
+        // Só os que têm tabela enviada: é dela que vem o valor de venda.
         const comTabela = devs
-          .filter((d) => refs.has(d.id) || comUau.has(d.id))
-          .map((d) => ({
-            ...d,
-            referencia:
-              refs.has(d.id) && comUau.get(d.id) !== 'uau' ? (refs.get(d.id) ?? '') : 'valor do UAU',
-          }))
+          .filter((d) => refs.has(d.id))
+          .map((d) => ({ ...d, referencia: refs.get(d.id) ?? '' }))
           .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         guardarLista({ userId: user.id, empreendimentos: comTabela, construtoras: comps });
         if (!vivo) return;
@@ -182,7 +175,7 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
     if (u.situacao === 'negociacao') {
       const seguir = await confirmar(
         `Unidade ${u.codigo} em negociação`,
-        `No UAU, esta unidade está como "${u.statusDescricao ?? 'em negociação'}". Ela pode ser vendida para outro cliente. Quer simular mesmo assim?`,
+        `No CV, esta unidade está como "${u.statusDescricao ?? 'em negociação'}". Ela pode ser vendida para outro cliente. Quer simular mesmo assim?`,
         'Simular mesmo assim',
       );
       if (!seguir) return;
@@ -355,7 +348,7 @@ export function EscolherUnidadeDaTabela({ visivel, onFechar, onEscolher, develop
                   onEscolher={(u) => void escolherUnidade(u)}
                   filtroVaga={filtro === TODAS ? null : (filtro as Vaga)}
                   aoVivo={
-                    unidades.disponibilidade?.temUau
+                    unidades.disponibilidade?.ativa
                       ? {
                           atualizadoEm: unidades.disponibilidade.atualizadoEm,
                           desatualizada: unidades.desatualizada,

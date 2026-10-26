@@ -21,7 +21,7 @@ Este README é intencionalmente longo e detalhado — além de servir de guia de
 9. [Catálogo do sistema (empresas pré-cadastradas pelo admin)](#🗂️-catálogo-do-sistema-empresas-pré-cadastradas-pelo-admin)
 10. [Simulador de financiamento habitacional](#🏦-simulador-de-financiamento-habitacional)
 11. [Simulador de poupança (dois blocos)](#🧮-simulador-de-poupança-dois-blocos-valores-depois-unidade-e-cliente)
-12. [Disponibilidade do UAU (verde, amarelo, vermelho)](#🟢-disponibilidade-do-uau-verde-amarelo-vermelho)
+12. [Disponibilidade do CV (verde, amarelo, vermelho)](#🟢-disponibilidade-do-cv-verde-amarelo-vermelho)
 13. [LIA — a assistente que ouve a negociação](#🎧-lia--a-assistente-que-ouve-a-negociação)
 14. [Geração da Proposta em PDF](#📄-geração-da-proposta-em-pdf)
 15. [Scanner de documento (CNH/RG) com Claude](#🪪-scanner-de-documento-cnhrg-com-claude)
@@ -1045,59 +1045,44 @@ O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária,
 
 ---
 
-## 🟢 Disponibilidade do UAU (verde, amarelo, vermelho)
+## 🟢 Disponibilidade do CV (verde, amarelo, vermelho)
 
-A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade pintada conforme o **UAU** (o ERP da Canopus), ao vivo: **verde** disponível, **amarelo** em negociação (proposta, reservada), **vermelho** vendida, **cinza** fora de venda. A situação também vai por escrito na célula e no leitor de tela. Sem obra do UAU no empreendimento, a grade fica como sempre foi. A bolinha de "mais ventilado" é **azul**.
+A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade pintada conforme o **CV CRM** (o CRM de vendas da Canopus), ao vivo: **verde** disponível, **amarelo** reservada (em negociação), **vermelho** vendida, **cinza** bloqueada (fora de venda). A situação também vai por escrito na célula e no leitor de tela. Sem empreendimento do CV vinculado, a grade fica como sempre foi. A bolinha de "mais ventilado" é **azul**. Até 26/10/2026 a fonte era o UAU (o ERP); a troca está em `docs/DISPONIBILIDADE_CVCRM.md`.
 
 - **Vendida e fora de venda não entram numa proposta**: a grade não deixa tocar e a lista do passo 2 não oferece.
-- **Em negociação**: pode, depois de um aviso.
-- **Ao gerar a proposta**, a unidade é conferida no UAU **naquele momento**. Isso cobre o até ~1 minuto de atraso da leitura automática.
+- **Reservada (em negociação)**: pode, depois de um aviso.
+- **Ao gerar a proposta**, a unidade é conferida no CV **naquele momento** (o bloco dela, no mapa de disponibilidade). Isso cobre o até ~1 minuto de atraso da leitura automática.
+- **O preço continua o da tabela de preço enviada**: o CV não tem valor de venda por unidade.
 - **Vale para Start e Pro.**
 
-**O POUP só LÊ o UAU — nenhuma edição, nunca.** O app nunca fala com o ERP: quem fala são duas Edge Functions, com uma lista fechada de 3 rotas de consulta e uma segunda trava que recusa rota com nome de escrita (`AlterarStatusUnidade` e afins) mesmo se alguém a puser na lista. `npm run testar:uau-leitura` prova as duas travas. Nenhum dado do UAU vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
+**O POUP só LÊ o CV — nenhuma edição, nunca.** O app nunca fala com o CV: quem fala são duas Edge Functions, só com `GET` e só em 3 caminhos de leitura (lista de empreendimentos, mapa de disponibilidade e o histórico de situação do CVDW). Uma segunda trava recusa caminho com nome de escrita (`bloquear`, `reservas`, `webhooks`…) mesmo se alguém o puser na lista, e os parâmetros também são lista fechada. O token só vai para `*.cvcrm.com.br`. `npm run testar:cvcrm-leitura` prova tudo isso. Nome de cliente, CPF e motivo de bloqueio que o CV devolve são descartados na função: nada disso entra no banco. Nenhum dado do CV vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
 
-**Unidade X com unidade X.** O vínculo é gravado pela chave do UAU (empresa, produto, número da personalização), uma vez, e só quando a chave da tabela de preço ("Bloco 01 Apto 001" = "Bloco 1"/"001") é igual e única dos dois lados. Na dúvida (unidade renumerada no UAU, status desconhecido) a célula fica **sem cor** — nunca com a cor de outra.
+**Unidade X com unidade X.** O vínculo é gravado pelo id da unidade no CV (`idunidade`), uma vez, e só quando a chave da tabela de preço ("Bloco 29 Apto 304" = "Bloco 29"/"304"; "BLOCO 27 UNIDADE 1" = "Bloco 27"/"001"; "Torre 09 Apto 702" = "Bloco 9"/"702") é igual e única dos dois lados. Na dúvida (unidade renomeada no CV, situação desconhecida) a célula fica **sem cor** — nunca com a cor de outra.
 
-**O admin** (Configurações › Administração › **Disponibilidade do UAU**):
-- **Importar uma obra.**
-  1. Busca as obras do UAU.
-  2. Abre a prévia: unidades, status, valores, blocos.
-  3. Cria o empreendimento ou usa um que já existe.
-  4. Completa blocos e unidades: nunca apaga nem renomeia.
-  5. Vincula as unidades que casaram exatamente.
-- **Conferir cada obra:** bloco a bloco (POUP × UAU × vinculadas). Ali ele grava os pares exatos que faltam, cadastra o que só existe no UAU, desfaz vínculo de unidade renumerada e vincula à mão.
-- **Classificar status novos do UAU:** até isso acontecer, eles ficam cinza.
-- **Escolher de onde vem o valor de venda:**
-  - **automático**: a tabela enviada, se houver; senão o UAU;
-  - **tabela**;
-  - **UAU**.
+**O admin** (Configurações › Administração › **Disponibilidade do CV**):
+- **Importar um empreendimento.**
+  1. Busca os empreendimentos do CV.
+  2. Abre a prévia: unidades, situações, etapas (módulos) e blocos.
+  3. Escolhe a etapa, quando o CV junta módulos (o Reserva II do CV tem o Módulo I e o II).
+  4. Cria o empreendimento ou usa um que já existe.
+  5. Completa blocos e unidades: nunca apaga nem renomeia.
+  6. Vincula as unidades que casaram exatamente.
+- **Conferir cada empreendimento:** bloco a bloco (POUP × CV × vinculadas). Ali ele grava os pares exatos que faltam, cadastra o que só existe no CV, desfaz vínculo de unidade renomeada e vincula à mão.
+- **Classificar situações novas do CV:** até isso acontecer, elas ficam cinza.
+- **Ver as leituras automáticas:** quando rodaram e se deram certo.
 
-**Ao vivo, com honestidade.** O UAU não avisa quando muda. O cron lê:
-- as não vendidas a cada minuto;
-- tudo, com preço, às :07 e :37.
+**Ao vivo, com honestidade.** O CV não avisa quando muda. O cron lê:
+- **a cada minuto**, o histórico de situação do CVDW desde a última leitura — todos os empreendimentos numa chamada só;
+- **às :07 e :37**, o mapa de disponibilidade inteiro de cada empreendimento vinculado, para conferir tudo e pegar unidade nova ou apagada.
 
-O banco grava **só o que mudou**, e o Realtime entrega na tela. Uma leitura vazia ou quebrada não vira "tudo vendido": ela fica marcada como `suspeita`.
+O banco grava **só o que mudou**, e o Realtime entrega na tela. Uma leitura vazia ou quebrada não vira "tudo fora de venda": ela fica marcada como `suspeita`.
 
-**Para ativar**, nesta ordem (passo a passo e andamento em `docs/DISPONIBILIDADE_UAU.md`):
-1. Rodar `supabase/migrations/20261020120000_disponibilidade_uau.sql` no SQL Editor.
-2. Em Edge Functions → Secrets, cadastrar:
-   - `UAU_INTEGRATION_TOKEN`
-   - `UAU_USER`
-   - `UAU_PASS`
-3. Publicar as funções:
-   - `uau-disponibilidade-sync` com Verify JWT **desligado**;
-   - `uau-disponibilidade` com Verify JWT **ligado**.
-4. Ligar o `pg_net` e guardar no Vault:
-   - `uau_project_url`;
-   - `uau_sync_secret`, gerado no próprio banco. Ninguém digita: a função do cron confere o segredo direto no Vault.
-5. Fazer o `ping` pelo SQL Editor.
-6. Importar o piloto pela tela do admin.
-7. Agendar os jobs `uau-disponibilidade-leve`, `uau-disponibilidade-completo` e `uau-disponibilidade-log-limpeza` (`docs/uau-agendar-cron.sql`).
+**Já está ativo** no Supabase (26/10/2026): migration aplicada, as duas funções publicadas, o segredo do cron no Vault e os jobs `cvcrm-disponibilidade-leve` e `cvcrm-disponibilidade-completo` agendados. Os 8 empreendimentos que estavam no UAU foram vinculados ao CV (3.466 unidades, todas por par exato). Passo a passo para refazer em outro projeto: `docs/DISPONIBILIDADE_CVCRM.md` e `docs/cvcrm-agendar-cron.sql`.
 
 **Testes:**
-- `npm run testar:disponibilidade`: vínculo, cores, preço, importação e as ligações no app.
-- `npm run testar:uau-leitura`: somente leitura.
-- `scripts/testar-disponibilidade-db.sql`: cores por status, leitura repetida sem regravar, leitura vazia sem marcar nada, renumerada sem cor, vínculo 1 para 1, permissões e fonte do preço. Roda num Postgres local ou de homologação.
+- `npm run testar:disponibilidade`: vínculo, cores, importação (com etapa) e as ligações no app.
+- `npm run testar:cvcrm-leitura`: somente leitura, sem dado de pessoa.
+- `scripts/testar-disponibilidade-cvcrm-db.sql`: cores por situação, leitura repetida sem regravar, leitura leve, leitura quebrada sem marcar nada, renomeada sem cor, vínculo 1 para 1 (e por etapa), permissões, trava, segredo do cron e o UAU que não pinta mais. Roda num Postgres local ou de homologação.
 
 ---
 

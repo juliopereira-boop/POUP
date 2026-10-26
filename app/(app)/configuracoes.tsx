@@ -194,9 +194,9 @@ export default function ConfiguracoesScreen() {
             />
             <Divider />
             <NavRow
-              label="Disponibilidade do UAU"
-              subtitle="Importar obras do UAU e conferir o vínculo unidade a unidade"
-              onPress={() => router.push('/(app)/admin/uau')}
+              label="Disponibilidade do CV"
+              subtitle="Importar empreendimentos do CV CRM e conferir o vínculo unidade a unidade"
+              onPress={() => router.push('/(app)/admin/cvcrm')}
             />
           </View>
         </>

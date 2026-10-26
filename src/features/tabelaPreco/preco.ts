@@ -145,8 +145,7 @@ export type PrecoDaUnidade =
       ventilacao: Ventilacao | null;
       /** A linha usada. `null` quando o preço veio da própria unidade. */
       regra: RegraDePreco | null;
-      /** `uau`: o valor de venda veio do UAU (`features/disponibilidade`). */
-      origem: 'regra' | 'unidade' | 'uau';
+      origem: 'regra' | 'unidade';
     }
   | { ok: false; motivo: MotivoSemPreco; mensagem: string };
 

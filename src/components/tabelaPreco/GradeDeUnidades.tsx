@@ -7,14 +7,14 @@
  * ventilada. Unidade sem preço aparece apagada — e, quando há `onEscolher`,
  * não pode ser escolhida: o simulador só preenche o que a tabela sabe.
  *
- * COM O UAU (empreendimento com obra vinculada), cada unidade ganha a cor da
- * situação no ERP, ao vivo:
+ * COM O CV (empreendimento vinculado ao CV CRM), cada unidade ganha a cor da
+ * situação no CV, ao vivo:
  *     verde    disponível
- *     amarelo  em negociação (proposta, reservada)
- *     vermelho vendida          — não pode ser escolhida
- *     cinza    fora de venda    — não pode ser escolhida
+ *     amarelo  em negociação (reservada)
+ *     vermelho vendida                     — não pode ser escolhida
+ *     cinza    fora de venda (bloqueada)   — não pode ser escolhida
  * A situação também vai por escrito na célula e no leitor de tela: a cor
- * sozinha não basta (daltonismo). Sem UAU, a grade fica exatamente como era.
+ * sozinha não basta (daltonismo). Sem CV, a grade fica exatamente como era.
  *
  * Serve o simulador (para escolher) e a tela da tabela (para conferir).
  */
@@ -35,7 +35,7 @@ export function precoCurto(v: number): string {
   return `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
 }
 
-/** O frescor da leitura do UAU, para a legenda. `null` = sem UAU. */
+/** O frescor da leitura do CV, para a legenda. `null` = sem CV. */
 export interface AoVivo {
   atualizadoEm: string | null;
   desatualizada: boolean;
@@ -48,7 +48,7 @@ interface Props {
   onEscolher?: (u: UnidadeComPreco) => void;
   /** Mostra só as unidades com esta vaga. */
   filtroVaga?: Vaga | null;
-  /** Empreendimento com UAU: a legenda ganha as cores e o "atualizado há…". */
+  /** Empreendimento com CV: a legenda ganha as cores e o "atualizado há…". */
   aoVivo?: AoVivo | null;
 }
 
@@ -178,7 +178,7 @@ export function GradeDeUnidades({ unidades, selecionadaId, onEscolher, filtroVag
         ) : null}
       </View>
       {aoVivo && atualizado && !aoVivo.desatualizada ? (
-        <Text style={styles.legendaTexto}>Disponibilidade do UAU, atualizada {atualizado}.</Text>
+        <Text style={styles.legendaTexto}>Disponibilidade do CV, atualizada {atualizado}.</Text>
       ) : null}
     </View>
   );

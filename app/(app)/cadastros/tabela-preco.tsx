@@ -300,18 +300,10 @@ export default function TabelaPrecoScreen() {
 
   const tabelaDoRascunho = useMemo(() => comoTabela(rascunho), [rascunho]);
   const precificados = useMemo(() => precificarBlocos(blocos, tabelaDoRascunho), [blocos, tabelaDoRascunho]);
-  // A disponibilidade do UAU pinta a conferência; o preço continua o da tabela
-  // em edição (é ela que está sendo conferida aqui).
-  const uau = useDisponibilidade(developmentId ?? null);
-  const comCores = useMemo(
-    () =>
-      aplicarNosBlocos(
-        precificados,
-        uau.disponibilidade ? { ...uau.disponibilidade, fontePreco: 'tabela' } : null,
-        true,
-      ),
-    [precificados, uau.disponibilidade],
-  );
+  // A disponibilidade do CV pinta a conferência; o preço é o da tabela em
+  // edição (é ela que está sendo conferida aqui).
+  const disp = useDisponibilidade(developmentId ?? null);
+  const comCores = useMemo(() => aplicarNosBlocos(precificados, disp.disponibilidade), [precificados, disp.disponibilidade]);
   const cobertura = useMemo(() => coberturaDaTabela(precificados), [precificados]);
   const conferencia = useMemo(() => conferirListaDeVagas(blocos, rascunho.vagas), [blocos, rascunho.vagas]);
   const conferenciaUnidades = useMemo(
@@ -888,8 +880,8 @@ export default function TabelaPrecoScreen() {
             <GradeDeUnidades
               unidades={blocoEmConferencia.unidades}
               aoVivo={
-                uau.disponibilidade?.temUau
-                  ? { atualizadoEm: uau.disponibilidade.atualizadoEm, desatualizada: uau.desatualizada, agora: uau.agora }
+                disp.disponibilidade?.ativa
+                  ? { atualizadoEm: disp.disponibilidade.atualizadoEm, desatualizada: disp.desatualizada, agora: disp.agora }
                   : null
               }
             />
