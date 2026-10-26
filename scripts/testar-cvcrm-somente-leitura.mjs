@@ -15,7 +15,7 @@
  *      `cvGet`, com caminho fixo no código;
  *   3. a segunda camada recusa caminho de escrita mesmo se ele entrar na lista;
  *   4. os parâmetros também são lista fechada;
- *   5. o token só vai para *.cvcrm.com.br;
+ *   5. o token (o de cada empresa, que vem do Vault) só vai para *.cvcrm.com.br;
  *   6. nome de cliente, documento e motivo de bloqueio nunca são lidos;
  *   7. as duas funções têm o MESMO bloco do CV.
  */
@@ -98,8 +98,11 @@ for (const arquivo of FUNCOES) {
   checar(`${nome}: o fetch está dentro de cvGet`, /\bfetch\(/.test(cvGet));
   checar(`${nome}: o fetch é GET`, /method: 'GET'/.test(cvGet));
   checar(`${nome}: nenhum POST/PUT/PATCH/DELETE`, !/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/i.test(fonte));
-  checar(`${nome}: a trava roda antes da conexão`, /async function cvGet[\s\S]{0,160}if \(!rotaPermitida\(caminho\)\) throw/.test(fonte));
-  const chamadas = [...fonte.matchAll(/cvGet\(\s*([^,]+),/g)].map((m) => m[1].trim()).filter((c) => !c.startsWith('caminho:'));
+  checar(`${nome}: a trava roda antes da conexão`, /async function cvGet[\s\S]{0,200}if \(!rotaPermitida\(caminho\)\) throw/.test(fonte));
+  // cvGet(cred, '<caminho>', ...): o caminho é o 2º argumento.
+  const chamadas = [...fonte.matchAll(/cvGet\(\s*([^,]+),\s*([^,]+),/g)]
+    .filter((m) => !m[1].trim().startsWith('cred:'))
+    .map((m) => m[2].trim());
   checar(`${nome}: chama o CV`, chamadas.length > 0);
   for (const c of chamadas) {
     const literal = /^['`](\/api\/v1\/[a-z/]+(?:\$\{empreendimento\})?)['`]$/.exec(c);
@@ -131,14 +134,13 @@ for (const arquivo of FUNCOES) {
   );
   checar(`${nome}: parâmetro fora da lista é recusado`, /if \(!PARAMETROS\.has\(k\)\) throw/.test(cvGet));
 
-  // 5. O token só vai para *.cvcrm.com.br.
-  const base = rodar(trecho(fonte, 'function baseDoCv'), ['baseDoCv'], {
-    env: () => base.url,
-  });
+  // 5. O token só vai para *.cvcrm.com.br — e o fetch usa a URL da credencial por baseDoCv.
+  checar(`${nome}: o fetch monta a URL por baseDoCv(cred.url)`, /fetch\(`\$\{baseDoCv\(cred\.url\)\}/.test(cvGet));
+  checar(`${nome}: o token vem da credencial da empresa, não de secret da função`, !/CVCRM_(URL|EMAIL|TOKEN)/.test(fonte));
+  const base = rodar(trecho(fonte, 'function baseDoCv'), ['baseDoCv']);
   const tenta = (url) => {
-    base.url = url;
     try {
-      return base.baseDoCv();
+      return base.baseDoCv(url);
     } catch {
       return null;
     }
