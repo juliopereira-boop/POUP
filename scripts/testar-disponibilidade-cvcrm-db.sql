@@ -718,5 +718,270 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- 15. A LIMPEZA DO UAU E DA PRIMEIRA VERSÃO (duas vezes: rodar de novo não faz nada)
+-- ---------------------------------------------------------------------------
+select vault.create_secret('x', 'uau_sync_secret', 'teste');
+\ir ../supabase/migrations/20261027120000_limpar_uau_e_cvcrm_antigo.sql
+\ir ../supabase/migrations/20261027120000_limpar_uau_e_cvcrm_antigo.sql
+do $$
+begin
+  if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public' and c.relkind = 'r'
+                and (c.relname like 'uau%' or c.relname like '%\_uau%' or c.relname like '%\_antiga')) then
+    raise exception 'Sobrou tabela do UAU ou da primeira versão';
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and column_name like '%uau%') then
+    raise exception 'Sobrou coluna do UAU';
+  end if;
+  if (select array_agg(p.proname::text order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname like 'uau%')
+     is distinct from array['uau_disponibilidade', 'uau_empreendimentos_com_preco'] then
+    raise exception 'Funções do UAU: só as duas de compatibilidade podem ficar';
+  end if;
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname like 'cvcrm%' and p.prosrc like '%obsoleta%') then
+    raise exception 'Sobrou função "obsoleta" da primeira versão';
+  end if;
+  if exists (select 1 from vault.secrets where name like 'uau%') then
+    raise exception 'Sobrou segredo do UAU no Vault';
+  end if;
+  if not exists (select 1 from vault.secrets where name like 'cvcrm_token_%') then
+    raise exception 'A limpeza levou o token do CV junto';
+  end if;
+end $$;
+-- O app 1.0.1 continua vendo as cores do CV pelo nome antigo.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+do $$
+declare
+  v jsonb := public.uau_disponibilidade('c2000000-0000-4000-8000-000000000003');
+  n jsonb := public.disponibilidade_do_empreendimento('c2000000-0000-4000-8000-000000000003');
+begin
+  if not (v ->> 'temUau')::boolean or v -> 'unidades' is distinct from n -> 'unidades'
+     or v ->> 'fontePreco' <> 'automatico' then
+    raise exception 'Compatibilidade da 1.0.1 não devolve as cores do CV: %', v;
+  end if;
+  if exists (select 1 from public.uau_empreendimentos_com_preco()) then
+    raise exception 'Compatibilidade da 1.0.1: nenhum empreendimento usa preço do UAU';
+  end if;
+  -- E as cores do CV continuam funcionando sem o UAU.
+  if jsonb_array_length(n -> 'unidades') = 0 then
+    raise exception 'A limpeza apagou as cores do CV';
+  end if;
+end $$;
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 16. RESERVA E TABELA DE PREÇO DO CV (20261027130000), duas vezes
+-- ---------------------------------------------------------------------------
+-- O banco local não tem a tabela de preço nem as simulações: o mínimo delas.
+create table if not exists public.development_price_tables (
+  development_id uuid primary key references public.developments(id) on delete cascade,
+  referencia text not null default '', regras jsonb not null default '[]'::jsonb, vagas jsonb,
+  precos_unidades jsonb not null default '[]'::jsonb, arquivo_path text, arquivo_nome text,
+  atualizado_em timestamptz not null default now(), atualizado_por uuid);
+create table if not exists public.simulations (
+  id uuid primary key, user_id uuid, company_id uuid, development_id uuid, state jsonb);
+grant all on public.development_price_tables, public.simulations to service_role;
+grant select on public.development_price_tables to authenticated;
+\ir ../supabase/migrations/20261027130000_cvcrm_reserva_e_tabela.sql
+\ir ../supabase/migrations/20261027130000_cvcrm_reserva_e_tabela.sql
+
+-- A tabela manual que já estava valendo.
+insert into public.development_price_tables (development_id, referencia, regras)
+values ('c2000000-0000-4000-8000-000000000003', 'Setembro/2026', '[{"venda": 200000}]');
+
+-- Corretor não liga; o admin liga; sem integração, não liga.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+do $$
+begin
+  begin
+    perform public.cvcrm_definir_recursos('c1000000-0000-4000-8000-000000000003', true, true);
+    raise exception 'Corretor ligou a reserva';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
+do $$
+declare v jsonb;
+begin
+  v := public.cvcrm_definir_recursos('c1000000-0000-4000-8000-000000000003', true, true);
+  if not (v ->> 'reservaHabilitada')::boolean or not (v ->> 'tabelaPrecoCv')::boolean then
+    raise exception 'O admin não ligou reserva e tabela: %', v;
+  end if;
+  begin
+    perform public.cvcrm_definir_recursos('a1000000-0000-4000-8000-000000000001', true, null);
+    raise exception 'Ligou a reserva sem integração';
+  exception when others then
+    if sqlerrm not like '%sem_integracao%' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- A trava: com a "Tabela de preço do CV" ligada, à mão não muda.
+do $$
+begin
+  begin
+    update public.development_price_tables set referencia = 'à mão'
+     where development_id = 'c2000000-0000-4000-8000-000000000003';
+    raise exception 'A tabela mudou à mão com a do CV ligada';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- A tabela do CV entra pelo vínculo (a unidade sem vínculo fica de fora) e
+-- guarda a manual; ler de novo não perde a manual; vazia não troca nada.
+set local role service_role;
+do $$
+declare
+  v jsonb;
+  n integer;
+  t record;
+  u jsonb;
+begin
+  select count(*) into n from public.development_unit_cvcrm
+   where development_id = 'c2000000-0000-4000-8000-000000000003' and cv_unidade is not null;
+  select jsonb_agg(jsonb_build_object('cv_unidade', x.cv_unidade, 'venda', 250000 + x.cv_unidade, 'area_m2', 40.94))
+    into u
+    from (select cv_unidade from public.development_unit_cvcrm
+           where development_id = 'c2000000-0000-4000-8000-000000000003' and cv_unidade is not null) x;
+  u := u || '[{"cv_unidade": 999999, "venda": 1}]'::jsonb;
+  v := public.cvcrm_aplicar_tabela_de_preco('c2000000-0000-4000-8000-000000000003', 77, 'Tabela Outubro', u);
+  if (v ->> 'entraram')::int <> n or (v ->> 'lidas')::int <> n + 1 then
+    raise exception 'Tabela do CV: entraram %, esperado %', v, n;
+  end if;
+  v := public.cvcrm_aplicar_tabela_de_preco('c2000000-0000-4000-8000-000000000003', 77, 'Tabela Outubro', u);
+  select * into t from public.development_price_tables where development_id = 'c2000000-0000-4000-8000-000000000003';
+  if t.fonte <> 'cv' or t.cv_tabela <> 77 or t.referencia <> 'CV · Tabela Outubro'
+     or jsonb_array_length(t.precos_unidades) <> n or jsonb_array_length(t.regras) <> 0
+     or t.manual_guardada ->> 'referencia' <> 'Setembro/2026' then
+    raise exception 'A tabela do CV não ficou como devia: %', row_to_json(t);
+  end if;
+  if not exists (select 1 from jsonb_array_elements(t.precos_unidades) p
+                  where p ->> 'bloco' = 'Bloco 1' and p ->> 'unidade' = '001') then
+    raise exception 'O preço não saiu com o bloco e o código do POUP: %', t.precos_unidades;
+  end if;
+  v := public.cvcrm_aplicar_tabela_de_preco('c2000000-0000-4000-8000-000000000003', 78, 'Vazia', '[]');
+  if (v ->> 'entraram')::int <> 0
+     or (select cv_tabela from public.development_price_tables where development_id = 'c2000000-0000-4000-8000-000000000003') <> 77 then
+    raise exception 'Tabela vazia do CV trocou a que estava valendo';
+  end if;
+end $$;
+reset role;
+
+-- Desligar devolve a manual, e à mão volta a poder; o CV não grava mais.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select public.cvcrm_definir_recursos('c1000000-0000-4000-8000-000000000003', null, false);
+reset role;
+do $$
+declare t record;
+begin
+  select * into t from public.development_price_tables where development_id = 'c2000000-0000-4000-8000-000000000003';
+  if t.fonte <> 'manual' or t.referencia <> 'Setembro/2026' or jsonb_array_length(t.regras) <> 1
+     or t.manual_guardada is not null then
+    raise exception 'Desligar não devolveu a tabela manual: %', row_to_json(t);
+  end if;
+  update public.development_price_tables set referencia = 'Outubro/2026'
+   where development_id = 'c2000000-0000-4000-8000-000000000003';
+end $$;
+set local role service_role;
+do $$
+begin
+  begin
+    perform public.cvcrm_aplicar_tabela_de_preco('c2000000-0000-4000-8000-000000000003', 77, 'x', '[]');
+    raise exception 'O CV gravou tabela com a chave desligada';
+  exception when others then
+    if sqlerrm not like '%tabela_do_cv_desligada%' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- Corretores: só hash, ids e imobiliária; linha torta não entra; ninguém do app lê.
+set local role service_role;
+do $$
+declare v jsonb;
+begin
+  v := public.cvcrm_aplicar_corretores((select id from _i where nome = 'canopus'),
+    jsonb_build_array(
+      jsonb_build_object('cv_corretor', 10, 'documento_hash', repeat('a', 64), 'cv_imobiliaria', 3,
+                         'imobiliaria', 'Imob X', 'ativo', true),
+      jsonb_build_object('cv_corretor', 11, 'documento_hash', 'nao-e-hash'),
+      jsonb_build_object('cv_corretor', 'x', 'documento_hash', repeat('b', 64))),
+    '2026-10-27 10:00:00');
+  if (v ->> 'gravados')::int <> 1 then raise exception 'Corretores gravados: %', v; end if;
+  if (select corretores_cursor from public.cvcrm_integracoes where id = (select id from _i where nome = 'canopus'))
+     <> '2026-10-27 10:00:00' then
+    raise exception 'O cursor dos corretores não andou';
+  end if;
+end $$;
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+do $$
+begin
+  begin
+    perform 1 from public.cvcrm_corretores limit 1;
+    raise exception 'O app leu a tabela de corretores';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+
+-- O recibo: o mesmo pedido devolve o mesmo recibo; dois envios da mesma
+-- unidade ao mesmo tempo, nunca; concluído, a unidade libera.
+insert into public.simulations (id, user_id, company_id, development_id, state) values
+  ('e0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001',
+   'c1000000-0000-4000-8000-000000000003', 'c2000000-0000-4000-8000-000000000003',
+   jsonb_build_object('unitId', (select unit_id from public.development_unit_cvcrm
+                                  where development_id = 'c2000000-0000-4000-8000-000000000003'
+                                    and cv_unidade is not null order by cv_unidade limit 1)));
+set local role service_role;
+do $$
+declare
+  a jsonb;
+  b jsonb;
+  i uuid := (select id from _i where nome = 'canopus');
+begin
+  a := public.cvcrm_reserva_abrir(i, 'e0000000-0000-4000-8000-000000000001', null, 5001,
+         'a0000000-0000-4000-8000-000000000001', 'sim-1:5001', 'h', 1, 10, 3);
+  b := public.cvcrm_reserva_abrir(i, 'e0000000-0000-4000-8000-000000000001', null, 5001,
+         'a0000000-0000-4000-8000-000000000001', 'sim-1:5001', 'h', 1, 10, 3);
+  if not (a ->> 'novo')::boolean or (b ->> 'novo')::boolean or a ->> 'id' <> b ->> 'id' then
+    raise exception 'Recibo não é idempotente: % %', a, b;
+  end if;
+  begin
+    perform public.cvcrm_reserva_abrir(i, null, null, 5001, 'a0000000-0000-4000-8000-000000000001', 'outro:5001', 'h', 1, 10, 3);
+    raise exception 'Dois envios da mesma unidade ao mesmo tempo';
+  exception when others then
+    if sqlerrm not like '%reserva_em_andamento%' then raise; end if;
+  end;
+  perform public.cvcrm_reserva_concluir((a ->> 'id')::uuid, 'criada', 777, null);
+  perform public.cvcrm_reserva_abrir(i, null, null, 5001, 'c0000000-0000-4000-8000-000000000003', 'outro:5001', 'h', 1, 10, 3);
+end $$;
+reset role;
+
+-- O corretor vê o botão (reserva ligada, unidade com vínculo) e só os
+-- próprios recibos.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+do $$
+declare v jsonb;
+begin
+  v := public.cvcrm_reserva_da_simulacao('e0000000-0000-4000-8000-000000000001');
+  if not (v ->> 'habilitada')::boolean or not (v ->> 'temVinculo')::boolean
+     or v -> 'ultima' ->> 'situacao' <> 'criada' or (v -> 'ultima' ->> 'cvReserva')::int <> 777 then
+    raise exception 'Reserva da simulação: %', v;
+  end if;
+  if (select count(*) from public.cvcrm_reservas) <> 1 then
+    raise exception 'O corretor viu recibo de outra pessoa';
+  end if;
+end $$;
+reset role;
+
 select 'testar-disponibilidade-cvcrm-db: tudo certo' as resultado;
 rollback;

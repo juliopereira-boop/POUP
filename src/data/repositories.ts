@@ -9,6 +9,8 @@ import type {
   EmpreendimentoDoCv,
   IntegracaoCv,
   PainelCv,
+  PreparoDaReserva,
+  ReservaDaSimulacao,
   PreviaDoCv,
   SituacaoDaUnidade,
   VinculoParaGravar,
@@ -279,6 +281,18 @@ export interface DisponibilidadeRepository {
   salvarIntegracao(companyId: string, conta: ContaDoCv): Promise<Result<{ empreendimentos: number | null }>>;
   /** Apaga o token e desliga: os empreendimentos da empresa perdem a cor. */
   removerIntegracao(companyId: string): Promise<Result<void>>;
+  /** "Habilitar reserva" e "Tabela de preço do CV" (nulo = não mexe). */
+  definirRecursos(
+    companyId: string,
+    recursos: { reserva?: boolean; tabelaPreco?: boolean },
+  ): Promise<Result<IntegracaoCv>>;
+  /** Lê agora os corretores e a tabela de preço do CV da construtora (em segundo plano). */
+  lerComercialAgora(companyId: string): Promise<Result<void>>;
+
+  // ---- corretor: a reserva no CV, a partir do relatório
+  reservaDaSimulacao(simulationId: string): Promise<Result<ReservaDaSimulacao>>;
+  prepararReserva(simulationId: string): Promise<Result<PreparoDaReserva>>;
+  reservar(simulationId: string): Promise<Result<PreparoDaReserva>>;
 
   // ---- admin: empreendimentos e vínculos
   empreendimentosDoCv(companyId: string): Promise<Result<EmpreendimentoDoCv[]>>;

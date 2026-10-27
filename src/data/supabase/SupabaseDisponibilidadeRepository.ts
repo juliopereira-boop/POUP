@@ -27,6 +27,8 @@ import {
   type EmpreendimentoDoCv,
   type IntegracaoCv,
   type PainelCv,
+  type PreparoDaReserva,
+  type ReservaDaSimulacao,
   type PreviaDoCv,
   type Result,
   type SituacaoDaUnidade,
@@ -59,6 +61,8 @@ const MENSAGENS: Record<string, string> = {
   email_invalido: 'Informe o e-mail do usuário de integração do CV.',
   token_obrigatorio: 'Informe o token do usuário de integração do CV.',
   empresa_invalida: 'Construtora não encontrada.',
+  cron_nao_configurado: 'A leitura automática do CV não está configurada no servidor.',
+  tabela_invalida: 'Tabela de preço do CV inválida.',
   empreendimento_invalido: 'Empreendimento do CV inválido.',
   empreendimento_de_outro: 'Este empreendimento (ou etapa) do CV já está vinculado a outro empreendimento do POUP.',
   vinculo_invalido: 'Alguma unidade não é deste empreendimento ou não é do CV vinculado a ele. Atualize a conferência.',
@@ -118,8 +122,35 @@ function integracaoCv(i: Record<string, unknown>): IntegracaoCv {
     ultimoErroEm: texto(i.ultimoErroEm),
     ultimaLeveEm: texto(i.ultimaLeveEm),
     reservaHabilitada: Boolean(i.reservaHabilitada),
+    tabelaPrecoCv: Boolean(i.tabelaPrecoCv),
+    corretores: Number(i.corretores ?? 0),
+    corretoresLidosEm: texto(i.corretoresLidosEm),
+    corretoresErro: texto(i.corretoresErro),
+    tabelaLidaEm: texto(i.tabelaLidaEm),
+    tabelaErro: texto(i.tabelaErro),
     empreendimentos: Number(i.empreendimentos ?? 0),
   };
+}
+
+function preparoDaReserva(d: Record<string, unknown> | null | undefined): PreparoDaReserva {
+  const o = d ?? {};
+  return {
+    envioLiberado: Boolean(o.envioLiberado),
+    empreendimento: texto(o.empreendimento),
+    unidade: (o.unidade as PreparoDaReserva['unidade']) ?? null,
+    corretor: (o.corretor as PreparoDaReserva['corretor']) ?? null,
+    cliente: (o.cliente as PreparoDaReserva['cliente']) ?? null,
+    pendencias: Array.isArray(o.pendencias) ? o.pendencias.map(String) : [],
+  };
+}
+
+/** A função da reserva: o corpo da resposta vale também no erro (traz as pendências). */
+async function invocarReserva(corpo: Record<string, unknown>, padrao: string): Promise<Result<PreparoDaReserva>> {
+  const { data, error } = await supabase.functions.invoke('cvcrm-reserva', { body: corpo });
+  if (error) return err(await mensagemDaFuncao(error, padrao));
+  const d = data as Record<string, unknown> | null;
+  if (d && typeof d.error === 'string') return err(d.error);
+  return ok(preparoDaReserva(d));
 }
 
 /** O token só vai se foi digitado: vazio = a função mantém o que está no Vault. */
@@ -236,6 +267,49 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
   async removerIntegracao(companyId: string): Promise<Result<void>> {
     const { error } = await supabase.rpc('cvcrm_remover_integracao', { p_company: companyId });
     return error ? err(traduzir(error, 'Não foi possível desligar a integração com o CV.')) : ok(undefined);
+  }
+
+  async definirRecursos(
+    companyId: string,
+    recursos: { reserva?: boolean; tabelaPreco?: boolean },
+  ): Promise<Result<IntegracaoCv>> {
+    const { data, error } = await supabase.rpc('cvcrm_definir_recursos', {
+      p_company: companyId,
+      p_reserva: recursos.reserva ?? null,
+      p_tabela_preco: recursos.tabelaPreco ?? null,
+    });
+    if (error) return err(traduzir(error, 'Não foi possível mudar a integração com o CV.'));
+    return ok(integracaoCv((data ?? {}) as Record<string, unknown>));
+  }
+
+  async lerComercialAgora(companyId: string): Promise<Result<void>> {
+    const { error } = await supabase.rpc('cvcrm_ler_comercial_agora', { p_company: companyId });
+    return error ? err(traduzir(error, 'Não foi possível pedir a leitura ao CV agora.')) : ok(undefined);
+  }
+
+  // ------------------------------------------------------------ corretor: a reserva no CV
+
+  async reservaDaSimulacao(simulationId: string): Promise<Result<ReservaDaSimulacao>> {
+    const { data, error } = await supabase.rpc('cvcrm_reserva_da_simulacao', { p_simulation: simulationId });
+    if (error) {
+      // Sem a migration (ou sem permissão): o botão simplesmente não aparece.
+      if (migracaoAusente(error)) return ok({ habilitada: false, temVinculo: false, ultima: null });
+      return err(traduzir(error, 'Não foi possível ler a reserva desta simulação.'));
+    }
+    const d = (data ?? {}) as Record<string, unknown>;
+    return ok({
+      habilitada: Boolean(d.habilitada),
+      temVinculo: Boolean(d.temVinculo),
+      ultima: (d.ultima as ReservaDaSimulacao['ultima']) ?? null,
+    });
+  }
+
+  prepararReserva(simulationId: string): Promise<Result<PreparoDaReserva>> {
+    return invocarReserva({ acao: 'preparar', simulationId }, 'Não foi possível conferir a reserva no CV agora.');
+  }
+
+  reservar(simulationId: string): Promise<Result<PreparoDaReserva>> {
+    return invocarReserva({ acao: 'reservar', simulationId }, 'Não foi possível reservar no CV agora.');
   }
 
   // ------------------------------------------------------------ admin: empreendimentos

@@ -23,7 +23,12 @@ O número de um empreendimento ou de uma unidade no CV só vale **dentro da cont
 
 O painel do admin (Configurações › Administração › Disponibilidade do CV) lista as construtoras com o CV e a saúde de cada conta. A importação começa escolhendo a construtora.
 
-A reserva de unidade pelo POUP está só no papel: `docs/CVCRM_RESERVA.md`.
+Na mesma tela, com a conta conectada, ficam dois botões, só para o admin:
+
+- **Habilitar reserva:** o corretor reserva a unidade no CV pelo relatório da simulação. O envio ainda está travado; veja `docs/CVCRM_RESERVA.md`.
+- **Tabela de preço do CV:** o preço da construtora passa a vir só do CV.
+
+Os dois usam a função `cvcrm-comercial-sync` (corretores e tabela, às :17 e :47) e a `cvcrm-reserva`. Cada uma tem a sua lista fechada de caminhos, e hoje as duas só leem o CV.
 
 ## Como funciona
 
@@ -106,34 +111,28 @@ Ao todo foram 3.466 unidades, todas por par exato e sem nenhum conflito.
 
 Para refazer em outro projeto, siga `docs/cvcrm-agendar-cron.sql`.
 
-## O que sobrou da primeira versão (uma conta só)
+## A limpeza do UAU e da primeira versão (autorizada em 27/10/2026)
 
-**Aguardando a confirmação do dono do POUP** para remover:
+A migration `20261027120000_limpar_uau_e_cvcrm_antigo.sql` apaga:
 
-- **Secrets das funções:** `CVCRM_URL`, `CVCRM_EMAIL` e `CVCRM_TOKEN`. Nenhum código os usa mais. A conta da Canopus foi levada para a integração dela uma vez, em 27/10/2026, por uma versão temporária da função de sync, já substituída.
-- **Tabelas:** `development_cvcrm_empreendimentos_antiga`, `cvcrm_unidades_antiga` e `development_unit_cvcrm_antiga`. É a cópia de antes da troca, sem acesso para o app.
+- **Do UAU:** as tabelas `uau_*`, `development_uau_obras` e `development_unit_uau`, as funções `uau_*`, a coluna `developments.uau_fonte_preco` e os segredos `uau_*` do Vault.
+- **Da primeira versão do CV:** as tabelas `_antiga` e as três funções "obsoleta".
 
-## O UAU
+Fica `development_unit_disponibilidade`: a tabela nasceu na migration do UAU, mas é a de cores do CV.
 
-O UAU **deixou de pintar** com esta migration: `uau_recalcular_disponibilidade` agora chama o recálculo do CV. No aplicativo, as telas e o código do UAU saíram, e entraram as do CV.
+**A ponte para o app 1.0.1 (build 9).** Essa versão ainda chama o UAU pelo nome. Para quem não atualizou não perder as cores, ficam três peças sem nenhum dado do UAU:
 
-**Ainda existem no Supabase**, aguardando a confirmação do dono do POUP para remover:
+- as RPCs `uau_disponibilidade`, que devolve as cores do CV no formato antigo, e `uau_empreendimentos_com_preco`, que devolve uma lista vazia;
+- a função `uau-disponibilidade`, que só responde o "conferir" com a cor que está no banco.
 
-- as funções `uau-disponibilidade` e `uau-disponibilidade-sync`;
-- os secrets `UAU_*`;
-- as tabelas `uau_*` e `development_uau_obras`, com o retrato de 20/10;
-- os vínculos `development_unit_uau`;
-- a coluna `developments.uau_fonte_preco`;
-- os segredos `uau_*` do Vault.
+As três saem quando ninguém mais usar a 1.0.1.
 
-No repositório continuam, pelo mesmo motivo:
+**No painel do Supabase**, porque não há ferramenta para isso, o dono do projeto apaga:
 
-- as duas funções;
-- a migration do UAU;
-- `scripts/testar-uau-somente-leitura.mjs`;
-- `scripts/testar-disponibilidade-db.sql`;
-- `docs/DISPONIBILIDADE_UAU.md`;
-- `docs/uau-agendar-cron.sql`.
+- a função `uau-disponibilidade-sync`;
+- os secrets `UAU_*`, `CVCRM_URL`, `CVCRM_EMAIL` e `CVCRM_TOKEN`. Nenhum código usa mais esses secrets: a conta da Canopus está na integração dela, com o token no Vault.
+
+No repositório saíram a função de sync do UAU, o teste de somente leitura do UAU, o teste de banco antigo e os documentos do UAU. A migration do UAU (`20261020120000`) fica: ela é o histórico, e as do CV dependem dela.
 
 ## Conferência rápida (SQL Editor)
 

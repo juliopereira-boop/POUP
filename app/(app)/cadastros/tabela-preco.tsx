@@ -216,7 +216,9 @@ export default function TabelaPrecoScreen() {
   const [verTodasNaoEncontradas, setVerTodasNaoEncontradas] = useState(false);
 
   const envio = useEnviarTabela(developmentId ?? null);
-  const podeEditar = Boolean(dev) && (!dev?.isCatalog || isAdmin) && !migracaoPendente;
+  // Com a "Tabela de preço do CV" ligada, a tabela vem do CV e ninguém troca à mão.
+  const doCv = salva?.fonte === 'cv';
+  const podeEditar = Boolean(dev) && (!dev?.isCatalog || isAdmin) && !migracaoPendente && !doCv;
 
   // ------------------------------------------------------------ carregar
 
@@ -510,7 +512,12 @@ export default function TabelaPrecoScreen() {
       </Text>
 
       {aviso ? <Text style={styles.warn}>{aviso}</Text> : null}
-      {dev?.isCatalog && !isAdmin ? (
+      {doCv ? (
+        <Text style={styles.info}>
+          Esta tabela vem do CV da construtora e se atualiza sozinha. Para enviar uma tabela à mão, o administrador
+          desliga a "Tabela de preço do CV" no cadastro da construtora.
+        </Text>
+      ) : dev?.isCatalog && !isAdmin ? (
         <Text style={styles.info}>Empreendimento do catálogo: a tabela é mantida pelo POUP.</Text>
       ) : null}
 

@@ -176,6 +176,71 @@ for (const arquivo of FUNCOES) {
   checar(`${path.basename(path.dirname(arquivo))}: nada de /cadastros/empreendimentos/<id>`, !/cadastros\/empreendimentos\/\$\{/.test(readFileSync(arquivo, 'utf8')));
 }
 
+// ---------------------------------------------------------------------------
+// As funções da reserva e da leitura comercial (20261027): cada uma com a
+// SUA lista fechada. Hoje as duas só LEEM o CV — o envio da reserva fica
+// travado até o formulário do CV ser confirmado.
+// ---------------------------------------------------------------------------
+const OUTRAS = {
+  'supabase/functions/cvcrm-comercial-sync/index.ts': {
+    leitura: [
+      '/api/v1/cvdw/corretores',
+      '/api/v1/cadastros/empreendimentos/63/tabelasdepreco',
+      '/api/v1/cadastros/empreendimentos/63/tabelasdepreco/77',
+    ],
+    parametros: ['a_partir_data_referencia', 'aprovado', 'pagina', 'registros_por_pagina'],
+  },
+  'supabase/functions/cvcrm-reserva/index.ts': {
+    leitura: ['/api/v1/comercial/mapadisponibilidade/63', '/api/v1/precadastro/12345678901'],
+    parametros: ['idbloco', 'limitePagina', 'pag'],
+  },
+};
+for (const [arquivo, esperado] of Object.entries(OUTRAS)) {
+  const fonte = readFileSync(arquivo, 'utf8');
+  const nome = path.basename(path.dirname(arquivo));
+  const lista = /const ROTAS_DE_LEITURA: RegExp\[\] = \[([\s\S]*?)\];/.exec(fonte)?.[1] ?? '';
+  const rotas = [...lista.matchAll(/\/(\^[^\n]*?\$)\//g)].map((m) => m[1]);
+  checar(`${nome}: a lista tem só os caminhos de leitura (${esperado.leitura.length})`, rotas.length === esperado.leitura.length, JSON.stringify(rotas));
+  checar(`${nome}: um único fetch, GET`, (fonte.match(/\bfetch\(/g) ?? []).length === 1 && /method: 'GET'/.test(fonte));
+  checar(`${nome}: nenhum POST/PUT/PATCH/DELETE`, !/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/i.test(fonte));
+  checar(`${nome}: a trava roda antes da conexão`, /async function cvGet[\s\S]{0,200}if \(!rotaPermitida\(caminho\)\) throw/.test(fonte));
+  const t = rodar(
+    [
+      /const ROTAS_DE_LEITURA: RegExp\[\] = \[[\s\S]*?\];\n/.exec(fonte)?.[0],
+      /const ROTA_DE_ESCRITA =[\s\S]*?;\n/.exec(fonte)?.[0],
+      trecho(fonte, 'function rotaPermitida'),
+    ].join('\n'),
+    ['rotaPermitida', 'ROTAS_DE_LEITURA'],
+  );
+  for (const r of esperado.leitura) checar(`${nome}: leitura ${r} permitida`, t.rotaPermitida(r) === true);
+  for (const r of [...ESCRITA_DO_CV, '/api/v1/comercial/reservas', '/api/v1/comercial/reservas/documentos', '/api/v1/precadastro']) {
+    checar(`${nome}: ${r} recusado`, t.rotaPermitida(r) === false);
+  }
+  t.ROTAS_DE_LEITURA.push(/.*/);
+  for (const r of ESCRITA_DO_CV) checar(`${nome}: escrita ${r} recusada (mesmo com a lista aberta)`, t.rotaPermitida(r) === false);
+  const params = /const PARAMETROS = new Set\(\[([\s\S]*?)\]\)/.exec(fonte)?.[1] ?? '';
+  const nomes = [...params.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+  checar(`${nome}: só os parâmetros de leitura`, JSON.stringify(nomes) === JSON.stringify(esperado.parametros), JSON.stringify(nomes));
+  checar(`${nome}: o token vem da credencial da empresa`, !/CVCRM_(URL|EMAIL|TOKEN)/.test(fonte) && /fetch\(`\$\{baseDoCv\(cred\.url\)\}/.test(fonte));
+}
+
+// O CPF do corretor vira hash antes de sair da função; nome e e-mail nem saem.
+{
+  const sync = readFileSync('supabase/functions/cvcrm-comercial-sync/index.ts', 'utf8');
+  const envio = /corretores\.push\(\{([\s\S]*?)\}\);/.exec(sync)?.[1] ?? '';
+  const chaves = [...envio.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]).sort();
+  checar(
+    'corretores: só hash, ids, imobiliária e ativo vão para o banco',
+    JSON.stringify(chaves) === JSON.stringify(['ativo', 'cv_corretor', 'cv_imobiliaria', 'documento_hash', 'imobiliaria']),
+    JSON.stringify(chaves),
+  );
+  checar('corretores: o documento só passa pelo hash', (sync.match(/\.documento\b/g) ?? []).length === 1 && /hashDoDocumento\(c\.documento\)/.test(sync));
+  const reserva = readFileSync('supabase/functions/cvcrm-reserva/index.ts', 'utf8');
+  checar('reserva: o mesmo hash dos dois lados', /`poup-cv:\$\{documento\}`/.test(reserva) && /`poup-cv:\$\{digitos\}`/.test(sync));
+  checar('reserva: o envio está TRAVADO (ENVIO_LIBERADO = false)', /const ENVIO_LIBERADO = false;/.test(reserva));
+  checar('reserva: do pré-cadastro não saem documento, renda nem contato', !/p\.(documento|cpf|renda|email|telefone|celular)/.test(reserva));
+}
+
 // Nada do CV no ambiente do app.
 checar('nada do CV em EXPO_PUBLIC', !/CVCRM/i.test(readFileSync('src/lib/env.ts', 'utf8')));
 

@@ -118,6 +118,11 @@ export interface TabelaDePreco {
   precosPorUnidade: PrecoDeUnidade[];
   /** O arquivo que a construtora mandou (PDF ou modelo POUP), guardado junto. */
   arquivo: ArquivoDaTabela | null;
+  /**
+   * De onde veio: `cv` = lida da tabela de preço do CV da construtora (a
+   * "Tabela de preço do CV" está ligada e ninguém troca à mão).
+   */
+  fonte?: 'manual' | 'cv';
 }
 
 /** O que o cálculo precisa saber da unidade. */

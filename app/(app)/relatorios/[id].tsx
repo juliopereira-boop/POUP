@@ -21,6 +21,7 @@ import {
 import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
+import { ReservarNoCv } from '@/components/cvcrm/ReservarNoCv';
 import { db, type Sale, type SaleInput, type Simulation, type TipoCorretor } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
 import {
@@ -392,6 +393,7 @@ export default function SimulationDetailScreen() {
           onPress={onSaleDone}
         />
       )}
+      <ReservarNoCv simulationId={sim.id} unidade={st.unit} cliente={sim.clientName} />
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
       <SectionBand label={st.hasSecondProponent ? '1º Proponente' : 'Cliente'} />

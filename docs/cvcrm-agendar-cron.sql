@@ -69,6 +69,19 @@ select cron.schedule('cvcrm-disponibilidade-completo', '7,37 * * * *', $cron$
     timeout_milliseconds := 150000);
 $cron$);
 
+-- Comercial: às :17 e :47, os corretores do CV (pelo hash do CPF, para a
+-- reserva) e, para quem ligou a "Tabela de preço do CV", a tabela de preço.
+-- Precisa da migration 20261027130000_cvcrm_reserva_e_tabela.sql e da função
+-- `cvcrm-comercial-sync` (Verify JWT DESLIGADO). Agendado em 27/10/2026.
+select cron.schedule('cvcrm-comercial', '17,47 * * * *', $cron$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'cvcrm_project_url') || '/functions/v1/cvcrm-comercial-sync',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+                                  'x-sync-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cvcrm_sync_secret')),
+    body := '{"modo":"tudo"}'::jsonb,
+    timeout_milliseconds := 150000);
+$cron$);
+
 -- O histórico do pg_cron: um job por minuto são 1.440 linhas por dia. Uma
 -- limpeza diária mantém só a última semana.
 select cron.schedule('cvcrm-disponibilidade-historico', '20 4 * * *', $cron$

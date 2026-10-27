@@ -13,15 +13,22 @@
  *   • "Desligar" apaga o token. Os empreendimentos dela perdem a cor; os
  *     vínculos ficam, e integrar de novo devolve as cores.
  *
- * O CV só é LIDO: a integração serve para sinalizar a disponibilidade das
- * unidades. A reserva de unidade pelo POUP está só no papel
- * (docs/CVCRM_RESERVA.md).
+ * Com a conta conectada, mais dois botões (liga e desliga):
+ *   • "Habilitar reserva": o corretor reserva a unidade no CV pelo relatório
+ *     da simulação (o CPF do cliente acha o pré-cadastro; o CPF do corretor,
+ *     o corretor e a imobiliária). O ENVIO ao CV fica travado até o
+ *     formulário de reserva do CV ser confirmado (docs/CVCRM_RESERVA.md):
+ *     até lá, o corretor confere tudo e vê o que falta.
+ *   • "Tabela de preço do CV": ligada, o preço dos empreendimentos da
+ *     construtora vem só da tabela do CV. A tabela enviada à mão fica
+ *     guardada e volta se desligar.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { ToggleField } from '@/components/ToggleField';
 import { db, type ContaDoCv, type IntegracaoCv as Integracao } from '@/data';
 import { haQuanto } from '@/features/disponibilidade/aplicar';
 import { confirmar } from '@/lib/confirmar';
@@ -53,7 +60,9 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
   const [url, setUrl] = useState('');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
-  const [ocupado, setOcupado] = useState<'testar' | 'salvar' | 'testar_salva' | 'desligar' | null>(null);
+  const [ocupado, setOcupado] = useState<'testar' | 'salvar' | 'testar_salva' | 'desligar' | 'recurso' | 'ler' | null>(
+    null,
+  );
   const [aviso, setAviso] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => Date.now());
@@ -165,6 +174,45 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
     await carregar();
   }
 
+  async function mudarRecurso(qual: 'reserva' | 'tabelaPreco', ligar: boolean) {
+    if (qual === 'tabelaPreco') {
+      const n = integracao?.empreendimentos ?? 0;
+      const seguir = await confirmar(
+        ligar ? 'Tabela de preço do CV' : 'Voltar à tabela enviada',
+        ligar
+          ? `O preço ${n ? `dos ${n} empreendimentos` : 'dos empreendimentos'} de ${empresa} passa a vir só da tabela de preço do CV (a aprovada e vigente). A tabela enviada à mão fica guardada e volta se você desligar. Enquanto estiver ligada, ninguém troca a tabela à mão.`
+          : `Os empreendimentos de ${empresa} voltam para a tabela enviada à mão (a que estava antes do CV).`,
+        ligar ? 'Ligar' : 'Desligar',
+      );
+      if (!seguir) return;
+    }
+    setAviso(null);
+    setErro(null);
+    setOcupado('recurso');
+    const r = await db.disponibilidade.definirRecursos(
+      companyId,
+      qual === 'reserva' ? { reserva: ligar } : { tabelaPreco: ligar },
+    );
+    if (r.ok && ligar) await db.disponibilidade.lerComercialAgora(companyId);
+    setOcupado(null);
+    if (!r.ok) {
+      setErro(r.error);
+      return;
+    }
+    setIntegracao(r.data);
+    if (ligar) setAviso('Ligado. A leitura do CV já foi pedida: em um ou dois minutos o resultado aparece aqui.');
+  }
+
+  async function lerAgora() {
+    setAviso(null);
+    setErro(null);
+    setOcupado('ler');
+    const r = await db.disponibilidade.lerComercialAgora(companyId);
+    setOcupado(null);
+    if (r.ok) setAviso('Leitura pedida ao CV. Em um ou dois minutos o resultado aparece aqui.');
+    else setErro(r.error);
+  }
+
   if (integracao === undefined) {
     return (
       <View style={styles.card}>
@@ -209,6 +257,57 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
           {situacao === 'erro' && integracao?.ultimoErro ? (
             <Text style={styles.erro}>Último erro: {integracao.ultimoErro.slice(0, 240)}</Text>
           ) : null}
+
+          <View style={styles.recursos}>
+            <ToggleField
+              label="Habilitar reserva"
+              value={Boolean(integracao?.reservaHabilitada)}
+              onChange={(v) => void mudarRecurso('reserva', v)}
+              onLabel="Ligada"
+              offLabel="Desligada"
+            />
+            <Text style={styles.meta}>
+              {integracao?.corretores
+                ? `${integracao.corretores} corretores do CV reconhecidos pelo CPF`
+                : 'Corretores do CV ainda não lidos'}
+              {integracao?.corretoresLidosEm ? ` · lidos ${haQuanto(integracao.corretoresLidosEm, agora) ?? ''}` : ''}
+            </Text>
+            {integracao?.corretoresErro ? (
+              <Text style={styles.erro}>Corretores: {integracao.corretoresErro.slice(0, 200)}</Text>
+            ) : null}
+            {integracao?.reservaHabilitada ? (
+              <Text style={styles.dica}>
+                O corretor vê "Reservar no CV" no relatório da simulação. Por enquanto ele confere tudo (unidade, cliente
+                pelo CPF e corretor pelo CPF); o envio ao CV é liberado quando o formulário de reserva do CV for
+                confirmado.
+              </Text>
+            ) : null}
+
+            <ToggleField
+              label="Tabela de preço do CV"
+              value={Boolean(integracao?.tabelaPrecoCv)}
+              onChange={(v) => void mudarRecurso('tabelaPreco', v)}
+              onLabel="Ligada"
+              offLabel="Desligada"
+            />
+            {integracao?.tabelaPrecoCv ? (
+              <Text style={styles.meta}>
+                {integracao.tabelaLidaEm
+                  ? `Tabela lida ${haQuanto(integracao.tabelaLidaEm, agora) ?? ''}`
+                  : 'Tabela ainda não lida'}
+              </Text>
+            ) : null}
+            {integracao?.tabelaPrecoCv && integracao.tabelaErro ? (
+              <Text style={styles.erro}>Tabela: {integracao.tabelaErro.slice(0, 200)}</Text>
+            ) : null}
+            <Button
+              label="Ler corretores e tabela agora"
+              variant="ghost"
+              onPress={() => void lerAgora()}
+              loading={ocupado === 'ler'}
+              disabled={ocupado !== null}
+            />
+          </View>
           <View style={styles.botoes}>
             <Button
               label="Testar agora"
@@ -297,9 +396,6 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
       {aviso ? <Text style={styles.ok}>{aviso}</Text> : null}
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
 
-      <Text style={styles.reserva}>
-        Reserva de unidade pelo POUP: em preparação. Por enquanto, a integração só sinaliza a disponibilidade.
-      </Text>
     </View>
   );
 }
@@ -330,7 +426,13 @@ const makeStyles = (colors: AppColors) =>
     texto: { ...typography.body, color: colors.ink },
     meta: { ...typography.caption, color: colors.inkMuted },
     dica: { ...typography.caption, color: colors.inkMuted },
-    reserva: { ...typography.caption, color: colors.inkSubtle, marginTop: spacing.xs },
+    recursos: {
+      marginTop: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: spacing.xs,
+    },
     formulario: { marginTop: spacing.sm },
     botoes: { gap: spacing.sm, marginTop: spacing.sm },
     ok: {

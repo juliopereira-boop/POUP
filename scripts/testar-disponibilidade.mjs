@@ -526,6 +526,18 @@ secao('14. As ligações no aplicativo');
   const painelCv = ler('app/(app)/admin/cvcrm.tsx');
   checar('painel: o número do CV só vale dentro da conta', /if \(e\.companyId !== empresaId\) continue;/.test(painelCv));
   checar('painel: importa só de conta conectada', /empreendimentosDoCv\(empresaId\)/.test(painelCv));
+
+  // "Habilitar reserva" e "Tabela de preço do CV" (só o admin, na integração).
+  checar('integração: botão "Habilitar reserva"', /label="Habilitar reserva"/.test(integrar) && /mudarRecurso\('reserva', v\)/.test(integrar));
+  checar('integração: botão "Tabela de preço do CV" com confirmação', /label="Tabela de preço do CV"/.test(integrar) && /await confirmar\(\s*ligar \? 'Tabela de preço do CV'/.test(integrar));
+  const reservar = ler('src/components/cvcrm/ReservarNoCv.tsx');
+  const relatorio = ler('app/(app)/relatorios/[id].tsx');
+  checar('relatório: "Reservar no CV" na simulação', /<ReservarNoCv simulationId=\{sim\.id\}/.test(relatorio));
+  checar('reserva: só aparece com a reserva ligada', /if \(!estado\?\.habilitada\) return null;/.test(reservar));
+  checar('reserva: confere antes (preparar) e pede confirmação para reservar', /prepararReserva\(simulationId\)/.test(reservar) && /await confirmar\(\s*'Reservar no CV'/.test(reservar));
+  checar('reserva: "Reservar" só com tudo pronto e o envio liberado', /disabled=\{!pronto \|\| !preparo\.envioLiberado/.test(reservar));
+  const telaTabela = ler('app/(app)/cadastros/tabela-preco.tsx');
+  checar('tabela do CV: ninguém troca à mão', /const doCv = salva\?\.fonte === 'cv';/.test(telaTabela) && /&& !doCv;/.test(telaTabela));
 }
 
 console.log(`\n${ok} verificações ok, ${falhas.length} falha(s).`);

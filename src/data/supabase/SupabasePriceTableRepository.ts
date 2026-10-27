@@ -62,6 +62,8 @@ const MENSAGENS: Record<string, string> = {
   unidade_repetida: 'Uma unidade aparece duas vezes no preço por unidade.',
   vagas_invalidas: 'A lista de vagas está num formato inesperado.',
   arquivo_invalido: 'O arquivo da tabela não pertence a este empreendimento.',
+  tabela_do_cv:
+    'A tabela de preço desta construtora vem do CV. Para enviar à mão, o administrador desliga a "Tabela de preço do CV" no cadastro da construtora.',
 };
 
 function mensagemDoErro(erro: ErroPostgrest): string {
@@ -81,6 +83,7 @@ interface LinhaTabela {
   regras: unknown;
   vagas: unknown;
   precos_unidades?: unknown;
+  fonte?: string | null;
   arquivo_path: string | null;
   arquivo_nome: string | null;
   atualizado_em: string | null;
@@ -165,6 +168,7 @@ function paraTabela(l: LinhaTabela): TabelaDePreco {
     vagas: paraVagas(l.vagas),
     precosPorUnidade: paraPrecosPorUnidade(l.precos_unidades),
     arquivo: l.arquivo_path ? { path: l.arquivo_path, nome: l.arquivo_nome || 'tabela.pdf' } : null,
+    fonte: l.fonte === 'cv' ? 'cv' : 'manual',
   };
 }
 
@@ -229,11 +233,11 @@ export class SupabasePriceTableRepository implements PriceTableRepository {
     const colunas = 'development_id, referencia, regras, vagas, arquivo_path, arquivo_nome, atualizado_em';
     let { data, error } = await supabase
       .from('development_price_tables')
-      .select(`${colunas}, precos_unidades`)
+      .select(`${colunas}, precos_unidades, fonte`)
       .eq('development_id', developmentId)
       .maybeSingle();
-    // A coluna do preço por unidade chegou numa migration posterior: sem ela,
-    // a tabela continua lendo (só sem o preço por unidade).
+    // O preço por unidade e a fonte (CV) chegaram em migrations posteriores:
+    // sem elas, a tabela continua lendo (só sem o preço por unidade).
     if (colunaAusente(error)) {
       ({ data, error } = await supabase
         .from('development_price_tables')

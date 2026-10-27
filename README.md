@@ -1055,7 +1055,15 @@ A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade
 - **O preço continua o da tabela de preço enviada**: o CV não tem valor de venda por unidade.
 - **Vale para Start e Pro.**
 
-**Integração nativa, uma conta por construtora.** No cadastro da construtora (Catálogo do sistema › construtora › **Integrações › Integrar CV**), só o admin do POUP informa o endereço da conta (`https://<conta>.cvcrm.com.br`), o e-mail e o token do usuário de integração. "Testar conexão" pergunta ao CV sem gravar; "Salvar integração" só grava se o CV aceitar. O token vai direto para o **Vault** e nunca volta para o app, nem para o admin. Cada empreendimento lê o CV da construtora dona dele: o número de um empreendimento ou unidade no CV só vale dentro da conta, e o espelho e os vínculos levam a integração (`integracao_id`). "Desligar" apaga o token: as cores somem, mas os vínculos ficam. A reserva de unidade pelo POUP está só no papel: `docs/CVCRM_RESERVA.md`.
+**Integração nativa, uma conta por construtora.** No cadastro da construtora (Catálogo do sistema › construtora › **Integrações › Integrar CV**), só o admin do POUP informa o endereço da conta (`https://<conta>.cvcrm.com.br`), o e-mail e o token do usuário de integração. "Testar conexão" pergunta ao CV sem gravar; "Salvar integração" só grava se o CV aceitar. O token vai direto para o **Vault** e nunca volta para o app, nem para o admin. Cada empreendimento lê o CV da construtora dona dele: o número de um empreendimento ou unidade no CV só vale dentro da conta, e o espelho e os vínculos levam a integração (`integracao_id`). "Desligar" apaga o token: as cores somem, mas os vínculos ficam. Na mesma integração, dois botões que só o admin liga:
+
+- **Habilitar reserva:** aparece "Reservar no CV" no relatório da simulação, com a conferência na hora:
+  - a unidade disponível;
+  - o cliente achado pelo CPF no pré-cadastro do CV, com a aprovação de financiamento;
+  - o corretor achado pelo CPF do perfil, com a imobiliária dele, e nunca o usuário da integração.
+
+  O envio da reserva ao CV fica travado até o formulário do CV ser confirmado; veja `docs/CVCRM_RESERVA.md`.
+- **Tabela de preço do CV:** o preço passa a vir só da tabela aprovada e vigente no CV. A manual fica guardada e volta se desligar.
 
 **O POUP só LÊ o CV — nenhuma edição, nunca.** O app nunca fala com o CV: quem fala são duas Edge Functions, só com `GET` e só em 3 caminhos de leitura (lista de empreendimentos, mapa de disponibilidade e o histórico de situação do CVDW). Uma segunda trava recusa caminho com nome de escrita (`bloquear`, `reservas`, `webhooks`…) mesmo se alguém o puser na lista, e os parâmetros também são lista fechada. O token de cada construtora sai do Vault só para a função, e só vai para `*.cvcrm.com.br`. `npm run testar:cvcrm-leitura` prova tudo isso. Nome de cliente, CPF e motivo de bloqueio que o CV devolve são descartados na função: nada disso entra no banco. Nenhum dado do CV vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
 

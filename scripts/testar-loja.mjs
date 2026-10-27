@@ -245,6 +245,7 @@ function secao(t) {
     'app/(app)/admin/cvcrm-empreendimento.tsx',
     'src/components/cvcrm/ImportarDoCv.tsx',
     'src/components/cvcrm/IntegracaoCv.tsx',
+    'src/components/cvcrm/ReservarNoCv.tsx',
     'app/(app)/admin/catalogo.tsx',
     'src/data/supabase/SupabaseDisponibilidadeRepository.ts',
   ];

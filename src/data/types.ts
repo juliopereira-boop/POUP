@@ -1046,10 +1046,47 @@ export interface IntegracaoCv {
   ultimoErro: string | null;
   ultimoErroEm: string | null;
   ultimaLeveEm: string | null;
-  /** Reserva de unidade pelo POUP — em preparação (docs/CVCRM_RESERVA.md). */
+  /** "Habilitar reserva": o corretor reserva no CV pelo relatório (docs/CVCRM_RESERVA.md). */
   reservaHabilitada: boolean;
+  /** "Tabela de preço do CV": ligada, o preço da construtora vem só do CV. */
+  tabelaPrecoCv: boolean;
+  /** Corretores do CV reconhecidos pelo CPF (só o hash fica no POUP). */
+  corretores: number;
+  corretoresLidosEm: string | null;
+  corretoresErro: string | null;
+  tabelaLidaEm: string | null;
+  tabelaErro: string | null;
   /** Empreendimentos do POUP ligados a esta conta. */
   empreendimentos: number;
+}
+
+/** O que a reserva no CV encontrou para uma simulação (Edge Function `cvcrm-reserva`). */
+export interface PreparoDaReserva {
+  /** O envio ao CV só é liberado depois de o formulário do CV ser confirmado. */
+  envioLiberado: boolean;
+  empreendimento: string | null;
+  unidade: { cvUnidade: number; identificador: string | null; situacao: string | null; livre: boolean } | null;
+  /** O corretor do CV achado pelo CPF do perfil do POUP. */
+  corretor: { cvCorretor: number; cvImobiliaria: number | null; imobiliaria: string | null; ativo: boolean } | null;
+  /** O pré-cadastro do cliente no CV, achado pelo CPF da simulação. */
+  cliente: {
+    nome: string | null;
+    cvPrecadastro: number | null;
+    situacao: string | null;
+    valorAprovado: number | null;
+    valorSubsidio: number | null;
+    valorFgts: number | null;
+    vencimentoAprovacao: string | null;
+  } | null;
+  /** O que falta, em frase de gente. Vazia = pronto para reservar. */
+  pendencias: string[];
+}
+
+/** O botão "Reservar no CV" de uma simulação e o último pedido dela. */
+export interface ReservaDaSimulacao {
+  habilitada: boolean;
+  temVinculo: boolean;
+  ultima: { situacao: 'enviando' | 'criada' | 'recusada' | 'erro'; cvReserva: number | null; erro: string | null; criadoEm: string } | null;
 }
 
 /** O que o admin digita para integrar (ou testar) uma conta do CV. */
@@ -1074,6 +1111,10 @@ export interface PainelCv {
     /** A construtora — dona do empreendimento e da conta do CV. */
     companyId: string;
     developmentId: string;
+    /** A tabela de preço do CV escolhida (nula = automática) e a que está valendo. */
+    cvTabela: number | null;
+    cvTabelaNome: string | null;
+    tabelaErro: string | null;
     empreendimento: string;
     ultimoLeveEm: string | null;
     ultimoCompletoEm: string | null;

@@ -1452,6 +1452,24 @@ export interface Database {
         Args: { p_company: string };
         Returns: undefined;
       };
+      /** Reserva e tabela de preço do CV (20261027130000). Só o admin. */
+      cvcrm_definir_recursos: {
+        Args: { p_company: string; p_reserva?: boolean | null; p_tabela_preco?: boolean | null };
+        Returns: Json;
+      };
+      cvcrm_ler_comercial_agora: {
+        Args: { p_company: string };
+        Returns: number;
+      };
+      cvcrm_escolher_tabela: {
+        Args: { p_development: string; p_cv_tabela: number | null };
+        Returns: undefined;
+      };
+      /** O corretor dono da simulação (ou o admin). */
+      cvcrm_reserva_da_simulacao: {
+        Args: { p_simulation: string };
+        Returns: Json;
+      };
       /** `p_tabela` nulo apaga a tabela. */
       salvar_tabela_de_preco: {
         Args: { p_development: string; p_tabela: Json | null };
