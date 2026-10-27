@@ -1,8 +1,29 @@
 # Disponibilidade do CV CRM
 
-A cor de cada unidade na tabela de preço (verde, amarelo, vermelho, cinza) vem do **CV CRM** da Canopus desde 26/10/2026. Antes vinha do UAU (o ERP).
+A cor de cada unidade na tabela de preço (verde, amarelo, vermelho, cinza) vem do **CV CRM da construtora dona do empreendimento**. A Canopus foi a primeira, em 26/10/2026; antes, a cor vinha do UAU (o ERP).
 
 O POUP **só lê** o CV. Ele serve apenas para sinalizar disponibilidade. O preço continua sendo o da tabela de preço enviada.
+
+## Cada construtora com a sua conta ("Integrar CV")
+
+O CV é a primeira **integração nativa** do POUP. Várias construtoras usam o CV, e cada uma tem a sua conta: endereço (`https://<conta>.cvcrm.com.br`), e-mail e token do usuário de integração.
+
+- **Quem configura:** só o admin do POUP, em **Catálogo do sistema › construtora › Integrações › Integrar CV**.
+- **Testar conexão:** pergunta ao CV, sem gravar.
+- **Salvar integração:** testa de novo e só grava se o CV aceitar.
+- **Desligar:** apaga o token. Os empreendimentos da construtora perdem a cor, mas os vínculos ficam, e integrar de novo devolve as cores.
+
+Onde fica cada coisa:
+
+- **Endereço e e-mail:** em `cvcrm_integracoes`, uma linha por empresa. A tabela não tem nenhuma política de RLS: só o service role lê e grava.
+- **Token:** no **Vault**, em `cvcrm_token_<empresa>`. Ele nunca volta para o aplicativo, nem para o admin. Para trocar, o admin digita outro. Sem digitar, o token salvo continua, mas só para o mesmo endereço.
+- **Quem lê a credencial:** só as Edge Functions, pela RPC `cvcrm_credencial` (service role). Nenhum secret de CV fica nas funções, no `EXPO_PUBLIC_*`, na Vercel, no EAS ou no repositório.
+
+O número de um empreendimento ou de uma unidade no CV só vale **dentro da conta**: o 63 de uma construtora não é o 63 de outra. Por isso o espelho (`cvcrm_unidades`), os vínculos e os empreendimentos vinculados levam `integracao_id`. O empreendimento do POUP sempre usa a conta da construtora dona dele.
+
+O painel do admin (Configurações › Administração › Disponibilidade do CV) lista as construtoras com o CV e a saúde de cada conta. A importação começa escolhendo a construtora.
+
+A reserva de unidade pelo POUP está só no papel: `docs/CVCRM_RESERVA.md`.
 
 ## Como funciona
 
@@ -19,8 +40,8 @@ O admin reclassifica qualquer situação em **Configurações › Administraçã
 
 **Leitura automática** (pg_cron → Edge Function `cvcrm-disponibilidade-sync`):
 
-- **Leve, a cada minuto:** lê o histórico de situação do CVDW (`/api/v1/cvdw/unidades/situacao`) desde a última leitura. É uma chamada só, para todos os empreendimentos; o limite do CVDW é 20 por minuto. O cursor guarda a última `referencia_data`, no relógio do próprio CV. Cada leitura recomeça 5 minutos antes desse cursor, e aplicar de novo o que já entrou não muda nada.
-- **Completa, às :07 e :37:** lê o mapa de disponibilidade (`/api/v1/comercial/mapadisponibilidade/{id}`) de cada empreendimento vinculado, filtrado pela etapa quando houver. Confere tudo, pega unidade nova e marca como ausente a que sumiu. Se mais de 30% das unidades (e mais de 5) sumirem de uma vez, a leitura é tratada como quebrada e nada é marcado.
+- **Leve, a cada minuto:** lê o histórico de situação do CVDW (`/api/v1/cvdw/unidades/situacao`) desde a última leitura. É uma chamada por conta (por construtora), para todos os empreendimentos dela; o limite do CVDW é 20 por minuto. Cada conta tem o seu cursor (`cvcrm_integracoes.cvdw_cursor`), que guarda a última `referencia_data`, no relógio do próprio CV. Cada leitura recomeça 5 minutos antes desse cursor, e aplicar de novo o que já entrou não muda nada.
+- **Completa, às :07 e :37:** lê o mapa de disponibilidade (`/api/v1/comercial/mapadisponibilidade/{id}`) de cada empreendimento vinculado, com a conta da construtora dele, filtrado pela etapa quando houver. Confere tudo, pega unidade nova e marca como ausente a que sumiu. Se mais de 30% das unidades (e mais de 5) sumirem de uma vez, a leitura é tratada como quebrada e nada é marcado.
 - **Na hora da proposta:** a Edge Function `cvcrm-disponibilidade` relê o bloco da unidade no mapa (`idbloco`) antes de gerar o PDF.
 
 O banco grava só o que mudou. A tabela `development_unit_disponibilidade` vai pelo Realtime para a tela do corretor.
@@ -30,7 +51,7 @@ O banco grava só o que mudou. A tabela `development_unit_disponibilidade` vai p
 - As duas funções têm uma lista fechada de 3 caminhos `GET`, e só um `fetch`.
 - Uma segunda trava recusa caminho com nome de escrita (`bloquear`, `reservas`, `webhooks`, `auth`…), mesmo que alguém o coloque na lista.
 - Os parâmetros também são lista fechada.
-- O token só vai para `https://*.cvcrm.com.br`.
+- O token (o de cada construtora) só vai para `https://*.cvcrm.com.br`.
 - Ficam de fora:
   - o detalhe do empreendimento, que traz o nome de quem reservou;
   - o `documento_bloqueio` (CPF) e o `motivo_bloqueio` do mapa;
@@ -77,13 +98,20 @@ Ao todo foram 3.466 unidades, todas por par exato e sem nenhum conflito.
 
 | Item | Detalhes |
 | --- | --- |
-| Migration | `20261026120000_disponibilidade_cvcrm.sql`. Só cria; não apaga nada. |
-| Secrets das funções | `CVCRM_URL`, `CVCRM_EMAIL`, `CVCRM_TOKEN`, cadastrados pelo dono do projeto |
-| Vault | `cvcrm_sync_secret` (gerado no banco), `cvcrm_project_url` |
+| Migrations | `20261026120000_disponibilidade_cvcrm.sql` e `20261026180000_cvcrm_por_empresa.sql` (aplicadas em 27/10/2026). Não apagam nada: as tabelas da primeira versão ficaram como `_antiga`. |
+| Integrações | `cvcrm_integracoes`, uma por construtora. A Canopus está ligada. |
+| Vault | `cvcrm_token_<empresa>` (o token de cada construtora), `cvcrm_sync_secret` (gerado no banco), `cvcrm_project_url` |
 | Edge Functions | `cvcrm-disponibilidade-sync` (Verify JWT **desligado**, exige o `x-sync-secret`); `cvcrm-disponibilidade` (Verify JWT **ligado**, usada pelo app) |
 | Jobs | `cvcrm-disponibilidade-leve` (`* * * * *`), `cvcrm-disponibilidade-completo` (`7,37 * * * *`) |
 
 Para refazer em outro projeto, siga `docs/cvcrm-agendar-cron.sql`.
+
+## O que sobrou da primeira versão (uma conta só)
+
+**Aguardando a confirmação do dono do POUP** para remover:
+
+- **Secrets das funções:** `CVCRM_URL`, `CVCRM_EMAIL` e `CVCRM_TOKEN`. Nenhum código os usa mais. A conta da Canopus foi levada para a integração dela uma vez, em 27/10/2026, por uma versão temporária da função de sync, já substituída.
+- **Tabelas:** `development_cvcrm_empreendimentos_antiga`, `cvcrm_unidades_antiga` e `development_unit_cvcrm_antiga`. É a cópia de antes da troca, sem acesso para o app.
 
 ## O UAU
 

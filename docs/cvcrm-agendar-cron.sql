@@ -5,10 +5,14 @@
 -- outro projeto (homologação) ou depois de uma restauração. Rode no SQL
 -- Editor, parte por parte. Precisa do pg_net e do pg_cron ligados.
 --
--- Antes: a migration 20261026120000_disponibilidade_cvcrm.sql aplicada, as
--- funções `cvcrm-disponibilidade-sync` (Verify JWT DESLIGADO) e
--- `cvcrm-disponibilidade` (Verify JWT LIGADO) publicadas, e os secrets
--- CVCRM_URL, CVCRM_EMAIL e CVCRM_TOKEN cadastrados em Edge Functions → Secrets.
+-- Antes: as migrations 20261026120000_disponibilidade_cvcrm.sql e
+-- 20261026180000_cvcrm_por_empresa.sql aplicadas, e as funções
+-- `cvcrm-disponibilidade-sync` (Verify JWT DESLIGADO) e
+-- `cvcrm-disponibilidade` (Verify JWT LIGADO) publicadas.
+--
+-- A conta do CV NÃO entra aqui: cada construtora tem a sua, e o admin do POUP
+-- integra no app (Catálogo do sistema › construtora › Integrar CV). O token
+-- vai para o Vault pela função; nenhum secret de CV nas Edge Functions.
 -- ===========================================================================
 
 
@@ -29,7 +33,7 @@ begin
 end $$;
 
 
--- 2. O PING: confere os secrets do CV e o acesso ----------------------------
+-- 2. O PING: confere cada conta do CV integrada (ou uma: "companyId") ------
 select net.http_post(
   url := (select decrypted_secret from vault.decrypted_secrets where name = 'cvcrm_project_url') || '/functions/v1/cvcrm-disponibilidade-sync',
   headers := jsonb_build_object('Content-Type', 'application/json',
@@ -38,7 +42,7 @@ select net.http_post(
   timeout_milliseconds := 60000) as pedido;
 -- Uns segundos depois (troque o número pelo que voltou acima):
 --   select status_code, content from net._http_response where id = <pedido>;
--- Esperado: 200 e {"ok":true,"empreendimentos":<quantos o CV tem>}.
+-- Esperado: 200 e {"ok":true,"contas":[{"companyId":…,"ok":true,"empreendimentos":<quantos o CV tem>}]}.
 -- A primeira chamada depois de publicar pode voltar "JWT issued at future":
 -- é o relógio do serviço; rode de novo.
 
@@ -74,7 +78,9 @@ $cron$);
 
 -- 4. CONFERÊNCIA ---------------------------------------------------------------
 --   select jobname, schedule, active from cron.job where jobname like 'cvcrm-%';
---   select modo, terminado_em, ok, lidas, mudaram, erro, cursor from public.cvcrm_sync_estado;
+--   select modo, terminado_em, ok, lidas, mudaram, erro from public.cvcrm_sync_estado;
+--   select c.name, i.situacao, i.cvdw_cursor, i.ultima_leve_em, i.ultimo_erro
+--     from public.cvcrm_integracoes i join public.companies c on c.id = i.company_id;
 --   select e.cv_empreendimento, e.cv_etapa, d.name, e.ultimo_leve_em, e.ultimo_completo_em, e.ultimo_erro
 --     from public.development_cvcrm_empreendimentos e join public.developments d on d.id = e.development_id;
 --

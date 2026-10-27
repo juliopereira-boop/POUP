@@ -1047,7 +1047,7 @@ O aplicativo recebe só o agregado (primeiro e último nome, foto, imobiliária,
 
 ## 🟢 Disponibilidade do CV (verde, amarelo, vermelho)
 
-A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade pintada conforme o **CV CRM** (o CRM de vendas da Canopus), ao vivo: **verde** disponível, **amarelo** reservada (em negociação), **vermelho** vendida, **cinza** bloqueada (fora de venda). A situação também vai por escrito na célula e no leitor de tela. Sem empreendimento do CV vinculado, a grade fica como sempre foi. A bolinha de "mais ventilado" é **azul**. Até 26/10/2026 a fonte era o UAU (o ERP); a troca está em `docs/DISPONIBILIDADE_CVCRM.md`.
+A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade pintada conforme o **CV CRM da construtora** (o CRM de vendas que várias construtoras usam; cada uma tem a sua conta), ao vivo: **verde** disponível, **amarelo** reservada (em negociação), **vermelho** vendida, **cinza** bloqueada (fora de venda). A situação também vai por escrito na célula e no leitor de tela. Sem empreendimento do CV vinculado, a grade fica como sempre foi. A bolinha de "mais ventilado" é **azul**. Até 26/10/2026 a fonte era o UAU (o ERP); a troca está em `docs/DISPONIBILIDADE_CVCRM.md`.
 
 - **Vendida e fora de venda não entram numa proposta**: a grade não deixa tocar e a lista do passo 2 não oferece.
 - **Reservada (em negociação)**: pode, depois de um aviso.
@@ -1055,13 +1055,16 @@ A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade
 - **O preço continua o da tabela de preço enviada**: o CV não tem valor de venda por unidade.
 - **Vale para Start e Pro.**
 
-**O POUP só LÊ o CV — nenhuma edição, nunca.** O app nunca fala com o CV: quem fala são duas Edge Functions, só com `GET` e só em 3 caminhos de leitura (lista de empreendimentos, mapa de disponibilidade e o histórico de situação do CVDW). Uma segunda trava recusa caminho com nome de escrita (`bloquear`, `reservas`, `webhooks`…) mesmo se alguém o puser na lista, e os parâmetros também são lista fechada. O token só vai para `*.cvcrm.com.br`. `npm run testar:cvcrm-leitura` prova tudo isso. Nome de cliente, CPF e motivo de bloqueio que o CV devolve são descartados na função: nada disso entra no banco. Nenhum dado do CV vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
+**Integração nativa, uma conta por construtora.** No cadastro da construtora (Catálogo do sistema › construtora › **Integrações › Integrar CV**), só o admin do POUP informa o endereço da conta (`https://<conta>.cvcrm.com.br`), o e-mail e o token do usuário de integração. "Testar conexão" pergunta ao CV sem gravar; "Salvar integração" só grava se o CV aceitar. O token vai direto para o **Vault** e nunca volta para o app, nem para o admin. Cada empreendimento lê o CV da construtora dona dele: o número de um empreendimento ou unidade no CV só vale dentro da conta, e o espelho e os vínculos levam a integração (`integracao_id`). "Desligar" apaga o token: as cores somem, mas os vínculos ficam. A reserva de unidade pelo POUP está só no papel: `docs/CVCRM_RESERVA.md`.
+
+**O POUP só LÊ o CV — nenhuma edição, nunca.** O app nunca fala com o CV: quem fala são duas Edge Functions, só com `GET` e só em 3 caminhos de leitura (lista de empreendimentos, mapa de disponibilidade e o histórico de situação do CVDW). Uma segunda trava recusa caminho com nome de escrita (`bloquear`, `reservas`, `webhooks`…) mesmo se alguém o puser na lista, e os parâmetros também são lista fechada. O token de cada construtora sai do Vault só para a função, e só vai para `*.cvcrm.com.br`. `npm run testar:cvcrm-leitura` prova tudo isso. Nome de cliente, CPF e motivo de bloqueio que o CV devolve são descartados na função: nada disso entra no banco. Nenhum dado do CV vai para `EXPO_PUBLIC_*`, Vercel, EAS ou repositório.
 
 **Unidade X com unidade X.** O vínculo é gravado pelo id da unidade no CV (`idunidade`), uma vez, e só quando a chave da tabela de preço ("Bloco 29 Apto 304" = "Bloco 29"/"304"; "BLOCO 27 UNIDADE 1" = "Bloco 27"/"001"; "Torre 09 Apto 702" = "Bloco 9"/"702") é igual e única dos dois lados. Na dúvida (unidade renomeada no CV, situação desconhecida) a célula fica **sem cor** — nunca com a cor de outra.
 
 **O admin** (Configurações › Administração › **Disponibilidade do CV**):
+- **Ver as construtoras com o CV** e a saúde de cada conta (conectada, com erro, última leitura).
 - **Importar um empreendimento.**
-  1. Busca os empreendimentos do CV.
+  1. Escolhe a construtora e busca os empreendimentos da conta dela no CV.
   2. Abre a prévia: unidades, situações, etapas (módulos) e blocos.
   3. Escolhe a etapa, quando o CV junta módulos (o Reserva II do CV tem o Módulo I e o II).
   4. Cria o empreendimento ou usa um que já existe.
@@ -1072,17 +1075,17 @@ A tabela de preço e o "Usar tabela de preço" do simulador mostram cada unidade
 - **Ver as leituras automáticas:** quando rodaram e se deram certo.
 
 **Ao vivo, com honestidade.** O CV não avisa quando muda. O cron lê:
-- **a cada minuto**, o histórico de situação do CVDW desde a última leitura — todos os empreendimentos numa chamada só;
+- **a cada minuto**, o histórico de situação do CVDW desde a última leitura — uma chamada por construtora, com todos os empreendimentos dela;
 - **às :07 e :37**, o mapa de disponibilidade inteiro de cada empreendimento vinculado, para conferir tudo e pegar unidade nova ou apagada.
 
 O banco grava **só o que mudou**, e o Realtime entrega na tela. Uma leitura vazia ou quebrada não vira "tudo fora de venda": ela fica marcada como `suspeita`.
 
-**Já está ativo** no Supabase (26/10/2026): migration aplicada, as duas funções publicadas, o segredo do cron no Vault e os jobs `cvcrm-disponibilidade-leve` e `cvcrm-disponibilidade-completo` agendados. Os 8 empreendimentos que estavam no UAU foram vinculados ao CV (3.466 unidades, todas por par exato). Passo a passo para refazer em outro projeto: `docs/DISPONIBILIDADE_CVCRM.md` e `docs/cvcrm-agendar-cron.sql`.
+**Já está ativo** no Supabase: migrations aplicadas (a de uma conta por construtora em 27/10/2026), as duas funções publicadas, o segredo do cron no Vault e os jobs `cvcrm-disponibilidade-leve` e `cvcrm-disponibilidade-completo` agendados. A Canopus é a primeira construtora integrada: os 8 empreendimentos que estavam no UAU foram vinculados ao CV (3.466 unidades, todas por par exato). Passo a passo para refazer em outro projeto: `docs/DISPONIBILIDADE_CVCRM.md` e `docs/cvcrm-agendar-cron.sql`.
 
 **Testes:**
-- `npm run testar:disponibilidade`: vínculo, cores, importação (com etapa) e as ligações no app.
+- `npm run testar:disponibilidade`: vínculo, cores, importação (com etapa), as ligações no app e o "Integrar CV" (só o admin, token escondido e nunca mostrado, importação só da conta da construtora).
 - `npm run testar:cvcrm-leitura`: somente leitura, sem dado de pessoa.
-- `scripts/testar-disponibilidade-cvcrm-db.sql`: cores por situação, leitura repetida sem regravar, leitura leve, leitura quebrada sem marcar nada, renomeada sem cor, vínculo 1 para 1 (e por etapa), permissões, trava, segredo do cron e o UAU que não pinta mais. Roda num Postgres local ou de homologação.
+- `scripts/testar-disponibilidade-cvcrm-db.sql`: a troca para uma conta por construtora (com dados da primeira versão), credencial no Vault, duas contas com os mesmos números do CV sem se misturar, desligar a integração, cores por situação, leitura repetida sem regravar, leitura leve, leitura quebrada sem marcar nada, renomeada sem cor, vínculo 1 para 1 (e por etapa), permissões, trava, segredo do cron e o UAU que não pinta mais. Roda num Postgres local ou de homologação.
 
 ---
 

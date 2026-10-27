@@ -28,6 +28,7 @@ import { MonthYearField } from '@/components/MonthYearField';
 import { Screen } from '@/components/Screen';
 import { Select } from '@/components/Select';
 import { ToggleField } from '@/components/ToggleField';
+import { IntegracaoCv } from '@/components/cvcrm/IntegracaoCv';
 import {
   db,
   type CatalogPhotoKind,
@@ -697,6 +698,17 @@ export default function CatalogoAdminScreen() {
               <Text style={styles.hint}>
                 Crie a construtora primeiro para cadastrar os correspondentes dela.
               </Text>
+            )}
+
+            {/*
+              Integrações nativas: cada construtora com a SUA conta do CV.
+              Grava na hora (botões próprios), independente de "Publicar".
+            */}
+            <Text style={styles.sectionTitle}>Integrações</Text>
+            {editingId ? (
+              <IntegracaoCv companyId={editingId} empresa={editing?.name ?? name} />
+            ) : (
+              <Text style={styles.hint}>Crie a construtora primeiro para integrar o CV dela.</Text>
             )}
 
             <View style={styles.formActions}>

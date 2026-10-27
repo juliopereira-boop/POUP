@@ -1030,14 +1030,49 @@ export interface LeituraDoCv {
   erro: string | null;
 }
 
+/**
+ * A conta do CV de UMA construtora (`cvcrm_integracao`). Cada empresa tem a
+ * sua; só o admin do POUP configura. O token nunca vem: só se existe.
+ */
+export interface IntegracaoCv {
+  companyId: string;
+  url: string | null;
+  email: string | null;
+  temToken: boolean;
+  ativo: boolean;
+  /** pendente: ainda sem credencial · ok: o CV aceitou · erro: a última leitura falhou. */
+  situacao: 'pendente' | 'ok' | 'erro';
+  ultimoTesteEm: string | null;
+  ultimoErro: string | null;
+  ultimoErroEm: string | null;
+  ultimaLeveEm: string | null;
+  /** Reserva de unidade pelo POUP — em preparação (docs/CVCRM_RESERVA.md). */
+  reservaHabilitada: boolean;
+  /** Empreendimentos do POUP ligados a esta conta. */
+  empreendimentos: number;
+}
+
+/** O que o admin digita para integrar (ou testar) uma conta do CV. */
+export interface ContaDoCv {
+  /** "https://suaconta.cvcrm.com.br" (aceita só o domínio, ou com /api/v1). */
+  url: string;
+  /** E-mail do usuário de integração no CV. */
+  email: string;
+  /** Vazio = mantém o token já salvo (só troca url/e-mail). */
+  token: string;
+}
+
 /** O painel do admin (`cvcrm_painel`). */
 export interface PainelCv {
+  integracoes: (IntegracaoCv & { empresa: string })[];
   empreendimentos: {
     cvEmpreendimento: number;
     cvEtapa: number | null;
     nomeNoCv: string | null;
     etapaNoCv: string | null;
     ativo: boolean;
+    /** A construtora — dona do empreendimento e da conta do CV. */
+    companyId: string;
     developmentId: string;
     empreendimento: string;
     ultimoLeveEm: string | null;

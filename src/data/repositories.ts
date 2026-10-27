@@ -3,9 +3,11 @@ import type { Escopo, LinhaDoRanking, Periodo, SituacaoDaVenda } from '@/feature
 import type {
   ArquivoDaTabela,
   ConferenciaCv,
+  ContaDoCv,
   Disponibilidade,
   DisponibilidadeDaUnidade,
   EmpreendimentoDoCv,
+  IntegracaoCv,
   PainelCv,
   PreviaDoCv,
   SituacaoDaUnidade,
@@ -265,9 +267,22 @@ export interface DisponibilidadeRepository {
   /** Confere UMA unidade no CV agora — antes de fechar a proposta. */
   conferir(unitId: string): Promise<Result<{ situacao: SituacaoDaUnidade; statusDescricao: string | null }>>;
 
-  // ---- admin
-  empreendimentosDoCv(): Promise<Result<EmpreendimentoDoCv[]>>;
-  previa(cvEmpreendimento: number): Promise<Result<PreviaDoCv>>;
+  // ---- admin: a conta do CV de cada construtora ("Integrar CV")
+  /** `null` = a empresa nunca foi integrada. */
+  integracao(companyId: string): Promise<Result<IntegracaoCv | null>>;
+  /**
+   * Testa no CV sem gravar. Sem url/e-mail/token, testa a conta já salva.
+   * Devolve quantos empreendimentos a conta enxerga.
+   */
+  testarIntegracao(companyId: string, conta?: ContaDoCv): Promise<Result<{ empreendimentos: number | null }>>;
+  /** Testa e, só se o CV aceitar, grava. Token vazio = mantém o salvo. */
+  salvarIntegracao(companyId: string, conta: ContaDoCv): Promise<Result<{ empreendimentos: number | null }>>;
+  /** Apaga o token e desliga: os empreendimentos da empresa perdem a cor. */
+  removerIntegracao(companyId: string): Promise<Result<void>>;
+
+  // ---- admin: empreendimentos e vínculos
+  empreendimentosDoCv(companyId: string): Promise<Result<EmpreendimentoDoCv[]>>;
+  previa(companyId: string, cvEmpreendimento: number): Promise<Result<PreviaDoCv>>;
   atualizarAgora(developmentId: string): Promise<Result<void>>;
   painel(): Promise<Result<PainelCv>>;
   conferencia(developmentId: string): Promise<Result<ConferenciaCv>>;

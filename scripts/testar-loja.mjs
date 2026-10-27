@@ -244,6 +244,8 @@ function secao(t) {
     'app/(app)/admin/cvcrm.tsx',
     'app/(app)/admin/cvcrm-empreendimento.tsx',
     'src/components/cvcrm/ImportarDoCv.tsx',
+    'src/components/cvcrm/IntegracaoCv.tsx',
+    'app/(app)/admin/catalogo.tsx',
     'src/data/supabase/SupabaseDisponibilidadeRepository.ts',
   ];
   for (const arquivo of COMPARTILHADOS) {

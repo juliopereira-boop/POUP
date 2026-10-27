@@ -6,8 +6,11 @@
  *
  *   • a etapa (módulo), quando o CV junta mais de um no mesmo empreendimento
  *     (o "VILLAGE RESERVA II" do CV tem o Módulo I e o Módulo II);
- *   • criar um empreendimento NOVO no catálogo (construtora, nome, UF), ou
- *     usar um que JÁ EXISTE (ex.: o Village Connect I).
+ *   • criar um empreendimento NOVO no catálogo (nome, UF), ou usar um que JÁ
+ *     EXISTE (ex.: o Village Connect I).
+ *
+ * A construtora é sempre a dona da conta do CV: cada construtora tem a sua,
+ * e o empreendimento do POUP só pode ler o CV da própria construtora.
  *
  * "Importar" faz o resto (`features/disponibilidade/importarDoCv.ts`). O CV
  * só é LIDO: nada desta tela escreve no CV. O preço continua o da tabela de
@@ -20,7 +23,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Segmento } from '@/components/Segmento';
 import { Select } from '@/components/Select';
-import { db, type Company, type Development, type EmpreendimentoDoCv, type PreviaDoCv } from '@/data';
+import { db, type Development, type EmpreendimentoDoCv, type PreviaDoCv } from '@/data';
 import { blocosDoCv } from '@/features/disponibilidade/vinculo';
 import { importarDoCv, unidadesDaPrevia, type ResultadoDaImportacao } from '@/features/disponibilidade/importarDoCv';
 import { normalizar } from '@/features/tabelaPreco/chaves';
@@ -37,6 +40,9 @@ const mesmoNome = (a: string | null | undefined, b: string | null | undefined) =
   Boolean(a && b) && normalizar(a!).replace(/\s+/g, ' ').trim() === normalizar(b!).replace(/\s+/g, ' ').trim();
 
 interface Props {
+  /** A construtora dona da conta do CV (e do empreendimento que recebe). */
+  companyId: string;
+  empresa: string;
   empreendimento: EmpreendimentoDoCv;
   onFechar: () => void;
   /** Importou: a tela de cima recarrega e pode abrir a conferência. */
@@ -44,7 +50,7 @@ interface Props {
   onAbrirConferencia: (developmentId: string) => void;
 }
 
-export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConferencia }: Props) {
+export function ImportarDoCv({ companyId, empresa, empreendimento, onFechar, onImportou, onAbrirConferencia }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -53,12 +59,10 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
   const [erroPrevia, setErroPrevia] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
 
-  const [construtoras, setConstrutoras] = useState<Company[]>([]);
   const [empreendimentos, setEmpreendimentos] = useState<Development[]>([]);
 
   const [etapa, setEtapa] = useState<string>(TODAS);
   const [destino, setDestino] = useState<'novo' | 'existente'>('novo');
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [nome, setNome] = useState(empreendimento.nome ?? '');
   const [uf, setUf] = useState<string | null>(null);
   const [developmentId, setDevelopmentId] = useState<string | null>(null);
@@ -73,7 +77,7 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
     let vivo = true;
     setPrevia(null);
     setErroPrevia(null);
-    void db.disponibilidade.previa(empreendimento.id).then((r) => {
+    void db.disponibilidade.previa(companyId, empreendimento.id).then((r) => {
       if (!vivo) return;
       if (r.ok) setPrevia(r.data);
       else setErroPrevia(r.error);
@@ -81,16 +85,14 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
     return () => {
       vivo = false;
     };
-  }, [empreendimento.id, tentativa]);
+  }, [companyId, empreendimento.id, tentativa]);
 
-  // As construtoras e os empreendimentos do catálogo.
+  // Os empreendimentos da construtora (só os dela: a conta do CV é dela).
   useEffect(() => {
     let vivo = true;
     void (async () => {
-      const comps = await db.catalog.listCompanies();
-      const devs = (await Promise.all(comps.map((c) => db.catalog.listDevelopments(c.id)))).flat();
+      const devs = await db.catalog.listDevelopments(companyId);
       if (!vivo) return;
-      setConstrutoras(comps);
       setEmpreendimentos(devs);
       // Já existe um empreendimento com o nome do CV: sugere usar ele.
       const mesmo = devs.find((d) => mesmoNome(d.name, empreendimento.nome));
@@ -98,22 +100,16 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
         setDestino('existente');
         setDevelopmentId(mesmo.id);
       }
-      const canopus = comps.find((c) => /canopus/i.test(c.name)) ?? (comps.length === 1 ? comps[0] : undefined);
-      if (canopus) setCompanyId(canopus.id);
+      // A UF mais comum entre os empreendimentos da construtora.
+      const conta = new Map<string, number>();
+      for (const d of devs) if (d.uf) conta.set(d.uf, (conta.get(d.uf) ?? 0) + 1);
+      const mais = [...conta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+      if (mais) setUf((atual) => atual ?? mais);
     })();
     return () => {
       vivo = false;
     };
-  }, [empreendimento.nome]);
-
-  // A UF mais comum entre os empreendimentos da construtora escolhida.
-  useEffect(() => {
-    if (!companyId) return;
-    const conta = new Map<string, number>();
-    for (const d of empreendimentos) if (d.companyId === companyId && d.uf) conta.set(d.uf, (conta.get(d.uf) ?? 0) + 1);
-    const mais = [...conta.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    if (mais) setUf((atual) => atual ?? mais);
-  }, [companyId, empreendimentos]);
+  }, [companyId, empreendimento.nome]);
 
   const etapaEscolhida = etapa === TODAS ? null : Number(etapa);
   const unidades = useMemo(() => (previa ? unidadesDaPrevia(previa, etapaEscolhida) : []), [previa, etapaEscolhida]);
@@ -123,8 +119,8 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
   async function importar() {
     if (!user || !previa) return;
     setErro(null);
-    if (destino === 'novo' && (!companyId || !nome.trim())) {
-      setErro('Escolha a construtora e dê um nome ao empreendimento.');
+    if (destino === 'novo' && !nome.trim()) {
+      setErro('Dê um nome ao empreendimento.');
       return;
     }
     if (destino === 'existente' && !developmentId) {
@@ -150,7 +146,7 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
         dataEntrega: empreendimento.dataEntrega,
         destino:
           destino === 'novo'
-            ? { tipo: 'novo', companyId: companyId!, nome: nome.trim(), uf }
+            ? { tipo: 'novo', companyId, nome: nome.trim(), uf }
             : { tipo: 'existente', developmentId: developmentId! },
       },
       {
@@ -288,16 +284,9 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
             onMudar={setDestino}
           />
           <View style={styles.campos}>
+            <Text style={styles.dica}>Construtora: {empresa} (a dona desta conta do CV).</Text>
             {destino === 'novo' ? (
               <>
-                <Select
-                  label="Construtora (catálogo)"
-                  placeholder="Escolha a construtora"
-                  value={companyId}
-                  options={construtoras.map((c) => ({ value: c.id, label: c.name }))}
-                  onChange={setCompanyId}
-                  emptyHint="Cadastre a construtora no Catálogo do sistema."
-                />
                 <Input label="Nome do empreendimento" value={nome} onChangeText={setNome} placeholder="Ex.: Village Connect I" />
                 <Select
                   label="Estado (UF)"
@@ -313,13 +302,10 @@ export function ImportarDoCv({ empreendimento, onFechar, onImportou, onAbrirConf
                 label="Empreendimento"
                 placeholder="Escolha o empreendimento"
                 value={developmentId}
-                options={empreendimentos.map((d) => ({
-                  value: d.id,
-                  label: `${d.name}${d.companyName ? ` · ${d.companyName}` : ''}`,
-                }))}
+                options={empreendimentos.map((d) => ({ value: d.id, label: d.name }))}
                 onChange={setDevelopmentId}
                 searchable
-                emptyHint="Nenhum empreendimento no catálogo."
+                emptyHint={`${empresa} ainda não tem empreendimento no catálogo.`}
               />
             )}
           </View>

@@ -1,11 +1,15 @@
 /**
  * DISPONIBILIDADE DAS UNIDADES, VINDA DO CV CRM — E O VÍNCULO DO ADMIN.
  *
+ * Cada construtora tem a SUA conta do CV (url, e-mail e token). O admin do
+ * POUP integra no cadastro da empresa; o token vai direto para o Vault pela
+ * Edge Function e nunca volta para o aplicativo.
+ *
  * O POUP só LÊ o CV. Quem fala com ele são as Edge Functions
- * `cvcrm-disponibilidade` (o app: empreendimentos, prévia, atualizar,
- * conferir) e `cvcrm-disponibilidade-sync` (o cron), só com GET numa lista
- * fechada de caminhos (`scripts/testar-cvcrm-somente-leitura.mjs`). Daqui
- * saem só RPCs do banco e chamadas a essas funções.
+ * `cvcrm-disponibilidade` (o app: integração, empreendimentos, prévia,
+ * atualizar, conferir) e `cvcrm-disponibilidade-sync` (o cron), só com GET
+ * numa lista fechada de caminhos (`scripts/testar-cvcrm-somente-leitura.mjs`).
+ * Daqui saem só RPCs do banco e chamadas a essas funções.
  *
  * Sem a migration `20261026120000_disponibilidade_cvcrm.sql`, a leitura do
  * corretor devolve "sem disponibilidade" em silêncio: a grade fica exatamente
@@ -17,9 +21,11 @@ import type { Json } from '../database.types';
 import type { DisponibilidadeRepository } from '../repositories';
 import {
   type ConferenciaCv,
+  type ContaDoCv,
   type Disponibilidade,
   type DisponibilidadeDaUnidade,
   type EmpreendimentoDoCv,
+  type IntegracaoCv,
   type PainelCv,
   type PreviaDoCv,
   type Result,
@@ -48,6 +54,11 @@ const MIGRACAO_PENDENTE =
 /** As RPCs falam por código; a frase pertence ao aplicativo. */
 const MENSAGENS: Record<string, string> = {
   sem_permissao: 'Só o administrador do POUP vincula o CV.',
+  sem_integracao: 'Esta construtora ainda não tem o CV integrado. Integre no Catálogo do sistema, no cadastro da construtora.',
+  url_invalida: 'Endereço do CV inválido. Use o endereço da conta da construtora no CV.',
+  email_invalido: 'Informe o e-mail do usuário de integração do CV.',
+  token_obrigatorio: 'Informe o token do usuário de integração do CV.',
+  empresa_invalida: 'Construtora não encontrada.',
   empreendimento_invalido: 'Empreendimento do CV inválido.',
   empreendimento_de_outro: 'Este empreendimento (ou etapa) do CV já está vinculado a outro empreendimento do POUP.',
   vinculo_invalido: 'Alguma unidade não é deste empreendimento ou não é do CV vinculado a ele. Atualize a conferência.',
@@ -88,6 +99,33 @@ function unidadeDoCv(u: Record<string, unknown>): UnidadeDoCv {
     identificador: texto(u.identificador),
     situacao: texto(u.situacao),
   };
+}
+
+const SITUACOES_DA_CONTA: IntegracaoCv['situacao'][] = ['pendente', 'ok', 'erro'];
+
+function integracaoCv(i: Record<string, unknown>): IntegracaoCv {
+  return {
+    companyId: String(i.companyId ?? ''),
+    url: texto(i.url),
+    email: texto(i.email),
+    temToken: Boolean(i.temToken),
+    ativo: Boolean(i.ativo),
+    situacao: SITUACOES_DA_CONTA.includes(i.situacao as IntegracaoCv['situacao'])
+      ? (i.situacao as IntegracaoCv['situacao'])
+      : 'pendente',
+    ultimoTesteEm: texto(i.ultimoTesteEm),
+    ultimoErro: texto(i.ultimoErro),
+    ultimoErroEm: texto(i.ultimoErroEm),
+    ultimaLeveEm: texto(i.ultimaLeveEm),
+    reservaHabilitada: Boolean(i.reservaHabilitada),
+    empreendimentos: Number(i.empreendimentos ?? 0),
+  };
+}
+
+/** O token só vai se foi digitado: vazio = a função mantém o que está no Vault. */
+function corpoDaConta(c: ContaDoCv): Record<string, string> {
+  const token = c.token.trim();
+  return { url: c.url.trim(), email: c.email.trim(), ...(token ? { token } : {}) };
 }
 
 /** Um canal por tela: dois ganchos no mesmo empreendimento não brigam pelo mesmo nome. */
@@ -171,11 +209,40 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     return ok({ situacao: situacao(r.data?.situacao), statusDescricao: r.data?.status_descricao ?? null });
   }
 
-  // ------------------------------------------------------------ admin
+  // ------------------------------------------------------------ admin: a conta do CV
 
-  async empreendimentosDoCv(): Promise<Result<EmpreendimentoDoCv[]>> {
+  async integracao(companyId: string): Promise<Result<IntegracaoCv | null>> {
+    const { data, error } = await supabase.rpc('cvcrm_integracao', { p_company: companyId });
+    if (error) return err(traduzir(error, 'Não foi possível ler a integração com o CV.'));
+    return ok(data ? integracaoCv(data as Record<string, unknown>) : null);
+  }
+
+  async testarIntegracao(companyId: string, conta?: ContaDoCv): Promise<Result<{ empreendimentos: number | null }>> {
+    const r = await invocar<{ empreendimentos?: number | null }>(
+      { acao: 'integracao_testar', companyId, ...(conta ? corpoDaConta(conta) : {}) },
+      'Não foi possível testar a conta no CV.',
+    );
+    return r.ok ? ok({ empreendimentos: numero(r.data?.empreendimentos) }) : r;
+  }
+
+  async salvarIntegracao(companyId: string, conta: ContaDoCv): Promise<Result<{ empreendimentos: number | null }>> {
+    const r = await invocar<{ empreendimentos?: number | null }>(
+      { acao: 'integracao_salvar', companyId, ...corpoDaConta(conta) },
+      'Não foi possível integrar o CV.',
+    );
+    return r.ok ? ok({ empreendimentos: numero(r.data?.empreendimentos) }) : r;
+  }
+
+  async removerIntegracao(companyId: string): Promise<Result<void>> {
+    const { error } = await supabase.rpc('cvcrm_remover_integracao', { p_company: companyId });
+    return error ? err(traduzir(error, 'Não foi possível desligar a integração com o CV.')) : ok(undefined);
+  }
+
+  // ------------------------------------------------------------ admin: empreendimentos
+
+  async empreendimentosDoCv(companyId: string): Promise<Result<EmpreendimentoDoCv[]>> {
     const r = await invocar<{ empreendimentos?: Record<string, unknown>[] }>(
-      { acao: 'empreendimentos' },
+      { acao: 'empreendimentos', companyId },
       'Não foi possível consultar o CV.',
     );
     if (!r.ok) return r;
@@ -191,9 +258,9 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     );
   }
 
-  async previa(cvEmpreendimento: number): Promise<Result<PreviaDoCv>> {
+  async previa(companyId: string, cvEmpreendimento: number): Promise<Result<PreviaDoCv>> {
     const r = await invocar<Record<string, unknown>>(
-      { acao: 'previa', cvEmpreendimento },
+      { acao: 'previa', companyId, cvEmpreendimento },
       'Não foi possível ler o empreendimento no CV.',
     );
     if (!r.ok) return r;
@@ -221,7 +288,15 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
   async painel(): Promise<Result<PainelCv>> {
     const { data, error } = await supabase.rpc('cvcrm_painel');
     if (error) return err(traduzir(error, 'Não foi possível abrir o painel do CV.'));
-    return ok(data as unknown as PainelCv);
+    const p = (data ?? {}) as Record<string, unknown>;
+    return ok({
+      ...(p as unknown as PainelCv),
+      integracoes: ((p.integracoes as Record<string, unknown>[]) ?? []).map((i) => ({
+        ...integracaoCv(i),
+        empresa: String(i.empresa ?? ''),
+      })),
+      empreendimentos: (p.empreendimentos as PainelCv['empreendimentos']) ?? [],
+    });
   }
 
   async conferencia(developmentId: string): Promise<Result<ConferenciaCv>> {

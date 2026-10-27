@@ -1443,6 +1443,15 @@ export interface Database {
         Args: { p_chave: string; p_situacao: string };
         Returns: undefined;
       };
+      /** A conta do CV de cada construtora (20261026180000). Só o admin; o token nunca volta. */
+      cvcrm_integracao: {
+        Args: { p_company: string };
+        Returns: Json;
+      };
+      cvcrm_remover_integracao: {
+        Args: { p_company: string };
+        Returns: undefined;
+      };
       /** `p_tabela` nulo apaga a tabela. */
       salvar_tabela_de_preco: {
         Args: { p_development: string; p_tabela: Json | null };

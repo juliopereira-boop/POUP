@@ -27,8 +27,8 @@
 -- só LIDO.
 --
 -- DEPENDE DE: 20261026120000_disponibilidade_cvcrm.sql.
--- MIGRATION IDEMPOTENTE. Tem `drop` de restrição, índice e função antigos
--- (troca da chave do espelho); nenhum dado é apagado.
+-- MIGRATION IDEMPOTENTE, e sem remover nada: a troca da chave do espelho é
+-- feita com tabelas novas (as de antes ficam como `_antiga`, sem uso).
 -- ===========================================================================
 
 
@@ -72,85 +72,180 @@ grant all on public.cvcrm_integracoes to service_role;
 -- ---------------------------------------------------------------------------
 -- 2. AS CHAVES DO CV PASSAM A SER POR CONTA
 -- ---------------------------------------------------------------------------
-
-alter table public.development_cvcrm_empreendimentos
-  add column if not exists integracao_id uuid references public.cvcrm_integracoes(id) on delete cascade;
-alter table public.cvcrm_unidades
-  add column if not exists integracao_id uuid references public.cvcrm_integracoes(id) on delete cascade;
-alter table public.development_unit_cvcrm
-  add column if not exists integracao_id uuid references public.cvcrm_integracoes(id) on delete cascade;
-
--- O que já existe ganha a integração da empresa dona (pendente).
-insert into public.cvcrm_integracoes (company_id)
-select distinct d.company_id
-  from public.development_cvcrm_empreendimentos e
-  join public.developments d on d.id = e.development_id
- where e.integracao_id is null
-on conflict (company_id) do nothing;
-
-update public.development_cvcrm_empreendimentos e
-   set integracao_id = i.id
-  from public.developments d
-  join public.cvcrm_integracoes i on i.company_id = d.company_id
- where d.id = e.development_id and e.integracao_id is null;
-
-update public.cvcrm_unidades u
-   set integracao_id = (
-         select e.integracao_id from public.development_cvcrm_empreendimentos e
-          where e.cv_empreendimento = u.cv_empreendimento
-          order by e.ativo desc
-          limit 1)
- where u.integracao_id is null;
-
-update public.development_unit_cvcrm l
-   set integracao_id = i.id
-  from public.developments d
-  join public.cvcrm_integracoes i on i.company_id = d.company_id
- where d.id = l.development_id and l.integracao_id is null;
+-- Trocar a chave de uma tabela pede remover a restrição antiga, e esta
+-- migration não remove nada. Em vez disso, as três tabelas do CV são feitas
+-- de novo já com a chave por conta, os dados são copiados, e as de antes
+-- ficam com o sufixo `_antiga`: sem uso e sem acesso, até a limpeza (que só
+-- acontece com a confirmação do dono do POUP). Roda uma vez só: se o espelho
+-- já tem `integracao_id`, pula.
+--
+-- O que já existe (os 8 empreendimentos da Canopus) ganha a integração da
+-- empresa dona, PENDENTE. Unidade do espelho que não é de empreendimento
+-- vinculado (uma prévia que não virou importação) não é copiada: a próxima
+-- prévia lê de novo.
 
 do $$
 begin
-  if exists (select 1 from public.cvcrm_unidades where integracao_id is null) then
-    raise exception 'Há unidades no espelho do CV sem empreendimento vinculado: não dá para saber de que conta elas são.';
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'cvcrm_unidades' and column_name = 'integracao_id') then
+    return;
   end if;
-  if exists (select 1 from public.development_unit_cvcrm where integracao_id is null)
-     or exists (select 1 from public.development_cvcrm_empreendimentos where integracao_id is null) then
-    raise exception 'Há vínculo do CV sem a integração da empresa dona.';
-  end if;
+
+  insert into public.cvcrm_integracoes (company_id)
+  select distinct d.company_id
+    from public.development_cvcrm_empreendimentos e
+    join public.developments d on d.id = e.development_id
+  on conflict (company_id) do nothing;
+
+  create table public.development_cvcrm_empreendimentos_nova (
+    id uuid primary key default gen_random_uuid(),
+    integracao_id uuid not null references public.cvcrm_integracoes(id) on delete cascade,
+    development_id uuid not null references public.developments(id) on delete cascade,
+    cv_empreendimento integer not null check (cv_empreendimento > 0),
+    cv_etapa integer check (cv_etapa is null or cv_etapa > 0),
+    nome_no_cv text,
+    etapa_no_cv text,
+    ativo boolean not null default true,
+    ultimo_leve_em timestamptz,
+    ultimo_completo_em timestamptz,
+    ultimo_erro text,
+    ultimo_erro_em timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+  );
+  insert into public.development_cvcrm_empreendimentos_nova
+    (id, integracao_id, development_id, cv_empreendimento, cv_etapa, nome_no_cv, etapa_no_cv, ativo,
+     ultimo_leve_em, ultimo_completo_em, ultimo_erro, ultimo_erro_em, created_at, updated_at)
+  select e.id, i.id, e.development_id, e.cv_empreendimento, e.cv_etapa, e.nome_no_cv, e.etapa_no_cv, e.ativo,
+         e.ultimo_leve_em, e.ultimo_completo_em, e.ultimo_erro, e.ultimo_erro_em, e.created_at, e.updated_at
+    from public.development_cvcrm_empreendimentos e
+    join public.developments d on d.id = e.development_id
+    join public.cvcrm_integracoes i on i.company_id = d.company_id;
+
+  create table public.cvcrm_unidades_nova (
+    integracao_id uuid not null references public.cvcrm_integracoes(id) on delete cascade,
+    cv_unidade integer not null check (cv_unidade > 0),
+    cv_empreendimento integer not null,
+    cv_etapa integer,
+    cv_bloco integer,
+    bloco text,
+    unidade text,
+    identificador text,
+    situacao_chave text,
+    situacao_descricao text,
+    status_mudou_em timestamptz not null default now(),
+    ausente_desde timestamptz,
+    atualizado_em timestamptz not null default now(),
+    conferido_em timestamptz,
+    constraint cvcrm_unidades_por_conta_pkey primary key (integracao_id, cv_unidade)
+  );
+  insert into public.cvcrm_unidades_nova
+    (integracao_id, cv_unidade, cv_empreendimento, cv_etapa, cv_bloco, bloco, unidade, identificador,
+     situacao_chave, situacao_descricao, status_mudou_em, ausente_desde, atualizado_em, conferido_em)
+  select x.integracao_id, u.cv_unidade, u.cv_empreendimento, u.cv_etapa, u.cv_bloco, u.bloco, u.unidade, u.identificador,
+         u.situacao_chave, u.situacao_descricao, u.status_mudou_em, u.ausente_desde, u.atualizado_em, u.conferido_em
+    from public.cvcrm_unidades u
+    join lateral (
+      select e.integracao_id from public.development_cvcrm_empreendimentos_nova e
+       where e.cv_empreendimento = u.cv_empreendimento
+       order by e.ativo desc
+       limit 1) x on true;
+
+  create table public.development_unit_cvcrm_nova (
+    unit_id uuid primary key references public.development_units(id) on delete cascade,
+    development_id uuid not null references public.developments(id) on delete cascade,
+    integracao_id uuid not null references public.cvcrm_integracoes(id) on delete cascade,
+    -- Nula = desvinculada (a linha fica, com o histórico).
+    cv_unidade integer,
+    identificador_no_vinculo text,
+    origem text not null check (origem in ('automatico', 'manual', 'criado_do_cv')),
+    vinculado_por uuid,
+    vinculado_em timestamptz not null default now(),
+    constraint development_unit_cvcrm_por_conta_fkey
+      foreign key (integracao_id, cv_unidade) references public.cvcrm_unidades_nova (integracao_id, cv_unidade)
+  );
+  insert into public.development_unit_cvcrm_nova
+    (unit_id, development_id, integracao_id, cv_unidade, identificador_no_vinculo, origem, vinculado_por, vinculado_em)
+  select l.unit_id, l.development_id, i.id,
+         case when exists (select 1 from public.cvcrm_unidades_nova n
+                            where n.integracao_id = i.id and n.cv_unidade = l.cv_unidade)
+              then l.cv_unidade end,
+         l.identificador_no_vinculo, l.origem, l.vinculado_por, l.vinculado_em
+    from public.development_unit_cvcrm l
+    join public.developments d on d.id = l.development_id
+    join public.cvcrm_integracoes i on i.company_id = d.company_id;
+
+  -- A troca de nomes: as funções e as Edge Functions passam a ver as novas.
+  alter table public.development_unit_cvcrm rename to development_unit_cvcrm_antiga;
+  alter table public.cvcrm_unidades rename to cvcrm_unidades_antiga;
+  alter table public.development_cvcrm_empreendimentos rename to development_cvcrm_empreendimentos_antiga;
+  alter table public.development_cvcrm_empreendimentos_nova rename to development_cvcrm_empreendimentos;
+  alter table public.cvcrm_unidades_nova rename to cvcrm_unidades;
+  alter table public.development_unit_cvcrm_nova rename to development_unit_cvcrm;
+
+  -- As de antes: sem acesso, só esperando a limpeza.
+  revoke all on public.development_unit_cvcrm_antiga, public.cvcrm_unidades_antiga,
+    public.development_cvcrm_empreendimentos_antiga from public, anon, authenticated;
+  comment on table public.cvcrm_unidades_antiga is
+    'Antes de 20261026180000 (uma conta do CV só). Sem uso; sai na limpeza, com a confirmação do dono do POUP.';
+  comment on table public.development_unit_cvcrm_antiga is
+    'Antes de 20261026180000 (uma conta do CV só). Sem uso; sai na limpeza, com a confirmação do dono do POUP.';
+  comment on table public.development_cvcrm_empreendimentos_antiga is
+    'Antes de 20261026180000 (uma conta do CV só). Sem uso; sai na limpeza, com a confirmação do dono do POUP.';
 end $$;
 
-alter table public.development_cvcrm_empreendimentos alter column integracao_id set not null;
-alter table public.cvcrm_unidades alter column integracao_id set not null;
-alter table public.development_unit_cvcrm alter column integracao_id set not null;
+comment on table public.development_cvcrm_empreendimentos is
+  'Empreendimento (e etapa) do CV CRM de onde vem a disponibilidade de um empreendimento do POUP, na conta do CV da empresa dona. Escrita só pelas RPCs do admin.';
+comment on table public.cvcrm_unidades is
+  'Espelho das unidades do CV CRM (mapa de disponibilidade). Chave = (conta, idunidade do CV). Escrita só pelas RPCs de leitura (service role). Sem dado de cliente.';
 
--- A chave do espelho: (conta, unidade). O vínculo aponta para ela.
-alter table public.development_unit_cvcrm drop constraint if exists development_unit_cvcrm_cv_unidade_fkey;
-drop index if exists public.development_unit_cvcrm_unidade_unica;
-drop index if exists public.development_cvcrm_empreendimentos_unico;
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint c
-     where c.conrelid = 'public.cvcrm_unidades'::regclass and c.contype = 'p'
-       and array_length(c.conkey, 1) = 2
-  ) then
-    alter table public.cvcrm_unidades drop constraint if exists cvcrm_unidades_pkey;
-    alter table public.cvcrm_unidades add constraint cvcrm_unidades_pkey primary key (integracao_id, cv_unidade);
-  end if;
-  if not exists (select 1 from pg_constraint where conname = 'development_unit_cvcrm_unidade_fkey') then
-    alter table public.development_unit_cvcrm
-      add constraint development_unit_cvcrm_unidade_fkey
-      foreign key (integracao_id, cv_unidade) references public.cvcrm_unidades (integracao_id, cv_unidade);
-  end if;
-end $$;
-
-create unique index if not exists development_unit_cvcrm_unidade_unica_por_conta
-  on public.development_unit_cvcrm (integracao_id, cv_unidade) where cv_unidade is not null;
 create unique index if not exists development_cvcrm_empreendimentos_unico_por_conta
   on public.development_cvcrm_empreendimentos (integracao_id, cv_empreendimento, (coalesce(cv_etapa, 0)));
+create index if not exists development_cvcrm_empreendimentos_por_empreendimento_poup
+  on public.development_cvcrm_empreendimentos (development_id);
 create index if not exists cvcrm_unidades_por_conta_e_empreendimento
   on public.cvcrm_unidades (integracao_id, cv_empreendimento, cv_etapa);
+create unique index if not exists development_unit_cvcrm_unidade_unica_por_conta
+  on public.development_unit_cvcrm (integracao_id, cv_unidade) where cv_unidade is not null;
+create index if not exists development_unit_cvcrm_por_empreendimento_poup
+  on public.development_unit_cvcrm (development_id);
+
+-- RLS das tabelas novas: as mesmas regras de antes.
+alter table public.development_cvcrm_empreendimentos enable row level security;
+alter table public.cvcrm_unidades enable row level security;
+alter table public.development_unit_cvcrm enable row level security;
+
+revoke all on public.development_cvcrm_empreendimentos, public.cvcrm_unidades, public.development_unit_cvcrm
+  from public, anon, authenticated;
+grant all on public.development_cvcrm_empreendimentos, public.cvcrm_unidades, public.development_unit_cvcrm
+  to service_role;
+grant select on public.development_cvcrm_empreendimentos, public.cvcrm_unidades, public.development_unit_cvcrm
+  to authenticated;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public'
+                  and tablename = 'development_cvcrm_empreendimentos' and policyname = 'cvcrm_empreendimentos_select') then
+    create policy "cvcrm_empreendimentos_select" on public.development_cvcrm_empreendimentos
+      for select to authenticated using (public.pode_ler_empreendimento(development_id));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public'
+                  and tablename = 'cvcrm_unidades' and policyname = 'cvcrm_unidades_select_admin') then
+    create policy "cvcrm_unidades_select_admin" on public.cvcrm_unidades
+      for select to authenticated using (public.is_app_admin());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public'
+                  and tablename = 'development_unit_cvcrm' and policyname = 'unit_cvcrm_select_admin') then
+    create policy "unit_cvcrm_select_admin" on public.development_unit_cvcrm
+      for select to authenticated using (public.is_app_admin());
+  end if;
+end $$;
+
+-- O gatilho do espelho, na tabela nova (a função dele está na seção 4).
+create or replace trigger cvcrm_unidades_mudaram
+  after update on public.cvcrm_unidades
+  referencing old table as antigos new table as novos
+  for each statement execute function public.cvcrm_trg_unidades_mudaram();
 
 
 -- ---------------------------------------------------------------------------
@@ -441,9 +536,43 @@ revoke all on function public.cvcrm_trg_unidades_mudaram(), public.cvcrm_trg_sit
 -- 5. AS LEITURAS ENTRAM PELA CONTA
 -- ---------------------------------------------------------------------------
 
-drop function if exists public.cvcrm_aplicar_leitura(integer, integer, text, jsonb);
-drop function if exists public.cvcrm_aplicar_mudancas(jsonb);
-drop function if exists public.cvcrm_registrar_erro(integer, integer, text);
+-- As versões de uma conta só (sem a integração) ficam, mas recusam: quem
+-- ainda chamar por elas recebe erro, e nada é gravado sem a conta.
+create or replace function public.cvcrm_aplicar_leitura(
+  p_cv_empreendimento integer, p_cv_etapa integer, p_modo text, p_unidades jsonb)
+returns jsonb
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'obsoleta: use cvcrm_aplicar_leitura(p_integracao, ...)' using errcode = '22023';
+end;
+$$;
+
+create or replace function public.cvcrm_aplicar_mudancas(p_mudancas jsonb)
+returns jsonb
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'obsoleta: use cvcrm_aplicar_mudancas(p_integracao, ...)' using errcode = '22023';
+end;
+$$;
+
+create or replace function public.cvcrm_registrar_erro(p_cv_empreendimento integer, p_cv_etapa integer, p_erro text)
+returns void
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'obsoleta: use cvcrm_registrar_erro(p_integracao, ...)' using errcode = '22023';
+end;
+$$;
+
+revoke all on function public.cvcrm_aplicar_leitura(integer, integer, text, jsonb),
+  public.cvcrm_aplicar_mudancas(jsonb),
+  public.cvcrm_registrar_erro(integer, integer, text)
+  from public, anon, authenticated;
 
 -- O mapa de disponibilidade de um empreendimento (ou etapa) de UMA conta.
 --   'completo' — todas as unidades; quem não veio é marcado ausente.

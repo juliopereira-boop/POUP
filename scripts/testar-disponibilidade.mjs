@@ -506,6 +506,26 @@ secao('14. As ligações no aplicativo');
   checar('menu do admin leva ao CV', /router\.push\('\/\(app\)\/admin\/cvcrm'\)/.test(ler('app/(app)/configuracoes.tsx')));
   const env = ler('src/lib/env.ts');
   checar('nada do CV nem do UAU no ambiente do app (EXPO_PUBLIC)', !/CVCRM|UAU/i.test(env));
+
+  // Cada construtora com a SUA conta do CV ("Integrar CV", só o admin).
+  const catalogo = ler('app/(app)/admin/catalogo.tsx');
+  checar('"Integrar CV" no cadastro da construtora, só depois de ela existir', /\{editingId \? \(\s*<IntegracaoCv companyId=\{editingId\}/.test(catalogo));
+  checar('o catálogo continua só do admin', /if \(!isAdmin\) \{/.test(catalogo));
+  const integrar = ler('src/components/cvcrm/IntegracaoCv.tsx');
+  checar('o token é digitado escondido', /label="Token"[\s\S]{0,400}secureTextEntry/.test(integrar));
+  checar('o token nunca é mostrado (só "token guardado")', !/integracao\??\.token\b/.test(integrar) && /token guardado no servidor/.test(integrar));
+  checar('desligar pede confirmação', /await confirmar\(\s*'Desligar o CV'/.test(integrar));
+  // Fora de `corpoDaConta` (o que o admin digitou, indo para a função), nenhum `.token`.
+  const repoSemOCorpo = repo.replace(/function corpoDaConta[\s\S]*?\n}\n/, '');
+  checar('o repositório não lê token de volta', repoSemOCorpo !== repo && !/\.token\b/.test(repoSemOCorpo));
+  checar('a prévia e a lista usam a conta da construtora', /acao: 'previa', companyId/.test(repo) && /acao: 'empreendimentos', companyId/.test(repo));
+  const importar = ler('src/components/cvcrm/ImportarDoCv.tsx');
+  checar('importar: prévia da conta da construtora', /previa\(companyId, empreendimento\.id\)/.test(importar));
+  checar('importar: só empreendimentos da construtora dona da conta', /listDevelopments\(companyId\)/.test(importar) && !/listCompanies/.test(importar));
+  checar('importar: nada de construtora adivinhada pelo nome', !/canopus/i.test(importar));
+  const painelCv = ler('app/(app)/admin/cvcrm.tsx');
+  checar('painel: o número do CV só vale dentro da conta', /if \(e\.companyId !== empresaId\) continue;/.test(painelCv));
+  checar('painel: importa só de conta conectada', /empreendimentosDoCv\(empresaId\)/.test(painelCv));
 }
 
 console.log(`\n${ok} verificações ok, ${falhas.length} falha(s).`);

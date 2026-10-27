@@ -1,14 +1,18 @@
 /**
  * DISPONIBILIDADE DO CV — O PAINEL DO ADMIN.
  *
- *   1. Os empreendimentos do CV já vinculados a empreendimentos do POUP, com a
- *      saúde da leitura (última leve/completa, erro) — toque para conferir
- *      unidade a unidade ou ler agora.
+ * Cada construtora tem a SUA conta do CV, integrada no cadastro dela
+ * (Catálogo do sistema › construtora › Integrar CV). Aqui:
+ *
+ *   1. As construtoras com o CV integrado e a saúde de cada conta.
  *   2. As duas leituras automáticas (a leve, de minuto em minuto, e a
  *      completa, de 30 em 30 min): quando rodaram e se deu certo.
- *   3. Situações do CV que ainda não têm cor (nova no CV): classificar.
- *   4. Importar do CV: busca os empreendimentos que existem no CV; tocar num
- *      abre a prévia e cadastra empreendimento, blocos, unidades e vínculos.
+ *   3. Os empreendimentos do CV já vinculados a empreendimentos do POUP —
+ *      toque para conferir unidade a unidade ou ler agora.
+ *   4. Situações do CV que ainda não têm cor (nova no CV): classificar.
+ *   5. Importar do CV: escolhe a construtora, busca os empreendimentos que
+ *      existem na conta dela; tocar num abre a prévia e cadastra
+ *      empreendimento, blocos, unidades e vínculos.
  *
  * O POUP só LÊ o CV. Nenhuma ação desta tela altera o CV.
  */
@@ -20,6 +24,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { LoadingScreen } from '@/components/Loading';
 import { Screen } from '@/components/Screen';
+import { Select } from '@/components/Select';
 import { ImportarDoCv } from '@/components/cvcrm/ImportarDoCv';
 import { db, type EmpreendimentoDoCv, type LeituraDoCv, type PainelCv, type SituacaoDaUnidade } from '@/data';
 import { useIsAdmin } from '@/features/admin';
@@ -34,6 +39,7 @@ const CLASSES: { valor: Exclude<SituacaoDaUnidade, 'sem_vinculo'>; rotulo: strin
   { valor: 'indisponivel', rotulo: 'Cinza' },
 ];
 const COR: Record<string, string> = { disponivel: 'verde', negociacao: 'amarelo', vendida: 'vermelho', indisponivel: 'cinza' };
+const CONTA: Record<string, string> = { ok: 'Conectado', erro: 'Com erro', pendente: 'Não integrado' };
 
 export default function AdminCvcrmScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -43,6 +49,8 @@ export default function AdminCvcrmScreen() {
 
   const [painel, setPainel] = useState<PainelCv | null>(null);
   const [erroPainel, setErroPainel] = useState<string | null>(null);
+  /** A construtora (a conta do CV) de onde se importa. */
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [lista, setLista] = useState<EmpreendimentoDoCv[] | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [erroLista, setErroLista] = useState<string | null>(null);
@@ -63,17 +71,51 @@ export default function AdminCvcrmScreen() {
     if (isAdmin) void carregar();
   }, [isAdmin, carregar]);
 
-  /** Empreendimento do CV → os vínculos dele (um por etapa, ou um só para o CV inteiro). */
+  /** As contas que leem o CV (com credencial). Só delas se importa. */
+  const ligadas = useMemo(
+    () => (painel?.integracoes ?? []).filter((i) => i.ativo && i.temToken && i.situacao !== 'pendente'),
+    [painel],
+  );
+  const nomeDaEmpresa = useMemo(
+    () => new Map((painel?.integracoes ?? []).map((i) => [i.companyId, i.empresa])),
+    [painel],
+  );
+  const empresa = ligadas.find((i) => i.companyId === empresaId) ?? null;
+
+  // Uma conta só: já vem escolhida.
+  useEffect(() => {
+    if (!empresaId && ligadas.length === 1) setEmpresaId(ligadas[0].companyId);
+  }, [ligadas, empresaId]);
+
+  /**
+   * Empreendimento do CV DA CONTA ESCOLHIDA → os vínculos dele (um por etapa,
+   * ou um só para o CV inteiro). O número do CV só vale dentro da conta: o 63
+   * de uma construtora não é o 63 de outra.
+   */
   const vinculados = useMemo(() => {
     const m = new Map<number, PainelCv['empreendimentos']>();
-    for (const e of painel?.empreendimentos ?? []) m.set(e.cvEmpreendimento, [...(m.get(e.cvEmpreendimento) ?? []), e]);
+    for (const e of painel?.empreendimentos ?? []) {
+      if (e.companyId !== empresaId) continue;
+      m.set(e.cvEmpreendimento, [...(m.get(e.cvEmpreendimento) ?? []), e]);
+    }
     return m;
-  }, [painel]);
+  }, [painel, empresaId]);
+
+  function escolherEmpresa(id: string | null) {
+    setEmpresaId(id);
+    setLista(null);
+    setErroLista(null);
+    setImportando(null);
+  }
 
   async function buscar() {
+    if (!empresaId) {
+      setErroLista('Escolha a construtora.');
+      return;
+    }
     setBuscando(true);
     setErroLista(null);
-    const r = await db.disponibilidade.empreendimentosDoCv();
+    const r = await db.disponibilidade.empreendimentosDoCv(empresaId);
     setBuscando(false);
     if (!r.ok) {
       setErroLista(r.error);
@@ -95,6 +137,10 @@ export default function AdminCvcrmScreen() {
   }
 
   function abrirManual() {
+    if (!empresaId) {
+      setErroLista('Escolha a construtora.');
+      return;
+    }
     const id = Number(idManual.trim());
     if (!Number.isInteger(id) || id <= 0) {
       setErroLista('Informe o número do empreendimento no CV (o que aparece no endereço do mapa de disponibilidade).');
@@ -139,8 +185,10 @@ export default function AdminCvcrmScreen() {
 
       {erroPainel ? <Text style={styles.erro}>{erroPainel}</Text> : null}
 
-      {importando ? (
+      {importando && empresa ? (
         <ImportarDoCv
+          companyId={empresa.companyId}
+          empresa={empresa.empresa}
           empreendimento={importando}
           onFechar={() => setImportando(null)}
           onImportou={() => void carregar()}
@@ -150,6 +198,38 @@ export default function AdminCvcrmScreen() {
           }}
         />
       ) : null}
+
+      <Text style={styles.secao}>Construtoras com o CV</Text>
+      {!painel ? null : painel.integracoes.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.texto}>
+            Nenhuma construtora com o CV integrado. Cada construtora integra a sua conta no cadastro dela.
+          </Text>
+          <Button label="Abrir o Catálogo do sistema" variant="secondary" onPress={() => router.push('/(app)/admin/catalogo')} />
+        </View>
+      ) : (
+        painel.integracoes.map((i) => {
+          const leitura = haQuanto(i.ultimaLeveEm, agora);
+          return (
+            <View key={i.companyId} style={styles.card}>
+              <Text style={styles.itemNome}>
+                {i.empresa} · {CONTA[i.situacao] ?? i.situacao}
+              </Text>
+              <Text style={styles.itemMeta}>
+                {i.url ?? 'sem conta'}
+                {i.empreendimentos ? ` · ${i.empreendimentos} empreendimentos` : ''}
+                {leitura ? ` · última leitura ${leitura}` : ''}
+              </Text>
+              {i.situacao === 'erro' && i.ultimoErro ? (
+                <Text style={styles.itemErro}>Erro: {i.ultimoErro.slice(0, 200)}</Text>
+              ) : null}
+              {i.situacao === 'pendente' ? (
+                <Text style={styles.itemMeta}>Integre no cadastro da construtora (Catálogo do sistema).</Text>
+              ) : null}
+            </View>
+          );
+        })
+      )}
 
       <Text style={styles.secao}>Leitura automática</Text>
       {painel ? (
@@ -169,7 +249,7 @@ export default function AdminCvcrmScreen() {
           const leitura = haQuanto([e.ultimoLeveEm, e.ultimoCompletoEm].filter(Boolean).sort().pop() ?? null, agora);
           return (
             <Pressable
-              key={`${e.cvEmpreendimento}/${e.cvEtapa ?? ''}`}
+              key={`${e.companyId}/${e.cvEmpreendimento}/${e.cvEtapa ?? ''}`}
               onPress={() => abrir(e.developmentId)}
               style={({ pressed }) => [styles.item, pressed && styles.pressionado]}
               accessibilityRole="button"
@@ -177,7 +257,7 @@ export default function AdminCvcrmScreen() {
               <View style={styles.flex1}>
                 <Text style={styles.itemNome}>{e.empreendimento}</Text>
                 <Text style={styles.itemMeta}>
-                  CV {e.cvEmpreendimento}
+                  {nomeDaEmpresa.get(e.companyId) ?? 'Construtora'} · CV {e.cvEmpreendimento}
                   {e.etapaNoCv ? ` · ${e.etapaNoCv}` : ''} · {e.vinculadas} de {e.noCv} unidades vinculadas
                 </Text>
                 <Text style={styles.itemMeta}>{leitura ? `Última leitura ${leitura}` : 'Leitura automática ainda não rodou'}</Text>
@@ -232,10 +312,30 @@ export default function AdminCvcrmScreen() {
 
       <Text style={styles.secao}>Importar do CV</Text>
       <Text style={styles.hint}>
-        Busque os empreendimentos do CV. Ao importar, o POUP cadastra o empreendimento (ou usa um que já existe), os blocos
-        e as unidades que faltarem e vincula cada unidade à sua no CV, só quando o par é exato.
+        Escolha a construtora e busque os empreendimentos da conta dela no CV. Ao importar, o POUP cadastra o
+        empreendimento (ou usa um que já existe), os blocos e as unidades que faltarem e vincula cada unidade à sua no CV,
+        só quando o par é exato.
       </Text>
-      <Button label={lista ? 'Buscar de novo' : 'Buscar empreendimentos no CV'} variant="secondary" onPress={() => void buscar()} loading={buscando} />
+      {ligadas.length === 0 ? (
+        <Text style={styles.muted}>Nenhuma construtora com o CV conectado ainda.</Text>
+      ) : (
+        <>
+          <Select
+            label="Construtora"
+            placeholder="Escolha a construtora"
+            value={empresaId}
+            options={ligadas.map((i) => ({ value: i.companyId, label: i.empresa }))}
+            onChange={escolherEmpresa}
+          />
+          <Button
+            label={lista ? 'Buscar de novo' : 'Buscar empreendimentos no CV'}
+            variant="secondary"
+            onPress={() => void buscar()}
+            loading={buscando}
+            disabled={!empresaId}
+          />
+        </>
+      )}
       {erroLista ? <Text style={[styles.erro, styles.espaco]}>{erroLista}</Text> : null}
       {lista ? (
         lista.length === 0 ? (
@@ -273,9 +373,13 @@ export default function AdminCvcrmScreen() {
         )
       ) : null}
 
-      <Text style={styles.secao}>Empreendimento que não apareceu</Text>
-      <Input label="Número do empreendimento no CV" value={idManual} onChangeText={setIdManual} keyboardType="number-pad" placeholder="Ex.: 63" />
-      <Button label="Abrir este empreendimento" variant="ghost" onPress={abrirManual} />
+      {empresa ? (
+        <>
+          <Text style={styles.secao}>Empreendimento que não apareceu</Text>
+          <Input label="Número do empreendimento no CV" value={idManual} onChangeText={setIdManual} keyboardType="number-pad" placeholder="Ex.: 63" />
+          <Button label="Abrir este empreendimento" variant="ghost" onPress={abrirManual} />
+        </>
+      ) : null}
     </Screen>
   );
 }

@@ -272,7 +272,15 @@ Deno.serve(async (req) => {
         const email = String(corpo.email ?? '').trim();
         if (!email) return json({ error: 'Informe o e-mail do usuário de integração do CV.' }, 400);
         let token = digitouToken ? String(corpo.token).trim() : '';
-        if (!token && companyId) token = (await credencialDaEmpresa(companyId)).cred?.token ?? '';
+        if (!token && companyId) {
+          // O token salvo só vale para a conta em que foi salvo: trocou o
+          // endereço, digita o token de novo.
+          const salva = (await credencialDaEmpresa(companyId)).cred;
+          if (salva && baseDoCv(salva.url).toLowerCase() !== url) {
+            return json({ error: 'Trocou o endereço do CV: informe também o token dessa conta.' }, 400);
+          }
+          token = salva?.token ?? '';
+        }
         if (!token) return json({ error: 'Informe o token do usuário de integração do CV.' }, 400);
         cred = { url, email, token };
       } else {
