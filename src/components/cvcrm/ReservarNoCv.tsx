@@ -8,18 +8,20 @@
  *   • a unidade: disponível agora?
  *   • o corretor: o CPF do perfil do POUP acha o corretor e a imobiliária
  *     certos no CV (nunca o usuário da integração);
- *   • o cliente: o CPF da simulação acha o pré-cadastro no CV, com a
- *     aprovação de financiamento.
+ *   • o cliente: o CPF da simulação acha o pré-cadastro (e a pessoa) no CV,
+ *     com a aprovação de financiamento;
+ *   • as condições: o fluxo da simulação (ato, mensais, semestrais, anuais,
+ *     financiamento, FGTS, subsídio) nas séries do CV que o admin escolheu.
  *
- * O que falta aparece em frase de gente. O envio da reserva ao CV fica
- * travado no servidor até o formulário de reserva do CV ser confirmado
- * (docs/CVCRM_RESERVA.md): até lá, "Reservar" confere e explica.
+ * O que falta aparece em frase de gente. Com tudo certo, "Reservar" pede
+ * confirmação e cria a reserva no CV para aquele CPF (docs/CVCRM_RESERVA.md).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { db, type PreparoDaReserva, type ReservaDaSimulacao } from '@/data';
+import type { CondicaoDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import { confirmar } from '@/lib/confirmar';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -28,11 +30,16 @@ interface Props {
   simulationId: string;
   unidade: string;
   cliente: string | null;
+  /** O fluxo da simulação, em condições (`condicoesDaReserva`). */
+  condicoes: CondicaoDaReserva[];
 }
 
 const brl = (n: number | null) => (n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
 
-export function ReservarNoCv({ simulationId, unidade, cliente }: Props) {
+/** "2026-11-10" → "10/11/2026"; já no formato do CV, fica como está. */
+const dataBR = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}/.test(v) ? `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}` : v);
+
+export function ReservarNoCv({ simulationId, unidade, cliente, condicoes }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
 
@@ -57,7 +64,7 @@ export function ReservarNoCv({ simulationId, unidade, cliente }: Props) {
     setAviso(null);
     setErro(null);
     setOcupado('preparar');
-    const r = await db.disponibilidade.prepararReserva(simulationId);
+    const r = await db.disponibilidade.prepararReserva(simulationId, condicoes);
     setOcupado(null);
     if (r.ok) setPreparo(r.data);
     else setErro(r.error);
@@ -76,11 +83,11 @@ export function ReservarNoCv({ simulationId, unidade, cliente }: Props) {
     setAviso(null);
     setErro(null);
     setOcupado('reservar');
-    const r = await db.disponibilidade.reservar(simulationId);
+    const r = await db.disponibilidade.reservar(simulationId, condicoes);
     setOcupado(null);
     if (r.ok) {
       setPreparo(r.data);
-      setAviso('Reserva enviada ao CV.');
+      setAviso(`Reserva criada no CV${r.data.cvReserva ? ` (nº ${r.data.cvReserva})` : ''}.`);
       await carregar();
     } else {
       setErro(r.error);
@@ -156,6 +163,18 @@ export function ReservarNoCv({ simulationId, unidade, cliente }: Props) {
             </Text>
           ) : null}
 
+          {preparo.condicoes.length > 0 ? (
+            <View style={styles.condicoes}>
+              <Text style={styles.itemTitulo}>Condições no CV</Text>
+              {preparo.condicoes.map((c) => (
+                <Text key={c.rotulo} style={styles.meta}>
+                  {c.rotulo} → {c.serie}: {c.quantidade}× {brl(c.valorParcela)}
+                  {c.primeiroVencimento ? ` · 1º venc. ${dataBR(c.primeiroVencimento)}` : ''}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+
           {preparo.pendencias.length > 0 ? (
             <View style={styles.pendencias}>
               {preparo.pendencias.map((p) => (
@@ -166,19 +185,12 @@ export function ReservarNoCv({ simulationId, unidade, cliente }: Props) {
             </View>
           ) : null}
 
-          {pronto && !preparo.envioLiberado ? (
-            <Text style={styles.aviso}>
-              Tudo conferido. O envio da reserva ao CV pelo POUP ainda está sendo liberado: por enquanto, faça a reserva no
-              CV com estes dados.
-            </Text>
-          ) : null}
-
           <View style={styles.botoes}>
             <Button
               label="Reservar"
               onPress={() => void reservar()}
               loading={ocupado === 'reservar'}
-              disabled={!pronto || !preparo.envioLiberado || ocupado !== null}
+              disabled={!pronto || ocupado !== null}
             />
             <Button label="Conferir de novo" variant="ghost" onPress={() => void preparar()} disabled={ocupado !== null} />
           </View>
@@ -235,6 +247,7 @@ const makeStyles = (colors: AppColors) =>
     marcaOk: { color: colors.success, backgroundColor: colors.successSoft },
     marcaFalta: { color: colors.warning, backgroundColor: colors.warningSoft },
     pendencias: { gap: spacing.xs },
+    condicoes: { gap: 2, marginTop: spacing.xs },
     pendencia: { ...typography.caption, color: colors.ink },
     botoes: { gap: spacing.sm, marginTop: spacing.sm },
     feito: {
@@ -244,14 +257,6 @@ const makeStyles = (colors: AppColors) =>
       marginTop: spacing.sm,
     },
     feitoTitulo: { ...typography.label, color: colors.success },
-    aviso: {
-      ...typography.caption,
-      color: colors.ink,
-      backgroundColor: colors.warningSoft,
-      padding: spacing.md,
-      borderRadius: radius.sm,
-      overflow: 'hidden',
-    },
     ok: {
       ...typography.caption,
       color: colors.ink,

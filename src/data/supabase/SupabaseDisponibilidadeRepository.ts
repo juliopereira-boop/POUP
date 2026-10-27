@@ -15,6 +15,7 @@
  * corretor devolve "sem disponibilidade" em silêncio: a grade fica exatamente
  * como era, e o simulador segue funcionando.
  */
+import type { CondicaoDaReserva, ParteDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import { supabase } from '@/lib/supabase';
 import { mensagemDoErro as mensagemDaFuncao } from '@/lib/edgeError';
 import type { Json } from '../database.types';
@@ -63,6 +64,7 @@ const MENSAGENS: Record<string, string> = {
   empresa_invalida: 'Construtora não encontrada.',
   cron_nao_configurado: 'A leitura automática do CV não está configurada no servidor.',
   tabela_invalida: 'Tabela de preço do CV inválida.',
+  serie_invalida: 'Série do CV inválida.',
   empreendimento_invalido: 'Empreendimento do CV inválido.',
   empreendimento_de_outro: 'Este empreendimento (ou etapa) do CV já está vinculado a outro empreendimento do POUP.',
   vinculo_invalido: 'Alguma unidade não é deste empreendimento ou não é do CV vinculado a ele. Atualize a conferência.',
@@ -128,6 +130,8 @@ function integracaoCv(i: Record<string, unknown>): IntegracaoCv {
     corretoresErro: texto(i.corretoresErro),
     tabelaLidaEm: texto(i.tabelaLidaEm),
     tabelaErro: texto(i.tabelaErro),
+    series: ((i.series as Record<string, unknown>[]) ?? []).map((s) => ({ id: Number(s.id), nome: String(s.nome ?? '') })),
+    seriesReserva: (i.seriesReserva as IntegracaoCv['seriesReserva']) ?? {},
     empreendimentos: Number(i.empreendimentos ?? 0),
   };
 }
@@ -135,12 +139,13 @@ function integracaoCv(i: Record<string, unknown>): IntegracaoCv {
 function preparoDaReserva(d: Record<string, unknown> | null | undefined): PreparoDaReserva {
   const o = d ?? {};
   return {
-    envioLiberado: Boolean(o.envioLiberado),
     empreendimento: texto(o.empreendimento),
     unidade: (o.unidade as PreparoDaReserva['unidade']) ?? null,
     corretor: (o.corretor as PreparoDaReserva['corretor']) ?? null,
     cliente: (o.cliente as PreparoDaReserva['cliente']) ?? null,
+    condicoes: (o.condicoes as PreparoDaReserva['condicoes']) ?? [],
     pendencias: Array.isArray(o.pendencias) ? o.pendencias.map(String) : [],
+    cvReserva: numero(o.cvReserva),
   };
 }
 
@@ -282,6 +287,15 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     return ok(integracaoCv((data ?? {}) as Record<string, unknown>));
   }
 
+  async definirSeries(
+    companyId: string,
+    mapa: Partial<Record<ParteDaReserva, number | null>>,
+  ): Promise<Result<IntegracaoCv>> {
+    const { data, error } = await supabase.rpc('cvcrm_definir_series', { p_company: companyId, p_mapa: mapa as Json });
+    if (error) return err(traduzir(error, 'Não foi possível salvar as séries da reserva.'));
+    return ok(integracaoCv((data ?? {}) as Record<string, unknown>));
+  }
+
   async lerComercialAgora(companyId: string): Promise<Result<void>> {
     const { error } = await supabase.rpc('cvcrm_ler_comercial_agora', { p_company: companyId });
     return error ? err(traduzir(error, 'Não foi possível pedir a leitura ao CV agora.')) : ok(undefined);
@@ -304,12 +318,12 @@ export class SupabaseDisponibilidadeRepository implements DisponibilidadeReposit
     });
   }
 
-  prepararReserva(simulationId: string): Promise<Result<PreparoDaReserva>> {
-    return invocarReserva({ acao: 'preparar', simulationId }, 'Não foi possível conferir a reserva no CV agora.');
+  prepararReserva(simulationId: string, condicoes: CondicaoDaReserva[]): Promise<Result<PreparoDaReserva>> {
+    return invocarReserva({ acao: 'preparar', simulationId, condicoes }, 'Não foi possível conferir a reserva no CV agora.');
   }
 
-  reservar(simulationId: string): Promise<Result<PreparoDaReserva>> {
-    return invocarReserva({ acao: 'reservar', simulationId }, 'Não foi possível reservar no CV agora.');
+  reservar(simulationId: string, condicoes: CondicaoDaReserva[]): Promise<Result<PreparoDaReserva>> {
+    return invocarReserva({ acao: 'reservar', simulationId, condicoes }, 'Não foi possível reservar no CV agora.');
   }
 
   // ------------------------------------------------------------ admin: empreendimentos

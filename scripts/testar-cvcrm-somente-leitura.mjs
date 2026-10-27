@@ -178,21 +178,22 @@ for (const arquivo of FUNCOES) {
 
 // ---------------------------------------------------------------------------
 // As funções da reserva e da leitura comercial (20261027): cada uma com a
-// SUA lista fechada. Hoje as duas só LEEM o CV — o envio da reserva fica
-// travado até o formulário do CV ser confirmado.
+// SUA lista fechada. A leitura comercial só LÊ; a da reserva lê e tem UMA
+// escrita: criar a reserva (nada de cancelar, alterar situação, vender…).
 // ---------------------------------------------------------------------------
 const OUTRAS = {
   'supabase/functions/cvcrm-comercial-sync/index.ts': {
     leitura: [
       '/api/v1/cvdw/corretores',
+      '/api/v1/cvdw/reservas/condicoes',
       '/api/v1/cadastros/empreendimentos/63/tabelasdepreco',
       '/api/v1/cadastros/empreendimentos/63/tabelasdepreco/77',
     ],
     parametros: ['a_partir_data_referencia', 'aprovado', 'pagina', 'registros_por_pagina'],
   },
   'supabase/functions/cvcrm-reserva/index.ts': {
-    leitura: ['/api/v1/comercial/mapadisponibilidade/63', '/api/v1/precadastro/12345678901'],
-    parametros: ['idbloco', 'limitePagina', 'pag'],
+    leitura: ['/api/v1/comercial/mapadisponibilidade/63', '/api/v1/precadastro/12345678901', '/api/v1/cvdw/reservas'],
+    parametros: ['a_partir_data_referencia', 'idbloco', 'limitePagina', 'pag', 'pagina', 'registros_por_pagina'],
   },
 };
 for (const [arquivo, esperado] of Object.entries(OUTRAS)) {
@@ -201,9 +202,12 @@ for (const [arquivo, esperado] of Object.entries(OUTRAS)) {
   const lista = /const ROTAS_DE_LEITURA: RegExp\[\] = \[([\s\S]*?)\];/.exec(fonte)?.[1] ?? '';
   const rotas = [...lista.matchAll(/\/(\^[^\n]*?\$)\//g)].map((m) => m[1]);
   checar(`${nome}: a lista tem só os caminhos de leitura (${esperado.leitura.length})`, rotas.length === esperado.leitura.length, JSON.stringify(rotas));
-  checar(`${nome}: um único fetch, GET`, (fonte.match(/\bfetch\(/g) ?? []).length === 1 && /method: 'GET'/.test(fonte));
-  checar(`${nome}: nenhum POST/PUT/PATCH/DELETE`, !/method:\s*['"](POST|PUT|PATCH|DELETE)['"]/i.test(fonte));
-  checar(`${nome}: a trava roda antes da conexão`, /async function cvGet[\s\S]{0,200}if \(!rotaPermitida\(caminho\)\) throw/.test(fonte));
+  checar(`${nome}: um único fetch`, (fonte.match(/\bfetch\(/g) ?? []).length === 1);
+  checar(`${nome}: nenhum PUT/PATCH/DELETE`, !/['"](PUT|PATCH|DELETE)['"]/.test(fonte));
+  if (nome === 'cvcrm-comercial-sync') {
+    checar(`${nome}: o fetch é GET`, /method: 'GET'/.test(fonte) && !/'POST'/.test(fonte));
+    checar(`${nome}: a trava roda antes da conexão`, /async function cvGet[\s\S]{0,200}if \(!rotaPermitida\(caminho\)\) throw/.test(fonte));
+  }
   const t = rodar(
     [
       /const ROTAS_DE_LEITURA: RegExp\[\] = \[[\s\S]*?\];\n/.exec(fonte)?.[0],
@@ -214,7 +218,7 @@ for (const [arquivo, esperado] of Object.entries(OUTRAS)) {
   );
   for (const r of esperado.leitura) checar(`${nome}: leitura ${r} permitida`, t.rotaPermitida(r) === true);
   for (const r of [...ESCRITA_DO_CV, '/api/v1/comercial/reservas', '/api/v1/comercial/reservas/documentos', '/api/v1/precadastro']) {
-    checar(`${nome}: ${r} recusado`, t.rotaPermitida(r) === false);
+    checar(`${nome}: leitura de ${r} recusada`, t.rotaPermitida(r) === false);
   }
   t.ROTAS_DE_LEITURA.push(/.*/);
   for (const r of ESCRITA_DO_CV) checar(`${nome}: escrita ${r} recusada (mesmo com a lista aberta)`, t.rotaPermitida(r) === false);
@@ -237,8 +241,40 @@ for (const [arquivo, esperado] of Object.entries(OUTRAS)) {
   checar('corretores: o documento só passa pelo hash', (sync.match(/\.documento\b/g) ?? []).length === 1 && /hashDoDocumento\(c\.documento\)/.test(sync));
   const reserva = readFileSync('supabase/functions/cvcrm-reserva/index.ts', 'utf8');
   checar('reserva: o mesmo hash dos dois lados', /`poup-cv:\$\{documento\}`/.test(reserva) && /`poup-cv:\$\{digitos\}`/.test(sync));
-  checar('reserva: o envio está TRAVADO (ENVIO_LIBERADO = false)', /const ENVIO_LIBERADO = false;/.test(reserva));
   checar('reserva: do pré-cadastro não saem documento, renda nem contato', !/p\.(documento|cpf|renda|email|telefone|celular)/.test(reserva));
+  // Das séries, só id e nome.
+  checar('séries: só o id e o nome vão para o banco', /vistas\.set\(id, nome\)/.test(sync) && /\(\[cv_serie, nome\]\) => \(\{ cv_serie, nome \}\)/.test(sync));
+}
+
+// A única escrita da reserva: criar. Executada de verdade.
+{
+  const fonte = readFileSync('supabase/functions/cvcrm-reserva/index.ts', 'utf8');
+  const t = rodar(
+    [/const ROTA_DE_ENVIO = [^\n]*\n/.exec(fonte)?.[0], trecho(fonte, 'function envioPermitido')].join('\n'),
+    ['envioPermitido'],
+  );
+  checar('reserva: envio permitido só em /comercial/reservas', t.envioPermitido('/api/v1/comercial/reservas') === true);
+  for (const r of [
+    '/api/v1/comercial/reservas/documentos',
+    '/api/v1/comercial/reservas/cancelar-reserva',
+    '/api/v1/comercial/reservas/alterar-situacao',
+    '/api/v1/comercial/reservas/informar_venda',
+    '/api/v1/comercial/reservas/distratos',
+    '/api/v1/comercial/reservas/7099',
+    '/api/v1/cadastros/empreendimentos/unidades/bloquear',
+    '/api/v1/precadastro',
+  ]) {
+    checar(`reserva: envio recusado em ${r}`, t.envioPermitido(r) === false);
+  }
+  const posts = [...fonte.matchAll(/cvPedir\(\s*cred,\s*'POST',\s*'([^']+)'/g)].map((m) => m[1]);
+  checar('reserva: um único POST no código, o de criar a reserva', JSON.stringify(posts) === JSON.stringify(['/api/v1/comercial/reservas']), JSON.stringify(posts));
+  const metodos = [...fonte.matchAll(/cvPedir\(\s*cred,\s*'([A-Z]+)'/g)].map((m) => m[1]);
+  checar('reserva: o resto é GET', metodos.filter((m) => m !== 'GET').length === 1, JSON.stringify(metodos));
+  checar('reserva: as duas travas rodam antes da conexão',
+    /if \(metodo === 'GET' && !rotaPermitida\(caminho\)\)[\s\S]{0,200}if \(metodo === 'POST' && !envioPermitido\(caminho\)\) throw/.test(fonte));
+  checar('reserva: o mesmo pedido não entra duas vezes (recibo antes do POST)',
+    fonte.indexOf("rpc('cvcrm_reserva_abrir'") > 0 && fonte.indexOf("rpc('cvcrm_reserva_abrir'") < fonte.indexOf("'POST', '/api/v1/comercial/reservas'"));
+  checar('reserva: com pendência não envia', /if \(pendencias\.length > 0\) return json\(\{ error: pendencias\[0\]/.test(fonte));
 }
 
 // Nada do CV no ambiente do app.

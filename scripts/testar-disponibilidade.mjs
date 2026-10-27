@@ -42,6 +42,7 @@ const K = carregar('src/features/tabelaPreco/chaves.ts');
 const D = carregar('src/features/disponibilidade/vinculo.ts');
 const A = carregar('src/features/disponibilidade/aplicar.ts');
 const I = carregar('src/features/disponibilidade/importarDoCv.ts');
+const C = carregar('src/features/disponibilidade/condicoesDaReserva.ts');
 
 let ok = 0;
 const falhas = [];
@@ -481,6 +482,27 @@ secao('13. Importar do CV: empreendimento, etapa, blocos e vínculos');
 }
 
 // ---------------------------------------------------------------------------
+secao('13b. O fluxo da simulação vira as condições da reserva no CV');
+// ---------------------------------------------------------------------------
+{
+  const fluxo = {
+    ato: 5000, atoVencimento: '2026-11-10',
+    mensaisQuantidade: 36, mensalValor: 512.3333, mensalPrimeiroVencimento: '2026-12-10',
+    semestralQuantidade: 0, semestralValor: 0, semestralPrimeiroVencimento: null,
+    anualQuantidade: 3, anualValor: 4000, anualPrimeiroVencimento: '2027-12-10',
+    financiamento: 180000, fgts: 12000, subsidio: 0,
+  };
+  const c = C.condicoesDaReserva(fluxo);
+  checar('só entra parte com valor (sem semestral, sem subsídio)', JSON.stringify(c.map((x) => x.parte)) === JSON.stringify(['ato', 'mensal', 'anual', 'financiamento', 'fgts']), JSON.stringify(c.map((x) => x.parte)));
+  checar('ato: uma parcela, com o vencimento do ato', c[0].quantidade === 1 && c[0].valorParcela === 5000 && c[0].primeiroVencimento === '2026-11-10');
+  checar('mensais: quantidade, valor no centavo e o 1º vencimento', c[1].quantidade === 36 && c[1].valorParcela === 512.33 && c[1].primeiroVencimento === '2026-12-10');
+  checar('financiamento e FGTS: uma parcela, sem vencimento (quem marca é o banco)', c[3].quantidade === 1 && c[3].primeiroVencimento === null && c[4].valorParcela === 12000);
+  checar('o total soma as parcelas', C.totalDasCondicoes(c) === Math.round((5000 + 36 * 512.33 + 3 * 4000 + 180000 + 12000) * 100) / 100);
+  checar('sete partes, com rótulo', C.PARTES_DA_RESERVA.length === 7 && C.PARTES_DA_RESERVA.every((p) => p.rotulo));
+  checar('fluxo zerado: nenhuma condição', C.condicoesDaReserva({ ...fluxo, ato: 0, mensaisQuantidade: 0, anualQuantidade: 0, financiamento: 0, fgts: 0 }).length === 0);
+}
+
+// ---------------------------------------------------------------------------
 secao('14. As ligações no aplicativo');
 // ---------------------------------------------------------------------------
 {
@@ -532,10 +554,12 @@ secao('14. As ligações no aplicativo');
   checar('integração: botão "Tabela de preço do CV" com confirmação', /label="Tabela de preço do CV"/.test(integrar) && /await confirmar\(\s*ligar \? 'Tabela de preço do CV'/.test(integrar));
   const reservar = ler('src/components/cvcrm/ReservarNoCv.tsx');
   const relatorio = ler('app/(app)/relatorios/[id].tsx');
-  checar('relatório: "Reservar no CV" na simulação', /<ReservarNoCv simulationId=\{sim\.id\}/.test(relatorio));
+  checar('relatório: "Reservar no CV" na simulação', /<ReservarNoCv\s+simulationId=\{sim\.id\}/.test(relatorio));
   checar('reserva: só aparece com a reserva ligada', /if \(!estado\?\.habilitada\) return null;/.test(reservar));
-  checar('reserva: confere antes (preparar) e pede confirmação para reservar', /prepararReserva\(simulationId\)/.test(reservar) && /await confirmar\(\s*'Reservar no CV'/.test(reservar));
-  checar('reserva: "Reservar" só com tudo pronto e o envio liberado', /disabled=\{!pronto \|\| !preparo\.envioLiberado/.test(reservar));
+  checar('reserva: confere antes (preparar) e pede confirmação para reservar', /prepararReserva\(simulationId, condicoes\)/.test(reservar) && /await confirmar\(\s*'Reservar no CV'/.test(reservar));
+  checar('reserva: "Reservar" só com tudo pronto', /disabled=\{!pronto \|\| ocupado !== null\}/.test(reservar));
+  checar('reserva: o relatório manda o fluxo da simulação como condições', /condicoes=\{condicoesDaReserva\(\{/.test(relatorio) && /prepararReserva\(simulationId, condicoes\)/.test(reservar));
+  checar('integração: o admin escolhe a série de cada parte do fluxo', /PARTES_DA_RESERVA\.map/.test(integrar) && /escolherSerie\(parte, v\)/.test(integrar));
   const telaTabela = ler('app/(app)/cadastros/tabela-preco.tsx');
   checar('tabela do CV: ninguém troca à mão', /const doCv = salva\?\.fonte === 'cv';/.test(telaTabela) && /&& !doCv;/.test(telaTabela));
 }

@@ -15,11 +15,17 @@
 //   { "modo": "tabelas", "companyId"? }
 //       Só para quem ligou a "Tabela de preço do CV": a tabela aprovada e
 //       vigente de cada empreendimento vinculado vira a tabela do POUP.
-//   { "modo": "tudo", "companyId"? }   as duas.
+//   { "modo": "series", "companyId"? }
+//       As séries de pagamento do CV (ato, mensal, financiamento…), vistas no
+//       histórico de condições das reservas (CVDW) — o usuário de integração
+//       não lista séries. O admin escolhe, no cadastro da construtora, qual
+//       série recebe cada parte do fluxo da simulação.
+//   { "modo": "tudo", "companyId"? }   as três.
 //
 // SÓ LEITURA, POR LISTA FECHADA (a mesma regra da disponibilidade): só GET,
 // só os caminhos de `ROTAS_DE_LEITURA`, só os parâmetros de `PARAMETROS`, e
-// a segunda trava recusa caminho com nome de escrita.
+// a segunda trava recusa caminho com nome de escrita (o CVDW, o banco de
+// consulta do CV, é só leitura por natureza: lá a trava não vale).
 // `scripts/testar-cvcrm-somente-leitura.mjs` confere.
 // =====================================================================
 
@@ -53,6 +59,7 @@ function baseDoCv(url: string): string {
 
 const ROTAS_DE_LEITURA: RegExp[] = [
   /^\/api\/v1\/cvdw\/corretores$/,
+  /^\/api\/v1\/cvdw\/reservas\/condicoes$/,
   /^\/api\/v1\/cadastros\/empreendimentos\/\d{1,9}\/tabelasdepreco$/,
   /^\/api\/v1\/cadastros\/empreendimentos\/\d{1,9}\/tabelasdepreco\/\d{1,9}$/,
 ];
@@ -61,7 +68,8 @@ const ROTA_DE_ESCRITA =
 const PARAMETROS = new Set(['registros_por_pagina', 'pagina', 'a_partir_data_referencia', 'aprovado']);
 
 function rotaPermitida(caminho: string): boolean {
-  return ROTAS_DE_LEITURA.some((r) => r.test(caminho)) && !ROTA_DE_ESCRITA.test(caminho);
+  if (!ROTAS_DE_LEITURA.some((r) => r.test(caminho))) return false;
+  return /^\/api\/v1\/cvdw\/[a-z/]+$/.test(caminho) || !ROTA_DE_ESCRITA.test(caminho);
 }
 
 async function cvGet(cred: Credencial, caminho: string, consulta: Record<string, string | number>, ms: number): Promise<unknown> {
@@ -156,13 +164,14 @@ interface Conta {
   id: string;
   company_id: string;
   corretores_cursor: string | null;
+  series_cursor: string | null;
   tabela_preco_cv: boolean;
 }
 
 async function contasLigadas(companyId: string | null): Promise<Conta[]> {
   let q = sb()
     .from('cvcrm_integracoes')
-    .select('id, company_id, corretores_cursor, tabela_preco_cv')
+    .select('id, company_id, corretores_cursor, series_cursor, tabela_preco_cv')
     .eq('ativo', true)
     .neq('situacao', 'pendente');
   if (companyId) q = q.eq('company_id', companyId);
@@ -221,6 +230,41 @@ async function lerCorretores(conta: Conta, cred: Credencial, ate: number) {
     if (pagina >= paginas || dados.length === 0) break;
   }
   return { lidos, gravados };
+}
+
+// ---------------------------------------------------------------------
+// Séries (CVDW: as condições das reservas, incremental por conta)
+// ---------------------------------------------------------------------
+async function lerSeries(conta: Conta, cred: Credencial, ate: number) {
+  const desde = desdeOCursor(conta.series_cursor);
+  const vistas = new Map<number, string>();
+  let cursor: string | null = conta.series_cursor;
+  let lidas = 0;
+  // 4 páginas por rodada (o CVDW aceita 20 chamadas por minuto, somadas às
+  // outras leituras): as séries se repetem, e o cursor segue na próxima.
+  for (let pagina = 1; pagina <= 4 && Date.now() < ate; pagina++) {
+    const consulta: Record<string, string | number> = { registros_por_pagina: 500, pagina };
+    if (desde) consulta.a_partir_data_referencia = desde;
+    const d = (await cvGet(cred, '/api/v1/cvdw/reservas/condicoes', consulta, ate - Date.now())) as Row;
+    const dados = lista(d.dados);
+    lidas += dados.length;
+    for (const c of dados) {
+      const quando = texto(c.referencia_data);
+      if (quando && DATA_DO_CV.test(quando) && (!cursor || quando > cursor)) cursor = quando;
+      const id = inteiro(c.idserie);
+      const nome = texto(c.serie);
+      // Só o id e o nome da série: valor, vencimento e a reserva ficam no CV.
+      if (id && id > 0 && nome) vistas.set(id, nome);
+    }
+    const paginas = inteiro(d.total_de_paginas) ?? 1;
+    if (pagina >= paginas || dados.length === 0) break;
+  }
+  const r = await rpc<Row>('cvcrm_aplicar_series', {
+    p_integracao: conta.id,
+    p_series: [...vistas.entries()].map(([cv_serie, nome]) => ({ cv_serie, nome })),
+    p_cursor: cursor,
+  });
+  return { lidas, series: vistas.size, gravadas: r.gravadas };
 }
 
 // ---------------------------------------------------------------------
@@ -332,7 +376,7 @@ Deno.serve(async (req) => {
 
   const corpo = (await req.json().catch(() => ({}))) as Row;
   const modo = String(corpo.modo ?? 'tudo');
-  if (!['corretores', 'tabelas', 'tudo'].includes(modo)) return json({ error: `modo inválido: ${modo}` }, 400);
+  if (!['corretores', 'series', 'tabelas', 'tudo'].includes(modo)) return json({ error: `modo inválido: ${modo}` }, 400);
   const companyId = typeof corpo.companyId === 'string' && corpo.companyId ? corpo.companyId : null;
   const ate = Date.now() + 110000;
 
@@ -345,7 +389,7 @@ Deno.serve(async (req) => {
         continue;
       }
       const item: Row = { companyId: conta.company_id };
-      if (modo !== 'tabelas') {
+      if (modo === 'corretores' || modo === 'tudo') {
         try {
           item.corretores = await lerCorretores(conta, cred, ate);
         } catch (e) {
@@ -353,7 +397,14 @@ Deno.serve(async (req) => {
           item.corretores = { erro: msg(e) };
         }
       }
-      if (modo !== 'corretores' && conta.tabela_preco_cv) {
+      if (modo === 'series' || modo === 'tudo') {
+        try {
+          item.series = await lerSeries(conta, cred, ate);
+        } catch (e) {
+          item.series = { erro: msg(e) };
+        }
+      }
+      if ((modo === 'tabelas' || modo === 'tudo') && conta.tabela_preco_cv) {
         try {
           item.tabelas = await lerTabelas(conta, cred, ate);
         } catch (e) {

@@ -1461,6 +1461,10 @@ export interface Database {
         Args: { p_company: string };
         Returns: number;
       };
+      cvcrm_definir_series: {
+        Args: { p_company: string; p_mapa: Json };
+        Returns: Json;
+      };
       cvcrm_escolher_tabela: {
         Args: { p_development: string; p_cv_tabela: number | null };
         Returns: undefined;

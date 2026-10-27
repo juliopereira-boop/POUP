@@ -1,3 +1,4 @@
+import type { CondicaoDaReserva, ParteDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import type { PickedFile } from '@/features/files/pick';
 import type { Escopo, LinhaDoRanking, Periodo, SituacaoDaVenda } from '@/features/ranking/regras';
 import type {
@@ -286,13 +287,15 @@ export interface DisponibilidadeRepository {
     companyId: string,
     recursos: { reserva?: boolean; tabelaPreco?: boolean },
   ): Promise<Result<IntegracaoCv>>;
-  /** Lê agora os corretores e a tabela de preço do CV da construtora (em segundo plano). */
+  /** Lê agora os corretores, as séries e a tabela de preço do CV da construtora (em segundo plano). */
   lerComercialAgora(companyId: string): Promise<Result<void>>;
+  /** Qual série do CV recebe cada parte do fluxo da simulação. */
+  definirSeries(companyId: string, mapa: Partial<Record<ParteDaReserva, number | null>>): Promise<Result<IntegracaoCv>>;
 
   // ---- corretor: a reserva no CV, a partir do relatório
   reservaDaSimulacao(simulationId: string): Promise<Result<ReservaDaSimulacao>>;
-  prepararReserva(simulationId: string): Promise<Result<PreparoDaReserva>>;
-  reservar(simulationId: string): Promise<Result<PreparoDaReserva>>;
+  prepararReserva(simulationId: string, condicoes: CondicaoDaReserva[]): Promise<Result<PreparoDaReserva>>;
+  reservar(simulationId: string, condicoes: CondicaoDaReserva[]): Promise<Result<PreparoDaReserva>>;
 
   // ---- admin: empreendimentos e vínculos
   empreendimentosDoCv(companyId: string): Promise<Result<EmpreendimentoDoCv[]>>;

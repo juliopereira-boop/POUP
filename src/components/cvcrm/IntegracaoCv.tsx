@@ -16,9 +16,8 @@
  * Com a conta conectada, mais dois botões (liga e desliga):
  *   • "Habilitar reserva": o corretor reserva a unidade no CV pelo relatório
  *     da simulação (o CPF do cliente acha o pré-cadastro; o CPF do corretor,
- *     o corretor e a imobiliária). O ENVIO ao CV fica travado até o
- *     formulário de reserva do CV ser confirmado (docs/CVCRM_RESERVA.md):
- *     até lá, o corretor confere tudo e vê o que falta.
+ *     o corretor e a imobiliária). Aqui o admin escolhe também qual SÉRIE do
+ *     CV recebe cada parte do fluxo (ato, mensais…). Ver docs/CVCRM_RESERVA.md.
  *   • "Tabela de preço do CV": ligada, o preço dos empreendimentos da
  *     construtora vem só da tabela do CV. A tabela enviada à mão fica
  *     guardada e volta se desligar.
@@ -28,9 +27,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { Select } from '@/components/Select';
 import { ToggleField } from '@/components/ToggleField';
 import { db, type ContaDoCv, type IntegracaoCv as Integracao } from '@/data';
 import { haQuanto } from '@/features/disponibilidade/aplicar';
+import { PARTES_DA_RESERVA, type ParteDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import { confirmar } from '@/lib/confirmar';
 import { useTheme, useThemedStyles } from '@/providers/ThemeProvider';
 import { radius, spacing, typography, type AppColors } from '@/theme';
@@ -203,6 +204,20 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
     if (ligar) setAviso('Ligado. A leitura do CV já foi pedida: em um ou dois minutos o resultado aparece aqui.');
   }
 
+  async function escolherSerie(parte: ParteDaReserva, valor: string) {
+    if (!integracao) return;
+    const id = Number(valor);
+    setErro(null);
+    setOcupado('recurso');
+    const r = await db.disponibilidade.definirSeries(companyId, {
+      ...integracao.seriesReserva,
+      [parte]: Number.isInteger(id) && id > 0 ? id : null,
+    });
+    setOcupado(null);
+    if (r.ok) setIntegracao(r.data);
+    else setErro(r.error);
+  }
+
   async function lerAgora() {
     setAviso(null);
     setErro(null);
@@ -276,11 +291,32 @@ export function IntegracaoCv({ companyId, empresa }: Props) {
               <Text style={styles.erro}>Corretores: {integracao.corretoresErro.slice(0, 200)}</Text>
             ) : null}
             {integracao?.reservaHabilitada ? (
-              <Text style={styles.dica}>
-                O corretor vê "Reservar no CV" no relatório da simulação. Por enquanto ele confere tudo (unidade, cliente
-                pelo CPF e corretor pelo CPF); o envio ao CV é liberado quando o formulário de reserva do CV for
-                confirmado.
-              </Text>
+              <>
+                <Text style={styles.dica}>
+                  O corretor vê "Reservar no CV" no relatório da simulação. O POUP confere a unidade, o cliente (pelo CPF,
+                  no pré-cadastro) e o corretor (pelo CPF do perfil) e cria a reserva no CV com o fluxo da simulação.
+                </Text>
+                <Text style={styles.subtitulo}>Séries da reserva no CV</Text>
+                {integracao.series.length === 0 ? (
+                  <Text style={styles.meta}>
+                    As séries do CV aparecem depois da primeira leitura ("Ler corretores e tabela agora").
+                  </Text>
+                ) : (
+                  PARTES_DA_RESERVA.map(({ parte, rotulo }) => (
+                    <Select
+                      key={parte}
+                      label={rotulo}
+                      placeholder="Sem série"
+                      value={integracao.seriesReserva[parte] ? String(integracao.seriesReserva[parte]) : null}
+                      options={[
+                        { value: '0', label: 'Sem série (não vai na reserva)' },
+                        ...integracao.series.map((x) => ({ value: String(x.id), label: `${x.nome} (${x.id})` })),
+                      ]}
+                      onChange={(v) => void escolherSerie(parte, v)}
+                    />
+                  ))
+                )}
+              </>
             ) : null}
 
             <ToggleField
@@ -413,6 +449,7 @@ const makeStyles = (colors: AppColors) =>
     },
     cabeca: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
     titulo: { ...typography.body, color: colors.ink, fontWeight: '600' },
+    subtitulo: { ...typography.label, color: colors.ink, marginTop: spacing.sm },
     selo: {
       ...typography.caption,
       borderRadius: radius.pill,

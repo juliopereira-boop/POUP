@@ -25,10 +25,13 @@ O painel do admin (Configurações › Administração › Disponibilidade do CV
 
 Na mesma tela, com a conta conectada, ficam dois botões, só para o admin:
 
-- **Habilitar reserva:** o corretor reserva a unidade no CV pelo relatório da simulação. O envio ainda está travado; veja `docs/CVCRM_RESERVA.md`.
+- **Habilitar reserva:** o corretor reserva a unidade no CV pelo relatório da simulação; veja `docs/CVCRM_RESERVA.md`.
 - **Tabela de preço do CV:** o preço da construtora passa a vir só do CV.
 
-Os dois usam a função `cvcrm-comercial-sync` (corretores e tabela, às :17 e :47) e a `cvcrm-reserva`. Cada uma tem a sua lista fechada de caminhos, e hoje as duas só leem o CV.
+Os dois usam duas funções, cada uma com a sua lista fechada de caminhos:
+
+- `cvcrm-comercial-sync`: lê corretores, séries e tabela, às :17 e :47;
+- `cvcrm-reserva`: lê e tem uma única escrita, criar a reserva.
 
 ## Como funciona
 

@@ -22,6 +22,7 @@ import { DateField } from '@/components/DateField';
 import { Input } from '@/components/Input';
 import { Screen } from '@/components/Screen';
 import { ReservarNoCv } from '@/components/cvcrm/ReservarNoCv';
+import { condicoesDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import { db, type Sale, type SaleInput, type Simulation, type TipoCorretor } from '@/data';
 import { dateKey } from '@/features/agenda/dates';
 import {
@@ -393,7 +394,27 @@ export default function SimulationDetailScreen() {
           onPress={onSaleDone}
         />
       )}
-      <ReservarNoCv simulationId={sim.id} unidade={st.unit} cliente={sim.clientName} />
+      <ReservarNoCv
+        simulationId={sim.id}
+        unidade={st.unit}
+        cliente={sim.clientName}
+        condicoes={condicoesDaReserva({
+          ato: flow.ato,
+          atoVencimento: st.atoDueDate,
+          mensaisQuantidade: flow.mensaisCount,
+          mensalValor: flow.monthlyValue,
+          mensalPrimeiroVencimento: flow.mensalFirstDue,
+          semestralQuantidade: flow.semestralCount,
+          semestralValor: flow.semestralValue,
+          semestralPrimeiroVencimento: flow.semestralDueDates[0] ?? null,
+          anualQuantidade: flow.anualCount,
+          anualValor: flow.anualValue,
+          anualPrimeiroVencimento: flow.anualDueDates[0] ?? null,
+          financiamento: currencyToNumber(st.financingApproved),
+          fgts: currencyToNumber(st.fgts),
+          subsidio: currencyToNumber(st.subsidy),
+        })}
+      />
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
       <SectionBand label={st.hasSecondProponent ? '1º Proponente' : 'Cliente'} />

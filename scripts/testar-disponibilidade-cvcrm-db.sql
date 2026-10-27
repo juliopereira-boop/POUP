@@ -983,5 +983,97 @@ begin
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- 17. O ENVIO DA RESERVA (20261027140000), duas vezes: séries e nova tentativa
+-- ---------------------------------------------------------------------------
+\ir ../supabase/migrations/20261027140000_cvcrm_reserva_envio.sql
+\ir ../supabase/migrations/20261027140000_cvcrm_reserva_envio.sql
+
+-- As séries vistas no CVDW entram (linha torta não); repetir não duplica.
+set local role service_role;
+do $$
+declare v jsonb;
+begin
+  v := public.cvcrm_aplicar_series((select id from _i where nome = 'canopus'),
+    '[{"cv_serie": 12, "nome": "Ato"}, {"cv_serie": 15, "nome": "Mensal"}, {"cv_serie": 15, "nome": "Mensal"},
+      {"cv_serie": "x", "nome": "Torta"}, {"cv_serie": 3, "nome": ""}]'::jsonb, '2026-10-27 09:00:00');
+  if (v ->> 'gravadas')::int <> 2 then raise exception 'Séries gravadas: %', v; end if;
+  if (select count(*) from public.cvcrm_series where integracao_id = (select id from _i where nome = 'canopus')) <> 2 then
+    raise exception 'Séries duplicadas ou faltando';
+  end if;
+end $$;
+reset role;
+
+-- O de-para: só o admin; parte desconhecida e id torto são recusados; nulo tira.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+do $$
+begin
+  begin
+    perform public.cvcrm_definir_series('c1000000-0000-4000-8000-000000000003', '{"ato": 12}');
+    raise exception 'Corretor escolheu série';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"c0000000-0000-4000-8000-000000000003","role":"authenticated"}';
+do $$
+declare v jsonb;
+begin
+  v := public.cvcrm_definir_series('c1000000-0000-4000-8000-000000000003', '{"ato": 12, "mensal": 15, "anual": null}');
+  if v -> 'seriesReserva' <> '{"ato": 12, "mensal": 15}'::jsonb or jsonb_array_length(v -> 'series') <> 2 then
+    raise exception 'De-para das séries: %', v;
+  end if;
+  begin
+    perform public.cvcrm_definir_series('c1000000-0000-4000-8000-000000000003', '{"cupom": 12}');
+    raise exception 'Aceitou parte desconhecida';
+  exception when others then
+    if sqlerrm not like '%serie_invalida%' then raise; end if;
+  end;
+  begin
+    perform public.cvcrm_definir_series('c1000000-0000-4000-8000-000000000003', '{"ato": 1.5}');
+    raise exception 'Aceitou série quebrada';
+  exception when others then
+    if sqlerrm not like '%serie_invalida%' then raise; end if;
+  end;
+end $$;
+reset role;
+
+-- O recibo: recusada → nova tentativa no mesmo recibo; criada → não reenvia;
+-- enviando sem resposta há 5 min → destrava.
+set local role service_role;
+do $$
+declare
+  a jsonb;
+  b jsonb;
+  i uuid := (select id from _i where nome = 'canopus');
+begin
+  a := public.cvcrm_reserva_abrir(i, null, null, 6001, 'a0000000-0000-4000-8000-000000000001', 'sim-2:6001', 'h', 1, 10, 3);
+  perform public.cvcrm_reserva_concluir((a ->> 'id')::uuid, 'recusada', null, 'Unidade indisponível para reserva.');
+  b := public.cvcrm_reserva_abrir(i, null, null, 6001, 'a0000000-0000-4000-8000-000000000001', 'sim-2:6001', 'h2', 1, 10, 3);
+  if not (b ->> 'novo')::boolean or b ->> 'id' <> a ->> 'id'
+     or (select situacao from public.cvcrm_reservas where id = (a ->> 'id')::uuid) <> 'enviando' then
+    raise exception 'Recusada não deixou tentar de novo: %', b;
+  end if;
+  perform public.cvcrm_reserva_concluir((a ->> 'id')::uuid, 'criada', 888, null);
+  b := public.cvcrm_reserva_abrir(i, null, null, 6001, 'a0000000-0000-4000-8000-000000000001', 'sim-2:6001', 'h3', 1, 10, 3);
+  if (b ->> 'novo')::boolean or (b ->> 'cvReserva')::int <> 888 then
+    raise exception 'Reserva criada foi reenviada: %', b;
+  end if;
+  -- Um envio que ficou sem resposta.
+  a := public.cvcrm_reserva_abrir(i, null, null, 6002, 'a0000000-0000-4000-8000-000000000001', 'sim-3:6002', 'h', 1, 10, 3);
+  update public.cvcrm_reservas set criado_em = now() - interval '10 minutes' where id = (a ->> 'id')::uuid;
+  b := public.cvcrm_reserva_abrir(i, null, null, 6002, 'a0000000-0000-4000-8000-000000000001', 'sim-3:6002', 'h', 1, 10, 3);
+  if not (b ->> 'novo')::boolean then raise exception 'Envio sem resposta não destravou: %', b; end if;
+  begin
+    perform public.cvcrm_reserva_abrir(i, null, null, 6002, 'a0000000-0000-4000-8000-000000000001', 'sim-3:6002', 'h', 1, 10, 3);
+    raise exception 'Dois envios ao mesmo tempo';
+  exception when others then
+    if sqlerrm not like '%reserva_em_andamento%' then raise; end if;
+  end;
+end $$;
+reset role;
+
 select 'testar-disponibilidade-cvcrm-db: tudo certo' as resultado;
 rollback;

@@ -1,5 +1,6 @@
 import { friendlyError } from './friendlyError';
 
+import type { ParteDaReserva } from '@/features/disponibilidade/condicoesDaReserva';
 import type { SimuladorState } from '@/features/simulador/SimuladorProvider';
 
 export interface AuthUser {
@@ -1056,14 +1057,16 @@ export interface IntegracaoCv {
   corretoresErro: string | null;
   tabelaLidaEm: string | null;
   tabelaErro: string | null;
+  /** As séries de pagamento do CV desta conta (vistas nas reservas). */
+  series: { id: number; nome: string }[];
+  /** Qual série do CV recebe cada parte do fluxo da simulação. */
+  seriesReserva: Partial<Record<ParteDaReserva, number>>;
   /** Empreendimentos do POUP ligados a esta conta. */
   empreendimentos: number;
 }
 
 /** O que a reserva no CV encontrou para uma simulação (Edge Function `cvcrm-reserva`). */
 export interface PreparoDaReserva {
-  /** O envio ao CV só é liberado depois de o formulário do CV ser confirmado. */
-  envioLiberado: boolean;
   empreendimento: string | null;
   unidade: { cvUnidade: number; identificador: string | null; situacao: string | null; livre: boolean } | null;
   /** O corretor do CV achado pelo CPF do perfil do POUP. */
@@ -1078,8 +1081,12 @@ export interface PreparoDaReserva {
     valorFgts: number | null;
     vencimentoAprovacao: string | null;
   } | null;
+  /** O fluxo da simulação nas séries do CV, como vai na reserva. */
+  condicoes: { rotulo: string; serie: string; quantidade: number; valorParcela: number; primeiroVencimento: string | null }[];
   /** O que falta, em frase de gente. Vazia = pronto para reservar. */
   pendencias: string[];
+  /** Depois de reservar: o número da reserva no CV (quando o CV informa). */
+  cvReserva?: number | null;
 }
 
 /** O botão "Reservar no CV" de uma simulação e o último pedido dela. */
