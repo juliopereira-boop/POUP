@@ -1,7 +1,7 @@
 # Reservar unidade no CV CRM pelo POUP
 
 > **Estado (27/10/2026): o envio está implementado**, com o formulário do CV conferido na documentação que o dono do POUP mandou (`postreserva-2`, `cadastrardocumento-4`, `getreserva-2`).
-> **Ainda não foi para o Supabase:** a migration `20261027140000_cvcrm_reserva_envio.sql` e as novas versões de `cvcrm-reserva` e `cvcrm-comercial-sync` sobem juntas.
+> **No Supabase desde 27/10/2026:** a migration `20261027140000_cvcrm_reserva_envio.sql`, `cvcrm-reserva` (v2) e `cvcrm-comercial-sync` (v2).
 > A reserva só sai de verdade quando, na construtora:
 > - o admin liga **Habilitar reserva**;
 > - escolhe as **séries**;
@@ -88,6 +88,18 @@ Como o fluxo vira condições:
 
 **As séries:** qual série do CV recebe cada parte, o admin escolhe uma vez no cadastro da construtora. O usuário de integração não tem permissão para listar séries, então o POUP aprende quais existem pelo histórico de condições das reservas no CVDW (`/api/v1/cvdw/reservas/condicoes`, só id e nome da série), na leitura das :17 e :47.
 
+Na Canopus, as primeiras 2.000 condições trouxeram 8 séries:
+
+- duas de ato ("Ato" e "ATO");
+- Mensal;
+- Semestral;
+- Intermediária;
+- Financiamento;
+- FGTS;
+- Subsídio.
+
+Uma série anual ainda não apareceu. As próximas leituras continuam de onde esta parou.
+
 **O recibo:** o mesmo pedido (simulação + unidade) não entra duas vezes.
 
 - Já criada: devolve o número, sem reenviar.
@@ -100,7 +112,7 @@ Como o fluxo vira condições:
 
 ## O que falta para a primeira reserva
 
-1. **Subir para o Supabase** a migration `20261027140000` e as funções `cvcrm-reserva` e `cvcrm-comercial-sync`.
+1. ~~Subir para o Supabase a migration `20261027140000` e as funções `cvcrm-reserva` e `cvcrm-comercial-sync`.~~ Feito em 27/10/2026.
 2. **As permissões do usuário de integração no CV da construtora:**
    - "Criar nova reserva";
    - "Listar Pré-cadastros";
